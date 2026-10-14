@@ -10,7 +10,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::shortcuts::Shortcuts;
-use crate::{panel, popover, AppState};
+use crate::updates::{UpdateStatus, Updates};
+use crate::{panel, popover, quick, AppState};
 
 const TRAY_ID: &str = "pluck";
 const MAX_TASKS: usize = 8;
@@ -155,6 +156,20 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    let quick_label = match app
+        .try_state::<Shortcuts>()
+        .and_then(|s| s.quick_add_label())
+    {
+        Some(sc) => format!("Quick add…  {sc}"),
+        None => "Quick add…".to_string(),
+    };
+    menu.append(&MenuItem::with_id(
+        app,
+        "quick",
+        quick_label,
+        true,
+        None::<&str>,
+    )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "show",
@@ -187,6 +202,24 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         None::<&str>,
     )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    let update = app.try_state::<Updates>().map(|u| u.status());
+    let (update_label, update_enabled) = match update {
+        Some(UpdateStatus::Ready { version, .. }) => {
+            (format!("Restart to update to {version}"), true)
+        }
+        Some(UpdateStatus::Downloading { version, .. }) => {
+            (format!("Downloading update {version}…"), false)
+        }
+        Some(UpdateStatus::Checking) => ("Checking for updates…".to_string(), false),
+        _ => ("Check for updates…".to_string(), true),
+    };
+    menu.append(&MenuItem::with_id(
+        app,
+        "update",
+        update_label,
+        update_enabled,
+        None::<&str>,
+    )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "quit",
@@ -207,6 +240,20 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     let id = event.id.as_ref();
     match id {
         "show" | "more" => open_tab(app, "tasks"),
+        "quick" => quick::show(app),
+        "update" => {
+            let ready = app
+                .try_state::<Updates>()
+                .is_some_and(|u| matches!(u.status(), UpdateStatus::Ready { .. }));
+            if ready {
+                if let Err(e) = crate::updates::install_and_restart(app) {
+                    log::error!("update failed: {e}");
+                }
+            } else {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move { crate::updates::check(app).await });
+            }
+        }
         "models" => open_tab(app, "models"),
         "settings" => open_tab(app, "settings"),
         "snap" => panel::snap_to_edge(app),

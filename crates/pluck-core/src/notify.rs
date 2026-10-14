@@ -15,6 +15,7 @@ pub const STALE_AFTER: Duration = Duration::hours(12);
 pub const LOCAL_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct NotifySettings {
     pub enabled: bool,
     /// When to remind about tasks that have a day but no time, `HH:MM`.

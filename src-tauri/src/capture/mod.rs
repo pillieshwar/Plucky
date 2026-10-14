@@ -31,12 +31,24 @@ use pluck_core::clipboard_guard::{capture_via_clipboard, FallbackOutcome};
 use serde::Serialize;
 use tauri::AppHandle;
 
+/// Where a capture came from, so a task can link back to it.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SourceInfo {
+    /// App name, e.g. "Slack".
+    pub app: Option<String>,
+    /// Bundle identifier, used to reopen the app.
+    pub bundle: Option<String>,
+    /// Web page or document URL, when the app exposes it.
+    pub url: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CaptureResult {
     Text {
         text: String,
         method: CaptureMethod,
+        source: Option<SourceInfo>,
     },
     /// Nothing was selected, or the app doesn't allow copying it.
     NothingSelected,
@@ -45,9 +57,7 @@ pub enum CaptureResult {
     /// The clipboard holds something too large to save and restore safely.
     ClipboardBusy,
     /// Something went wrong; the message says what.
-    Failed {
-        message: String,
-    },
+    Failed { message: String },
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -55,6 +65,9 @@ pub enum CaptureResult {
 pub enum CaptureMethod {
     Accessibility,
     Clipboard,
+    /// Right-click → Services → Add to Pluck.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    Service,
 }
 
 /// How long to wait for the frontmost app to put its selection on the
@@ -100,14 +113,40 @@ where
     }
 }
 
+/// Which app (and page) has focus right now. Best effort.
+pub fn source_info() -> Option<SourceInfo> {
+    #[cfg(target_os = "macos")]
+    {
+        let info = catch_unwind(macos::source_info).ok()?;
+        (info.app.is_some() || info.url.is_some()).then_some(info)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
 /// Capture the current selection. Blocking: call from a worker thread.
 /// Returns None if another capture is already running.
-pub fn capture_selection(app: &AppHandle) -> Option<CaptureResult> {
+pub fn capture_selection(app: &AppHandle, with_source: bool) -> Option<CaptureResult> {
     if CAPTURING.swap(true, Ordering::SeqCst) {
         log::info!("capture already in progress; ignoring shortcut");
         return None;
     }
-    let result = catch_unwind(AssertUnwindSafe(|| capture_inner(app))).unwrap_or_else(|_| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        // Look before copying, while the source app certainly has focus.
+        let source = if with_source && accessibility_trusted(false) {
+            source_info()
+        } else {
+            None
+        };
+        let mut result = capture_inner(app);
+        if let CaptureResult::Text { source: s, .. } = &mut result {
+            *s = source;
+        }
+        result
+    }))
+    .unwrap_or_else(|_| {
         log::error!("capture panicked");
         CaptureResult::Failed {
             message: "Something went wrong reading the selection. Please try again.".into(),
@@ -129,6 +168,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
             return CaptureResult::Text {
                 text,
                 method: CaptureMethod::Accessibility,
+                source: None,
             };
         }
     }
@@ -154,6 +194,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
             CaptureResult::Text {
                 text,
                 method: CaptureMethod::Clipboard,
+                source: None,
             }
         }
         FallbackOutcome::NothingCopied => {

@@ -40,6 +40,22 @@
         "visible": false,
         "focus": true,
         "visibleOnAllWorkspaces": true
+      },
+      {
+        "label": "quick",
+        "title": "Pluck Quick Add",
+        "url": "index.html",
+        "width": 640,
+        "height": 300,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {
@@ -65,6 +81,15 @@
     },
     "externalBin": [
       "binaries/llama-server"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBMURFNDEwOTAwOTU3ODYKUldTR1Z3bVFFT1FkdXBEdXBONFRFVTVlcXdqSjRkeVhNdWhQbk8zV3A1REZ5RmZONnlEd3dydDAK",
+      "endpoints": [
+        "https://github.com/pillieshwar/pluck/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
