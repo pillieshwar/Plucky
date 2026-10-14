@@ -76,7 +76,11 @@ impl Engine {
     }
 
     /// Run one extraction with `model_path`, starting the server if needed.
-    pub async fn extract(&self, model_path: &Path, selection: &str) -> Result<Extraction, String> {
+    pub async fn extract(
+        &self,
+        model_path: &Path,
+        selection: &str,
+    ) -> Result<Vec<Extraction>, String> {
         self.touch();
         if let Some(ollama) = &self.ollama {
             return extract_task(ollama, selection)
