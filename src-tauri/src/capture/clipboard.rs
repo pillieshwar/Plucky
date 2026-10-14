@@ -155,7 +155,8 @@ mod mac {
             assert_eq!(text_now().as_deref(), Some("temporary"));
 
             assert!(restore_now(saved));
-            assert_eq!(text_now().as_deref(), Some("hello pluck"));
+            // macOS joins the text of multiple pasteboard items with newlines.
+            assert_eq!(text_now().as_deref(), Some("hello pluck\nsecond item"));
             let again = save_now().expect("snapshot after restore");
             assert_eq!(again.len(), 2);
             assert!(again[0]
