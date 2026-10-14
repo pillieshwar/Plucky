@@ -14,7 +14,9 @@ function short(title: string): string {
  * menu-bar popover so both behave the same.
  */
 export function taskActions(show: Show, locale: string) {
-  const fail = (e: unknown) => show(String(e), undefined, "error");
+  const fail = (e: unknown): void => {
+    show(String(e), undefined, "error");
+  };
 
   async function setDone(task: Task, done: boolean) {
     try {
