@@ -10,7 +10,8 @@
 //! * both changed the same field → the reminder wins (it is the side the
 //!   user most recently touched outside Pluck, e.g. on their iPhone).
 //!
-//! Deleting a reminder never deletes the Pluck task; the link is dropped.
+//! Deleting a reminder never deletes the Pluck task; the task is *detached*
+//! and is never re-added to Reminders.
 
 use std::collections::HashSet;
 
@@ -133,7 +134,7 @@ pub struct PassReport {
     pub created: usize,
     /// New Pluck tasks created from reminders.
     pub imported: usize,
-    /// Links dropped because the reminder was deleted.
+    /// Tasks detached because their reminder was deleted.
     pub unlinked: usize,
     /// Per-item failures; the rest of the pass still ran.
     pub errors: Vec<String>,
@@ -167,6 +168,10 @@ pub fn run_pass(
 
     // 1. Reconcile every linked pair.
     for link in store.reminder_links()? {
+        if link.detached {
+            linked_tasks.insert(link.task_id);
+            continue;
+        }
         let task = match store.get(link.task_id) {
             Ok(t) => t,
             Err(StoreError::NotFound(_)) => {
@@ -178,8 +183,13 @@ pub fn run_pass(
         let mut remote = match backend.get(&link.reminder_id) {
             Ok(Some(r)) => r,
             Ok(None) => {
-                // Deleted in Reminders: keep the task, drop the link.
-                store.remove_reminder_link(link.task_id)?;
+                // Deleted in Reminders: keep the task, and remember not to
+                // add it back.
+                store.save_reminder_link(&ReminderLink {
+                    detached: true,
+                    ..link.clone()
+                })?;
+                linked_tasks.insert(link.task_id);
                 report.unlinked += 1;
                 continue;
             }
@@ -217,6 +227,7 @@ pub fn run_pass(
                 task_id: link.task_id,
                 reminder_id: link.reminder_id,
                 base: m.result,
+                detached: false,
             })?;
         }
     }
@@ -250,6 +261,7 @@ pub fn run_pass(
             task_id: local_new[li].id,
             reminder_id: remote_new[ri].0.clone(),
             base: local_states[li].clone(),
+            detached: false,
         })?;
     }
 
@@ -270,6 +282,7 @@ pub fn run_pass(
                     task_id: task.id,
                     reminder_id: id,
                     base: state.clone(),
+                    detached: false,
                 })?;
                 report.created += 1;
             }
@@ -292,6 +305,7 @@ pub fn run_pass(
             task_id: task.id,
             reminder_id: id.clone(),
             base: SyncState::of_task(&task),
+            detached: false,
         })?;
         report.imported += 1;
     }
@@ -541,8 +555,15 @@ mod tests {
         rem.items.clear();
         let r = run_pass(&store, &mut rem, &opts()).unwrap();
         assert_eq!(r.unlinked, 1);
+        assert_eq!(r.created, 0, "a deleted reminder must not be re-created");
         assert_eq!(store.get(t.id).unwrap().title, "Keep me");
-        assert!(store.reminder_links().unwrap().is_empty());
+        assert!(store.reminder_links().unwrap().iter().all(|l| l.detached));
+        // …and it stays deleted on later passes.
+        assert_eq!(
+            run_pass(&store, &mut rem, &opts()).unwrap(),
+            PassReport::default()
+        );
+        assert!(rem.items.is_empty());
     }
 
     #[test]

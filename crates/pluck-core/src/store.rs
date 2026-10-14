@@ -87,7 +87,9 @@ CREATE TABLE reminder_links (
     reminder_id  TEXT    NOT NULL UNIQUE,
     base_title   TEXT    NOT NULL,
     base_due     TEXT,
-    base_done    INTEGER NOT NULL
+    base_done    INTEGER NOT NULL,
+    -- The reminder was deleted in Reminders: keep the task, never re-add it.
+    detached     INTEGER NOT NULL DEFAULT 0
 );
 "#,
 ];
@@ -99,6 +101,9 @@ pub struct ReminderLink {
     pub task_id: i64,
     pub reminder_id: String,
     pub base: crate::reminders_sync::SyncState,
+    /// The reminder was deleted outside Pluck; the task no longer syncs.
+    #[serde(default)]
+    pub detached: bool,
 }
 
 pub struct Store {
@@ -188,7 +193,7 @@ impl Store {
 
     pub fn reminder_links(&self) -> Result<Vec<ReminderLink>, StoreError> {
         let mut stmt = self.conn.prepare(
-            "SELECT task_id, reminder_id, base_title, base_due, base_done FROM reminder_links ORDER BY task_id",
+            "SELECT task_id, reminder_id, base_title, base_due, base_done, detached FROM reminder_links ORDER BY task_id",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(ReminderLink {
@@ -199,6 +204,7 @@ impl Store {
                     due: r.get(3)?,
                     done: r.get(4)?,
                 },
+                detached: r.get(5)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -214,15 +220,17 @@ impl Store {
     /// Create or replace the link for `link.task_id`.
     pub fn save_reminder_link(&self, link: &ReminderLink) -> Result<(), StoreError> {
         self.conn.execute(
-            "INSERT INTO reminder_links (task_id, reminder_id, base_title, base_due, base_done)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(task_id) DO UPDATE SET reminder_id = ?2, base_title = ?3, base_due = ?4, base_done = ?5",
+            "INSERT INTO reminder_links (task_id, reminder_id, base_title, base_due, base_done, detached)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(task_id) DO UPDATE SET reminder_id = ?2, base_title = ?3, base_due = ?4,
+                 base_done = ?5, detached = ?6",
             params![
                 link.task_id,
                 link.reminder_id,
                 link.base.title,
                 link.base.due,
-                link.base.done
+                link.base.done,
+                link.detached
             ],
         )?;
         Ok(())
@@ -424,6 +432,7 @@ mod tests {
                 due: Some("2026-10-16".into()),
                 done: false,
             },
+            detached: false,
         };
         s.save_reminder_link(&link).unwrap();
         assert_eq!(s.reminder_link(t.id).unwrap(), Some(link.clone()));

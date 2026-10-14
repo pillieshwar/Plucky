@@ -127,7 +127,7 @@ fn linked_count(state: &State<'_, AppState>) -> usize {
         .lock()
         .ok()
         .and_then(|s| s.reminder_links().ok())
-        .map(|l| l.len())
+        .map(|l| l.iter().filter(|l| !l.detached).count())
         .unwrap_or(0)
 }
 
