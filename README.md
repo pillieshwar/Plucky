@@ -60,3 +60,7 @@ CI (`.github/workflows/ci.yml`) runs both, then builds unsigned debug bundles on
 The initial code was written in a sandbox without access to crates.io or npm. The TypeScript date and grouping tests (27) were run there and pass in several time zones; the Rust code, including its unit tests, has **not been compiled yet** — the first CI run is its first build, so expect a round of small fixes. The Tauri shell and the macOS/Windows capture code then need the Phase 1 "capture spike" on real hardware (Slack, a browser, an editor, a terminal). Known gaps: rich-text clipboard contents are restored as plain text; the model isn't yet unloaded on battery; icons are placeholders (`npx tauri icon` regenerates them).
 
 Out of scope for the MVP, per the privacy boundary: cloud-model fallback, telemetry, calendar sync, auto-update.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
