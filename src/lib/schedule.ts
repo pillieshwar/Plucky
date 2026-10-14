@@ -24,6 +24,20 @@ export function repeatLabel(r: string | null | undefined): string | null {
   return REPEATS.find((x) => x.id === r)?.label ?? null;
 }
 
+const SHORT: Record<Repeat, string> = {
+  daily: "Daily",
+  weekdays: "Weekdays",
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+  yearly: "Yearly",
+};
+
+/** Compact label for list rows: "Weekly", "Weekdays". */
+export function repeatShort(r: string | null | undefined): string | null {
+  return r && r in SHORT ? SHORT[r as Repeat] : null;
+}
+
 export interface Schedule {
   /** `YYYY-MM-DD` or null. */
   date: string | null;

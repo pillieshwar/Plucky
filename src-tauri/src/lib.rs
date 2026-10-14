@@ -631,6 +631,7 @@ fn open_main(app: AppHandle, task_id: Option<i64>, tab: Option<String>) {
 }
 
 /// Show the panel on the task list, optionally flashing one task.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) fn open_main_at(app: &AppHandle, task_id: Option<i64>) {
     open_main(app.clone(), task_id, None);
 }

@@ -4,7 +4,7 @@ import { CalendarIcon, RepeatIcon } from "./icons";
 import { api } from "../lib/api";
 import { parseISODate } from "../lib/dates";
 import type { DayGroup } from "../lib/grouping";
-import { repeatLabel, timeLabel } from "../lib/schedule";
+import { repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import { sourceLabel, titleParts } from "../lib/taskText";
 import type { Task, TaskPatch } from "../lib/types";
@@ -168,7 +168,7 @@ function TaskRow({
   if (repeat) {
     meta.push(
       <span key="r" className="meta-repeat" title={repeat}>
-        <RepeatIcon /> {repeat.replace(/^Every /, "")}
+        <RepeatIcon /> {repeatShort(task.recurrence)}
       </span>,
     );
   }

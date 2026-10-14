@@ -617,3 +617,10 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+.panel-foot { flex-wrap: nowrap; white-space: nowrap; }
+.local-dot { flex: none; }
+.foot-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.foot-keys { flex: none; }
+.de-quick .cal-quick.clear { margin-left: 0; }
+.tag { font-size: 0.92em; }

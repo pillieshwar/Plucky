@@ -522,13 +522,16 @@ export default function App() {
       )}
 
       <footer className="panel-foot" data-tauri-drag-region>
-        <span className="local-dot" aria-hidden /> On-device · <kbd>{captureLabel}</kbd> capture
-        {quickLabel && (
-          <>
-            {" "}
-            · <kbd>{quickLabel}</kbd> type
-          </>
-        )}
+        <span className="local-dot" aria-hidden />
+        <span className="foot-text" data-tauri-drag-region>
+          On-device · <kbd>{captureLabel}</kbd> capture
+          {quickLabel && (
+            <>
+              {" "}
+              · <kbd>{quickLabel}</kbd> type
+            </>
+          )}
+        </span>
         <button type="button" className="foot-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts">
           ?
         </button>

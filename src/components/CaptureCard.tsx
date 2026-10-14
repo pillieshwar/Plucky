@@ -253,7 +253,7 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
     : draft.mustAsk && draft.date
       ? `“${draft.dateText}” could mean more than one day. Which one?`
       : draft.date
-        ? `Read “${draft.dateText}” as ${whenLabel(draft, now).toLowerCase()}.`
+        ? `Read “${draft.dateText}” as ${whenLabel(draft, now)}.`
         : `Couldn’t pin down “${draft.dateText}”. Pick a day?`;
 
   return (

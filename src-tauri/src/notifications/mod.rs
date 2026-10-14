@@ -28,6 +28,7 @@ const MAX_SEPARATE: usize = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub enum Permission {
     NotDetermined,
     Denied,
@@ -251,6 +252,7 @@ pub fn start_scheduler(app: &AppHandle) {
 
 /// The user clicked a notification (`action` = the default action) or one
 /// of its buttons.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_response(app: &AppHandle, id: &str, action: &str) {
     let Some(task_id) = id.strip_prefix("task-").and_then(|n| n.parse::<i64>().ok()) else {
         // Summary, "several due" or test notification: open the list.

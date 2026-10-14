@@ -13,7 +13,7 @@ import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRow
 import { api, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
 import { addDays, dayOrderForLocale, parseISODate, relativeLabel, toISODate } from "../lib/dates";
-import { findSchedule, repeatLabel, timeLabel } from "../lib/schedule";
+import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
@@ -59,6 +59,7 @@ export default function Popover() {
   const dragged = useRef(false);
   const dragRef = useRef<Drag | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const { toasts, show, dismiss, undoLast } = useToasts();
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
@@ -111,6 +112,11 @@ export default function Popover() {
   useEffect(() => {
     if (adding) inputRef.current?.focus();
   }, [adding]);
+
+  // Keyboard shortcuts work as soon as the popover opens.
+  useEffect(() => {
+    rootRef.current?.focus();
+  }, [openKey]);
 
   const marks = useMemo(() => dayMarks(tasks, today), [tasks, today]);
   const agenda = useMemo(() => agendaFor(tasks, selected, today), [tasks, selected, today]);
@@ -263,7 +269,7 @@ export default function Popover() {
   const empty = agenda.overdue.length === 0 && agenda.due.length === 0;
 
   return (
-    <div className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>
+    <div ref={rootRef} className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>
       {update.state === "ready" && (
         <button type="button" className="pop-update" onClick={() => void api.installUpdate().catch((e) => setError(String(e)))}>
           Pluck {update.version} is ready · <strong>Restart to update</strong>
@@ -465,7 +471,11 @@ export default function Popover() {
       </footer>
       <Toasts toasts={toasts} onDismiss={dismiss} />
       {drag && (
-        <div className="pop-ghost" style={{ left: drag.x + 10, top: drag.y + 8 }} aria-hidden>
+        <div
+          className="pop-ghost"
+          style={{ left: Math.max(8, Math.min(drag.x - 40, window.innerWidth - 236)), top: drag.y + 14 }}
+          aria-hidden
+        >
           {drag.task.title}
           {drag.over && <span> → {relativeLabel(drag.over, now, LOCALE)}</span>}
         </div>
@@ -478,7 +488,7 @@ export default function Popover() {
 function rowMeta(t: Task): string[] {
   const parts: string[] = [];
   if (t.due_time) parts.push(timeLabel(t.due_time, LOCALE));
-  const r = repeatLabel(t.recurrence);
+  const r = repeatShort(t.recurrence);
   if (r) parts.push(r);
   const src = sourceLabel(t);
   if (src) parts.push(`from ${src}`);
