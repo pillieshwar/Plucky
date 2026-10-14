@@ -44,7 +44,8 @@ pub fn download_client() -> Result<reqwest::Client, DownloadError> {
                 .host_str()
                 .is_some_and(is_allowed_download_host);
         if !allowed {
-            attempt.error(format!("redirect to {} not allowed", attempt.url()))
+            let msg = format!("redirect to {} not allowed", attempt.url());
+            attempt.error(msg)
         } else if attempt.previous().len() > 8 {
             attempt.error("too many redirects")
         } else {
