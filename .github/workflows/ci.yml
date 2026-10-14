@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  LLAMA_CPP_REF: b11609
+  CARGO_TERM_COLOR: never
+
 jobs:
   core:
     name: Rust core (tests)
@@ -20,8 +24,12 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo test -p pluck-core
-      - run: cargo clippy -p pluck-core --all-targets -- -D warnings
+      - name: Test
+        shell: bash
+        run: scripts/ci-annotate.sh cargo test -p pluck-core
+      - name: Clippy
+        shell: bash
+        run: scripts/ci-annotate.sh cargo clippy -p pluck-core --all-targets --message-format=short -- -D warnings
 
   frontend:
     name: Frontend (typecheck, tests, build)
@@ -32,7 +40,9 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run typecheck
+      - name: Typecheck
+        shell: bash
+        run: scripts/ci-annotate.sh npm run typecheck
       - run: TZ=America/Los_Angeles npm test
       - run: TZ=Pacific/Auckland npm test
       - run: npm run build
@@ -48,21 +58,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Cache llama-server build
+        uses: actions/cache@v4
+        with:
+          path: target/llama.cpp
+          key: llama-${{ runner.os }}-${{ runner.arch }}-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
+      - name: Build bundled model runtime (llama-server)
+        shell: bash
+        run: scripts/build-llama-server.sh
       - run: npm install
       - run: npm run build
-      - run: cargo clippy -p pluck --all-targets -- -D warnings
-      - name: Build unsigned bundle
-        run: npm run tauri build -- --debug
+      - name: Clippy
+        shell: bash
+        run: scripts/ci-annotate.sh cargo clippy -p pluck --all-targets --message-format=short -- -D warnings
+      - name: Build unsigned debug bundle
+        shell: bash
+        run: scripts/ci-annotate.sh npm run tauri build -- --debug
+      - name: Check the runtime is inside the bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app=$(ls -d target/debug/bundle/macos/*.app)
+          ls -l "$app/Contents/MacOS"
+          test -x "$app/Contents/MacOS/llama-server"
+          "$app/Contents/MacOS/llama-server" --version
       - uses: actions/upload-artifact@v4
         with:
           name: pluck-${{ matrix.os }}
           path: |
             target/debug/bundle/dmg/*.dmg
-            target/debug/bundle/macos/*.app
             target/debug/bundle/msi/*.msi
             target/debug/bundle/nsis/*.exe
           if-no-files-found: warn
+
+  model-catalog:
+    name: Model catalog links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every catalog file exists on Hugging Face
+        shell: bash
+        run: |
+          set -euo pipefail
+          # repo/file pairs are read straight from the catalog source.
+          grep -E '^\s+(repo|file): "' crates/pluck-core/src/models.rs | sed -E 's/.*"(.*)".*/\1/' | paste - - |
+          while read -r repo file; do
+            url="https://huggingface.co/$repo/resolve/main/$file"
+            code=$(curl -s -o /dev/null -w '%{http_code}' -I -L "$url")
+            echo "$code $url"
+            if [ "$code" != "200" ]; then echo "::error::Model file not found: $url"; exit 1; fi
+            meta=$(curl -sf "https://huggingface.co/api/models/$repo/tree/main")
+            echo "$meta" | python3 -c "import json,sys; f=[e for e in json.load(sys.stdin) if e['path']=='$file'][0]; print('  size', f.get('lfs',{}).get('size', f.get('size')), 'sha256', f.get('lfs',{}).get('oid'))"
+          done

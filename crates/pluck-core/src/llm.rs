@@ -1,7 +1,9 @@
 //! Local inference.
 //!
-//! [`OllamaClient`] talks to an Ollama server and refuses any base URL that is
-//! not a loopback address: "local" is enforced in code, not just in docs.
+//! [`LlamaServerClient`] talks to the llama-server runtime bundled inside the
+//! app; [`OllamaClient`] talks to an existing Ollama install (developer
+//! option). Both refuse any base URL that is not a loopback address: "local"
+//! is enforced in code, not just in docs.
 //! [`extract_task`] runs the constrain → validate → retry-once loop against
 //! any [`LlmBackend`], which keeps it testable without a model.
 
@@ -19,7 +21,7 @@ pub enum LlmError {
     NonLocalEndpoint(String),
     #[error("invalid endpoint URL: {0}")]
     BadUrl(String),
-    #[error("local model is not reachable — is Ollama running? ({0})")]
+    #[error("local model is not reachable ({0})")]
     Unreachable(String),
     #[error("local model returned an error: {0}")]
     Backend(String),
@@ -169,6 +171,90 @@ impl LlmBackend for OllamaClient {
     }
 }
 
+/// Client for the bundled llama.cpp `llama-server` (OpenAI-compatible API).
+///
+/// The server is started by the app on a random loopback port with a random
+/// API key, so other local processes can't use it while it runs.
+pub struct LlamaServerClient {
+    http: reqwest::Client,
+    chat_url: url::Url,
+    health_url: url::Url,
+    api_key: String,
+}
+
+impl LlamaServerClient {
+    pub fn new(
+        base_url: &str,
+        api_key: impl Into<String>,
+        timeout: Duration,
+    ) -> Result<Self, LlmError> {
+        let base = ensure_loopback(base_url)?;
+        let join = |p: &str| base.join(p).map_err(|e| LlmError::BadUrl(e.to_string()));
+        let http = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(timeout)
+            .build()
+            .map_err(|e| LlmError::Backend(e.to_string()))?;
+        Ok(Self {
+            http,
+            chat_url: join("/v1/chat/completions")?,
+            health_url: join("/health")?,
+            api_key: api_key.into(),
+        })
+    }
+
+    /// True once the model is loaded and the server accepts requests.
+    pub async fn healthy(&self) -> bool {
+        match self.http.get(self.health_url.clone()).send().await {
+            Ok(r) => r.status().is_success(),
+            Err(_) => false,
+        }
+    }
+}
+
+/// Request body for llama-server's OpenAI-compatible chat endpoint.
+pub fn llama_server_body(messages: &[ChatMessage], schema: &Value) -> Value {
+    json!({
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": { "name": "task", "schema": schema }
+        },
+        "temperature": 0,
+        "max_tokens": 160,
+        "stream": false
+    })
+}
+
+impl LlmBackend for LlamaServerClient {
+    async fn chat(&self, messages: &[ChatMessage], schema: &Value) -> Result<String, LlmError> {
+        let resp = self
+            .http
+            .post(self.chat_url.clone())
+            .bearer_auth(&self.api_key)
+            .json(&llama_server_body(messages, schema))
+            .send()
+            .await
+            .map_err(|e| LlmError::Unreachable(e.to_string()))?;
+        let status = resp.status();
+        let value: Value = resp
+            .json()
+            .await
+            .map_err(|e| LlmError::Backend(e.to_string()))?;
+        if !status.is_success() {
+            let msg = value["error"]["message"]
+                .as_str()
+                .unwrap_or("unknown error")
+                .to_string();
+            return Err(LlmError::Backend(format!("{status}: {msg}")));
+        }
+        value["choices"][0]["message"]["content"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| LlmError::Backend("response had no message content".into()))
+    }
+}
+
 /// Extract one task from a selection: constrained request, validation, and
 /// a single repair retry. A second failure is returned so the UI can fall
 /// back to a manual edit state seeded with the selection.
@@ -285,6 +371,29 @@ mod tests {
         ] {
             assert!(ensure_loopback(bad).is_err(), "{bad} should be rejected");
         }
+    }
+
+    #[test]
+    fn llama_server_body_constrains_output() {
+        let msgs = [ChatMessage::new("user", "x")];
+        let body = llama_server_body(&msgs, &json_schema());
+        assert_eq!(body["response_format"]["type"], "json_schema");
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"]["required"][0],
+            "task"
+        );
+        assert_eq!(body["temperature"], 0);
+        assert_eq!(body["stream"], false);
+    }
+
+    #[test]
+    fn llama_server_client_is_loopback_only() {
+        let t = Duration::from_secs(1);
+        assert!(LlamaServerClient::new("http://127.0.0.1:5123", "k", t).is_ok());
+        assert!(matches!(
+            LlamaServerClient::new("http://example.com:5123", "k", t),
+            Err(LlmError::NonLocalEndpoint(_))
+        ));
     }
 
     #[test]

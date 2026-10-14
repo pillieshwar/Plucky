@@ -9,14 +9,18 @@
 //! * [`llm`] — a localhost-only Ollama client plus the
 //!   "constrain → validate → retry once" extraction loop.
 //! * [`store`] — SQLite (WAL) task storage.
+//! * [`models`] — the downloadable model catalog and Hugging Face metadata.
+//! * [`download`] — resumable, checksum-verified model downloads.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
+pub mod download;
 pub mod extraction;
 pub mod llm;
+pub mod models;
 pub mod prompt;
 pub mod store;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};
-pub use llm::{extract_task, LlmBackend, LlmError, OllamaClient, OllamaConfig};
+pub use llm::{extract_task, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig};
 pub use store::{NewTask, Store, StoreError, Task, TaskPatch};

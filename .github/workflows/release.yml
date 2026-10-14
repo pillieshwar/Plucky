@@ -1,0 +1,126 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the Mac app and publish it as a GitHub
+# Release. The "Download Pluck" button links to
+#   https://github.com/<owner>/<repo>/releases/latest/download/Pluck-macOS.dmg
+# which always points at the newest release.
+#
+# Signing (optional): add these repository secrets to ship a Developer ID
+# signed and notarized app that opens without any Gatekeeper warning:
+#   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+#   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID
+# Without them the app is ad-hoc signed and users confirm it once in
+# System Settings → Privacy & Security → Open Anyway.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LLAMA_CPP_REF: b11609
+  CARGO_TERM_COLOR: never
+
+jobs:
+  macos:
+    name: Build and publish Mac app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match tauri.conf.json version $version"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache llama-server build
+        uses: actions/cache@v4
+        with:
+          path: target/llama.cpp
+          key: llama-universal-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
+
+      - name: Build bundled model runtime (universal llama-server)
+        shell: bash
+        run: scripts/build-llama-server.sh universal-apple-darwin
+
+      - run: npm install
+
+      - name: Build Pluck.app and .dmg (universal)
+        shell: bash
+        env:
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          AID: ${{ secrets.APPLE_ID }}
+          APW: ${{ secrets.APPLE_PASSWORD }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CERT" ]; then
+            echo "Signing with Developer ID and notarizing"
+            export APPLE_CERTIFICATE="$CERT" APPLE_CERTIFICATE_PASSWORD="$CERT_PASSWORD" \
+                   APPLE_SIGNING_IDENTITY="$IDENTITY" APPLE_ID="$AID" APPLE_PASSWORD="$APW" APPLE_TEAM_ID="$TEAM"
+          else
+            echo "::warning::No Apple signing secrets — building an ad-hoc signed app (users confirm it once in Privacy & Security)."
+            # Ad-hoc signing keeps Apple silicon from reporting the app as "damaged".
+            export APPLE_SIGNING_IDENTITY="-"
+          fi
+          scripts/ci-annotate.sh npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+
+      - name: Verify bundle
+        shell: bash
+        run: |
+          app=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app)
+          lipo -info "$app/Contents/MacOS/llama-server"
+          lipo -info "$app/Contents/MacOS/pluck" || lipo -info "$app/Contents/MacOS/Pluck"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/llama-server" --version
+
+      - name: Prepare release files
+        id: files
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          dmg=$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
+          cp "$dmg" dist-release/Pluck-macOS.dmg
+          cp "$dmg" "dist-release/$(basename "$dmg")"
+          (cd dist-release && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pluck-macOS
+          path: dist-release/*
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Download
+
+          **[Download Pluck for Mac](https://github.com/${{ github.repository }}/releases/latest/download/Pluck-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
+
+          1. Open `Pluck-macOS.dmg` and drag **Pluck** into **Applications**.
+          2. Open Pluck. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          3. In Pluck's **Models** tab, download a model (about 2 GB, once).
+          4. Select text anywhere and press **⌘⇧T**.
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist-release/* \
+            --title "Pluck $GITHUB_REF_NAME" --notes-file notes.md --verify-tag

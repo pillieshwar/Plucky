@@ -1,94 +1,39 @@
 # Pluck
 
-Select text anywhere, press **⌘⇧T** (macOS) or **Ctrl+Shift+T** (Windows), and get a private, dated task in a day-grouped side panel. Extraction runs on a small model on your own computer; nothing leaves the machine.
+Select text anywhere, press **⌘⇧T**, and get a private, dated task in a side panel. Pluck reads your selection with a small AI model that runs on your own Mac — nothing you select ever leaves your computer.
 
-This is the Phase 2 MVP from the feasibility study ("Text-to-Task Desktop App — Research", 13 Oct 2026): a Tauri v2 tray app with a Rust backend, a React/TypeScript panel, Ollama for local inference and SQLite for storage.
+<a href="https://github.com/pillieshwar/pluck/releases/latest/download/Pluck-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Pluck for Mac" width="248" height="52"></a>
 
-## Install on a Mac
+macOS 11 Big Sur or later · Apple silicon and Intel · plus one model download (about 2 GB) from inside the app
 
-> **Early build.** There's no signed download yet, so for now you build Pluck once on your Mac (about 10 minutes, mostly waiting). Requires macOS 11 Big Sur or later; Apple silicon or Intel.
+## Install
 
-### 1. Install the local model (Ollama)
+1. **Download** — click the button above. `Pluck-macOS.dmg` lands in your Downloads folder.
+2. **Install** — open the file and drag **Pluck** into **Applications**.
+3. **Open it** — launch Pluck from Applications. If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**, then confirm. You only do this once.
+4. **Get a model** — on first launch Pluck's panel opens on the **Models** tab. Click **Download** on *Llama 3.2 3B Instruct* (recommended). It downloads once (about 2 GB) and can be paused and resumed.
+5. **Allow Accessibility** — select some text in any app and press **⌘⇧T**. When asked, click **Grant access** and switch on **Pluck** in **System Settings → Privacy & Security → Accessibility**. This is how macOS lets an app read the text you've selected.
 
-Pluck reads your selections with a small AI model that runs on your Mac. [Ollama](https://ollama.com) runs that model.
+That's it. There's nothing else to install — the model runtime is built into the app.
 
-1. Download Ollama from [ollama.com/download](https://ollama.com/download), open it, and drag it to **Applications**. Open it once; a llama icon appears in your menu bar.
-2. Open **Terminal** (⌘Space, type "Terminal") and download the model Pluck uses (about 2 GB, one time):
-
-   ```bash
-   ollama pull llama3.2:3b
-   ```
-
-Keep Ollama running in the menu bar whenever you use Pluck. It only loads the model when you capture something and unloads it after 5 idle minutes.
-
-### 2. Install the build tools (one time)
-
-Paste each line into Terminal:
-
-```bash
-# Apple's command-line developer tools (a dialog opens — click Install)
-xcode-select --install
-
-# Rust (press Enter to accept the defaults), then load it into this Terminal window
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
-```
-
-Then install **Node.js 20 or newer** with the macOS installer from [nodejs.org](https://nodejs.org) (choose the LTS version). If you use Homebrew, `brew install node` works too.
-
-Check everything is in place — each command should print a version number:
-
-```bash
-cargo --version && node --version && ollama --version
-```
-
-### 3. Build Pluck
-
-```bash
-git clone https://github.com/pillieshwar/pluck.git
-cd pluck
-npm install
-npm run tauri build
-```
-
-The first build downloads and compiles a lot of code; 5–10 minutes is normal. When it finishes, it prints the path of a disk image, something like `target/release/bundle/dmg/Pluck_0.1.0_aarch64.dmg`. Open it:
-
-```bash
-open target/release/bundle/dmg/*.dmg
-```
-
-Drag **Pluck** into **Applications**, then eject the disk image.
-
-### 4. First launch
-
-1. Open **Pluck** from Applications. Because this build isn't signed by an Apple developer account, macOS will block it the first time ("Apple could not verify…"). Click **Done** (or **Cancel**), then go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Pluck message. Confirm with your password. You only do this once.
-2. Pluck has no Dock icon. Look for its icon in the **menu bar** (top right of the screen).
-3. **Grant Accessibility access.** Select some text in any app and press **⌘⇧T**. Pluck will ask for Accessibility permission — this is how macOS lets an app read the text you've selected. Click **Grant access**, then in **System Settings → Privacy & Security → Accessibility**, turn on **Pluck**. Press ⌘⇧T again.
-
-### 5. Using it
+## Using Pluck
 
 - **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⌘⇧T**. The panel slides in on the right with a suggested task and due date.
-- **Confirm:** edit the title if you like, pick or change the date, and press **Return** to add it. **Esc** discards it.
-- **If the date is unclear** ("next Friday", "soon", or no date at all), Pluck asks you to choose instead of guessing.
-- **Open the list any time:** click the menu-bar icon → **Show tasks**. Tick a task to complete it; double-click a title to rename it; hover a task to change its date or delete it. Press **Esc** to hide the panel.
-- **Start at login (optional):** System Settings → General → Login Items → click **+** and choose Pluck.
+- **Confirm:** edit the title if you like, pick or change the date, and press **Return**. **Esc** discards it.
+- **Unclear dates** ("next Friday", "soon", or no date) — Pluck asks instead of guessing.
+- **Your list:** click the Pluck icon in the menu bar → **Show tasks**. Tick to complete, double-click to rename, hover to change the date or delete. **Esc** hides the panel.
+- **Models:** menu bar icon → **Models…** to download another model, switch models, or remove one to free space. The first capture after a pause takes a few seconds while the model loads; it unloads itself after 5 idle minutes to give the memory back.
+- **Start at login (optional):** System Settings → General → Login Items → **+** → Pluck.
 
-Your tasks are stored only on this Mac, in `~/Library/Application Support/app.pluck.desktop/tasks.db`.
+**Privacy:** your tasks are stored only on this Mac (`~/Library/Application Support/app.pluck.desktop/`). The only time Pluck uses the internet is when you press **Download** in the Models tab; model files come from Hugging Face and are checked against their published SHA-256 checksum.
 
 ### Updating
 
-```bash
-cd pluck
-git pull
-npm install
-npm run tauri build
-```
-
-Then drag the new Pluck from the disk image into Applications, replacing the old one. Your tasks are kept. macOS may ask for Accessibility permission again (see troubleshooting below).
+Download the latest version with the same button and drag it into Applications, replacing the old one. Your tasks and models are kept. If captures stop working afterwards, see the Accessibility tip below.
 
 ### Uninstalling
 
-Quit Pluck from its menu-bar icon, delete it from Applications, and remove it from System Settings → Privacy & Security → Accessibility. To delete your tasks too:
+Quit Pluck from its menu-bar icon, drag it from Applications to the Bin, and remove it from **Privacy & Security → Accessibility**. To also delete your tasks and downloaded models:
 
 ```bash
 rm -rf ~/Library/Application\ Support/app.pluck.desktop
@@ -98,14 +43,13 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 
 | What you see | What to do |
 | --- | --- |
-| "Local model isn't reachable" banner | Make sure Ollama is running (llama icon in the menu bar) and that you ran `ollama pull llama3.2:3b`. Then click **Retry**. |
-| ⌘⇧T does nothing | Check Pluck's icon is in the menu bar. Another app may already use ⌘⇧T (some browsers reopen closed tabs with it) — quit that app or try in a different one. |
-| "No selected text found" | Select the text again and press ⌘⇧T. Password fields and some secure apps can't be read by design. |
-| Permission keeps being requested after an update | Unsigned rebuilds look like a new app to macOS. In **Privacy & Security → Accessibility**, select Pluck, remove it with **–**, then add it back with **+** (or capture again and re-grant). |
-| The first capture after a while is slow | The model is loading into memory (a few seconds). Captures right after are fast. |
-| Build fails with "xcrun: error" | Run `xcode-select --install` again and retry the build. |
-
-Pluck uses the `llama3.2:3b` model. To try a different one (for example `qwen3:4b-instruct`), pull it with Ollama and launch Pluck from Terminal with `open --env PLUCK_MODEL=qwen3:4b-instruct -a Pluck` (quit Pluck first). Apps opened from Finder or at login don't get this setting, so they use the default model.
+| "Pluck is damaged and can't be opened" | The download was interrupted or altered. Delete it and download again. |
+| "Apple could not verify Pluck…" | Expected for this early build. Use **Privacy & Security → Open Anyway** (step 3 above). |
+| ⌘⇧T does nothing | Check the Pluck icon is in the menu bar. Another app may own ⌘⇧T (some browsers use it to reopen tabs). |
+| "No selected text found" | Select the text again and press ⌘⇧T. Password fields and some secure apps can't be read, by design. |
+| Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Pluck with **–**, then capture again and re-grant. |
+| A model download failed | Click **Resume download** in the Models tab — it continues where it stopped. |
+| "The model took too long to load" | Close some memory-heavy apps, or switch to *Llama 3.2 1B* in the Models tab. |
 
 ## How a capture works
 
@@ -116,7 +60,7 @@ shortcut released ─▶ capture selection ─▶ show panel ─▶ extract (127
 ```
 
 1. **Capture** (`src-tauri/src/capture/`) — reads the selection through macOS Accessibility (`AXSelectedText`) or Windows UI Automation (`TextPattern`). If that fails, it synthesizes Copy, reads the text, and restores your clipboard only if its change counter proves nothing else wrote to it in between. It refuses to touch a clipboard holding images or files.
-2. **Extract** (`crates/pluck-core/src/llm.rs`) — one request to Ollama on localhost with a 3-field JSON Schema (`task`, `date_text`, `date_confidence`), temperature 0. Output is validated in Rust; one repair retry, then the panel falls back to a manual edit state. The client refuses any non-loopback URL.
+2. **Extract** (`src-tauri/src/engine.rs`, `crates/pluck-core/src/llm.rs`) — the bundled llama.cpp `llama-server` is started on demand on a random 127.0.0.1 port with a random API key, and gets one request with a 3-field JSON Schema (`task`, `date_text`, `date_confidence`), temperature 0. Output is validated in Rust; one repair retry, then the panel falls back to a manual edit state. Clients refuse any non-loopback URL. The server stops after 5 idle minutes.
 3. **Resolve the date** (`src/lib/dates.ts`) — the model only copies the phrase ("by Friday"); code turns it into a day against today's real date. Ambiguous phrases ("next Friday" on a Tuesday, `3/4`) offer both readings and ask.
 4. **Store** (`crates/pluck-core/src/store.rs`) — SQLite in WAL mode in the app data folder. Due dates are calendar days; creation time is UTC plus your time zone.
 
@@ -125,42 +69,56 @@ Selected text is treated as untrusted: instructions stay in the system prompt, t
 ## Layout
 
 ```
-crates/pluck-core/   Platform-independent Rust: schema, prompt, Ollama client, clipboard guard, SQLite store (unit-tested)
-src-tauri/           Tauri v2 shell: tray, global shortcut, docked panel, OS capture code, commands
-src/                 React/TypeScript panel; src/lib holds date resolution and grouping (unit-tested)
+crates/pluck-core/   Platform-independent Rust: schema, prompt, model clients, model catalog + verified downloads,
+                     clipboard guard, SQLite store (unit-tested)
+src-tauri/           Tauri v2 shell: tray, shortcut, docked panel, OS capture, llama-server engine, model manager
+src/                 React/TypeScript panel (Tasks and Models tabs); src/lib holds date logic and grouping (unit-tested)
+scripts/             build-llama-server.sh builds the bundled runtime from llama.cpp source
 ```
 
-## Running it
+## Building from source
 
-Prerequisites: Rust (stable), Node 20+, [Ollama](https://ollama.com), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS.
+Prerequisites: Rust (stable), Node 20+, CMake, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (on macOS: `xcode-select --install`).
 
 ```bash
-ollama pull llama3.2:3b          # or: qwen3:4b-instruct  (then set PLUCK_MODEL)
 npm install
-npm run tauri dev
+scripts/build-llama-server.sh      # builds the bundled runtime once (a few minutes)
+npm run tauri dev                  # run in development
+npm run tauri build                # produce Pluck.app and a .dmg in target/release/bundle/
 ```
 
-On macOS, the first capture asks for **Accessibility** permission (System Settings → Privacy & Security → Accessibility). During `tauri dev` the permission is granted to your terminal app, not to Pluck.
+During `tauri dev`, macOS grants Accessibility permission to your terminal app, not to Pluck. Models downloaded in the Models tab go to the same app-data folder as the installed app.
 
-Optional environment variables: `PLUCK_MODEL` (default `llama3.2:3b`), `PLUCK_OLLAMA_URL` (default `http://127.0.0.1:11434`, must be loopback).
+Developer option: set `PLUCK_OLLAMA_URL=http://127.0.0.1:11434` (and optionally `PLUCK_MODEL`) to use an existing Ollama instead of the bundled runtime.
+
+### Releasing
+
+Bump `version` in `src-tauri/tauri.conf.json`, commit, then tag and push:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` builds a universal (Apple silicon + Intel) `.dmg` with the runtime inside and publishes it as a GitHub Release. The Download button always points at the newest release's `Pluck-macOS.dmg`. Add the Apple signing secrets listed in that workflow to ship a notarized app that opens without the Gatekeeper prompt.
 
 ### Tests
 
 ```bash
-cargo test -p pluck-core   # schema, prompt sanitizing, retry loop, clipboard guard, store
-npm test                   # date resolution and day grouping
+cargo test -p pluck-core   # schema, prompt, retry loop, downloads (resume/checksum), clipboard guard, store
+npm test                   # date resolution, day grouping, formatting
 ```
 
-CI (`.github/workflows/ci.yml`) runs both, then builds unsigned debug bundles on macOS and Windows.
+CI (`.github/workflows/ci.yml`) runs both, builds the runtime and debug app bundles on macOS and Windows, and checks every model in the catalog still exists on Hugging Face.
 
 ## Choices that differ from the study
 
 - **Date parsing** uses a small, purpose-built resolver instead of chrono-node. Deadline phrases need explicit ambiguity reporting (which chrono-node resolves silently), and keeping it dependency-free makes it easy to test across time zones. chrono-node can be added later as a fallback for long-tail phrases.
+- **Runtime:** the study planned Ollama for the MVP and a bundled llama-server later; Pluck now ships the bundled runtime directly so users install one app and download models from inside it.
 - **SQLite** is accessed from Rust with `rusqlite` rather than `tauri-plugin-sql`, so the webview never gets direct database access and the capability file stays minimal.
 
 ## Status
 
-The initial code was written in a sandbox without access to crates.io or npm. The TypeScript date and grouping tests (27) were run there and pass in several time zones; the Rust code, including its unit tests, has **not been compiled yet** — the first CI run is its first build, so expect a round of small fixes. The Tauri shell and the macOS/Windows capture code then need the Phase 1 "capture spike" on real hardware (Slack, a browser, an editor, a terminal). Known gaps: rich-text clipboard contents are restored as plain text; the model isn't yet unloaded on battery; icons are placeholders (`npx tauri icon` regenerates them).
+Early build. The Rust core and frontend pass CI; the macOS app builds in CI. The bundled runtime was tested end to end with the app's exact launch flags and request format. Still to do: the Phase 1 "capture spike" on real hardware (Slack, a browser, an editor, a terminal), Developer ID signing so the app opens without the Gatekeeper prompt, and real icons (`npx tauri icon` regenerates them). Known gaps: rich-text clipboard contents are restored as plain text; the model isn't unloaded early on battery.
 
 Out of scope for the MVP, per the privacy boundary: cloud-model fallback, telemetry, calendar sync, auto-update.
 

@@ -1,12 +1,15 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
+import { ModelsTab } from "./components/ModelsTab";
 import { TaskList, shortcutLabel } from "./components/TaskList";
-import { api, onCapture, onTasksChanged } from "./lib/api";
+import { api, onCapture, onOpenTab, onTasksChanged } from "./lib/api";
 import { toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import type { CaptureResult, NewTask, Status, Task, TaskPatch } from "./lib/types";
 
 const LOCALE = navigator.language;
+
+type Tab = "tasks" | "models";
 
 export default function App() {
   const [now, setNow] = useState(() => new Date());
@@ -14,7 +17,10 @@ export default function App() {
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("tasks");
   const captureSeq = useRef(0);
+  const statusRef = useRef<Status | null>(null);
+  const onboarded = useRef(false);
   const today = toISODate(now);
 
   const refresh = useCallback(async () => {
@@ -27,7 +33,14 @@ export default function App() {
 
   const checkStatus = useCallback(async () => {
     try {
-      setStatus(await api.status());
+      const s = await api.status();
+      statusRef.current = s;
+      setStatus(s);
+      // First run: no model yet, so start on the Models tab.
+      if (!onboarded.current) {
+        onboarded.current = true;
+        if (s.engine === "bundled" && !s.active_model) setTab("models");
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -58,7 +71,17 @@ export default function App() {
       setCapture({ phase: "notice", result });
       return;
     }
+    setTab("tasks");
     const selection = result.text;
+    const st = statusRef.current;
+    if (st && st.engine === "bundled" && !st.active_model) {
+      setCapture({
+        phase: "manual",
+        selection,
+        error: "No model downloaded yet — add this one by hand, or get a model in the Models tab.",
+      });
+      return;
+    }
     setCapture({ phase: "extracting", selection });
     try {
       const extraction = await api.extract(selection);
@@ -69,7 +92,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const subs = [onCapture((r) => void handleCapture(r)), onTasksChanged(() => void refresh())];
+    const subs = [
+      onCapture((r) => void handleCapture(r)),
+      onTasksChanged(() => void refresh()),
+      onOpenTab((t) => setTab(t === "models" ? "models" : "tasks")),
+    ];
     return () => {
       subs.forEach((p) => void p.then((unlisten) => unlisten()));
     };
@@ -125,9 +152,13 @@ export default function App() {
     <div className="panel">
       <header className="panel-head" data-tauri-drag-region>
         <div data-tauri-drag-region>
-          <h1>Tasks</h1>
+          <h1>{tab === "tasks" ? "Tasks" : "Models"}</h1>
           <p className="sub">
-            {now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · {open} open
+            {tab === "tasks"
+              ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
+              : status?.active_model
+                ? `Using ${status.active_model}`
+                : "No model yet"}
           </p>
         </div>
         <button className="icon" onClick={() => void api.hidePanel()} aria-label="Hide panel" title="Hide (Esc)">
@@ -135,14 +166,28 @@ export default function App() {
         </button>
       </header>
 
+      <nav className="tabs" role="tablist" aria-label="Sections">
+        {(["tasks", "models"] as const).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={tab === t ? "tab on" : "tab"}
+            onClick={() => setTab(t)}
+          >
+            {t === "tasks" ? "Tasks" : "Models"}
+          </button>
+        ))}
+      </nav>
+
       {status && !status.accessibility && !capture && (
         <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
           Pluck needs Accessibility permission to read selected text.
         </Banner>
       )}
-      {status && !status.model_reachable && (
-        <Banner tone="warn" action={{ label: "Retry", run: checkStatus }}>
-          Local model <code>{status.model}</code> isn’t reachable. Start Ollama and run <code>ollama pull {status.model}</code>.
+      {tab === "tasks" && status?.engine === "bundled" && !status.active_model && (
+        <Banner tone="warn" action={{ label: "Get a model", run: () => setTab("models") }}>
+          Download a model so Pluck can read your selections.
         </Banner>
       )}
       {error && (
@@ -151,12 +196,16 @@ export default function App() {
         </Banner>
       )}
 
-      {capture && (
+      {tab === "tasks" && capture && (
         <CaptureCard state={capture} now={now} onSave={save} onCancel={() => setCapture(null)} onGrantAccess={grantAccess} />
       )}
 
       <main className="panel-body">
-        <TaskList groups={groups} onUpdate={update} onDelete={remove} />
+        {tab === "tasks" ? (
+          <TaskList groups={groups} onUpdate={update} onDelete={remove} />
+        ) : (
+          <ModelsTab onChanged={checkStatus} />
+        )}
       </main>
 
       <footer className="panel-foot">

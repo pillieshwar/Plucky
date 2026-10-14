@@ -40,7 +40,33 @@ export type CaptureResult =
 
 export interface Status {
   accessibility: boolean;
-  model: string;
-  model_reachable: boolean;
-  model_error: string | null;
+  /** "bundled" (default) or "ollama" (developer override). */
+  engine: "bundled" | "ollama";
+  /** Name of the model captures will use, or null if none is downloaded. */
+  active_model: string | null;
 }
+
+/** Mirrors `models::ModelView` (catalog entry + local state). */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  license: string;
+  repo: string;
+  file: string;
+  approx_size_mb: number;
+  min_ram_gb: number;
+  recommended: boolean;
+  installed: boolean;
+  active: boolean;
+  partial_bytes: number;
+  progress: { downloaded: number; total: number } | null;
+}
+
+/** Mirrors `models::DownloadEvent`. */
+export type DownloadEvent =
+  | { state: "progress"; id: string; downloaded: number; total: number }
+  | { state: "done"; id: string }
+  | { state: "cancelled"; id: string }
+  | { state: "failed"; id: string; error: string };

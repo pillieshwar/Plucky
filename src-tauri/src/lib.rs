@@ -1,19 +1,21 @@
 //! Pluck desktop shell: tray icon, global shortcut, docked task panel.
 //!
 //! Lifecycle of one capture:
-//!   shortcut released → capture selection (worker thread, before the panel
-//!   takes focus) → emit `capture` to the panel and show it → the panel calls
-//!   `extract` (one localhost request) → user confirms the date → `add_task`
-//!   (one SQLite write). Nothing runs in the background between captures.
+//!   shortcut released → pre-warm the bundled model runtime and capture the
+//!   selection (worker thread, before the panel takes focus) → emit `capture`
+//!   to the panel and show it → the panel calls `extract` (one localhost
+//!   request) → user confirms the date → `add_task` (one SQLite write).
+//!   The runtime stops itself after a few idle minutes.
 
 mod capture;
+mod engine;
+mod models;
 mod panel;
 
 use std::sync::Mutex;
+use std::time::Duration;
 
-use pluck_core::{
-    extract_task, Extraction, NewTask, OllamaClient, OllamaConfig, Store, Task, TaskPatch,
-};
+use pluck_core::{Extraction, NewTask, Store, Task, TaskPatch};
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -21,10 +23,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::capture::CaptureResult;
+use crate::engine::Engine;
+use crate::models::{ModelManager, ModelView};
 
 pub struct AppState {
     store: Mutex<Store>,
-    llm: OllamaClient,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -36,8 +39,17 @@ fn err(e: impl std::fmt::Display) -> String {
 // ── Commands ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-async fn extract(state: State<'_, AppState>, selection: String) -> CmdResult<Extraction> {
-    extract_task(&state.llm, &selection).await.map_err(err)
+async fn extract(
+    engine: State<'_, Engine>,
+    models: State<'_, ModelManager>,
+    selection: String,
+) -> CmdResult<Extraction> {
+    let path = match models.active() {
+        Some(m) => models.path_for(m),
+        None if engine.kind() == "ollama" => Default::default(),
+        None => return Err("No model downloaded yet. Open the Models tab to get one.".into()),
+    };
+    engine.extract(&path, &selection).await
 }
 
 #[tauri::command]
@@ -88,20 +100,61 @@ fn delete_task(app: AppHandle, state: State<'_, AppState>, id: i64) -> CmdResult
 #[derive(Serialize)]
 struct Status {
     accessibility: bool,
-    model: String,
-    model_reachable: bool,
-    model_error: Option<String>,
+    /// "bundled" (default) or "ollama" (developer override).
+    engine: &'static str,
+    /// Name of the model captures will use, if one is installed.
+    active_model: Option<&'static str>,
 }
 
 #[tauri::command]
-async fn status(state: State<'_, AppState>) -> CmdResult<Status> {
-    let warm = state.llm.warm_up().await;
-    Ok(Status {
+fn status(engine: State<'_, Engine>, models: State<'_, ModelManager>) -> Status {
+    Status {
         accessibility: capture::accessibility_trusted(false),
-        model: state.llm.config().model.clone(),
-        model_reachable: warm.is_ok(),
-        model_error: warm.err().map(err),
-    })
+        engine: engine.kind(),
+        active_model: models.active().map(|m| m.name),
+    }
+}
+
+// ── Models tab ──────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn list_models(models: State<'_, ModelManager>) -> Vec<ModelView> {
+    models.list()
+}
+
+#[tauri::command]
+fn download_model(app: AppHandle, id: String) -> CmdResult<()> {
+    models::start_download(app, id)
+}
+
+#[tauri::command]
+fn cancel_download(models: State<'_, ModelManager>, id: String) {
+    models.cancel(&id);
+}
+
+#[tauri::command]
+async fn delete_model(
+    engine: State<'_, Engine>,
+    models: State<'_, ModelManager>,
+    id: String,
+) -> CmdResult<()> {
+    models.delete(&engine, &id).await
+}
+
+#[tauri::command]
+async fn set_active_model(
+    engine: State<'_, Engine>,
+    models: State<'_, ModelManager>,
+    id: String,
+) -> CmdResult<()> {
+    let model = pluck_core::models::find(&id).ok_or("unknown model")?;
+    if !models.is_installed(model) {
+        return Err("Download this model before using it.".into());
+    }
+    models.set_active(Some(&id))?;
+    // Free the old model's memory now; the new one loads on next capture.
+    engine.stop().await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -126,6 +179,14 @@ fn capture_shortcut() -> Shortcut {
 }
 
 fn on_capture(app: AppHandle) {
+    // Start loading the model while the user reviews the capture.
+    let warm_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let models = warm_app.state::<ModelManager>();
+        if let Some(m) = models.active() {
+            warm_app.state::<Engine>().warm(&models.path_for(m)).await;
+        }
+    });
     tauri::async_runtime::spawn(async move {
         // Capture before showing the panel so the source app still has focus.
         let result = tauri::async_runtime::spawn_blocking(capture::capture_selection)
@@ -136,17 +197,6 @@ fn on_capture(app: AppHandle) {
             log::error!("failed to deliver capture: {e}");
         }
     });
-}
-
-fn llm_config() -> OllamaConfig {
-    let mut cfg = OllamaConfig::default();
-    if let Ok(m) = std::env::var("PLUCK_MODEL") {
-        cfg.model = m;
-    }
-    if let Ok(u) = std::env::var("PLUCK_OLLAMA_URL") {
-        cfg.base_url = u;
-    }
-    cfg
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────
@@ -171,23 +221,39 @@ pub fn run() {
 
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
+            let log_dir = app.path().app_log_dir()?;
+            std::fs::create_dir_all(&log_dir)?;
             let store = Store::open(data_dir.join("tasks.db"))?;
-            let llm = OllamaClient::new(llm_config())?;
             app.manage(AppState {
                 store: Mutex::new(store),
-                llm,
+            });
+            app.manage(ModelManager::new(&data_dir));
+            app.manage(Engine::new(&log_dir));
+
+            // Release the model's memory after a few idle minutes.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    handle.state::<Engine>().stop_if_idle().await;
+                }
             });
 
             app.global_shortcut().register(capture_shortcut())?;
 
             let show = MenuItem::with_id(app, "show", "Show tasks", true, None::<&str>)?;
+            let models_item = MenuItem::with_id(app, "models", "Models…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Pluck", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &models_item, &quit])?;
             let mut tray = TrayIconBuilder::with_id("pluck")
                 .tooltip("Pluck — select text, press ⌘⇧T / Ctrl+Shift+T")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => panel::toggle(app),
+                    "models" => {
+                        panel::show(app);
+                        let _ = app.emit_to("panel", "open-tab", "models");
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 });
@@ -195,6 +261,14 @@ pub fn run() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
+
+            // First launch: no model yet, so open the panel (on the Models tab)
+            // instead of starting silently in the menu bar.
+            if app.state::<ModelManager>().active().is_none()
+                && app.state::<Engine>().kind() == "bundled"
+            {
+                panel::show(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -205,8 +279,18 @@ pub fn run() {
             delete_task,
             status,
             request_accessibility,
-            hide_panel
+            hide_panel,
+            list_models,
+            download_model,
+            cancel_download,
+            delete_model,
+            set_active_model
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Pluck");
+        .build(tauri::generate_context!())
+        .expect("error while building Pluck")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                app.state::<Engine>().kill_now();
+            }
+        });
 }

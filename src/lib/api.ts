@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { CaptureResult, Extraction, NewTask, Status, Task, TaskPatch } from "./types";
+import type { CaptureResult, DownloadEvent, Extraction, ModelInfo, NewTask, Status, Task, TaskPatch } from "./types";
 
 export const api = {
   extract: (selection: string) => invoke<Extraction>("extract", { selection }),
@@ -11,6 +11,11 @@ export const api = {
   status: () => invoke<Status>("status"),
   requestAccessibility: () => invoke<boolean>("request_accessibility"),
   hidePanel: () => invoke<void>("hide_panel"),
+  listModels: () => invoke<ModelInfo[]>("list_models"),
+  downloadModel: (id: string) => invoke<void>("download_model", { id }),
+  cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
+  deleteModel: (id: string) => invoke<void>("delete_model", { id }),
+  setActiveModel: (id: string) => invoke<void>("set_active_model", { id }),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
@@ -19,4 +24,13 @@ export function onCapture(handler: (r: CaptureResult) => void): Promise<Unlisten
 
 export function onTasksChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("tasks-changed", () => handler());
+}
+
+export function onModelDownload(handler: (e: DownloadEvent) => void): Promise<UnlistenFn> {
+  return listen<DownloadEvent>("model-download", (e) => handler(e.payload));
+}
+
+/** Tray menu → "Models…" asks the panel to switch tabs. */
+export function onOpenTab(handler: (tab: string) => void): Promise<UnlistenFn> {
+  return listen<string>("open-tab", (e) => handler(e.payload));
 }
