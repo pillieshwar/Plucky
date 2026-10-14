@@ -61,13 +61,20 @@ pub enum CaptureMethod {
 /// clipboard. Electron apps (Slack) can take several hundred milliseconds.
 const COPY_TIMEOUT: Duration = Duration::from_millis(1200);
 /// How long to wait for a main-thread clipboard call.
+#[cfg(target_os = "macos")]
 const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(3);
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
+/// Tests that touch the real system clipboard or post key events run one at
+/// a time.
+#[cfg(all(test, target_os = "macos"))]
+pub(crate) static SYSTEM_CLIPBOARD_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Run `f` on the main thread and wait for its result. Returns None if the
 /// main thread is unavailable, too slow, or `f` panicked. Never call this
-/// from the main thread itself.
+/// from the main thread itself. (Only macOS needs this.)
+#[cfg(target_os = "macos")]
 pub(crate) fn on_main<T, F>(app: &AppHandle, f: F) -> Option<T>
 where
     T: Send + 'static,

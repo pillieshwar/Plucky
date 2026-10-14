@@ -238,6 +238,9 @@ mod tests {
     /// Accessibility permission, so they exercise the failure paths).
     #[test]
     fn copy_and_ax_calls_are_safe_off_the_main_thread() {
+        let _guard = crate::capture::SYSTEM_CLIPBOARD_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let handle = std::thread::spawn(|| {
             let _ = selected_text();
             let _ = press_copy_menu_item();

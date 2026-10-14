@@ -118,10 +118,7 @@ mod mac {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use std::sync::Mutex;
-
-        /// Tests share the system pasteboard; run them one at a time.
-        static PASTEBOARD: Mutex<()> = Mutex::new(());
+        use crate::capture::SYSTEM_CLIPBOARD_TEST_LOCK as PASTEBOARD;
 
         fn write_items(items: &[&[(&str, &[u8])]]) {
             let pb = NSPasteboard::generalPasteboard();
