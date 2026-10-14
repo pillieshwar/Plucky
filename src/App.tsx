@@ -1,15 +1,31 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
-import { TaskList, shortcutLabel } from "./components/TaskList";
-import { api, onCapture, onOpenTab, onPanelCollapsed, onTasksChanged } from "./lib/api";
+import { SettingsTab } from "./components/SettingsTab";
+import { TaskList } from "./components/TaskList";
+import {
+  api,
+  onCapture,
+  onHighlightTask,
+  onOpenTab,
+  onPanelCollapsed,
+  onShortcutsChanged,
+  onTasksChanged,
+} from "./lib/api";
+import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import type { CaptureResult, NewTask, Status, Task, TaskPatch } from "./lib/types";
 
 const LOCALE = navigator.language;
 
-type Tab = "tasks" | "models";
+type Tab = "tasks" | "models" | "settings";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "tasks", label: "Tasks" },
+  { id: "models", label: "Models" },
+  { id: "settings", label: "Settings" },
+];
+const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
 export default function App() {
   const [now, setNow] = useState(() => new Date());
@@ -19,6 +35,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("tasks");
   const [collapsed, setCollapsed] = useState(false);
+  const [shortcuts, setShortcuts] = useState<ShortcutSettings | null>(null);
+  const [highlight, setHighlight] = useState<number | null>(null);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
   const onboarded = useRef(false);
@@ -66,6 +84,20 @@ export default function App() {
     void checkStatus();
   }, [checkStatus]);
 
+  useEffect(() => {
+    api
+      .getShortcuts()
+      .then(setShortcuts)
+      .catch((e) => setError(String(e)));
+  }, []);
+
+  // A task picked from the menu bar flashes briefly.
+  useEffect(() => {
+    if (highlight === null) return;
+    const t = window.setTimeout(() => setHighlight(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [highlight]);
+
   const handleCapture = useCallback(async (result: CaptureResult) => {
     const seq = ++captureSeq.current;
     if (result.kind !== "text") {
@@ -96,7 +128,12 @@ export default function App() {
     const subs = [
       onCapture((r) => void handleCapture(r)),
       onTasksChanged(() => void refresh()),
-      onOpenTab((t) => setTab(t === "models" ? "models" : "tasks")),
+      onOpenTab((t) => setTab(isTab(t) ? t : "tasks")),
+      onShortcutsChanged(setShortcuts),
+      onHighlightTask((id) => {
+        setTab("tasks");
+        setHighlight(id);
+      }),
       onPanelCollapsed(setCollapsed),
     ];
     return () => {
@@ -149,6 +186,7 @@ export default function App() {
 
   const groups = useMemo(() => groupTasks(tasks, now, LOCALE), [tasks, now]);
   const open = tasks.filter((t) => !t.done).length;
+  const captureLabel = shortcuts ? formatShortcut(shortcuts.capture) : "…";
   const dueToday = tasks.filter((t) => !t.done && t.due_date !== null && t.due_date <= today).length;
 
   function minimize(next: boolean) {
@@ -194,28 +232,30 @@ export default function App() {
       <header className="panel-head" data-tauri-drag-region>
         <DragGrip />
         <div className="head-text" data-tauri-drag-region>
-          <h1 data-tauri-drag-region>{tab === "tasks" ? "Tasks" : "Models"}</h1>
+          <h1 data-tauri-drag-region>{TABS.find((t) => t.id === tab)?.label}</h1>
           <p className="sub" data-tauri-drag-region>
             {tab === "tasks"
               ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
-              : status?.active_model
-                ? `Using ${status.active_model}`
-                : "No model yet"}
+              : tab === "models"
+                ? status?.active_model
+                  ? `Using ${status.active_model}`
+                  : "No model yet"
+                : "Shortcuts and panel"}
           </p>
         </div>
         {controls}
       </header>
 
       <nav className="tabs" role="tablist" aria-label="Sections">
-        {(["tasks", "models"] as const).map((t) => (
+        {TABS.map((t) => (
           <button
-            key={t}
+            key={t.id}
             role="tab"
-            aria-selected={tab === t}
-            className={tab === t ? "tab on" : "tab"}
-            onClick={() => setTab(t)}
+            aria-selected={tab === t.id}
+            className={tab === t.id ? "tab on" : "tab"}
+            onClick={() => setTab(t.id)}
           >
-            {t === "tasks" ? "Tasks" : "Models"}
+            {t.label}
           </button>
         ))}
       </nav>
@@ -247,15 +287,23 @@ export default function App() {
       )}
 
       <main className="panel-body">
-        {tab === "tasks" ? (
-          <TaskList groups={groups} onUpdate={update} onDelete={remove} now={now} locale={LOCALE} />
-        ) : (
-          <ModelsTab onChanged={checkStatus} />
+        {tab === "tasks" && (
+          <TaskList
+            groups={groups}
+            onUpdate={update}
+            onDelete={remove}
+            now={now}
+            locale={LOCALE}
+            shortcut={captureLabel}
+            highlight={highlight}
+          />
         )}
+        {tab === "models" && <ModelsTab onChanged={checkStatus} />}
+        {tab === "settings" && <SettingsTab shortcuts={shortcuts} onShortcuts={setShortcuts} />}
       </main>
 
       <footer className="panel-foot" data-tauri-drag-region>
-        <span className="local-dot" aria-hidden /> On-device · <kbd>{shortcutLabel()}</kbd> to capture
+        <span className="local-dot" aria-hidden /> On-device · <kbd>{captureLabel}</kbd> to capture
       </footer>
     </div>
   );

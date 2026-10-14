@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar } from "./Calendar";
 import { CalendarIcon } from "./CaptureCard";
 import type { DayGroup } from "../lib/grouping";
@@ -10,15 +10,19 @@ interface Props {
   onDelete: (id: number) => void;
   now: Date;
   locale: string;
+  /** Current capture shortcut, for the empty state. */
+  shortcut: string;
+  /** Task to scroll to and flash (picked from the menu bar). */
+  highlight: number | null;
 }
 
-export function TaskList({ groups, onUpdate, onDelete, now, locale }: Props) {
+export function TaskList({ groups, onUpdate, onDelete, now, locale, shortcut, highlight }: Props) {
   if (!groups.length) {
     return (
       <div className="empty">
         <p>No tasks yet.</p>
         <p>
-          Select text in any app and press <kbd>{shortcutLabel()}</kbd>.
+          Select text in any app and press <kbd>{shortcut}</kbd>.
         </p>
       </div>
     );
@@ -33,7 +37,15 @@ export function TaskList({ groups, onUpdate, onDelete, now, locale }: Props) {
           </h2>
           <ul>
             {g.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} onUpdate={onUpdate} onDelete={onDelete} now={now} locale={locale} />
+              <TaskRow
+                key={t.id}
+                task={t}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                now={now}
+                locale={locale}
+                highlighted={highlight === t.id}
+              />
             ))}
           </ul>
         </section>
@@ -42,7 +54,18 @@ export function TaskList({ groups, onUpdate, onDelete, now, locale }: Props) {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, now, locale }: { task: Task } & Omit<Props, "groups">) {
+function TaskRow({
+  task,
+  onUpdate,
+  onDelete,
+  now,
+  locale,
+  highlighted,
+}: { task: Task; highlighted: boolean } & Pick<Props, "onUpdate" | "onDelete" | "now" | "locale">) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlighted]);
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -55,7 +78,12 @@ function TaskRow({ task, onUpdate, onDelete, now, locale }: { task: Task } & Omi
   }
 
   return (
-    <li className={["task", task.done ? "done" : "", picking ? "picking" : ""].filter(Boolean).join(" ")}>
+    <li
+      ref={ref}
+      className={["task", task.done ? "done" : "", picking ? "picking" : "", highlighted ? "flash" : ""]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="task-row" title={task.source_text ?? undefined}>
         <input
           type="checkbox"
@@ -117,9 +145,4 @@ function TaskRow({ task, onUpdate, onDelete, now, locale }: { task: Task } & Omi
       )}
     </li>
   );
-}
-
-export function shortcutLabel(): string {
-  const mac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
-  return mac ? "⌘⇧T" : "Ctrl+Shift+T";
 }

@@ -1,0 +1,505 @@
+//! Configurable global shortcuts, saved in `shortcuts.json`.
+//!
+//! * Capture selected text — default ⌘⇧Z (Ctrl+Shift+Z on Windows).
+//! * Show/hide the panel — optional, unset by default.
+//!
+//! Shortcuts are kept as plain specs (modifier flags + a W3C key code such
+//! as `KeyZ`) and turned into OS registrations on demand.
+
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShortcutSpec {
+    /// ⌘ on macOS, the Windows key on Windows.
+    pub meta: bool,
+    pub ctrl: bool,
+    /// ⌥ Option / Alt.
+    pub alt: bool,
+    pub shift: bool,
+    /// W3C key code, e.g. `KeyZ`, `Digit1`, `Space`, `F5`.
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Action {
+    Capture,
+    TogglePanel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShortcutSettings {
+    pub capture: ShortcutSpec,
+    #[serde(default)]
+    pub toggle_panel: Option<ShortcutSpec>,
+}
+
+impl Default for ShortcutSettings {
+    fn default() -> Self {
+        Self {
+            capture: default_capture(),
+            toggle_panel: None,
+        }
+    }
+}
+
+pub fn default_capture() -> ShortcutSpec {
+    ShortcutSpec {
+        meta: cfg!(target_os = "macos"),
+        ctrl: !cfg!(target_os = "macos"),
+        alt: false,
+        shift: true,
+        code: "KeyZ".into(),
+    }
+}
+
+impl ShortcutSpec {
+    fn primary_only(&self) -> bool {
+        let primary = if cfg!(target_os = "macos") {
+            self.meta && !self.ctrl
+        } else {
+            self.ctrl && !self.meta
+        };
+        primary && !self.alt && !self.shift
+    }
+
+    /// Reject combinations that would break the system or basic editing.
+    pub fn validate(&self) -> Result<(), String> {
+        if !(self.meta || self.ctrl || self.alt) {
+            return Err("Include ⌘, ⌃ or ⌥ so the shortcut doesn't fire while you type.".into());
+        }
+        if self.code.starts_with("Meta")
+            || self.code.starts_with("Control")
+            || self.code.starts_with("Alt")
+            || self.code.starts_with("Shift")
+        {
+            return Err("Finish the shortcut with a letter, number or other key.".into());
+        }
+        let reserved = [
+            "KeyC", "KeyV", "KeyX", "KeyA", "KeyZ", "KeyQ", "KeyW", "Tab", "Space",
+        ];
+        if self.primary_only() && reserved.contains(&self.code.as_str()) {
+            return Err(format!(
+                "{} is used by the system for basic editing or switching apps.",
+                self.label()
+            ));
+        }
+        if cfg!(target_os = "macos")
+            && self.meta
+            && self.shift
+            && !self.alt
+            && !self.ctrl
+            && ["Digit3", "Digit4", "Digit5"].contains(&self.code.as_str())
+        {
+            return Err(format!(
+                "{} is the macOS screenshot shortcut.",
+                self.label()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn to_shortcut(&self) -> Result<Shortcut, String> {
+        self.validate()?;
+        let code = parse_code(&self.code)
+            .ok_or_else(|| format!("Pluck can't use the key “{}” in a shortcut.", self.code))?;
+        let mut mods = Modifiers::empty();
+        if self.meta {
+            mods |= Modifiers::SUPER;
+        }
+        if self.ctrl {
+            mods |= Modifiers::CONTROL;
+        }
+        if self.alt {
+            mods |= Modifiers::ALT;
+        }
+        if self.shift {
+            mods |= Modifiers::SHIFT;
+        }
+        Ok(Shortcut::new(Some(mods), code))
+    }
+
+    /// "⌘⇧Z" on macOS, "Ctrl+Shift+Z" elsewhere.
+    pub fn label(&self) -> String {
+        let key = key_label(&self.code);
+        if cfg!(target_os = "macos") {
+            let mut s = String::new();
+            if self.ctrl {
+                s.push('⌃');
+            }
+            if self.alt {
+                s.push('⌥');
+            }
+            if self.shift {
+                s.push('⇧');
+            }
+            if self.meta {
+                s.push('⌘');
+            }
+            s + &key
+        } else {
+            let mut parts = Vec::new();
+            if self.ctrl {
+                parts.push("Ctrl".to_string());
+            }
+            if self.meta {
+                parts.push("Win".to_string());
+            }
+            if self.alt {
+                parts.push("Alt".to_string());
+            }
+            if self.shift {
+                parts.push("Shift".to_string());
+            }
+            parts.push(key);
+            parts.join("+")
+        }
+    }
+}
+
+/// The keys Pluck accepts in shortcuts, by W3C code name.
+fn parse_code(code: &str) -> Option<Code> {
+    Some(match code {
+        "KeyA" => Code::KeyA,
+        "KeyB" => Code::KeyB,
+        "KeyC" => Code::KeyC,
+        "KeyD" => Code::KeyD,
+        "KeyE" => Code::KeyE,
+        "KeyF" => Code::KeyF,
+        "KeyG" => Code::KeyG,
+        "KeyH" => Code::KeyH,
+        "KeyI" => Code::KeyI,
+        "KeyJ" => Code::KeyJ,
+        "KeyK" => Code::KeyK,
+        "KeyL" => Code::KeyL,
+        "KeyM" => Code::KeyM,
+        "KeyN" => Code::KeyN,
+        "KeyO" => Code::KeyO,
+        "KeyP" => Code::KeyP,
+        "KeyQ" => Code::KeyQ,
+        "KeyR" => Code::KeyR,
+        "KeyS" => Code::KeyS,
+        "KeyT" => Code::KeyT,
+        "KeyU" => Code::KeyU,
+        "KeyV" => Code::KeyV,
+        "KeyW" => Code::KeyW,
+        "KeyX" => Code::KeyX,
+        "KeyY" => Code::KeyY,
+        "KeyZ" => Code::KeyZ,
+        "Digit0" => Code::Digit0,
+        "Digit1" => Code::Digit1,
+        "Digit2" => Code::Digit2,
+        "Digit3" => Code::Digit3,
+        "Digit4" => Code::Digit4,
+        "Digit5" => Code::Digit5,
+        "Digit6" => Code::Digit6,
+        "Digit7" => Code::Digit7,
+        "Digit8" => Code::Digit8,
+        "Digit9" => Code::Digit9,
+        "F1" => Code::F1,
+        "F2" => Code::F2,
+        "F3" => Code::F3,
+        "F4" => Code::F4,
+        "F5" => Code::F5,
+        "F6" => Code::F6,
+        "F7" => Code::F7,
+        "F8" => Code::F8,
+        "F9" => Code::F9,
+        "F10" => Code::F10,
+        "F11" => Code::F11,
+        "F12" => Code::F12,
+        "Space" => Code::Space,
+        "Enter" => Code::Enter,
+        "Tab" => Code::Tab,
+        "Backspace" => Code::Backspace,
+        "Escape" => Code::Escape,
+        "ArrowUp" => Code::ArrowUp,
+        "ArrowDown" => Code::ArrowDown,
+        "ArrowLeft" => Code::ArrowLeft,
+        "ArrowRight" => Code::ArrowRight,
+        "Comma" => Code::Comma,
+        "Period" => Code::Period,
+        "Slash" => Code::Slash,
+        "Semicolon" => Code::Semicolon,
+        "Quote" => Code::Quote,
+        "BracketLeft" => Code::BracketLeft,
+        "BracketRight" => Code::BracketRight,
+        "Backslash" => Code::Backslash,
+        "Backquote" => Code::Backquote,
+        "Minus" => Code::Minus,
+        "Equal" => Code::Equal,
+        _ => return None,
+    })
+}
+
+fn key_label(code: &str) -> String {
+    if let Some(k) = code.strip_prefix("Key") {
+        return k.to_string();
+    }
+    if let Some(d) = code.strip_prefix("Digit") {
+        return d.to_string();
+    }
+    match code {
+        "Space" => "Space",
+        "ArrowUp" => "↑",
+        "ArrowDown" => "↓",
+        "ArrowLeft" => "←",
+        "ArrowRight" => "→",
+        "Enter" => "↩",
+        "Backspace" => "⌫",
+        "Comma" => ",",
+        "Period" => ".",
+        "Slash" => "/",
+        "Semicolon" => ";",
+        "Quote" => "'",
+        "BracketLeft" => "[",
+        "BracketRight" => "]",
+        "Backslash" => "\\",
+        "Backquote" => "`",
+        "Minus" => "-",
+        "Equal" => "=",
+        other => other,
+    }
+    .to_string()
+}
+
+pub struct Shortcuts {
+    path: PathBuf,
+    settings: Mutex<ShortcutSettings>,
+}
+
+impl Shortcuts {
+    pub fn new(data_dir: &Path) -> Self {
+        let path = data_dir.join("shortcuts.json");
+        let mut settings: ShortcutSettings = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        if settings.capture.to_shortcut().is_err() {
+            settings.capture = default_capture();
+        }
+        Self {
+            path,
+            settings: Mutex::new(settings),
+        }
+    }
+
+    pub fn get(&self) -> ShortcutSettings {
+        self.settings.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+
+    pub fn capture_label(&self) -> String {
+        self.get().capture.label()
+    }
+
+    /// Which action, if any, a pressed shortcut belongs to.
+    pub fn action_for(&self, pressed: &Shortcut) -> Option<Action> {
+        let s = self.get();
+        if s.capture.to_shortcut().ok().as_ref() == Some(pressed) {
+            return Some(Action::Capture);
+        }
+        let toggle = s.toggle_panel.and_then(|t| t.to_shortcut().ok());
+        if toggle.as_ref() == Some(pressed) {
+            return Some(Action::TogglePanel);
+        }
+        None
+    }
+
+    fn save(&self, s: &ShortcutSettings) -> Result<(), String> {
+        let bytes = serde_json::to_vec_pretty(s).map_err(|e| e.to_string())?;
+        std::fs::write(&self.path, bytes).map_err(|e| e.to_string())
+    }
+
+    /// Register every configured shortcut with the OS.
+    pub fn register_all(&self, app: &AppHandle) {
+        let s = self.get();
+        let gs = app.global_shortcut();
+        for spec in std::iter::once(&s.capture).chain(s.toggle_panel.as_ref()) {
+            match spec.to_shortcut() {
+                Ok(sc) => {
+                    if let Err(e) = gs.register(sc) {
+                        log::error!("could not register {}: {e}", spec.label());
+                    }
+                }
+                Err(e) => log::error!("invalid shortcut {}: {e}", spec.label()),
+            }
+        }
+    }
+
+    /// Stop listening (while the user records a new shortcut), or resume.
+    pub fn pause(&self, app: &AppHandle, paused: bool) {
+        let _ = app.global_shortcut().unregister_all();
+        if !paused {
+            self.register_all(app);
+        }
+    }
+
+    /// Change one shortcut; `None` clears it (only the panel shortcut can be
+    /// cleared). On failure the previous shortcuts stay registered.
+    pub fn set(
+        &self,
+        app: &AppHandle,
+        action: Action,
+        spec: Option<ShortcutSpec>,
+    ) -> Result<ShortcutSettings, String> {
+        let old = self.get();
+        let mut next = old.clone();
+        match (action, spec) {
+            (Action::Capture, Some(s)) => next.capture = s,
+            (Action::Capture, None) => return Err("The capture shortcut can't be empty.".into()),
+            (Action::TogglePanel, s) => next.toggle_panel = s,
+        }
+        next.capture.to_shortcut()?;
+        if let Some(t) = &next.toggle_panel {
+            t.to_shortcut()?;
+            if *t == next.capture {
+                return Err("That's already the capture shortcut.".into());
+            }
+        }
+        self.apply(app, &old, next)
+    }
+
+    pub fn reset(&self, app: &AppHandle) -> Result<ShortcutSettings, String> {
+        let old = self.get();
+        self.apply(app, &old, ShortcutSettings::default())
+    }
+
+    fn apply(
+        &self,
+        app: &AppHandle,
+        old: &ShortcutSettings,
+        next: ShortcutSettings,
+    ) -> Result<ShortcutSettings, String> {
+        let gs = app.global_shortcut();
+        let _ = gs.unregister_all();
+        let mut failed = None;
+        for spec in std::iter::once(&next.capture).chain(next.toggle_panel.as_ref()) {
+            if let Ok(sc) = spec.to_shortcut() {
+                if let Err(e) = gs.register(sc) {
+                    failed = Some(format!(
+                        "{} couldn't be registered — another app may be using it. ({e})",
+                        spec.label()
+                    ));
+                    break;
+                }
+            }
+        }
+        if let Some(msg) = failed {
+            // Roll back to the shortcuts that worked before.
+            let _ = gs.unregister_all();
+            if let Ok(mut s) = self.settings.lock() {
+                *s = old.clone();
+            }
+            self.register_all(app);
+            return Err(msg);
+        }
+        self.save(&next)?;
+        if let Ok(mut s) = self.settings.lock() {
+            *s = next.clone();
+        }
+        Ok(next)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spec(meta: bool, ctrl: bool, alt: bool, shift: bool, code: &str) -> ShortcutSpec {
+        ShortcutSpec {
+            meta,
+            ctrl,
+            alt,
+            shift,
+            code: code.into(),
+        }
+    }
+
+    #[test]
+    fn default_is_primary_shift_z() {
+        let d = default_capture();
+        assert!(d.shift && d.code == "KeyZ");
+        assert!(d.validate().is_ok());
+        assert!(d.to_shortcut().is_ok());
+    }
+
+    #[test]
+    fn requires_a_real_modifier() {
+        assert!(spec(false, false, false, true, "KeyZ").validate().is_err());
+        assert!(spec(false, false, false, false, "KeyZ").validate().is_err());
+        assert!(spec(false, false, true, false, "KeyZ").validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_modifier_only_and_reserved() {
+        assert!(spec(true, false, false, true, "ShiftLeft")
+            .validate()
+            .is_err());
+        let primary_c = if cfg!(target_os = "macos") {
+            spec(true, false, false, false, "KeyC")
+        } else {
+            spec(false, true, false, false, "KeyC")
+        };
+        assert!(primary_c.validate().is_err());
+    }
+
+    #[test]
+    fn labels() {
+        let s = spec(true, false, false, true, "KeyZ");
+        let l = s.label();
+        if cfg!(target_os = "macos") {
+            assert_eq!(l, "⇧⌘Z");
+        } else {
+            assert_eq!(l, "Win+Shift+Z");
+        }
+        assert_eq!(key_label("Digit5"), "5");
+        assert_eq!(key_label("ArrowUp"), "↑");
+        assert_eq!(key_label("F5"), "F5");
+    }
+
+    #[test]
+    fn parses_common_codes() {
+        for code in [
+            "KeyZ", "Digit1", "Space", "F5", "ArrowUp", "Slash", "Period",
+        ] {
+            assert!(
+                spec(false, true, true, false, code).to_shortcut().is_ok(),
+                "{code}"
+            );
+        }
+        assert!(spec(false, true, true, false, "NotAKey")
+            .to_shortcut()
+            .is_err());
+    }
+
+    #[test]
+    fn settings_file_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Shortcuts::new(dir.path());
+        assert_eq!(s.get().capture, default_capture());
+        let custom = ShortcutSettings {
+            capture: spec(false, true, true, false, "KeyT"),
+            toggle_panel: Some(spec(false, true, true, false, "KeyY")),
+        };
+        s.save(&custom).unwrap();
+        let s2 = Shortcuts::new(dir.path());
+        assert_eq!(s2.get().capture, custom.capture);
+        assert_eq!(s2.get().toggle_panel, custom.toggle_panel);
+    }
+
+    #[test]
+    fn invalid_saved_capture_falls_back_to_default() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("shortcuts.json"),
+            r#"{"capture":{"meta":false,"ctrl":false,"alt":false,"shift":true,"code":"KeyZ"}}"#,
+        )
+        .unwrap();
+        assert_eq!(Shortcuts::new(dir.path()).get().capture, default_capture());
+    }
+}

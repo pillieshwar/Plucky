@@ -70,3 +70,28 @@ export type DownloadEvent =
   | { state: "done"; id: string }
   | { state: "cancelled"; id: string }
   | { state: "failed"; id: string; error: string };
+
+/** Mirrors `models::CustomModelView`: a model file the user added by path. */
+export interface CustomModelInfo {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  source: string | null;
+  active: boolean;
+  /** False if the file was moved or deleted after it was added. */
+  available: boolean;
+}
+
+/** Mirrors `local_models::FoundModel`: a model another app downloaded. */
+export interface FoundModel {
+  name: string;
+  path: string;
+  size: number;
+  source: string;
+}
+
+export interface LocalModels {
+  added: CustomModelInfo[];
+  found: FoundModel[];
+}

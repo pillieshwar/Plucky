@@ -11,12 +11,14 @@
 //! * [`store`] — SQLite (WAL) task storage.
 //! * [`models`] — the downloadable model catalog and Hugging Face metadata.
 //! * [`download`] — resumable, checksum-verified model downloads.
+//! * [`local_models`] — using GGUF files the user already has.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
 pub mod download;
 pub mod extraction;
 pub mod llm;
+pub mod local_models;
 pub mod models;
 pub mod prompt;
 pub mod store;

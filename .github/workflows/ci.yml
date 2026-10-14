@@ -77,6 +77,9 @@ jobs:
       - name: Clippy
         shell: bash
         run: scripts/ci-annotate.sh cargo clippy -p pluck --all-targets --message-format=short -- -D warnings
+      - name: Unit tests (app crate)
+        shell: bash
+        run: scripts/ci-annotate.sh cargo test -p pluck --lib
       - name: Build unsigned debug bundle
         shell: bash
         run: scripts/ci-annotate.sh npm run tauri build -- --debug

@@ -1,6 +1,6 @@
 # Pluck
 
-Select text anywhere, press **⌘⇧T**, and get a private, dated task in a side panel. Pluck reads your selection with a small AI model that runs on your own Mac — nothing you select ever leaves your computer.
+Select text anywhere, press **⇧⌘Z**, and get a private, dated task in a side panel. Pluck reads your selection with a small AI model that runs on your own Mac — nothing you select ever leaves your computer.
 
 <a href="https://github.com/pillieshwar/pluck/releases/latest/download/Pluck-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Pluck for Mac" width="248" height="52"></a>
 
@@ -12,17 +12,19 @@ macOS 11 Big Sur or later · Apple silicon and Intel · plus one model download 
 2. **Install** — open the file and drag **Pluck** into **Applications**.
 3. **Open it** — launch Pluck from Applications. If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**, then confirm. You only do this once.
 4. **Get a model** — on first launch Pluck's panel opens on the **Models** tab. Click **Download** on *Llama 3.2 3B Instruct* (recommended). It downloads once (about 2 GB) and can be paused and resumed.
-5. **Allow Accessibility** — select some text in any app and press **⌘⇧T**. When asked, click **Grant access** and switch on **Pluck** in **System Settings → Privacy & Security → Accessibility**. This is how macOS lets an app read the text you've selected.
+5. **Allow Accessibility** — select some text in any app and press **⇧⌘Z**. When asked, click **Grant access** and switch on **Pluck** in **System Settings → Privacy & Security → Accessibility**. This is how macOS lets an app read the text you've selected.
 
 That's it. There's nothing else to install — the model runtime is built into the app.
 
 ## Using Pluck
 
-- **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⌘⇧T**. The panel slides in on the right with a suggested task and due date.
+- **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⇧⌘Z**. The panel slides in on the right with a suggested task and due date.
 - **Confirm:** edit the title if you like, pick or change the date, and press **Return**. **Esc** discards it.
 - **Unclear dates** ("next Friday", "soon", or no date) — Pluck asks instead of guessing.
-- **Your list:** click the Pluck icon in the menu bar → **Show tasks**. Tick to complete, double-click to rename, hover to change the date or delete. **Esc** hides the panel.
-- **Models:** menu bar icon → **Models…** to download another model, switch models, or remove one to free space. The first capture after a pause takes a few seconds while the model loads; it unloads itself after 5 idle minutes to give the memory back.
+- **Today at a glance:** click the Pluck icon in the menu bar to see what's due today (overdue first); the icon shows the count. Pick a task to jump to it.
+- **Your list:** menu bar icon → **Open Pluck**. Tick to complete, double-click to rename, hover to change the date or delete. **Esc** hides the panel.
+- **Shortcuts:** the **Settings** tab lets you change the capture shortcut (default **⇧⌘Z**) and add one to show or hide Pluck. Note that ⇧⌘Z is Redo in most apps, so Redo by shortcut won't work while Pluck runs — pick another shortcut if you use it.
+- **Models:** menu bar icon → **Models…** to download another model, switch models, or remove one to free space. Already have a GGUF model from Ollama, LM Studio or Hugging Face? Pluck lists the ones it finds, or paste the file's path under **Already have a model?** — no second download. The first capture after a pause takes a few seconds while the model loads; it unloads itself after 5 idle minutes to give the memory back.
 - **Start at login (optional):** System Settings → General → Login Items → **+** → Pluck.
 
 **Privacy:** your tasks are stored only on this Mac (`~/Library/Application Support/app.pluck.desktop/`). The only time Pluck uses the internet is when you press **Download** in the Models tab; model files come from Hugging Face and are checked against their published SHA-256 checksum.
@@ -45,8 +47,8 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 | --- | --- |
 | "Pluck is damaged and can't be opened" | The download was interrupted or altered. Delete it and download again. |
 | "Apple could not verify Pluck…" | Expected for this early build. Use **Privacy & Security → Open Anyway** (step 3 above). |
-| ⌘⇧T does nothing | Check the Pluck icon is in the menu bar. Another app may own ⌘⇧T (some browsers use it to reopen tabs). |
-| "No selected text found" | Select the text again and press ⌘⇧T. Password fields and some secure apps can't be read, by design. |
+| ⇧⌘Z does nothing | Check the Pluck icon is in the menu bar. Another app may also use ⇧⌘Z — choose a different shortcut in Pluck's **Settings** tab. |
+| "No selected text found" | Select the text again and press ⇧⌘Z. Password fields and some secure apps can't be read, by design. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Pluck with **–**, then capture again and re-grant. |
 | A model download failed | Click **Resume download** in the Models tab — it continues where it stopped. |
 | "The model took too long to load" | Close some memory-heavy apps, or switch to *Llama 3.2 1B* in the Models tab. |

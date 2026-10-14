@@ -1,6 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { CaptureResult, DownloadEvent, Extraction, ModelInfo, NewTask, Status, Task, TaskPatch } from "./types";
+import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
+import type {
+  CaptureResult,
+  CustomModelInfo,
+  DownloadEvent,
+  Extraction,
+  LocalModels,
+  ModelInfo,
+  NewTask,
+  Status,
+  Task,
+  TaskPatch,
+} from "./types";
 
 export const api = {
   extract: (selection: string) => invoke<Extraction>("extract", { selection }),
@@ -18,6 +30,15 @@ export const api = {
   setActiveModel: (id: string) => invoke<void>("set_active_model", { id }),
   setPanelCollapsed: (collapsed: boolean) => invoke<void>("set_panel_collapsed", { collapsed }),
   snapPanelToEdge: () => invoke<void>("snap_panel_to_edge"),
+  listLocalModels: () => invoke<LocalModels>("list_local_models"),
+  addModelFile: (path: string, source: string | null = null) =>
+    invoke<CustomModelInfo>("add_model_file", { path, source }),
+  removeModelFile: (id: string) => invoke<void>("remove_model_file", { id }),
+  getShortcuts: () => invoke<ShortcutSettings>("get_shortcuts"),
+  setShortcut: (action: ShortcutAction, spec: ShortcutSpec | null) =>
+    invoke<ShortcutSettings>("set_shortcut", { action, spec }),
+  resetShortcuts: () => invoke<ShortcutSettings>("reset_shortcuts"),
+  pauseShortcuts: (paused: boolean) => invoke<void>("pause_shortcuts", { paused }),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
@@ -40,4 +61,13 @@ export function onOpenTab(handler: (tab: string) => void): Promise<UnlistenFn> {
 /** The panel was minimized or expanded (by us, a capture, or the tray). */
 export function onPanelCollapsed(handler: (collapsed: boolean) => void): Promise<UnlistenFn> {
   return listen<boolean>("panel-collapsed", (e) => handler(e.payload));
+}
+
+export function onShortcutsChanged(handler: (s: ShortcutSettings) => void): Promise<UnlistenFn> {
+  return listen<ShortcutSettings>("shortcuts-changed", (e) => handler(e.payload));
+}
+
+/** A task was picked from the menu-bar list. */
+export function onHighlightTask(handler: (id: number) => void): Promise<UnlistenFn> {
+  return listen<number>("highlight-task", (e) => handler(e.payload));
 }

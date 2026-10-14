@@ -11,20 +11,21 @@ mod capture;
 mod engine;
 mod models;
 mod panel;
+mod shortcuts;
+mod tray;
 
 use std::sync::Mutex;
 use std::time::Duration;
 
 use pluck_core::{Extraction, NewTask, Store, Task, TaskPatch};
 use serde::Serialize;
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 use crate::capture::CaptureResult;
 use crate::engine::Engine;
-use crate::models::{ModelManager, ModelView};
+use crate::models::{CustomModel, LocalModels, ModelManager, ModelView};
+use crate::shortcuts::{Action, ShortcutSettings, ShortcutSpec, Shortcuts};
 
 pub struct AppState {
     store: Mutex<Store>,
@@ -45,7 +46,7 @@ async fn extract(
     selection: String,
 ) -> CmdResult<Extraction> {
     let path = match models.active() {
-        Some(m) => models.path_for(m),
+        Some(m) => m.path,
         None if engine.kind() == "ollama" => Default::default(),
         None => return Err("No model downloaded yet. Open the Models tab to get one.".into()),
     };
@@ -70,6 +71,7 @@ fn add_task(app: AppHandle, state: State<'_, AppState>, task: NewTask) -> CmdRes
     };
     let t = state.store.lock().map_err(err)?.insert(task).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
+    tray::refresh(&app);
     Ok(t)
 }
 
@@ -87,6 +89,7 @@ fn update_task(
         .update(id, patch)
         .map_err(err)?;
     let _ = app.emit("tasks-changed", ());
+    tray::refresh(&app);
     Ok(t)
 }
 
@@ -94,6 +97,7 @@ fn update_task(
 fn delete_task(app: AppHandle, state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     state.store.lock().map_err(err)?.delete(id).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
+    tray::refresh(&app);
     Ok(())
 }
 
@@ -103,7 +107,7 @@ struct Status {
     /// "bundled" (default) or "ollama" (developer override).
     engine: &'static str,
     /// Name of the model captures will use, if one is installed.
-    active_model: Option<&'static str>,
+    active_model: Option<String>,
 }
 
 #[tauri::command]
@@ -147,14 +151,40 @@ async fn set_active_model(
     models: State<'_, ModelManager>,
     id: String,
 ) -> CmdResult<()> {
-    let model = pluck_core::models::find(&id).ok_or("unknown model")?;
-    if !models.is_installed(model) {
-        return Err("Download this model before using it.".into());
+    if !models.is_available(&id) {
+        return Err("That model's file isn't available — download or add it first.".into());
     }
     models.set_active(Some(&id))?;
     // Free the old model's memory now; the new one loads on next capture.
     engine.stop().await;
     Ok(())
+}
+
+#[tauri::command]
+fn list_local_models(models: State<'_, ModelManager>) -> LocalModels {
+    models.local_models()
+}
+
+#[tauri::command]
+async fn add_model_file(
+    engine: State<'_, Engine>,
+    models: State<'_, ModelManager>,
+    path: String,
+    source: Option<String>,
+) -> CmdResult<CustomModel> {
+    let model = models.add_file(&path, source)?;
+    // The new file becomes active; free the previous model's memory.
+    engine.stop().await;
+    Ok(model)
+}
+
+#[tauri::command]
+async fn remove_model_file(
+    engine: State<'_, Engine>,
+    models: State<'_, ModelManager>,
+    id: String,
+) -> CmdResult<()> {
+    models.remove_file(&engine, &id).await
 }
 
 #[tauri::command]
@@ -177,16 +207,45 @@ fn snap_panel_to_edge(app: AppHandle) {
     panel::snap_to_edge(&app);
 }
 
-// ── Capture flow ────────────────────────────────────────────────────────────
+// ── Shortcuts ───────────────────────────────────────────────────────────────
 
-fn capture_shortcut() -> Shortcut {
-    let primary = if cfg!(target_os = "macos") {
-        Modifiers::SUPER
-    } else {
-        Modifiers::CONTROL
-    };
-    Shortcut::new(Some(primary | Modifiers::SHIFT), Code::KeyT)
+#[tauri::command]
+fn get_shortcuts(shortcuts: State<'_, Shortcuts>) -> ShortcutSettings {
+    shortcuts.get()
 }
+
+fn shortcuts_changed(app: &AppHandle, settings: &ShortcutSettings) {
+    let _ = app.emit("shortcuts-changed", settings);
+    tray::refresh(app);
+}
+
+#[tauri::command]
+fn set_shortcut(
+    app: AppHandle,
+    shortcuts: State<'_, Shortcuts>,
+    action: Action,
+    spec: Option<ShortcutSpec>,
+) -> CmdResult<ShortcutSettings> {
+    let next = shortcuts.set(&app, action, spec)?;
+    shortcuts_changed(&app, &next);
+    Ok(next)
+}
+
+#[tauri::command]
+fn reset_shortcuts(app: AppHandle, shortcuts: State<'_, Shortcuts>) -> CmdResult<ShortcutSettings> {
+    let next = shortcuts.reset(&app)?;
+    shortcuts_changed(&app, &next);
+    Ok(next)
+}
+
+/// Stop the global shortcuts while the user records a new one, so pressing
+/// the current shortcut doesn't trigger a capture.
+#[tauri::command]
+fn pause_shortcuts(app: AppHandle, shortcuts: State<'_, Shortcuts>, paused: bool) {
+    shortcuts.pause(&app, paused);
+}
+
+// ── Capture flow ────────────────────────────────────────────────────────────
 
 fn on_capture(app: AppHandle) {
     // Start loading the model while the user reviews the capture.
@@ -194,7 +253,7 @@ fn on_capture(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let models = warm_app.state::<ModelManager>();
         if let Some(m) = models.active() {
-            warm_app.state::<Engine>().warm(&models.path_for(m)).await;
+            warm_app.state::<Engine>().warm(&m.path).await;
         }
     });
     tauri::async_runtime::spawn(async move {
@@ -217,10 +276,15 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, sc, event| {
-                    // Act on release so the user's modifier keys are coming up
-                    // before any synthesized Copy.
-                    if *sc == capture_shortcut() && event.state() == ShortcutState::Released {
-                        on_capture(app.clone());
+                    let Some(shortcuts) = app.try_state::<Shortcuts>() else {
+                        return;
+                    };
+                    match (shortcuts.action_for(sc), event.state()) {
+                        // Act on release so the user's modifier keys are coming
+                        // up before any synthesized Copy.
+                        (Some(Action::Capture), ShortcutState::Released) => on_capture(app.clone()),
+                        (Some(Action::TogglePanel), ShortcutState::Pressed) => panel::toggle(app),
+                        _ => {}
                     }
                 })
                 .build(),
@@ -240,41 +304,27 @@ pub fn run() {
             app.manage(ModelManager::new(&data_dir));
             app.manage(panel::PanelState::new(&data_dir));
             app.manage(Engine::new(&log_dir));
+            app.manage(Shortcuts::new(&data_dir));
 
-            // Release the model's memory after a few idle minutes.
+            // Every 30 s: release the model's memory when idle, and roll the
+            // menu-bar list over to the new day at midnight.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                let mut day = chrono::Local::now().date_naive();
                 loop {
                     tokio::time::sleep(Duration::from_secs(30)).await;
                     handle.state::<Engine>().stop_if_idle().await;
+                    let now = chrono::Local::now().date_naive();
+                    if now != day {
+                        day = now;
+                        tray::refresh(&handle);
+                        let _ = handle.emit("tasks-changed", ());
+                    }
                 }
             });
 
-            app.global_shortcut().register(capture_shortcut())?;
-
-            let show = MenuItem::with_id(app, "show", "Show tasks", true, None::<&str>)?;
-            let models_item = MenuItem::with_id(app, "models", "Models…", true, None::<&str>)?;
-            let snap =
-                MenuItem::with_id(app, "snap", "Snap panel to right edge", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Pluck", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &models_item, &snap, &quit])?;
-            let mut tray = TrayIconBuilder::with_id("pluck")
-                .tooltip("Pluck — select text, press ⌘⇧T / Ctrl+Shift+T")
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => panel::toggle(app),
-                    "snap" => panel::snap_to_edge(app),
-                    "models" => {
-                        panel::show(app);
-                        let _ = app.emit_to("panel", "open-tab", "models");
-                    }
-                    "quit" => app.exit(0),
-                    _ => {}
-                });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
-            tray.build(app)?;
+            app.state::<Shortcuts>().register_all(app.handle());
+            tray::build(app.handle())?;
 
             // First launch: no model yet, so open the panel (on the Models tab)
             // instead of starting silently in the menu bar.
@@ -307,7 +357,14 @@ pub fn run() {
             download_model,
             cancel_download,
             delete_model,
-            set_active_model
+            set_active_model,
+            list_local_models,
+            add_model_file,
+            remove_model_file,
+            get_shortcuts,
+            set_shortcut,
+            reset_shortcuts,
+            pause_shortcuts
         ])
         .build(tauri::generate_context!())
         .expect("error while building Pluck")
