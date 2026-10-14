@@ -4,6 +4,109 @@ Select text anywhere, press **⌘⇧T** (macOS) or **Ctrl+Shift+T** (Windows), a
 
 This is the Phase 2 MVP from the feasibility study ("Text-to-Task Desktop App — Research", 13 Oct 2026): a Tauri v2 tray app with a Rust backend, a React/TypeScript panel, Ollama for local inference and SQLite for storage.
 
+## Install on a Mac
+
+> **Early build.** There's no signed download yet, so for now you build Pluck once on your Mac (about 10 minutes, mostly waiting). Requires macOS 11 Big Sur or later; Apple silicon or Intel.
+
+### 1. Install the local model (Ollama)
+
+Pluck reads your selections with a small AI model that runs on your Mac. [Ollama](https://ollama.com) runs that model.
+
+1. Download Ollama from [ollama.com/download](https://ollama.com/download), open it, and drag it to **Applications**. Open it once; a llama icon appears in your menu bar.
+2. Open **Terminal** (⌘Space, type "Terminal") and download the model Pluck uses (about 2 GB, one time):
+
+   ```bash
+   ollama pull llama3.2:3b
+   ```
+
+Keep Ollama running in the menu bar whenever you use Pluck. It only loads the model when you capture something and unloads it after 5 idle minutes.
+
+### 2. Install the build tools (one time)
+
+Paste each line into Terminal:
+
+```bash
+# Apple's command-line developer tools (a dialog opens — click Install)
+xcode-select --install
+
+# Rust (press Enter to accept the defaults), then load it into this Terminal window
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+Then install **Node.js 20 or newer** with the macOS installer from [nodejs.org](https://nodejs.org) (choose the LTS version). If you use Homebrew, `brew install node` works too.
+
+Check everything is in place — each command should print a version number:
+
+```bash
+cargo --version && node --version && ollama --version
+```
+
+### 3. Build Pluck
+
+```bash
+git clone https://github.com/pillieshwar/pluck.git
+cd pluck
+npm install
+npm run tauri build
+```
+
+The first build downloads and compiles a lot of code; 5–10 minutes is normal. When it finishes, it prints the path of a disk image, something like `target/release/bundle/dmg/Pluck_0.1.0_aarch64.dmg`. Open it:
+
+```bash
+open target/release/bundle/dmg/*.dmg
+```
+
+Drag **Pluck** into **Applications**, then eject the disk image.
+
+### 4. First launch
+
+1. Open **Pluck** from Applications. Because this build isn't signed by an Apple developer account, macOS will block it the first time ("Apple could not verify…"). Click **Done** (or **Cancel**), then go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Pluck message. Confirm with your password. You only do this once.
+2. Pluck has no Dock icon. Look for its icon in the **menu bar** (top right of the screen).
+3. **Grant Accessibility access.** Select some text in any app and press **⌘⇧T**. Pluck will ask for Accessibility permission — this is how macOS lets an app read the text you've selected. Click **Grant access**, then in **System Settings → Privacy & Security → Accessibility**, turn on **Pluck**. Press ⌘⇧T again.
+
+### 5. Using it
+
+- **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⌘⇧T**. The panel slides in on the right with a suggested task and due date.
+- **Confirm:** edit the title if you like, pick or change the date, and press **Return** to add it. **Esc** discards it.
+- **If the date is unclear** ("next Friday", "soon", or no date at all), Pluck asks you to choose instead of guessing.
+- **Open the list any time:** click the menu-bar icon → **Show tasks**. Tick a task to complete it; double-click a title to rename it; hover a task to change its date or delete it. Press **Esc** to hide the panel.
+- **Start at login (optional):** System Settings → General → Login Items → click **+** and choose Pluck.
+
+Your tasks are stored only on this Mac, in `~/Library/Application Support/app.pluck.desktop/tasks.db`.
+
+### Updating
+
+```bash
+cd pluck
+git pull
+npm install
+npm run tauri build
+```
+
+Then drag the new Pluck from the disk image into Applications, replacing the old one. Your tasks are kept. macOS may ask for Accessibility permission again (see troubleshooting below).
+
+### Uninstalling
+
+Quit Pluck from its menu-bar icon, delete it from Applications, and remove it from System Settings → Privacy & Security → Accessibility. To delete your tasks too:
+
+```bash
+rm -rf ~/Library/Application\ Support/app.pluck.desktop
+```
+
+### Troubleshooting
+
+| What you see | What to do |
+| --- | --- |
+| "Local model isn't reachable" banner | Make sure Ollama is running (llama icon in the menu bar) and that you ran `ollama pull llama3.2:3b`. Then click **Retry**. |
+| ⌘⇧T does nothing | Check Pluck's icon is in the menu bar. Another app may already use ⌘⇧T (some browsers reopen closed tabs with it) — quit that app or try in a different one. |
+| "No selected text found" | Select the text again and press ⌘⇧T. Password fields and some secure apps can't be read by design. |
+| Permission keeps being requested after an update | Unsigned rebuilds look like a new app to macOS. In **Privacy & Security → Accessibility**, select Pluck, remove it with **–**, then add it back with **+** (or capture again and re-grant). |
+| The first capture after a while is slow | The model is loading into memory (a few seconds). Captures right after are fast. |
+| Build fails with "xcrun: error" | Run `xcode-select --install` again and retry the build. |
+
+Pluck uses the `llama3.2:3b` model. To try a different one (for example `qwen3:4b-instruct`), pull it with Ollama and launch Pluck from Terminal with `open --env PLUCK_MODEL=qwen3:4b-instruct -a Pluck` (quit Pluck first). Apps opened from Finder or at login don't get this setting, so they use the default model.
+
 ## How a capture works
 
 ```
