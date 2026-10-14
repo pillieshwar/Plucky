@@ -92,12 +92,20 @@ jobs:
 
       - name: Verify bundle
         shell: bash
+        env:
+          SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' }}
         run: |
           app=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app)
           lipo -info "$app/Contents/MacOS/llama-server"
           lipo -info "$app/Contents/MacOS/pluck" || lipo -info "$app/Contents/MacOS/Pluck"
           codesign --verify --deep --strict --verbose=2 "$app"
           "$app/Contents/MacOS/llama-server" --version
+          if [ "$SIGNED" = "true" ]; then
+            # Must say "accepted, source=Notarized Developer ID" or users get the warning.
+            codesign -dv --verbose=2 "$app" 2>&1 | grep -E "Authority|TeamIdentifier"
+            xcrun stapler validate "$app"
+            spctl --assess --type execute -vv "$app"
+          fi
 
       - name: Prepare release files
         id: files
