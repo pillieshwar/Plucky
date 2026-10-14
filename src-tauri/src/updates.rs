@@ -91,8 +91,9 @@ pub async fn check(app: AppHandle) {
         log::warn!("update check failed: {message}");
         set(&app, UpdateStatus::Failed { message });
     }
-    if let Ok(mut busy) = updates.busy.lock() {
-        *busy = false;
+    let released = updates.busy.lock().map(|mut busy| *busy = false);
+    if released.is_err() {
+        log::warn!("update lock poisoned");
     }
 }
 

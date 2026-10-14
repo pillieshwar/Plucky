@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
+  AppSettings,
+  BackupInfo,
   CaptureResult,
   CustomModelInfo,
   DownloadEvent,
@@ -9,6 +11,7 @@ import type {
   LocalModels,
   ModelInfo,
   NewTask,
+  NotificationPermission,
   RemindersAccess,
   RemindersEnableRequest,
   RemindersList,
@@ -16,10 +19,11 @@ import type {
   Status,
   Task,
   TaskPatch,
+  UpdateStatus,
 } from "./types";
 
 export const api = {
-  extract: (selection: string) => invoke<Extraction>("extract", { selection }),
+  extract: (selection: string) => invoke<Extraction[]>("extract", { selection }),
   listTasks: (doneSince: string | null) => invoke<Task[]>("list_tasks", { doneSince }),
   addTask: (task: NewTask) => invoke<Task>("add_task", { task }),
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
@@ -54,7 +58,36 @@ export const api = {
   remindersSyncNow: () => invoke<void>("reminders_sync_now"),
   remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
   remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
+  openSource: (id: number) => invoke<void>("open_source", { id }),
+  restoreTask: (task: Task) => invoke<Task>("restore_task", { task }),
+  getSettings: () => invoke<AppSettings>("get_settings"),
+  setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),
+  notificationPermission: () => invoke<NotificationPermission>("notification_permission"),
+  requestNotificationPermission: () => invoke<NotificationPermission>("request_notification_permission"),
+  testNotification: () => invoke<void>("test_notification"),
+  openNotificationSettings: () => invoke<void>("open_notification_settings"),
+  autostartEnabled: () => invoke<boolean>("autostart_enabled"),
+  setAutostart: (enabled: boolean) => invoke<boolean>("set_autostart", { enabled }),
+  updateStatus: () => invoke<UpdateStatus>("update_status"),
+  checkForUpdates: () => invoke<UpdateStatus>("check_for_updates"),
+  installUpdate: () => invoke<void>("install_update"),
+  listBackups: () => invoke<BackupInfo[]>("list_backups"),
+  backupNow: () => invoke<BackupInfo[]>("backup_now"),
+  restoreBackup: (name: string) => invoke<void>("restore_backup", { name }),
+  revealBackups: () => invoke<void>("reveal_backups"),
+  exportTasks: (format: "csv" | "json") => invoke<string>("export_tasks", { format }),
+  showQuickAdd: () => invoke<void>("show_quick_add"),
+  hideQuickAdd: () => invoke<void>("hide_quick_add"),
 };
+
+export function onUpdateStatus(handler: (s: UpdateStatus) => void): Promise<UnlistenFn> {
+  return listen<UpdateStatus>("update-status", (e) => handler(e.payload));
+}
+
+/** The quick-add bar was just opened. */
+export function onQuickShown(handler: () => void): Promise<UnlistenFn> {
+  return listen("quick-shown", () => handler());
+}
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
   return listen<CaptureResult>("capture", (e) => handler(e.payload));

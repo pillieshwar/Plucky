@@ -3,24 +3,42 @@ export interface Task {
   id: number;
   title: string;
   due_date: string | null;
+  /** `HH:MM`, only with a due date. */
+  due_time: string | null;
+  /** "daily" | "weekdays" | "weekly" | "biweekly" | "monthly" | "yearly" */
+  recurrence: string | null;
   source_text: string | null;
+  source_app: string | null;
+  source_bundle: string | null;
+  source_url: string | null;
   done: boolean;
   created_at: string;
   created_tz: string | null;
   completed_at: string | null;
+  snoozed_until: string | null;
+  notified_at: string | null;
+  next_id: number | null;
 }
 
 /** Mirrors `pluck_core::NewTask` (created_tz is filled in by Rust). */
 export interface NewTask {
   title: string;
   due_date: string | null;
+  due_time?: string | null;
+  recurrence?: string | null;
   source_text: string | null;
+  source_app?: string | null;
+  source_bundle?: string | null;
+  source_url?: string | null;
 }
 
 /** Mirrors `pluck_core::TaskPatch`. Omit a key to leave it unchanged. */
 export interface TaskPatch {
   title?: string;
   due_date?: string | null;
+  due_time?: string | null;
+  recurrence?: string | null;
+  snoozed_until?: string | null;
   done?: boolean;
 }
 
@@ -32,8 +50,15 @@ export interface Extraction {
 }
 
 /** Mirrors `capture::CaptureResult` in the Tauri crate. */
+/** Mirrors `capture::SourceInfo`. */
+export interface SourceInfo {
+  app: string | null;
+  bundle: string | null;
+  url: string | null;
+}
+
 export type CaptureResult =
-  | { kind: "text"; text: string; method: "accessibility" | "clipboard" }
+  | { kind: "text"; text: string; method: "accessibility" | "clipboard" | "service"; source: SourceInfo | null }
   | { kind: "nothing_selected" }
   | { kind: "permission_needed" }
   | { kind: "clipboard_busy" }
@@ -45,6 +70,47 @@ export interface Status {
   engine: "bundled" | "ollama";
   /** Name of the model captures will use, or null if none is downloaded. */
   active_model: string | null;
+  version: string;
+  /** "macos" | "windows" | "linux" */
+  platform: string;
+}
+
+/** Mirrors `pluck_core::notify::NotifySettings`. */
+export interface NotifySettings {
+  enabled: boolean;
+  /** `HH:MM` — when to remind about tasks with a day but no time. */
+  all_day_time: string;
+  daily_summary: boolean;
+}
+
+/** Mirrors `settings::AppSettings`. */
+export interface AppSettings {
+  notify: NotifySettings;
+  auto_update: boolean;
+  remember_source: boolean;
+  onboarding_done: boolean;
+  autostart_initialized: boolean;
+  last_summary: string | null;
+  last_backup: string | null;
+  seen_version: string | null;
+}
+
+export type NotificationPermission = "not_determined" | "denied" | "granted" | "unsupported";
+
+/** Mirrors `updates::UpdateStatus`. */
+export type UpdateStatus =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "up_to_date" }
+  | { state: "downloading"; version: string; percent: number | null }
+  | { state: "ready"; version: string; notes: string | null }
+  | { state: "failed"; message: string };
+
+/** Mirrors `data::BackupInfo`. */
+export interface BackupInfo {
+  name: string;
+  day: string;
+  size: number;
 }
 
 /** Mirrors `models::ModelView` (catalog entry + local state). */

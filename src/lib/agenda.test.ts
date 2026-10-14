@@ -13,6 +13,14 @@ const task = (title: string, due: string | null, extra: Partial<Task> = {}): Tas
   created_at: `2026-10-01T0${id % 10}:00:00Z`,
   created_tz: null,
   completed_at: null,
+    due_time: null,
+    recurrence: null,
+    source_app: null,
+    source_bundle: null,
+    source_url: null,
+    snoozed_until: null,
+    notified_at: null,
+    next_id: null,
   ...extra,
 });
 

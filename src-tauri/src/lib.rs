@@ -924,10 +924,12 @@ pub fn run() {
                         tray::refresh(&handle);
                         let _ = handle.emit("tasks-changed", ());
                         let state = handle.state::<AppState>();
-                        if let Ok(store) = state.store.lock() {
-                            if let Err(e) = data::daily_backup(&store, &state.data_dir) {
-                                log::warn!("daily backup failed: {e}");
-                            }
+                        let result = match state.store.lock() {
+                            Ok(store) => data::daily_backup(&store, &state.data_dir),
+                            Err(e) => Err(e.to_string()),
+                        };
+                        if let Err(e) = result {
+                            log::warn!("daily backup failed: {e}");
                         }
                     }
                 }

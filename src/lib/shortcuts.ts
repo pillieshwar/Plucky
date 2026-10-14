@@ -12,10 +12,11 @@ export interface ShortcutSpec {
 
 export interface ShortcutSettings {
   capture: ShortcutSpec;
+  quick_add: ShortcutSpec | null;
   toggle_panel: ShortcutSpec | null;
 }
 
-export type ShortcutAction = "capture" | "toggle_panel";
+export type ShortcutAction = "capture" | "quick_add" | "toggle_panel";
 
 export function isMacPlatform(): boolean {
   return typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);

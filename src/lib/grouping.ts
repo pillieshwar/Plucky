@@ -35,10 +35,15 @@ export function groupTasks(tasks: Task[], reference: Date, locale?: string): Day
   }
 
   const byCreated = (a: Task, b: Task) => a.created_at.localeCompare(b.created_at);
+  // All-day tasks first, then by time of day.
+  const byTime = (a: Task, b: Task) =>
+    Number(a.due_time !== null) - Number(b.due_time !== null) ||
+    (a.due_time ?? "").localeCompare(b.due_time ?? "") ||
+    byCreated(a, b);
   const groups: DayGroup[] = [];
 
   if (overdue.length) {
-    overdue.sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? "") || byCreated(a, b));
+    overdue.sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? "") || byTime(a, b));
     groups.push({ key: "overdue", label: "Overdue", tone: "overdue", tasks: overdue });
   }
 
@@ -48,7 +53,7 @@ export function groupTasks(tasks: Task[], reference: Date, locale?: string): Day
       key: day,
       label: relativeLabel(day, reference, locale),
       tone: isToday ? "today" : "upcoming",
-      tasks: byDay.get(day)!.sort(byCreated),
+      tasks: byDay.get(day)!.sort(byTime),
     });
   }
 
