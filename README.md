@@ -93,7 +93,7 @@ Developer option: set `PLUCK_OLLAMA_URL=http://127.0.0.1:11434` (and optionally 
 
 ### Releasing
 
-Bump `version` in `src-tauri/tauri.conf.json`, commit, then tag and push:
+Bump `version` in `src-tauri/tauri.conf.json` and commit. Then either open **Actions → Release → Run workflow** on GitHub (it tags the commit for you), or tag and push yourself:
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
