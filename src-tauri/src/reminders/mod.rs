@@ -38,6 +38,7 @@ pub enum Access {
     Full,
     WriteOnly,
     /// Not macOS.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     Unsupported,
 }
 
