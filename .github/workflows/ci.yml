@@ -82,7 +82,8 @@ jobs:
         run: scripts/ci-annotate.sh cargo test -p pluck --lib
       - name: Build unsigned debug bundle
         shell: bash
-        run: scripts/ci-annotate.sh npm run tauri build -- --debug
+        # Updater archives need the release signing key, which CI doesn't have.
+        run: scripts/ci-annotate.sh npm run tauri build -- --debug --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Check the runtime is inside the bundle
         if: runner.os == 'macOS'
         shell: bash

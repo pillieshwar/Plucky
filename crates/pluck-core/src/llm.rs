@@ -12,7 +12,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::extraction::{json_schema, Extraction};
+use crate::extraction::{json_schema, parse_tasks, Extraction};
 use crate::prompt;
 
 #[derive(Debug, thiserror::Error)]
@@ -161,7 +161,7 @@ impl LlmBackend for OllamaClient {
             "format": schema,
             "stream": false,
             "keep_alive": self.config.keep_alive,
-            "options": { "temperature": 0, "num_predict": 160 }
+            "options": { "temperature": 0, "num_predict": 700 }
         });
         let value = self.post(&body).await?;
         value["message"]["content"]
@@ -221,7 +221,7 @@ pub fn llama_server_body(messages: &[ChatMessage], schema: &Value) -> Value {
             "json_schema": { "name": "task", "schema": schema }
         },
         "temperature": 0,
-        "max_tokens": 160,
+        "max_tokens": 700,
         "stream": false
     })
 }
@@ -255,13 +255,13 @@ impl LlmBackend for LlamaServerClient {
     }
 }
 
-/// Extract one task from a selection: constrained request, validation, and
-/// a single repair retry. A second failure is returned so the UI can fall
-/// back to a manual edit state seeded with the selection.
+/// Extract the tasks in a selection (usually one): constrained request,
+/// validation, and a single repair retry. A second failure is returned so the
+/// UI can fall back to a manual edit state seeded with the selection.
 pub async fn extract_task<B: LlmBackend>(
     backend: &B,
     selection: &str,
-) -> Result<Extraction, LlmError> {
+) -> Result<Vec<Extraction>, LlmError> {
     let schema = json_schema();
     let mut messages = vec![
         ChatMessage::new("system", prompt::SYSTEM_PROMPT),
@@ -269,7 +269,7 @@ pub async fn extract_task<B: LlmBackend>(
     ];
 
     let first = backend.chat(&messages, &schema).await?;
-    let err = match Extraction::parse(&first) {
+    let err = match parse_tasks(&first) {
         Ok(e) => return Ok(e),
         Err(err) => err,
     };
@@ -281,7 +281,7 @@ pub async fn extract_task<B: LlmBackend>(
         prompt::repair_message(&err.to_string()),
     ));
     let second = backend.chat(&messages, &schema).await?;
-    Extraction::parse(&second).map_err(|e| LlmError::InvalidOutput(e.to_string()))
+    parse_tasks(&second).map_err(|e| LlmError::InvalidOutput(e.to_string()))
 }
 
 #[cfg(test)]
@@ -319,8 +319,7 @@ mod tests {
         }
     }
 
-    const GOOD: &str =
-        r#"{"task":"Review rollout checklist","date_text":"by Friday","date_confidence":"high"}"#;
+    const GOOD: &str = r#"{"tasks":[{"task":"Review rollout checklist","date_text":"by Friday","date_confidence":"high"}]}"#;
 
     #[tokio::test]
     async fn returns_first_valid_answer() {
@@ -328,7 +327,7 @@ mod tests {
         let e = extract_task(&b, "Please review the rollout checklist by Friday")
             .await
             .unwrap();
-        assert_eq!(e.date_confidence, DateConfidence::High);
+        assert_eq!(e[0].date_confidence, DateConfidence::High);
         assert_eq!(b.seen.borrow().len(), 1);
         let first = &b.seen.borrow()[0];
         assert_eq!(first[0].role, "system");
@@ -339,7 +338,7 @@ mod tests {
     async fn retries_once_with_error_feedback() {
         let b = Scripted::new(&["not json", GOOD]);
         let e = extract_task(&b, "x").await.unwrap();
-        assert_eq!(e.task, "Review rollout checklist");
+        assert_eq!(e[0].task, "Review rollout checklist");
         let calls = b.seen.borrow();
         assert_eq!(calls.len(), 2);
         assert_eq!(calls[1].len(), 4);
@@ -350,7 +349,7 @@ mod tests {
     async fn gives_up_after_second_failure() {
         let b = Scripted::new(&[
             "nope",
-            r#"{"task":"","date_text":null,"date_confidence":"none"}"#,
+            r#"{"tasks":[{"task":"","date_text":null,"date_confidence":"none"}]}"#,
         ]);
         assert!(matches!(
             extract_task(&b, "x").await,
@@ -380,7 +379,7 @@ mod tests {
         assert_eq!(body["response_format"]["type"], "json_schema");
         assert_eq!(
             body["response_format"]["json_schema"]["schema"]["required"][0],
-            "task"
+            "tasks"
         );
         assert_eq!(body["temperature"], 0);
         assert_eq!(body["stream"], false);

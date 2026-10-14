@@ -11,13 +11,17 @@ interface Props {
   locale: string;
   /** Days before this are shown but can't be picked. */
   min?: string;
+  /** Move keyboard focus into the grid when it opens (default true). */
+  autoFocus?: boolean;
+  /** Hide the Today / Tomorrow / No date row (when the parent shows its own). */
+  hideQuick?: boolean;
 }
 
 /**
  * An inline month calendar. It renders in the panel's own layout (never as a
  * floating popup), so it can't be cut off at the edge of the screen.
  */
-export function Calendar({ value, onChange, onClose, now, locale, min }: Props) {
+export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus = true, hideQuick = false }: Props) {
   const today = toISODate(now);
   const start = parseISODate(value ?? today);
   const [view, setView] = useState({ year: start.getFullYear(), month: start.getMonth() });
@@ -29,9 +33,14 @@ export function Calendar({ value, onChange, onClose, now, locale, min }: Props) 
   const cells = monthGrid(view.year, view.month, weekStart);
 
   // Move keyboard focus to the focused day after navigation.
+  const first = useRef(true);
   useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      if (!autoFocus) return;
+    }
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-iso="${focus}"]`)?.focus();
-  }, [focus, view]);
+  }, [focus, view, autoFocus]);
 
   function moveFocus(iso: string) {
     const d = parseISODate(iso);
@@ -119,6 +128,7 @@ export function Calendar({ value, onChange, onClose, now, locale, min }: Props) 
           );
         })}
       </div>
+      {!hideQuick && (
       <div className="cal-foot">
         {quick.map((q) => (
           <button key={q.label} type="button" className="cal-quick" onClick={() => pick(q.iso)}>
@@ -129,6 +139,7 @@ export function Calendar({ value, onChange, onClose, now, locale, min }: Props) 
           No date
         </button>
       </div>
+      )}
     </div>
   );
 }

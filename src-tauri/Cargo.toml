@@ -17,6 +17,8 @@ tauri-build = { version = "2", features = [] }
 pluck-core = { path = "../crates/pluck-core" }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -34,10 +36,11 @@ tempfile = "3"
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSCalendar", "NSError", "NSDate", "NSPredicate"] }
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSCalendar", "NSError", "NSDate", "NSPredicate", "NSSet"] }
 block2 = "0.6"
 objc2-event-kit = { version = "0.3", default-features = false, features = ["std", "block2", "EKCalendar", "EKCalendarItem", "EKEventStore", "EKObject", "EKReminder", "EKSource", "EKTypes", "EKError"] }
-objc2-app-kit = { version = "0.3", features = ["NSPasteboard", "NSPasteboardItem"] }
+objc2-app-kit = { version = "0.3", features = ["NSPasteboard", "NSPasteboardItem", "NSApplication", "NSResponder", "NSRunningApplication", "libc"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNNotification", "UNNotificationAction", "UNNotificationCategory", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
 
 # Windows/Linux only: macOS uses native AppKit/Quartz code instead, because
 # enigo's macOS backend calls keyboard-layout APIs that crash off the main
@@ -45,6 +48,7 @@ objc2-app-kit = { version = "0.3", features = ["NSPasteboard", "NSPasteboardItem
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 arboard = "3"
 enigo = "0.2"
+tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies]
 uiautomation = "0.16"

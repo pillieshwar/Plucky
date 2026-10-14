@@ -6,17 +6,31 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onPopoverShown, onShortcutsChanged, onTasksChanged } from "../lib/api";
+import { api, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
-import { addDays, parseISODate, toISODate } from "../lib/dates";
+import { addDays, dayOrderForLocale, parseISODate, relativeLabel, toISODate } from "../lib/dates";
+import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
-import type { Task } from "../lib/types";
+import { taskActions } from "../lib/taskActions";
+import { sourceLabel } from "../lib/taskText";
+import type { Task, UpdateStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
+import { Toasts, useToasts } from "../components/Toasts";
 
 const LOCALE = safeLocale();
+const ORDER = dayOrderForLocale(LOCALE);
+
+interface Drag {
+  task: Task;
+  x: number;
+  y: number;
+  /** Day under the pointer. */
+  over: string | null;
+}
 
 /**
  * The menu-bar popover: a two-week strip that expands into a month, and the
@@ -39,7 +53,15 @@ export default function Popover() {
   const [shortcut, setShortcut] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState(0);
+  const [update, setUpdate] = useState<UpdateStatus>({ state: "idle" });
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const pressed = useRef<{ task: Task; x: number; y: number } | null>(null);
+  const dragged = useRef(false);
+  const dragRef = useRef<Drag | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const { toasts, show, dismiss, undoLast } = useToasts();
+  const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const labels = useMemo(() => weekdayLabels(LOCALE, weekStart), [weekStart]);
@@ -74,10 +96,15 @@ export default function Popover() {
       .getShortcuts()
       .then((s) => setShortcut(formatShortcut(s.capture)))
       .catch(() => undefined);
+    api
+      .updateStatus()
+      .then(setUpdate)
+      .catch(() => undefined);
     const subs = [
       onTasksChanged(() => void load()),
       onPopoverShown(reset),
       onShortcutsChanged((s) => setShortcut(formatShortcut(s.capture))),
+      onUpdateStatus(setUpdate),
     ];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [load, reset]);
@@ -85,6 +112,11 @@ export default function Popover() {
   useEffect(() => {
     if (adding) inputRef.current?.focus();
   }, [adding]);
+
+  // Keyboard shortcuts work as soon as the popover opens.
+  useEffect(() => {
+    rootRef.current?.focus();
+  }, [openKey]);
 
   const marks = useMemo(() => dayMarks(tasks, today), [tasks, today]);
   const agenda = useMemo(() => agendaFor(tasks, selected, today), [tasks, selected, today]);
@@ -135,25 +167,76 @@ export default function Popover() {
     const completedAt = done ? new Date().toISOString() : null;
     // Optimistic: tick immediately, then persist.
     setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done, completed_at: completedAt } : x)));
-    try {
-      await api.updateTask(t.id, { done });
-    } catch (e) {
-      setError(String(e));
-      void load();
-    }
+    await actions.setDone(t, done);
   }
+
+  // Typed dates win ("dentist fri 3pm"); otherwise the selected day.
+  const typed = useMemo(() => (draft.trim() ? findSchedule(draft, now, ORDER) : null), [draft, now]);
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    const title = draft.trim();
+    const title = (typed?.title || draft).trim();
     if (!title) return;
+    const day = typed?.date ?? selected;
     try {
-      await api.addTask({ title, due_date: selected, source_text: null });
+      await api.addTask({
+        title,
+        due_date: day,
+        due_time: typed?.date ? typed.time : null,
+        recurrence: typed?.repeat ?? null,
+        source_text: null,
+      });
       setDraft("");
       setAdding(false);
+      if (day !== selected) show(`Added for ${relativeLabel(day, new Date(), LOCALE).toLowerCase()}`);
     } catch (err) {
       setError(String(err));
     }
+  }
+
+  // ── Drag a task onto a day to reschedule it ──
+  function onRowPointerDown(e: ReactPointerEvent, task: Task) {
+    if (e.button !== 0 || task.done) return;
+    if ((e.target as HTMLElement).closest(".pop-check")) return;
+    pressed.current = { task, x: e.clientX, y: e.clientY };
+    dragged.current = false;
+  }
+
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const p = pressed.current;
+      if (!p) return;
+      if (!dragged.current && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6) return;
+      dragged.current = true;
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const over = el?.closest<HTMLElement>("[data-iso]")?.dataset.iso ?? null;
+      dragRef.current = { task: p.task, x: e.clientX, y: e.clientY, over };
+      setDrag(dragRef.current);
+    };
+    const up = () => {
+      const d = dragRef.current;
+      pressed.current = null;
+      dragRef.current = null;
+      setDrag(null);
+      if (d?.over && d.over !== d.task.due_date) void actions.reschedule(d.task, { due_date: d.over });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [actions]);
+
+  function openTask(task: Task) {
+    // A drag ends with a click on the row; don't treat it as one.
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
+    void api.openMain(task.id, "tasks");
   }
 
   function onKey(e: KeyboardEvent) {
@@ -163,6 +246,10 @@ export default function Popover() {
       e.preventDefault();
       if (adding) setAdding(false);
       else void api.hidePopover();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !typing) {
+      if (undoLast()) e.preventDefault();
       return;
     }
     if (typing) return;
@@ -182,7 +269,12 @@ export default function Popover() {
   const empty = agenda.overdue.length === 0 && agenda.due.length === 0;
 
   return (
-    <div className="pop" key={openKey} onKeyDown={onKey} tabIndex={-1}>
+    <div ref={rootRef} className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>
+      {update.state === "ready" && (
+        <button type="button" className="pop-update" onClick={() => void api.installUpdate().catch((e) => setError(String(e)))}>
+          Pluck {update.version} is ready · <strong>Restart to update</strong>
+        </button>
+      )}
       <header className="pop-head">
         <h1 className="pop-month">
           {monthLabel(LOCALE, shownMonth.year, shownMonth.month).replace(String(shownMonth.year), "").trim()}
@@ -225,6 +317,7 @@ export default function Popover() {
               c.iso === today ? "today" : "",
               c.iso === selected ? "on" : "",
               c.iso < today ? "past" : "",
+              drag?.over === c.iso ? "drop" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -233,6 +326,7 @@ export default function Popover() {
                 key={c.iso}
                 type="button"
                 className={cls}
+                data-iso={c.iso}
                 onClick={() => select(c.iso)}
                 aria-pressed={c.iso === selected}
                 aria-label={`${parseISODate(c.iso).toLocaleDateString(LOCALE, {
@@ -282,15 +376,49 @@ export default function Popover() {
             </button>
           </form>
         )}
+        {adding && typed?.date && (
+          <p className="pop-typed">
+            {[
+              relativeLabel(typed.date, now, LOCALE),
+              typed.time && timeLabel(typed.time, LOCALE),
+              typed.repeat && repeatLabel(typed.repeat)?.toLowerCase(),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
+        {agenda.overdue.length > 1 && selected === today && (
+          <button type="button" className="pop-move" onClick={() => void actions.moveAll(agenda.overdue, today)}>
+            Move {agenda.overdue.length} overdue to today
+          </button>
+        )}
 
         {error && <p className="pop-error">{error}</p>}
 
         <ul className="pop-list">
           {agenda.overdue.map((t) => (
-            <Row key={t.id} task={t} meta={overdueLabel(t.due_date!, today)} tone="late" onToggle={toggleDone} />
+            <Row
+              key={t.id}
+              task={t}
+              meta={[overdueLabel(t.due_date!, today), ...rowMeta(t)].join(" · ")}
+              tone="late"
+              onToggle={toggleDone}
+              onOpen={openTask}
+              onPointerDown={onRowPointerDown}
+              dragging={drag?.task.id === t.id}
+            />
           ))}
           {agenda.due.map((t) => (
-            <Row key={t.id} task={t} meta={snippet(t.source_text)} tone="due" onToggle={toggleDone} />
+            <Row
+              key={t.id}
+              task={t}
+              meta={rowMeta(t).join(" · ") || snippet(t.source_text)}
+              tone="due"
+              onToggle={toggleDone}
+              onOpen={openTask}
+              onPointerDown={onRowPointerDown}
+              dragging={drag?.task.id === t.id}
+            />
           ))}
         </ul>
 
@@ -319,7 +447,7 @@ export default function Popover() {
             {showDone && (
               <ul className="pop-list">
                 {agenda.done.map((t) => (
-                  <Row key={t.id} task={t} meta={null} tone="done" onToggle={toggleDone} />
+                  <Row key={t.id} task={t} meta={null} tone="done" onToggle={toggleDone} onOpen={openTask} />
                 ))}
               </ul>
             )}
@@ -337,12 +465,34 @@ export default function Popover() {
         )}
         {shortcut && (
           <span className="pop-hint">
-            <kbd>{shortcut}</kbd> capture
+            {agenda.due.length + agenda.overdue.length > 0 ? "Drag a task onto a day to move it" : <><kbd>{shortcut}</kbd> capture</>}
           </span>
         )}
       </footer>
+      <Toasts toasts={toasts} onDismiss={dismiss} />
+      {drag && (
+        <div
+          className="pop-ghost"
+          style={{ left: Math.max(8, Math.min(drag.x - 40, window.innerWidth - 236)), top: drag.y + 14 }}
+          aria-hidden
+        >
+          {drag.task.title}
+          {drag.over && <span> → {relativeLabel(drag.over, now, LOCALE)}</span>}
+        </div>
+      )}
     </div>
   );
+}
+
+/** Time, repeat and source, for the line under a title. */
+function rowMeta(t: Task): string[] {
+  const parts: string[] = [];
+  if (t.due_time) parts.push(timeLabel(t.due_time, LOCALE));
+  const r = repeatShort(t.recurrence);
+  if (r) parts.push(r);
+  const src = sourceLabel(t);
+  if (src) parts.push(`from ${src}`);
+  return parts;
 }
 
 function Row({
@@ -350,14 +500,23 @@ function Row({
   meta,
   tone,
   onToggle,
+  onOpen,
+  onPointerDown,
+  dragging,
 }: {
   task: Task;
   meta: string | null;
   tone: "late" | "due" | "done";
   onToggle: (t: Task) => void;
+  onOpen: (t: Task) => void;
+  onPointerDown?: (e: ReactPointerEvent, t: Task) => void;
+  dragging?: boolean;
 }) {
   return (
-    <li className={`pop-row ${tone}${task.done ? " checked" : ""}`}>
+    <li
+      className={`pop-row ${tone}${task.done ? " checked" : ""}${dragging ? " lifted" : ""}`}
+      onPointerDown={onPointerDown ? (e) => onPointerDown(e, task) : undefined}
+    >
       <button
         type="button"
         className="pop-check"
@@ -372,8 +531,8 @@ function Row({
       <button
         type="button"
         className="pop-body"
-        onClick={() => void api.openMain(task.id, "tasks")}
-        title="Open in Pluck"
+        onClick={() => onOpen(task)}
+        title="Open in Pluck · drag onto a day to move it"
       >
         <span className="pop-title">{task.title}</span>
         {meta && <span className="pop-meta">{meta}</span>}

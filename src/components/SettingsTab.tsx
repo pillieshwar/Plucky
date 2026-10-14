@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { RemindersSection } from "./RemindersSection";
+import { DataSection, GeneralSection, NotificationsSection } from "./GeneralSettings";
+import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import {
   formatShortcut,
   sameShortcut,
@@ -15,6 +17,11 @@ import {
 interface Props {
   shortcuts: ShortcutSettings | null;
   onShortcuts: (s: ShortcutSettings) => void;
+  settings: AppSettings | null;
+  onSettings: (s: AppSettings) => void;
+  status: Status | null;
+  update: UpdateStatus;
+  onError: (message: string) => void;
 }
 
 const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boolean }[] = [
@@ -25,6 +32,12 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
     optional: false,
   },
   {
+    action: "quick_add",
+    title: "Quick add",
+    hint: "Type a task from anywhere — “pay rent friday 5pm #home”.",
+    optional: true,
+  },
+  {
     action: "toggle_panel",
     title: "Show or hide Pluck",
     hint: "Open your task list from anywhere. Optional.",
@@ -32,7 +45,7 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
   },
 ];
 
-export function SettingsTab({ shortcuts, onShortcuts }: Props) {
+export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, status, update, onError }: Props) {
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [errors, setErrors] = useState<Partial<Record<ShortcutAction, string>>>({});
   const [busy, setBusy] = useState(false);
@@ -69,7 +82,7 @@ export function SettingsTab({ shortcuts, onShortcuts }: Props) {
           These work in every app while Pluck is running. Click a shortcut, then press the keys you want.
         </p>
         {ROWS.map((row) => {
-          const current = shortcuts ? (row.action === "capture" ? shortcuts.capture : shortcuts.toggle_panel) : null;
+          const current = shortcuts ? shortcuts[row.action] : null;
           const warning = current ? shortcutWarning(current) : null;
           return (
             <div key={row.action} className="shortcut-row">
@@ -89,11 +102,14 @@ export function SettingsTab({ shortcuts, onShortcuts }: Props) {
                   onCancel={() => setRecording(null)}
                   onRecorded={(spec) => {
                     setRecording(null);
-                    const other =
-                      row.action === "capture" ? (shortcuts?.toggle_panel ?? null) : (shortcuts?.capture ?? null);
+                    const others = ROWS.filter((r) => r.action !== row.action).map((r) =>
+                      shortcuts ? shortcuts[r.action] : null,
+                    );
                     const err =
                       validateShortcut(spec) ??
-                      (sameShortcut(spec, other) ? "That shortcut is already used for the other action." : null);
+                      (others.some((o) => sameShortcut(spec, o))
+                        ? "That shortcut is already used by another Pluck action."
+                        : null);
                     if (err) setErrors((e) => ({ ...e, [row.action]: err }));
                     else void save(row.action, spec);
                   }}
@@ -119,7 +135,13 @@ export function SettingsTab({ shortcuts, onShortcuts }: Props) {
         </button>
       </section>
 
+      <GeneralSection settings={settings} onSettings={onSettings} status={status} update={update} onError={onError} />
+
+      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
+
       <RemindersSection />
+
+      <DataSection onError={onError} />
 
       <section className="settings-section">
         <h2 className="settings-h">Panel</h2>

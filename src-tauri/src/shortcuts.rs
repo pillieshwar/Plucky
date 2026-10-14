@@ -1,6 +1,7 @@
 //! Configurable global shortcuts, saved in `shortcuts.json`.
 //!
 //! * Capture selected text — default ⌘⇧Z (Ctrl+Shift+Z on Windows).
+//! * Quick add (type a task) — default ⇧⌘Space (Ctrl+Shift+Space).
 //! * Show/hide the panel — optional, unset by default.
 //!
 //! Shortcuts are kept as plain specs (modifier flags + a W3C key code such
@@ -29,12 +30,16 @@ pub struct ShortcutSpec {
 #[serde(rename_all = "snake_case")]
 pub enum Action {
     Capture,
+    QuickAdd,
     TogglePanel,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShortcutSettings {
     pub capture: ShortcutSpec,
+    /// Missing in files from before 0.2, which get the default.
+    #[serde(default = "default_quick_add_opt")]
+    pub quick_add: Option<ShortcutSpec>,
     #[serde(default)]
     pub toggle_panel: Option<ShortcutSpec>,
 }
@@ -43,8 +48,37 @@ impl Default for ShortcutSettings {
     fn default() -> Self {
         Self {
             capture: default_capture(),
+            quick_add: default_quick_add_opt(),
             toggle_panel: None,
         }
+    }
+}
+
+pub fn default_quick_add() -> ShortcutSpec {
+    ShortcutSpec {
+        meta: cfg!(target_os = "macos"),
+        ctrl: !cfg!(target_os = "macos"),
+        alt: false,
+        shift: true,
+        code: "Space".into(),
+    }
+}
+
+fn default_quick_add_opt() -> Option<ShortcutSpec> {
+    Some(default_quick_add())
+}
+
+impl ShortcutSettings {
+    /// Every configured shortcut with its action.
+    fn all(&self) -> Vec<(Action, &ShortcutSpec)> {
+        let mut v = vec![(Action::Capture, &self.capture)];
+        if let Some(q) = &self.quick_add {
+            v.push((Action::QuickAdd, q));
+        }
+        if let Some(t) = &self.toggle_panel {
+            v.push((Action::TogglePanel, t));
+        }
+        v
     }
 }
 
@@ -268,6 +302,21 @@ fn key_label(code: &str) -> String {
     .to_string()
 }
 
+/// Every shortcut must be valid and different from the others.
+fn check_distinct(s: &ShortcutSettings) -> Result<(), String> {
+    let all = s.all();
+    for (i, (_, a)) in all.iter().enumerate() {
+        a.to_shortcut()?;
+        if all[..i].iter().any(|(_, b)| b == a) {
+            return Err(format!(
+                "{} is already used by another Pluck shortcut.",
+                a.label()
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub struct Shortcuts {
     path: PathBuf,
     settings: Mutex<ShortcutSettings>,
@@ -283,6 +332,9 @@ impl Shortcuts {
         if settings.capture.to_shortcut().is_err() {
             settings.capture = default_capture();
         }
+        if check_distinct(&settings).is_err() {
+            settings.quick_add = None;
+        }
         Self {
             path,
             settings: Mutex::new(settings),
@@ -297,17 +349,17 @@ impl Shortcuts {
         self.get().capture.label()
     }
 
+    pub fn quick_add_label(&self) -> Option<String> {
+        self.get().quick_add.map(|q| q.label())
+    }
+
     /// Which action, if any, a pressed shortcut belongs to.
     pub fn action_for(&self, pressed: &Shortcut) -> Option<Action> {
         let s = self.get();
-        if s.capture.to_shortcut().ok().as_ref() == Some(pressed) {
-            return Some(Action::Capture);
-        }
-        let toggle = s.toggle_panel.and_then(|t| t.to_shortcut().ok());
-        if toggle.as_ref() == Some(pressed) {
-            return Some(Action::TogglePanel);
-        }
-        None
+        s.all()
+            .into_iter()
+            .find(|(_, spec)| spec.to_shortcut().ok().as_ref() == Some(pressed))
+            .map(|(a, _)| a)
     }
 
     fn save(&self, s: &ShortcutSettings) -> Result<(), String> {
@@ -319,7 +371,7 @@ impl Shortcuts {
     pub fn register_all(&self, app: &AppHandle) {
         let s = self.get();
         let gs = app.global_shortcut();
-        for spec in std::iter::once(&s.capture).chain(s.toggle_panel.as_ref()) {
+        for (_, spec) in s.all() {
             match spec.to_shortcut() {
                 Ok(sc) => {
                     if let Err(e) = gs.register(sc) {
@@ -352,15 +404,10 @@ impl Shortcuts {
         match (action, spec) {
             (Action::Capture, Some(s)) => next.capture = s,
             (Action::Capture, None) => return Err("The capture shortcut can't be empty.".into()),
+            (Action::QuickAdd, s) => next.quick_add = s,
             (Action::TogglePanel, s) => next.toggle_panel = s,
         }
-        next.capture.to_shortcut()?;
-        if let Some(t) = &next.toggle_panel {
-            t.to_shortcut()?;
-            if *t == next.capture {
-                return Err("That's already the capture shortcut.".into());
-            }
-        }
+        check_distinct(&next)?;
         self.apply(app, &old, next)
     }
 
@@ -378,7 +425,7 @@ impl Shortcuts {
         let gs = app.global_shortcut();
         let _ = gs.unregister_all();
         let mut failed = None;
-        for spec in std::iter::once(&next.capture).chain(next.toggle_panel.as_ref()) {
+        for (_, spec) in next.all() {
             if let Ok(sc) = spec.to_shortcut() {
                 if let Err(e) = gs.register(sc) {
                     failed = Some(format!(
@@ -484,12 +531,35 @@ mod tests {
         assert_eq!(s.get().capture, default_capture());
         let custom = ShortcutSettings {
             capture: spec(false, true, true, false, "KeyT"),
+            quick_add: None,
             toggle_panel: Some(spec(false, true, true, false, "KeyY")),
         };
         s.save(&custom).unwrap();
         let s2 = Shortcuts::new(dir.path());
         assert_eq!(s2.get().capture, custom.capture);
         assert_eq!(s2.get().toggle_panel, custom.toggle_panel);
+        assert_eq!(s2.get().quick_add, None);
+    }
+
+    #[test]
+    fn old_files_get_the_quick_add_default() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("shortcuts.json"),
+            r#"{"capture":{"meta":false,"ctrl":true,"alt":true,"shift":false,"code":"KeyT"}}"#,
+        )
+        .unwrap();
+        let s = Shortcuts::new(dir.path()).get();
+        assert_eq!(s.quick_add, Some(default_quick_add()));
+        assert!(default_quick_add().validate().is_ok());
+    }
+
+    #[test]
+    fn duplicate_shortcuts_are_rejected() {
+        let mut s = ShortcutSettings::default();
+        assert!(check_distinct(&s).is_ok());
+        s.toggle_panel = Some(s.capture.clone());
+        assert!(check_distinct(&s).is_err());
     }
 
     #[test]

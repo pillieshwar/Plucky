@@ -20,6 +20,10 @@ pub enum StoreError {
     EmptyTitle,
     #[error("task {0} not found")]
     NotFound(i64),
+    #[error("invalid time '{0}', expected HH:MM")]
+    BadTime(String),
+    #[error("unknown repeat rule '{0}'")]
+    BadRecurrence(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,23 +40,61 @@ pub struct Task {
     /// IANA zone at creation, e.g. `America/Los_Angeles`.
     pub created_tz: Option<String>,
     pub completed_at: Option<String>,
+    /// Local time of day, `HH:MM`; only set together with `due_date`.
+    pub due_time: Option<String>,
+    /// Repeat rule (see [`crate::recurrence::Rule`]), e.g. `weekly`.
+    pub recurrence: Option<String>,
+    /// The app the text was captured in, e.g. `Slack`.
+    pub source_app: Option<String>,
+    /// That app's bundle identifier, used to reopen it.
+    pub source_bundle: Option<String>,
+    /// The page or document the text came from, when the app exposes it.
+    pub source_url: Option<String>,
+    /// Local time (`YYYY-MM-DDTHH:MM:SS`) a snoozed reminder fires again.
+    pub snoozed_until: Option<String>,
+    /// Local time the last notification for this task was shown.
+    pub notified_at: Option<String>,
+    /// For a completed repeating task: the occurrence it created.
+    pub next_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct NewTask {
     pub title: String,
     pub due_date: Option<String>,
+    pub due_time: Option<String>,
+    pub recurrence: Option<String>,
     pub source_text: Option<String>,
+    pub source_app: Option<String>,
+    pub source_bundle: Option<String>,
+    pub source_url: Option<String>,
     pub created_tz: Option<String>,
 }
 
-/// Partial update. `due_date: Some(None)` clears the date.
+/// Partial update. `due_date: Some(None)` clears the date (and the time).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TaskPatch {
     pub title: Option<String>,
     #[serde(default, with = "double_option")]
     pub due_date: Option<Option<String>>,
+    #[serde(default, with = "double_option")]
+    pub due_time: Option<Option<String>>,
+    #[serde(default, with = "double_option")]
+    pub recurrence: Option<Option<String>>,
+    /// Local `YYYY-MM-DDTHH:MM:SS`; `Some(None)` cancels a snooze.
+    #[serde(default, with = "double_option")]
+    pub snoozed_until: Option<Option<String>>,
     pub done: Option<bool>,
+}
+
+/// What `Store::update` did besides changing the task itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UpdateEffects {
+    /// A repeating task was completed and this next occurrence was created.
+    pub spawned: Option<i64>,
+    /// A completion was undone and this unstarted occurrence was removed.
+    pub removed: Option<i64>,
 }
 
 mod double_option {
@@ -91,6 +133,16 @@ CREATE TABLE reminder_links (
     -- The reminder was deleted in Reminders: keep the task, never re-add it.
     detached     INTEGER NOT NULL DEFAULT 0
 );
+"#,
+    r#"
+ALTER TABLE tasks ADD COLUMN due_time TEXT CHECK (due_time IS NULL OR due_time GLOB '[0-2][0-9]:[0-5][0-9]');
+ALTER TABLE tasks ADD COLUMN recurrence TEXT;
+ALTER TABLE tasks ADD COLUMN source_app TEXT;
+ALTER TABLE tasks ADD COLUMN source_bundle TEXT;
+ALTER TABLE tasks ADD COLUMN source_url TEXT;
+ALTER TABLE tasks ADD COLUMN snoozed_until TEXT;
+ALTER TABLE tasks ADD COLUMN notified_at TEXT;
+ALTER TABLE tasks ADD COLUMN next_id INTEGER;
 "#,
 ];
 
@@ -135,10 +187,28 @@ impl Store {
     pub fn insert(&self, t: NewTask) -> Result<Task, StoreError> {
         let title = clean_title(&t.title)?;
         let due = t.due_date.as_deref().map(check_date).transpose()?;
+        // A time only means something on a day.
+        let time = match due {
+            Some(_) => t.due_time.as_deref().map(check_time).transpose()?,
+            None => None,
+        };
+        let rule = t.recurrence.as_deref().map(check_rule).transpose()?;
         self.conn.execute(
-            "INSERT INTO tasks (title, due_date, source_text, created_at, created_tz)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![title, due, t.source_text, now(), t.created_tz],
+            "INSERT INTO tasks (title, due_date, due_time, recurrence, source_text, source_app,
+                                source_bundle, source_url, created_at, created_tz)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                title,
+                due,
+                time,
+                rule,
+                t.source_text,
+                clean_opt(t.source_app),
+                clean_opt(t.source_bundle),
+                clean_opt(t.source_url),
+                now(),
+                t.created_tz
+            ],
         )?;
         self.get(self.conn.last_insert_rowid())
     }
@@ -160,13 +230,50 @@ impl Store {
             .unwrap_or_else(|| "9999-12-31".into());
         let mut stmt = self.conn.prepare(&format!(
             "{SELECT} WHERE done = 0 OR substr(completed_at, 1, 10) >= ?1
-             ORDER BY due_date IS NULL, due_date, done, created_at"
+             ORDER BY {ORDER}"
         ))?;
         let rows = stmt.query_map([since], map_row)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Every task, done or not (for export).
+    pub fn all(&self) -> Result<Vec<Task>, StoreError> {
+        let mut stmt = self.conn.prepare(&format!("{SELECT} ORDER BY {ORDER}"))?;
+        let rows = stmt.query_map([], map_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Record that a notification for this task was shown at `at` (local).
+    pub fn mark_notified(&self, id: i64, at: &str) -> Result<(), StoreError> {
+        self.conn.execute(
+            "UPDATE tasks SET notified_at = ?1 WHERE id = ?2",
+            params![at, id],
+        )?;
+        Ok(())
+    }
+
+    /// Write a consistent copy of the database to `path` (which must not
+    /// exist yet). Safe while the app is running.
+    pub fn backup_to(&self, path: impl AsRef<Path>) -> Result<(), StoreError> {
+        let path = path.as_ref().to_string_lossy().to_string();
+        self.conn.execute("VACUUM INTO ?1", [path])?;
+        Ok(())
+    }
+
     pub fn update(&self, id: i64, patch: TaskPatch) -> Result<Task, StoreError> {
+        self.update_with_effects(id, patch).map(|(t, _)| t)
+    }
+
+    /// Apply `patch`. Completing a repeating task creates its next
+    /// occurrence; un-completing it removes that occurrence again if it
+    /// hasn't been touched.
+    pub fn update_with_effects(
+        &self,
+        id: i64,
+        patch: TaskPatch,
+    ) -> Result<(Task, UpdateEffects), StoreError> {
+        let before = self.get(id)?;
+        let mut effects = UpdateEffects::default();
         let tx = self.conn.unchecked_transaction()?;
         if let Some(title) = patch.title {
             tx.execute(
@@ -174,21 +281,61 @@ impl Store {
                 params![clean_title(&title)?, id],
             )?;
         }
+        let mut reschedule = false;
         if let Some(due) = patch.due_date {
             let due = due.as_deref().map(check_date).transpose()?;
+            if due.is_none() {
+                tx.execute("UPDATE tasks SET due_time = NULL WHERE id = ?1", [id])?;
+            }
             tx.execute(
                 "UPDATE tasks SET due_date = ?1 WHERE id = ?2",
                 params![due, id],
             )?;
+            reschedule |= due != before.due_date;
+        }
+        if let Some(time) = patch.due_time {
+            let time = time.as_deref().map(check_time).transpose()?;
+            // Ignored on an undated task.
+            tx.execute(
+                "UPDATE tasks SET due_time = CASE WHEN due_date IS NULL THEN NULL ELSE ?1 END WHERE id = ?2",
+                params![time, id],
+            )?;
+            reschedule |= time != before.due_time;
+        }
+        if let Some(rule) = patch.recurrence {
+            let rule = rule.as_deref().map(check_rule).transpose()?;
+            tx.execute(
+                "UPDATE tasks SET recurrence = ?1 WHERE id = ?2",
+                params![rule, id],
+            )?;
+        }
+        if let Some(snooze) = patch.snoozed_until {
+            tx.execute(
+                "UPDATE tasks SET snoozed_until = ?1 WHERE id = ?2",
+                params![snooze, id],
+            )?;
+        } else if reschedule {
+            // A new due moment gets a fresh notification.
+            tx.execute(
+                "UPDATE tasks SET snoozed_until = NULL, notified_at = NULL WHERE id = ?1",
+                [id],
+            )?;
         }
         if let Some(done) = patch.done {
             tx.execute(
-                "UPDATE tasks SET done = ?1, completed_at = CASE WHEN ?1 THEN ?2 ELSE NULL END WHERE id = ?3",
+                "UPDATE tasks SET done = ?1, completed_at = CASE WHEN ?1 THEN ?2 ELSE NULL END,
+                     snoozed_until = NULL WHERE id = ?3",
                 params![done, now(), id],
             )?;
+            if done && !before.done && before.next_id.is_none() {
+                effects.spawned = spawn_next(&tx, id)?;
+            }
+            if !done && before.done {
+                effects.removed = unspawn_next(&tx, &before)?;
+            }
         }
         tx.commit()?;
-        self.get(id)
+        Ok((self.get(id)?, effects))
     }
 
     pub fn reminder_links(&self) -> Result<Vec<ReminderLink>, StoreError> {
@@ -250,7 +397,11 @@ impl Store {
     }
 }
 
-const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at FROM tasks";
+const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
+    due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id FROM tasks";
+
+/// By day, all-day tasks before timed ones, then by time.
+const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
 
 fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -262,7 +413,84 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
         created_at: r.get(5)?,
         created_tz: r.get(6)?,
         completed_at: r.get(7)?,
+        due_time: r.get(8)?,
+        recurrence: r.get(9)?,
+        source_app: r.get(10)?,
+        source_bundle: r.get(11)?,
+        source_url: r.get(12)?,
+        snoozed_until: r.get(13)?,
+        notified_at: r.get(14)?,
+        next_id: r.get(15)?,
     })
+}
+
+/// Create the next occurrence of repeating task `id` (inside `tx`).
+fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, StoreError> {
+    let t = tx.query_row(&format!("{SELECT} WHERE id = ?1"), [id], map_row)?;
+    let Some(rule) = t
+        .recurrence
+        .as_deref()
+        .and_then(crate::recurrence::Rule::parse)
+    else {
+        return Ok(None);
+    };
+    let due = t
+        .due_date
+        .as_deref()
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let today = chrono::Local::now().date_naive();
+    let next = crate::recurrence::next_due(rule, due, today)
+        .format("%Y-%m-%d")
+        .to_string();
+    tx.execute(
+        "INSERT INTO tasks (title, due_date, due_time, recurrence, source_text, source_app,
+                            source_bundle, source_url, created_at, created_tz)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            t.title,
+            next,
+            t.due_time,
+            t.recurrence,
+            t.source_text,
+            t.source_app,
+            t.source_bundle,
+            t.source_url,
+            now(),
+            t.created_tz
+        ],
+    )?;
+    let next_id = tx.last_insert_rowid();
+    tx.execute(
+        "UPDATE tasks SET next_id = ?1 WHERE id = ?2",
+        params![next_id, id],
+    )?;
+    Ok(Some(next_id))
+}
+
+/// Undo `spawn_next`: remove the next occurrence unless it was completed.
+fn unspawn_next(tx: &rusqlite::Transaction<'_>, before: &Task) -> Result<Option<i64>, StoreError> {
+    let Some(next) = before.next_id else {
+        return Ok(None);
+    };
+    let removed = tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [next])?;
+    tx.execute("UPDATE tasks SET next_id = NULL WHERE id = ?1", [before.id])?;
+    Ok((removed > 0).then_some(next))
+}
+
+fn clean_opt(s: Option<String>) -> Option<String> {
+    s.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn check_time(t: &str) -> Result<String, StoreError> {
+    chrono::NaiveTime::parse_from_str(t, "%H:%M")
+        .map(|nt| nt.format("%H:%M").to_string())
+        .map_err(|_| StoreError::BadTime(t.to_string()))
+}
+
+fn check_rule(r: &str) -> Result<String, StoreError> {
+    crate::recurrence::Rule::parse(r)
+        .map(|r| r.as_str().to_string())
+        .ok_or_else(|| StoreError::BadRecurrence(r.to_string()))
 }
 
 fn now() -> String {
@@ -442,6 +670,159 @@ mod tests {
         // Deleting the task removes its link.
         s.delete(t.id).unwrap();
         assert!(s.reminder_links().unwrap().is_empty());
+    }
+
+    #[test]
+    fn times_sort_after_all_day_and_clear_with_the_date() {
+        let s = Store::open_in_memory().unwrap();
+        let mk = |title: &str, time: Option<&str>| NewTask {
+            title: title.into(),
+            due_date: Some("2026-10-16".into()),
+            due_time: time.map(Into::into),
+            ..Default::default()
+        };
+        s.insert(mk("late", Some("17:30"))).unwrap();
+        s.insert(mk("early", Some("9:05"))).unwrap();
+        s.insert(mk("all day", None)).unwrap();
+        let list = s.list(None).unwrap();
+        let titles: Vec<_> = list.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(titles, ["all day", "early", "late"]);
+        assert_eq!(list[1].due_time.as_deref(), Some("09:05"));
+        let t = s
+            .update(
+                list[1].id,
+                TaskPatch {
+                    due_date: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!((t.due_date, t.due_time), (None, None));
+        assert!(matches!(
+            s.insert(NewTask {
+                due_time: Some("25:00".into()),
+                ..mk("x", None)
+            }),
+            Err(StoreError::BadTime(_))
+        ));
+        // A time without a day is dropped.
+        let t = s
+            .insert(NewTask {
+                title: "y".into(),
+                due_time: Some("10:00".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(t.due_time, None);
+    }
+
+    #[test]
+    fn completing_a_repeating_task_creates_the_next_one_and_undo_removes_it() {
+        let s = Store::open_in_memory().unwrap();
+        let today = chrono::Local::now().date_naive();
+        let t = s
+            .insert(NewTask {
+                title: "Water plants".into(),
+                due_date: Some(today.format("%Y-%m-%d").to_string()),
+                due_time: Some("08:00".into()),
+                recurrence: Some("daily".into()),
+                source_app: Some("Notes".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let (done, fx) = s
+            .update_with_effects(
+                t.id,
+                TaskPatch {
+                    done: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let next_id = fx.spawned.expect("next occurrence");
+        assert_eq!(done.next_id, Some(next_id));
+        let next = s.get(next_id).unwrap();
+        let tomorrow = (today + chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
+        assert_eq!(next.due_date.as_deref(), Some(tomorrow.as_str()));
+        assert_eq!(next.due_time.as_deref(), Some("08:00"));
+        assert_eq!(next.recurrence.as_deref(), Some("daily"));
+        assert_eq!(next.source_app.as_deref(), Some("Notes"));
+        assert!(!next.done);
+
+        // Completing again doesn't spawn twice.
+        let (_, fx) = s
+            .update_with_effects(
+                t.id,
+                TaskPatch {
+                    done: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(fx.spawned, None);
+
+        // Undo: the untouched next occurrence goes away.
+        let (undone, fx) = s
+            .update_with_effects(
+                t.id,
+                TaskPatch {
+                    done: Some(false),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(fx.removed, Some(next_id));
+        assert_eq!(undone.next_id, None);
+        assert!(matches!(s.get(next_id), Err(StoreError::NotFound(_))));
+        assert!(matches!(
+            s.insert(NewTask {
+                title: "z".into(),
+                recurrence: Some("hourly".into()),
+                ..Default::default()
+            }),
+            Err(StoreError::BadRecurrence(_))
+        ));
+    }
+
+    #[test]
+    fn rescheduling_resets_notification_state() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s.insert(task("x", Some("2026-10-16"))).unwrap();
+        s.mark_notified(t.id, "2026-10-16T09:00:00").unwrap();
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    snoozed_until: Some(Some("2026-10-16T09:15:00".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(t.notified_at.as_deref(), Some("2026-10-16T09:00:00"));
+        assert_eq!(t.snoozed_until.as_deref(), Some("2026-10-16T09:15:00"));
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    due_date: Some(Some("2026-10-17".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!((t.notified_at, t.snoozed_until), (None, None));
+    }
+
+    #[test]
+    fn backup_copies_everything() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Store::open_in_memory().unwrap();
+        s.insert(task("keep me", None)).unwrap();
+        let path = dir.path().join("copy.db");
+        s.backup_to(&path).unwrap();
+        let copy = Store::open(&path).unwrap();
+        assert_eq!(copy.all().unwrap()[0].title, "keep me");
     }
 
     #[test]

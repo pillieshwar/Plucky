@@ -15,6 +15,9 @@ use core_foundation::boolean::CFBoolean;
 use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
+use core_foundation::url::CFURL;
+
+use super::SourceInfo;
 
 type AXUIElementRef = *const c_void;
 type AXError = i32;
@@ -33,6 +36,12 @@ extern "C" {
     ) -> AXError;
     fn AXUIElementPerformAction(element: AXUIElementRef, action: CFStringRef) -> AXError;
     fn AXUIElementSetMessagingTimeout(element: AXUIElementRef, timeout: f32) -> AXError;
+    fn AXUIElementSetAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        value: CFTypeRef,
+    ) -> AXError;
+    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> AXError;
     fn AXIsProcessTrustedWithOptions(options: CFDictionaryRef) -> bool;
 }
 
@@ -113,6 +122,103 @@ pub fn selected_text() -> Option<String> {
         let selected = copy_attr(as_element(&focused), "AXSelectedText")?;
         selected.downcast::<CFString>().map(|s| s.to_string())
     }
+}
+
+fn string_attr(element: AXUIElementRef, name: &'static str) -> Option<String> {
+    unsafe { copy_attr(element, name) }
+        .and_then(|v| v.downcast::<CFString>())
+        .map(|s| s.to_string())
+        .filter(|s| !s.trim().is_empty())
+}
+
+/// An AX URL attribute, which apps return as a CFURL or a string.
+fn url_attr(element: AXUIElementRef, name: &'static str) -> Option<String> {
+    let value = unsafe { copy_attr(element, name)? };
+    let text = match value.downcast::<CFURL>() {
+        Some(url) => url.get_string().to_string(),
+        None => value.downcast::<CFString>()?.to_string(),
+    };
+    let lower = text.to_ascii_lowercase();
+    let ok = (lower.starts_with("https://")
+        || lower.starts_with("http://")
+        || lower.starts_with("file://"))
+        && text.len() <= 2048;
+    ok.then_some(text)
+}
+
+/// Browsers and chat apps built on Chromium only build their accessibility
+/// tree (which carries the page URL) when asked to.
+const CHROMIUM_APPS: &[&str] = &[
+    "com.google.Chrome",
+    "com.google.Chrome.beta",
+    "com.google.Chrome.canary",
+    "com.brave.Browser",
+    "com.microsoft.edgemac",
+    "company.thebrowser.Browser",
+    "com.vivaldi.Vivaldi",
+    "com.operasoftware.Opera",
+    "com.tinyspeck.slackmacgap",
+];
+
+/// The page URL of the web content that has focus, if any.
+fn web_url() -> Option<String> {
+    let system = system_element()?;
+    let mut el = unsafe { copy_attr(as_element(&system), "AXFocusedUIElement")? };
+    for _ in 0..48 {
+        if string_attr(as_element(&el), "AXRole").as_deref() == Some("AXWebArea") {
+            if let Some(url) = url_attr(as_element(&el), "AXURL") {
+                return Some(url);
+            }
+        }
+        el = unsafe { copy_attr(as_element(&el), "AXParent")? };
+    }
+    None
+}
+
+/// Which app (and page or document) the selection is in. Best effort and
+/// quick: every AX call has a short timeout.
+#[allow(unused_unsafe)]
+pub fn source_info() -> SourceInfo {
+    let mut info = SourceInfo::default();
+    let Some(app) = focused_app() else {
+        return info;
+    };
+    let el = as_element(&app);
+    info.app = string_attr(el, "AXTitle");
+    let mut pid: i32 = 0;
+    if unsafe { AXUIElementGetPid(el, &mut pid) } == AX_ERROR_SUCCESS && pid > 0 {
+        if let Some(running) = unsafe {
+            objc2_app_kit::NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+        } {
+            info.bundle = unsafe { running.bundleIdentifier() }.map(|s| s.to_string());
+            if info.app.is_none() {
+                info.app = unsafe { running.localizedName() }.map(|s| s.to_string());
+            }
+        }
+    }
+    info.url = web_url().or_else(|| {
+        // Documents (TextEdit, Preview, Pages, Xcode…) expose a file URL.
+        let window = unsafe { copy_attr(el, "AXFocusedWindow")? };
+        url_attr(as_element(&window), "AXDocument")
+    });
+    if info.url.is_none()
+        && info
+            .bundle
+            .as_deref()
+            .is_some_and(|b| CHROMIUM_APPS.contains(&b))
+    {
+        // Turns on Chromium's accessibility tree for this app, so the next
+        // capture from it can include the page link.
+        let attr = CFString::from_static_string("AXManualAccessibility");
+        unsafe {
+            AXUIElementSetAttributeValue(
+                el,
+                attr.as_concrete_TypeRef(),
+                CFBoolean::true_value().as_CFTypeRef(),
+            );
+        }
+    }
+    info
 }
 
 fn children(element: AXUIElementRef) -> Vec<CFType> {
@@ -243,6 +349,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         let handle = std::thread::spawn(|| {
             let _ = selected_text();
+            let _ = source_info();
             let _ = press_copy_menu_item();
             let _ = is_trusted(false);
             post_cmd_c()

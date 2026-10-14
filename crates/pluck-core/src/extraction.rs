@@ -1,6 +1,9 @@
 //! The extraction schema: deliberately tiny so a 3B–4B model can fill it
 //! reliably, and validated in code rather than trusted.
 //!
+//! One selection can hold several action items (meeting notes, a checklist
+//! in a message), so the model returns a short list of tasks.
+//!
 //! The model never resolves dates. It only copies the date phrase it saw
 //! (`date_text`), and the app resolves that phrase deterministically against
 //! the real local date.
@@ -12,6 +15,8 @@ use serde_json::{json, Value};
 pub const MAX_TASK_CHARS: usize = 200;
 /// Maximum length of the copied date phrase, in characters.
 pub const MAX_DATE_TEXT_CHARS: usize = 60;
+/// Most tasks one selection can produce.
+pub const MAX_TASKS: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -45,10 +50,11 @@ pub enum ExtractionError {
     DateTextTooLong,
     #[error("date_confidence is '{0:?}' but date_text is {1}")]
     InconsistentDate(DateConfidence, &'static str),
+    #[error("no tasks in the answer")]
+    NoTasks,
 }
 
-/// JSON Schema handed to Ollama's `format` field so decoding is constrained.
-pub fn json_schema() -> Value {
+fn task_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
@@ -61,27 +67,72 @@ pub fn json_schema() -> Value {
     })
 }
 
-/// GBNF grammar for the bundled llama-server runtime (phase 3). Kept next to
-/// the JSON Schema so the two definitions are reviewed together.
-pub const GBNF: &str = r#"root ::= "{" ws "\"task\":" ws str "," ws "\"date_text\":" ws (str | "null") "," ws "\"date_confidence\":" ws conf ws "}"
-conf ::= "\"high\"" | "\"low\"" | "\"none\""
-str ::= "\"" ( [^"\\\x00-\x1f] | "\\" ["\\/bfnrt] )* "\""
-ws ::= [ \t\n]*
-"#;
+/// JSON Schema handed to the runtime so decoding is constrained.
+pub fn json_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "items": task_schema(),
+                "minItems": 1,
+                "maxItems": MAX_TASKS
+            }
+        },
+        "required": ["tasks"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Answer {
+    Many { tasks: Vec<Extraction> },
+    One(Extraction),
+}
+
+/// Parse and validate the model's list of tasks. Identical titles are
+/// merged and the list is capped at [`MAX_TASKS`].
+pub fn parse_tasks(raw: &str) -> Result<Vec<Extraction>, ExtractionError> {
+    let answer: Answer = serde_json::from_str(raw.trim())
+        .map_err(|err| ExtractionError::Malformed(err.to_string()))?;
+    let items = match answer {
+        Answer::Many { tasks } => tasks,
+        Answer::One(e) => vec![e],
+    };
+    let mut out: Vec<Extraction> = Vec::new();
+    for e in items {
+        let e = e.normalized();
+        e.validate()?;
+        if !out.iter().any(|o| o.task.eq_ignore_ascii_case(&e.task)) {
+            out.push(e);
+        }
+    }
+    out.truncate(MAX_TASKS);
+    if out.is_empty() {
+        return Err(ExtractionError::NoTasks);
+    }
+    Ok(out)
+}
 
 impl Extraction {
     /// Parse raw model output and validate it. Returns a normalized value:
     /// whitespace trimmed, empty `date_text` turned into `None`.
     pub fn parse(raw: &str) -> Result<Self, ExtractionError> {
-        let mut e: Extraction = serde_json::from_str(raw.trim())
+        let e: Extraction = serde_json::from_str(raw.trim())
             .map_err(|err| ExtractionError::Malformed(err.to_string()))?;
-        e.task = collapse_whitespace(&e.task);
-        e.date_text = e
+        let e = e.normalized();
+        e.validate()?;
+        Ok(e)
+    }
+
+    fn normalized(mut self) -> Self {
+        self.task = collapse_whitespace(&self.task);
+        self.date_text = self
             .date_text
             .map(|d| collapse_whitespace(&d))
             .filter(|d| !d.is_empty());
-        e.validate()?;
-        Ok(e)
+        self
     }
 
     pub fn validate(&self) -> Result<(), ExtractionError> {
@@ -182,12 +233,51 @@ mod tests {
     #[test]
     fn schema_lists_all_required_fields() {
         let s = json_schema();
-        let req: Vec<&str> = s["required"]
+        assert_eq!(s["required"][0], "tasks");
+        assert_eq!(s["properties"]["tasks"]["maxItems"], MAX_TASKS);
+        let req: Vec<&str> = s["properties"]["tasks"]["items"]["required"]
             .as_array()
             .unwrap()
             .iter()
             .map(|v| v.as_str().unwrap())
             .collect();
         assert_eq!(req, ["task", "date_text", "date_confidence"]);
+    }
+
+    #[test]
+    fn parses_several_tasks_and_merges_repeats() {
+        let raw = r#"{"tasks":[
+            {"task":"Send deck to Priya","date_text":"by Friday 3pm","date_confidence":"high"},
+            {"task":"Book  the room","date_text":null,"date_confidence":"none"},
+            {"task":"send deck to priya","date_text":null,"date_confidence":"none"}
+        ]}"#;
+        let tasks = parse_tasks(raw).unwrap();
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks[0].date_text.as_deref(), Some("by Friday 3pm"));
+        assert_eq!(tasks[1].task, "Book the room");
+    }
+
+    #[test]
+    fn accepts_a_single_object_and_rejects_empty_or_bad_lists() {
+        let one = parse_tasks(r#"{"task":"Call Sam","date_text":null,"date_confidence":"none"}"#)
+            .unwrap();
+        assert_eq!(one.len(), 1);
+        assert_eq!(
+            parse_tasks(r#"{"tasks":[]}"#),
+            Err(ExtractionError::NoTasks)
+        );
+        assert!(matches!(
+            parse_tasks(r#"{"tasks":[{"task":"","date_text":null,"date_confidence":"none"}]}"#),
+            Err(ExtractionError::EmptyTask)
+        ));
+    }
+
+    #[test]
+    fn caps_the_number_of_tasks() {
+        let items: Vec<String> = (0..9)
+            .map(|i| format!(r#"{{"task":"Task {i}","date_text":null,"date_confidence":"none"}}"#))
+            .collect();
+        let raw = format!(r#"{{"tasks":[{}]}}"#, items.join(","));
+        assert_eq!(parse_tasks(&raw).unwrap().len(), MAX_TASKS);
     }
 }

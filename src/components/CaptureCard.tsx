@@ -1,40 +1,105 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar } from "./Calendar";
-import { addDays, dayOrderForLocale, relativeLabel, resolveExtraction, toISODate } from "../lib/dates";
-import type { CaptureResult, Extraction, NewTask } from "../lib/types";
+import { DateEditor } from "./DateEditor";
+import { CalendarIcon, ClockIcon, RepeatIcon } from "./icons";
+import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
+import { repeatLabel, resolveCaptured, timeLabel } from "../lib/schedule";
+import { sourceLabel } from "../lib/taskText";
+import type { CaptureResult, Extraction, NewTask, SourceInfo, TaskPatch } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 
 export type CaptureState =
-  | { phase: "extracting"; selection: string }
-  | { phase: "review"; selection: string; extraction: Extraction }
-  | { phase: "manual"; selection: string; error: string }
+  | { phase: "extracting"; selection: string; source: SourceInfo | null }
+  | { phase: "review"; selection: string; source: SourceInfo | null; extractions: Extraction[] }
+  | { phase: "manual"; selection: string; source: SourceInfo | null; error: string }
   | { phase: "notice"; result: Exclude<CaptureResult, { kind: "text" }> };
 
 interface Props {
   state: CaptureState;
   now: Date;
-  onSave: (task: NewTask) => Promise<void>;
+  onSave: (tasks: NewTask[]) => Promise<void>;
   onCancel: () => void;
   onGrantAccess: () => void;
 }
 
 const LOCALE = safeLocale();
 
+/** One task being reviewed before it's saved. */
+interface Draft {
+  include: boolean;
+  title: string;
+  date: string | null;
+  time: string | null;
+  repeat: string | null;
+  /** The model's date phrase, for the question line. */
+  dateText: string | null;
+  alternatives: string[];
+  mustAsk: boolean;
+}
+
+function draftsFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, now: Date): Draft[] {
+  if (state.phase === "manual") {
+    return [
+      {
+        include: true,
+        title: firstLine(state.selection),
+        date: null,
+        time: null,
+        repeat: null,
+        dateText: null,
+        alternatives: [],
+        mustAsk: true,
+      },
+    ];
+  }
+  const order = dayOrderForLocale(LOCALE);
+  return state.extractions.map((x) => {
+    const r = resolveCaptured(x.date_text, x.date_confidence, now, order);
+    return {
+      include: true,
+      title: x.task,
+      date: r.date,
+      time: r.time,
+      repeat: r.repeat,
+      dateText: x.date_text,
+      alternatives: r.alternatives,
+      mustAsk: r.mustAsk,
+    };
+  });
+}
+
 export function CaptureCard({ state, now, onSave, onCancel, onGrantAccess }: Props) {
   if (state.phase === "notice")
     return <Notice result={state.result} onCancel={onCancel} onGrantAccess={onGrantAccess} />;
   if (state.phase === "extracting") {
     return (
-      <section className="capture" aria-live="polite">
-        <p className="capture-kicker">Captured locally</p>
-        <p className="capture-source">{truncate(state.selection, 240)}</p>
-        <div className="extracting">
-          <span className="pulse" aria-hidden /> Reading it with the model on this computer…
+      <section className="capture" aria-live="polite" aria-busy="true">
+        <Kicker source={state.source} text="Reading it on this Mac…" />
+        <div className="skeleton title" />
+        <div className="skeleton-row">
+          <div className="skeleton chip" />
+          <div className="skeleton chip" />
+          <div className="skeleton chip short" />
         </div>
+        <p className="capture-source faded">{truncate(state.selection, 240)}</p>
       </section>
     );
   }
   return <Review key={state.selection} state={state} now={now} onSave={onSave} onCancel={onCancel} />;
+}
+
+function Kicker({ source, text }: { source: SourceInfo | null; text: string }) {
+  const from = source ? sourceLabel({ source_app: source.app, source_url: source.url }) : null;
+  return (
+    <p className="capture-kicker">
+      {from ? (
+        <>
+          From <strong>{from}</strong> · {text}
+        </>
+      ) : (
+        text
+      )}
+    </p>
+  );
 }
 
 function Review({
@@ -48,50 +113,38 @@ function Review({
   onSave: Props["onSave"];
   onCancel: () => void;
 }) {
-  const resolution = useMemo(() => {
-    if (state.phase === "manual") return { date: null, alternatives: [], confident: false, mustAsk: true };
-    const { date_text, date_confidence } = state.extraction;
-    return resolveExtraction(date_text, date_confidence, now, dayOrderForLocale(LOCALE));
-  }, [state, now]);
-
-  const [title, setTitle] = useState(state.phase === "review" ? state.extraction.task : firstLine(state.selection));
-  const [date, setDate] = useState<string | null>(resolution.date);
+  const [drafts, setDrafts] = useState<Draft[]>(() => draftsFor(state, now));
   const [saving, setSaving] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const multi = drafts.length > 1;
 
-  useEffect(() => {
-    titleRef.current?.focus();
-    titleRef.current?.select();
-  }, []);
+  const chosen = drafts.filter((d) => d.include && d.title.trim());
 
-  const today = toISODate(now);
-  const choices = dedupe([
-    resolution.date,
-    ...resolution.alternatives,
-    today,
-    toISODate(addDays(now, 1)),
-    toISODate(addDays(now, 7)),
-  ]);
+  function patch(i: number, p: Partial<Draft>) {
+    setDrafts((ds) => ds.map((d, j) => (j === i ? { ...d, ...p } : d)));
+  }
 
   async function save() {
-    if (!title.trim() || saving) return;
+    if (!chosen.length || saving) return;
     setSaving(true);
     try {
-      await onSave({ title: title.trim(), due_date: date, source_text: state.selection });
+      await onSave(
+        chosen.map((d) => ({
+          title: d.title.trim(),
+          due_date: d.date,
+          due_time: d.date ? d.time : null,
+          recurrence: d.repeat,
+          source_text: state.selection,
+          source_app: state.source?.app ?? null,
+          source_bundle: state.source?.bundle ?? null,
+          source_url: state.source?.url ?? null,
+        })),
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  const dateText = state.phase === "review" ? state.extraction.date_text : null;
-  const question = !dateText
-    ? "No date in the text. When is this due?"
-    : resolution.date && resolution.mustAsk
-      ? `“${dateText}” could mean more than one day. Which one?`
-      : resolution.date
-        ? `Read “${dateText}” as ${relativeLabel(resolution.date, now, LOCALE).toLowerCase()}.`
-        : `Couldn’t pin down “${dateText}”. Pick a day?`;
+  const label = multi ? `Add ${chosen.length} ${chosen.length === 1 ? "task" : "tasks"}` : "Add task";
 
   return (
     <form
@@ -105,67 +158,34 @@ function Review({
           e.stopPropagation();
           onCancel();
         }
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          void save();
+        }
       }}
     >
-      <p className="capture-kicker">
-        {state.phase === "manual" ? "Couldn’t extract a task — edit it yourself" : "New task"}
-      </p>
-      {state.phase === "manual" && <p className="capture-error">{state.error}</p>}
-      <input
-        ref={titleRef}
-        className="capture-title"
-        value={title}
-        maxLength={200}
-        onChange={(e) => setTitle(e.target.value)}
-        aria-label="Task title"
+      <Kicker
+        source={state.source}
+        text={
+          state.phase === "manual"
+            ? "Couldn’t read it — edit it yourself"
+            : multi
+              ? `${drafts.length} tasks found`
+              : "New task"
+        }
       />
-      <p className={resolution.mustAsk ? "capture-question ask" : "capture-question"}>{question}</p>
-      <div className="chips" role="radiogroup" aria-label="Due date">
-        {choices.map((d) => (
-          <button
-            type="button"
-            key={d}
-            role="radio"
-            aria-checked={date === d}
-            className={date === d ? "chip on" : "chip"}
-            onClick={() => setDate(d)}
-          >
-            {relativeLabel(d, now, LOCALE)}
-          </button>
-        ))}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={date === null}
-          className={date === null ? "chip on" : "chip"}
-          onClick={() => setDate(null)}
-        >
-          No date
-        </button>
-        {date && !choices.includes(date) && (
-          <button type="button" role="radio" aria-checked className="chip on" onClick={() => setPicking(true)}>
-            {relativeLabel(date, now, LOCALE)}
-          </button>
-        )}
-        <button
-          type="button"
-          className={picking ? "chip chip-pick open" : "chip chip-pick"}
-          aria-expanded={picking}
-          onClick={() => setPicking((p) => !p)}
-        >
-          <CalendarIcon /> Pick a date
-        </button>
-      </div>
-      {picking && (
-        <Calendar
-          value={date}
-          onChange={setDate}
-          onClose={() => setPicking(false)}
-          now={now}
-          locale={LOCALE}
-          min={today}
-        />
+      {state.phase === "manual" && <p className="capture-error">{state.error}</p>}
+
+      {multi ? (
+        <ul className="capture-multi">
+          {drafts.map((d, i) => (
+            <MultiRow key={i} draft={d} now={now} onChange={(p) => patch(i, p)} autoFocus={i === 0} />
+          ))}
+        </ul>
+      ) : (
+        <Single draft={drafts[0]} now={now} onChange={(p) => patch(0, p)} />
       )}
+
       <details className="capture-source-toggle">
         <summary>Selected text</summary>
         <p className="capture-source">{truncate(state.selection, 600)}</p>
@@ -174,11 +194,202 @@ function Review({
         <button type="button" className="ghost" onClick={onCancel}>
           Discard <kbd>Esc</kbd>
         </button>
-        <button type="submit" className="primary" disabled={!title.trim() || saving}>
-          Add task <kbd>↵</kbd>
+        <button type="submit" className="primary" disabled={!chosen.length || saving}>
+          {label} <kbd>{multi ? "⌘↵" : "↵"}</kbd>
         </button>
       </div>
     </form>
+  );
+}
+
+function whenLabel(d: Pick<Draft, "date" | "time" | "repeat">, now: Date): string {
+  if (!d.date) return "No date";
+  return [
+    relativeLabel(d.date, now, LOCALE),
+    d.time && timeLabel(d.time, LOCALE),
+    d.repeat && repeatLabel(d.repeat)?.toLowerCase(),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function applyPatch(d: Draft, p: TaskPatch): Partial<Draft> {
+  const next: Partial<Draft> = { mustAsk: false };
+  if (p.due_date !== undefined) next.date = p.due_date;
+  if (p.due_time !== undefined) next.time = p.due_time;
+  if (p.recurrence !== undefined) next.repeat = p.recurrence;
+  if (p.due_date === null) {
+    next.time = null;
+    next.repeat = null;
+  }
+  return { ...next, date: next.date === undefined ? d.date : next.date };
+}
+
+function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (p: Partial<Draft>) => void }) {
+  const [picking, setPicking] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+    titleRef.current?.select();
+  }, []);
+
+  const today = toISODate(now);
+  const choices = useMemo(
+    () =>
+      dedupe([
+        draft.dateText ? draft.date : null,
+        ...draft.alternatives,
+        today,
+        toISODate(addDays(now, 1)),
+        toISODate(addDays(now, 7)),
+      ]),
+    // Keep the chip order stable while the user clicks around.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const question = !draft.dateText
+    ? "No date in the text. When is this due?"
+    : draft.mustAsk && draft.date
+      ? `“${draft.dateText}” could mean more than one day. Which one?`
+      : draft.date
+        ? `Read “${draft.dateText}” as ${whenLabel(draft, now)}.`
+        : `Couldn’t pin down “${draft.dateText}”. Pick a day?`;
+
+  return (
+    <>
+      <input
+        ref={titleRef}
+        className="capture-title"
+        value={draft.title}
+        maxLength={200}
+        onChange={(e) => onChange({ title: e.target.value })}
+        aria-label="Task title"
+      />
+      <p className={draft.mustAsk ? "capture-question ask" : "capture-question"}>{question}</p>
+      <div className="chips" role="radiogroup" aria-label="Due date">
+        {choices.map((d) => (
+          <button
+            type="button"
+            key={d}
+            role="radio"
+            aria-checked={draft.date === d}
+            className={draft.date === d ? "chip on" : "chip"}
+            onClick={() => onChange({ date: d, mustAsk: false })}
+          >
+            {relativeLabel(d, now, LOCALE)}
+          </button>
+        ))}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={draft.date === null}
+          className={draft.date === null ? "chip on" : "chip"}
+          onClick={() => onChange({ date: null, time: null, repeat: null, mustAsk: false })}
+        >
+          No date
+        </button>
+        {draft.date && !choices.includes(draft.date) && (
+          <button type="button" role="radio" aria-checked className="chip on" onClick={() => setPicking(true)}>
+            {relativeLabel(draft.date, now, LOCALE)}
+          </button>
+        )}
+        <button
+          type="button"
+          className={picking ? "chip chip-pick open" : "chip chip-pick"}
+          aria-expanded={picking}
+          onClick={() => setPicking((p) => !p)}
+        >
+          <CalendarIcon /> More…
+        </button>
+      </div>
+      {(draft.time || draft.repeat) && draft.date && (
+        <p className="capture-extras">
+          {draft.time && (
+            <span className="extra">
+              <ClockIcon /> {timeLabel(draft.time, LOCALE)}
+              <button type="button" aria-label="Remove time" onClick={() => onChange({ time: null })}>
+                ×
+              </button>
+            </span>
+          )}
+          {draft.repeat && (
+            <span className="extra">
+              <RepeatIcon /> {repeatLabel(draft.repeat)}
+              <button type="button" aria-label="Don't repeat" onClick={() => onChange({ repeat: null })}>
+                ×
+              </button>
+            </span>
+          )}
+        </p>
+      )}
+      {picking && (
+        <DateEditor
+          date={draft.date}
+          time={draft.time}
+          repeat={draft.repeat}
+          now={now}
+          locale={LOCALE}
+          onApply={(p) => onChange(applyPatch(draft, p))}
+          onClose={() => setPicking(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function MultiRow({
+  draft,
+  now,
+  onChange,
+  autoFocus,
+}: {
+  draft: Draft;
+  now: Date;
+  onChange: (p: Partial<Draft>) => void;
+  autoFocus: boolean;
+}) {
+  const [picking, setPicking] = useState(false);
+  return (
+    <li className={draft.include ? "cm-row" : "cm-row off"}>
+      <div className="cm-line">
+        <input
+          type="checkbox"
+          checked={draft.include}
+          onChange={(e) => onChange({ include: e.target.checked })}
+          aria-label={draft.include ? "Don't add this task" : "Add this task"}
+        />
+        <input
+          className="cm-title"
+          value={draft.title}
+          maxLength={200}
+          autoFocus={autoFocus}
+          onChange={(e) => onChange({ title: e.target.value })}
+          aria-label="Task title"
+        />
+      </div>
+      <button
+        type="button"
+        className={draft.mustAsk && draft.dateText ? "cm-when ask" : "cm-when"}
+        onClick={() => setPicking((p) => !p)}
+        aria-expanded={picking}
+        disabled={!draft.include}
+      >
+        <CalendarIcon /> {whenLabel(draft, now)}
+        {draft.mustAsk && draft.dateText && <span className="cm-q"> · “{draft.dateText}”?</span>}
+      </button>
+      {picking && (
+        <DateEditor
+          date={draft.date}
+          time={draft.time}
+          repeat={draft.repeat}
+          now={now}
+          locale={LOCALE}
+          onApply={(p) => onChange(applyPatch(draft, p))}
+          onClose={() => setPicking(false)}
+        />
+      )}
+    </li>
   );
 }
 
@@ -194,7 +405,7 @@ function Notice({
   const copy = {
     nothing_selected: {
       title: "No selected text found",
-      body: "Select some text in any app, then press the shortcut again. Password fields and some secure apps can’t be read.",
+      body: "Select some text in any app, then press the shortcut again. Password fields and some secure apps can’t be read. Tip: you can also right-click selected text → Services → Add to Pluck.",
     },
     permission_needed: {
       title: "Pluck needs Accessibility access",
@@ -237,13 +448,4 @@ function truncate(s: string, n: number): string {
 
 function firstLine(s: string): string {
   return truncate(s.trim().split(/\n/)[0] ?? "", 200);
-}
-
-export function CalendarIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="2" y="3" width="12" height="11" rx="2" />
-      <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" strokeLinecap="round" />
-    </svg>
-  );
 }

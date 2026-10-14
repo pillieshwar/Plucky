@@ -152,6 +152,7 @@ fn patch_between(from: &SyncState, to: &SyncState) -> Option<TaskPatch> {
         title: (from.title != to.title).then(|| to.title.clone()),
         due_date: (from.due != to.due).then(|| to.due.clone()),
         done: (from.done != to.done).then_some(to.done),
+        ..Default::default()
     };
     (patch.title.is_some() || patch.due_date.is_some() || patch.done.is_some()).then_some(patch)
 }
@@ -298,8 +299,7 @@ pub fn run_pass(
         let task = store.insert(NewTask {
             title: state.title.clone(),
             due_date: state.due.clone(),
-            source_text: None,
-            created_tz: None,
+            ..Default::default()
         })?;
         store.save_reminder_link(&ReminderLink {
             task_id: task.id,
@@ -472,7 +472,7 @@ mod tests {
                 title: title.into(),
                 due_date: due.map(Into::into),
                 source_text: Some("original selection".into()),
-                created_tz: None,
+                ..Default::default()
             })
             .unwrap()
     }

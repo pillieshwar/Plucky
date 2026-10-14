@@ -16,6 +16,14 @@ function task(title: string, due: string | null, extra: Partial<Task> = {}): Tas
     created_at: `2026-10-0${(id % 9) + 1}T10:00:00Z`,
     created_tz: "America/Los_Angeles",
     completed_at: null,
+    due_time: null,
+    recurrence: null,
+    source_app: null,
+    source_bundle: null,
+    source_url: null,
+    snoozed_until: null,
+    notified_at: null,
+    next_id: null,
     ...extra,
   };
 }
@@ -49,5 +57,19 @@ describe("groupTasks", () => {
   it("omits empty groups", () => {
     expect(groupTasks([], TUE)).toEqual([]);
     expect(groupTasks([task("x", null)], TUE).map((g) => g.key)).toEqual(["someday"]);
+  });
+});
+
+describe("times within a day", () => {
+  it("puts all-day tasks first, then by time", () => {
+    const groups = groupTasks(
+      [
+        task("late", "2026-10-14", { due_time: "17:00" }),
+        task("all day", "2026-10-14"),
+        task("early", "2026-10-14", { due_time: "08:30" }),
+      ],
+      TUE,
+    );
+    expect(groups[0].tasks.map((t) => t.title)).toEqual(["all day", "early", "late"]);
   });
 });

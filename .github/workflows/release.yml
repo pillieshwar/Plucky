@@ -13,6 +13,12 @@ name: Release
 #   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID
 # Without them the app is ad-hoc signed and users confirm it once in
 # System Settings → Privacy & Security → Open Anyway.
+#
+# In-app updates: add TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the key whose public half is in
+# tauri.conf.json → plugins.updater.pubkey). The release then also carries
+# Pluck.app.tar.gz, its .sig and latest.json, which installed copies of
+# Pluck check for updates.
 
 on:
   push:
@@ -78,7 +84,16 @@ jobs:
           AID: ${{ secrets.APPLE_ID }}
           APW: ${{ secrets.APPLE_PASSWORD }}
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          UPDATER_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          extra=()
+          if [ -n "$UPDATER_KEY" ]; then
+            export TAURI_SIGNING_PRIVATE_KEY="$UPDATER_KEY" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$UPDATER_KEY_PASSWORD"
+          else
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret — this release won't be offered as an in-app update."
+            extra=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+          fi
           if [ -n "$CERT" ]; then
             echo "Signing with Developer ID and notarizing"
             export APPLE_CERTIFICATE="$CERT" APPLE_CERTIFICATE_PASSWORD="$CERT_PASSWORD" \
@@ -88,7 +103,7 @@ jobs:
             # Ad-hoc signing keeps Apple silicon from reporting the app as "damaged".
             export APPLE_SIGNING_IDENTITY="-"
           fi
-          scripts/ci-annotate.sh npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+          scripts/ci-annotate.sh npm run tauri build -- --target universal-apple-darwin --bundles app,dmg "${extra[@]}"
 
       - name: Verify bundle
         shell: bash
@@ -110,11 +125,37 @@ jobs:
       - name: Prepare release files
         id: files
         shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
         run: |
           mkdir -p dist-release
           dmg=$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
           cp "$dmg" dist-release/Pluck-macOS.dmg
           cp "$dmg" "dist-release/$(basename "$dmg")"
+          tarball=$(ls target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -n1 || true)
+          if [ -n "$tarball" ] && [ -f "$tarball.sig" ]; then
+            cp "$tarball" dist-release/Pluck.app.tar.gz
+            cp "$tarball.sig" dist-release/Pluck.app.tar.gz.sig
+            # The manifest installed copies of Pluck read to find updates.
+            python3 - <<'PY'
+          import json, os, datetime
+          tag = os.environ["TAG"]
+          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/Pluck.app.tar.gz"
+          sig = open("dist-release/Pluck.app.tar.gz.sig").read().strip()
+          entry = {"signature": sig, "url": url}
+          manifest = {
+              "version": tag.lstrip("v"),
+              "notes": f"Pluck {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
+          }
+          json.dump(manifest, open("dist-release/latest.json", "w"), indent=2)
+          PY
+            cat dist-release/latest.json
+          else
+            echo "::warning::No signed updater archive was built; skipping latest.json."
+          fi
           (cd dist-release && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
@@ -137,7 +178,9 @@ jobs:
           1. Open `Pluck-macOS.dmg` and drag **Pluck** into **Applications**.
           2. Open Pluck. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
           3. In Pluck's **Models** tab, download a model (about 2 GB, once).
-          4. Select text anywhere and press **⌘⇧T**.
+          4. Select text anywhere and press **⇧⌘Z**, or press **⇧⌘Space** to type a task.
+
+          Already on Pluck 0.2 or later? It updates itself — look for **Restart to update** in the menu bar.
           EOF
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — replacing its files"
