@@ -1,0 +1,22 @@
+//! Platform-independent core of Pluck.
+//!
+//! Everything here is pure Rust with no UI or OS hooks, so it can be unit
+//! tested on any machine:
+//!
+//! * [`extraction`] — the tiny output schema and its validation.
+//! * [`prompt`] — the system prompt and how untrusted selected text is
+//!   delimited before it reaches the model.
+//! * [`llm`] — a localhost-only Ollama client plus the
+//!   "constrain → validate → retry once" extraction loop.
+//! * [`store`] — SQLite (WAL) task storage.
+//! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
+
+pub mod clipboard_guard;
+pub mod extraction;
+pub mod llm;
+pub mod prompt;
+pub mod store;
+
+pub use extraction::{DateConfidence, Extraction, ExtractionError};
+pub use llm::{extract_task, LlmBackend, LlmError, OllamaClient, OllamaConfig};
+pub use store::{NewTask, Store, StoreError, Task, TaskPatch};
