@@ -16,6 +16,8 @@ export const api = {
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
   setActiveModel: (id: string) => invoke<void>("set_active_model", { id }),
+  setPanelCollapsed: (collapsed: boolean) => invoke<void>("set_panel_collapsed", { collapsed }),
+  snapPanelToEdge: () => invoke<void>("snap_panel_to_edge"),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
@@ -33,4 +35,9 @@ export function onModelDownload(handler: (e: DownloadEvent) => void): Promise<Un
 /** Tray menu → "Models…" asks the panel to switch tabs. */
 export function onOpenTab(handler: (tab: string) => void): Promise<UnlistenFn> {
   return listen<string>("open-tab", (e) => handler(e.payload));
+}
+
+/** The panel was minimized or expanded (by us, a capture, or the tray). */
+export function onPanelCollapsed(handler: (collapsed: boolean) => void): Promise<UnlistenFn> {
+  return listen<boolean>("panel-collapsed", (e) => handler(e.payload));
 }

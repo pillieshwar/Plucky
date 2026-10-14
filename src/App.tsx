@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
 import { TaskList, shortcutLabel } from "./components/TaskList";
-import { api, onCapture, onOpenTab, onTasksChanged } from "./lib/api";
+import { api, onCapture, onOpenTab, onPanelCollapsed, onTasksChanged } from "./lib/api";
 import { toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import type { CaptureResult, NewTask, Status, Task, TaskPatch } from "./lib/types";
@@ -18,6 +18,7 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("tasks");
+  const [collapsed, setCollapsed] = useState(false);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
   const onboarded = useRef(false);
@@ -96,6 +97,7 @@ export default function App() {
       onCapture((r) => void handleCapture(r)),
       onTasksChanged(() => void refresh()),
       onOpenTab((t) => setTab(t === "models" ? "models" : "tasks")),
+      onPanelCollapsed(setCollapsed),
     ];
     return () => {
       subs.forEach((p) => void p.then((unlisten) => unlisten()));
@@ -147,13 +149,53 @@ export default function App() {
 
   const groups = useMemo(() => groupTasks(tasks, now, LOCALE), [tasks, now]);
   const open = tasks.filter((t) => !t.done).length;
+  const dueToday = tasks.filter((t) => !t.done && t.due_date !== null && t.due_date <= today).length;
+
+  function minimize(next: boolean) {
+    setCollapsed(next);
+    api.setPanelCollapsed(next).catch((e) => setError(String(e)));
+  }
+
+  const controls = (
+    <div className="win-controls">
+      <button
+        className="icon"
+        onClick={() => minimize(!collapsed)}
+        aria-label={collapsed ? "Expand panel" : "Minimize panel"}
+        title={collapsed ? "Expand" : "Minimize"}
+      >
+        {collapsed ? <ExpandIcon /> : <MinimizeIcon />}
+      </button>
+      <button className="icon" onClick={() => void api.hidePanel()} aria-label="Hide panel" title="Hide (Esc)">
+        <CloseIcon />
+      </button>
+    </div>
+  );
+
+  if (collapsed) {
+    return (
+      <div className="panel collapsed">
+        <header className="mini" data-tauri-drag-region onDoubleClick={() => minimize(false)}>
+          <DragGrip />
+          <span className="mini-title" data-tauri-drag-region>
+            Pluck
+          </span>
+          <span className="mini-meta" data-tauri-drag-region>
+            {open} open{dueToday ? ` · ${dueToday} due` : ""}
+          </span>
+          {controls}
+        </header>
+      </div>
+    );
+  }
 
   return (
     <div className="panel">
       <header className="panel-head" data-tauri-drag-region>
-        <div data-tauri-drag-region>
-          <h1>{tab === "tasks" ? "Tasks" : "Models"}</h1>
-          <p className="sub">
+        <DragGrip />
+        <div className="head-text" data-tauri-drag-region>
+          <h1 data-tauri-drag-region>{tab === "tasks" ? "Tasks" : "Models"}</h1>
+          <p className="sub" data-tauri-drag-region>
             {tab === "tasks"
               ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
               : status?.active_model
@@ -161,9 +203,7 @@ export default function App() {
                 : "No model yet"}
           </p>
         </div>
-        <button className="icon" onClick={() => void api.hidePanel()} aria-label="Hide panel" title="Hide (Esc)">
-          ×
-        </button>
+        {controls}
       </header>
 
       <nav className="tabs" role="tablist" aria-label="Sections">
@@ -197,18 +237,24 @@ export default function App() {
       )}
 
       {tab === "tasks" && capture && (
-        <CaptureCard state={capture} now={now} onSave={save} onCancel={() => setCapture(null)} onGrantAccess={grantAccess} />
+        <CaptureCard
+          state={capture}
+          now={now}
+          onSave={save}
+          onCancel={() => setCapture(null)}
+          onGrantAccess={grantAccess}
+        />
       )}
 
       <main className="panel-body">
         {tab === "tasks" ? (
-          <TaskList groups={groups} onUpdate={update} onDelete={remove} />
+          <TaskList groups={groups} onUpdate={update} onDelete={remove} now={now} locale={LOCALE} />
         ) : (
           <ModelsTab onChanged={checkStatus} />
         )}
       </main>
 
-      <footer className="panel-foot">
+      <footer className="panel-foot" data-tauri-drag-region>
         <span className="local-dot" aria-hidden /> On-device · <kbd>{shortcutLabel()}</kbd> to capture
       </footer>
     </div>
@@ -233,5 +279,70 @@ function Banner({
         </button>
       )}
     </div>
+  );
+}
+
+function DragGrip() {
+  return (
+    <span className="grip" data-tauri-drag-region title="Drag to move" aria-hidden>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" style={{ pointerEvents: "none" }}>
+        <circle cx="2" cy="2" r="1.2" />
+        <circle cx="6" cy="2" r="1.2" />
+        <circle cx="2" cy="7" r="1.2" />
+        <circle cx="6" cy="7" r="1.2" />
+        <circle cx="2" cy="12" r="1.2" />
+        <circle cx="6" cy="12" r="1.2" />
+      </svg>
+    </span>
+  );
+}
+
+function MinimizeIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
+      <path d="M2.5 6h7" />
+    </svg>
+  );
+}
+
+function ExpandIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 7.5 6 4.5l3 3" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
+      <path d="M3 3l6 6M9 3l-6 6" />
+    </svg>
   );
 }

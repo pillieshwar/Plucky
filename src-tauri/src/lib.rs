@@ -167,6 +167,16 @@ fn hide_panel(app: AppHandle) {
     panel::hide(&app);
 }
 
+#[tauri::command]
+fn set_panel_collapsed(app: AppHandle, collapsed: bool) -> CmdResult<()> {
+    panel::set_collapsed(&app, collapsed).map_err(err)
+}
+
+#[tauri::command]
+fn snap_panel_to_edge(app: AppHandle) {
+    panel::snap_to_edge(&app);
+}
+
 // ── Capture flow ────────────────────────────────────────────────────────────
 
 fn capture_shortcut() -> Shortcut {
@@ -228,6 +238,7 @@ pub fn run() {
                 store: Mutex::new(store),
             });
             app.manage(ModelManager::new(&data_dir));
+            app.manage(panel::PanelState::new(&data_dir));
             app.manage(Engine::new(&log_dir));
 
             // Release the model's memory after a few idle minutes.
@@ -243,13 +254,16 @@ pub fn run() {
 
             let show = MenuItem::with_id(app, "show", "Show tasks", true, None::<&str>)?;
             let models_item = MenuItem::with_id(app, "models", "Models…", true, None::<&str>)?;
+            let snap =
+                MenuItem::with_id(app, "snap", "Snap panel to right edge", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Pluck", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &models_item, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &models_item, &snap, &quit])?;
             let mut tray = TrayIconBuilder::with_id("pluck")
                 .tooltip("Pluck — select text, press ⌘⇧T / Ctrl+Shift+T")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => panel::toggle(app),
+                    "snap" => panel::snap_to_edge(app),
                     "models" => {
                         panel::show(app);
                         let _ = app.emit_to("panel", "open-tab", "models");
@@ -271,6 +285,13 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Moved(pos) = event {
+                if window.label() == "panel" {
+                    panel::on_moved(window.app_handle(), *pos);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             extract,
             list_tasks,
@@ -280,6 +301,8 @@ pub fn run() {
             status,
             request_accessibility,
             hide_panel,
+            set_panel_collapsed,
+            snap_panel_to_edge,
             list_models,
             download_model,
             cancel_download,
@@ -291,6 +314,7 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<Engine>().kill_now();
+                app.state::<panel::PanelState>().flush();
             }
         });
 }

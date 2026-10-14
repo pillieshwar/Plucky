@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Calendar } from "./Calendar";
 import { addDays, dayOrderForLocale, relativeLabel, resolveExtraction, toISODate } from "../lib/dates";
 import type { CaptureResult, Extraction, NewTask } from "../lib/types";
 
@@ -19,7 +20,8 @@ interface Props {
 const LOCALE = typeof navigator !== "undefined" ? navigator.language : "en-US";
 
 export function CaptureCard({ state, now, onSave, onCancel, onGrantAccess }: Props) {
-  if (state.phase === "notice") return <Notice result={state.result} onCancel={onCancel} onGrantAccess={onGrantAccess} />;
+  if (state.phase === "notice")
+    return <Notice result={state.result} onCancel={onCancel} onGrantAccess={onGrantAccess} />;
   if (state.phase === "extracting") {
     return (
       <section className="capture" aria-live="polite">
@@ -54,6 +56,7 @@ function Review({
   const [title, setTitle] = useState(state.phase === "review" ? state.extraction.task : firstLine(state.selection));
   const [date, setDate] = useState<string | null>(resolution.date);
   const [saving, setSaving] = useState(false);
+  const [picking, setPicking] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -103,7 +106,9 @@ function Review({
         }
       }}
     >
-      <p className="capture-kicker">{state.phase === "manual" ? "Couldn’t extract a task — edit it yourself" : "New task"}</p>
+      <p className="capture-kicker">
+        {state.phase === "manual" ? "Couldn’t extract a task — edit it yourself" : "New task"}
+      </p>
       {state.phase === "manual" && <p className="capture-error">{state.error}</p>}
       <input
         ref={titleRef}
@@ -127,18 +132,39 @@ function Review({
             {relativeLabel(d, now, LOCALE)}
           </button>
         ))}
-        <button type="button" role="radio" aria-checked={date === null} className={date === null ? "chip on" : "chip"} onClick={() => setDate(null)}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={date === null}
+          className={date === null ? "chip on" : "chip"}
+          onClick={() => setDate(null)}
+        >
           No date
         </button>
-        <input
-          type="date"
-          className="chip-date"
-          aria-label="Pick another date"
-          value={date ?? ""}
-          min={today}
-          onChange={(e) => setDate(e.target.value || null)}
-        />
+        {date && !choices.includes(date) && (
+          <button type="button" role="radio" aria-checked className="chip on" onClick={() => setPicking(true)}>
+            {relativeLabel(date, now, LOCALE)}
+          </button>
+        )}
+        <button
+          type="button"
+          className={picking ? "chip chip-pick open" : "chip chip-pick"}
+          aria-expanded={picking}
+          onClick={() => setPicking((p) => !p)}
+        >
+          <CalendarIcon /> Pick a date
+        </button>
       </div>
+      {picking && (
+        <Calendar
+          value={date}
+          onChange={setDate}
+          onClose={() => setPicking(false)}
+          now={now}
+          locale={LOCALE}
+          min={today}
+        />
+      )}
       <details className="capture-source-toggle">
         <summary>Selected text</summary>
         <p className="capture-source">{truncate(state.selection, 600)}</p>
@@ -206,4 +232,13 @@ function truncate(s: string, n: number): string {
 
 function firstLine(s: string): string {
   return truncate(s.trim().split(/\n/)[0] ?? "", 200);
+}
+
+export function CalendarIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2" y="3" width="12" height="11" rx="2" />
+      <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" strokeLinecap="round" />
+    </svg>
+  );
 }
