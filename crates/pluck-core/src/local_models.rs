@@ -165,10 +165,10 @@ fn read_string(r: &mut impl Read) -> Option<String> {
 /// ends the scan.
 fn skip_scalar(r: &mut impl Read, ty: u32) -> Option<()> {
     let n = match ty {
-        0 | 1 | 7 => 1,    // u8, i8, bool
-        2 | 3 => 2,        // u16, i16
-        4 | 5 | 6 => 4,    // u32, i32, f32
-        10 | 11 | 12 => 8, // u64, i64, f64
+        0 | 1 | 7 => 1, // u8, i8, bool
+        2 | 3 => 2,     // u16, i16
+        4..=6 => 4,     // u32, i32, f32
+        10..=12 => 8,   // u64, i64, f64
         _ => return None,
     };
     let mut b = [0u8; 8];
