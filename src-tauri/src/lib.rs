@@ -258,9 +258,21 @@ fn on_capture(app: AppHandle) {
     });
     tauri::async_runtime::spawn(async move {
         // Capture before showing the panel so the source app still has focus.
-        let result = tauri::async_runtime::spawn_blocking(capture::capture_selection)
-            .await
-            .unwrap_or(CaptureResult::NothingSelected);
+        let worker_app = app.clone();
+        let joined =
+            tauri::async_runtime::spawn_blocking(move || capture::capture_selection(&worker_app))
+                .await;
+        let result = match joined {
+            Ok(Some(r)) => r,
+            // Another capture is already running.
+            Ok(None) => return,
+            Err(e) => {
+                log::error!("capture task failed: {e}");
+                CaptureResult::Failed {
+                    message: "Something went wrong reading the selection. Please try again.".into(),
+                }
+            }
+        };
         panel::show(&app);
         if let Err(e) = app.emit_to("panel", "capture", &result) {
             log::error!("failed to deliver capture: {e}");
@@ -268,10 +280,106 @@ fn on_capture(app: AppHandle) {
     });
 }
 
+/// Open the task database. If it can't be opened (e.g. the file is damaged),
+/// set it aside as `tasks.db.unreadable-<time>` and start a fresh one rather
+/// than refusing to launch; as a last resort, run with an in-memory store.
+fn open_store(path: &std::path::Path) -> Store {
+    match Store::open(path) {
+        Ok(s) => return s,
+        Err(e) => log::error!("could not open {}: {e}", path.display()),
+    }
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    for ext in ["", "-wal", "-shm"] {
+        let from = std::path::PathBuf::from(format!("{}{ext}", path.display()));
+        if from.exists() {
+            let to = format!("{}.unreadable-{stamp}{ext}", path.display());
+            if let Err(e) = std::fs::rename(&from, &to) {
+                log::error!("could not move {} aside: {e}", from.display());
+            }
+        }
+    }
+    match Store::open(path) {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("starting with an in-memory task list: {e}");
+            Store::open_in_memory().expect("in-memory SQLite is always available")
+        }
+    }
+}
+
+// ── Logging ─────────────────────────────────────────────────────────────────
+
+/// `~/Library/Logs/Pluck/pluck.log` on macOS; the temp folder elsewhere.
+fn log_file_path() -> Option<std::path::PathBuf> {
+    if cfg!(target_os = "macos") {
+        std::env::var_os("HOME")
+            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Pluck/pluck.log"))
+    } else {
+        Some(std::env::temp_dir().join("Pluck").join("pluck.log"))
+    }
+}
+
+/// Log to a file users can send with a bug report, and record panics (with
+/// a backtrace) there before the default handler runs.
+fn init_logging() {
+    let mut builder =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+    builder.format_timestamp_millis();
+    if let Some(path) = log_file_path() {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        // Start a fresh file once it passes 2 MB.
+        if std::fs::metadata(&path).is_ok_and(|m| m.len() > 2_000_000) {
+            let _ = std::fs::remove_file(&path);
+        }
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            builder.target(env_logger::Target::Pipe(Box::new(file)));
+        }
+    }
+    let _ = builder.try_init();
+    log::info!("Pluck {} starting", env!("CARGO_PKG_VERSION"));
+
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!(
+            "panic: {info}\n{}",
+            std::backtrace::Backtrace::force_capture()
+        );
+        default_hook(info);
+    }));
+}
+
+/// Show the log file in Finder / Explorer.
+#[tauri::command]
+fn reveal_logs() -> CmdResult<String> {
+    let path = log_file_path().ok_or("no log location")?;
+    let shown = path.display().to_string();
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+    } else if cfg!(windows) {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path.display()))
+            .spawn()
+    } else {
+        std::process::Command::new("xdg-open")
+            .arg(path.parent().unwrap_or(&path))
+            .spawn()
+    };
+    result.map(|_| shown).map_err(err)
+}
+
 // ── Entry point ─────────────────────────────────────────────────────────────
 
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    init_logging();
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -297,7 +405,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let log_dir = app.path().app_log_dir()?;
             std::fs::create_dir_all(&log_dir)?;
-            let store = Store::open(data_dir.join("tasks.db"))?;
+            let store = open_store(&data_dir.join("tasks.db"));
             app.manage(AppState {
                 store: Mutex::new(store),
             });
@@ -364,7 +472,8 @@ pub fn run() {
             get_shortcuts,
             set_shortcut,
             reset_shortcuts,
-            pause_shortcuts
+            pause_shortcuts,
+            reveal_logs
         ])
         .build(tauri::generate_context!())
         .expect("error while building Pluck")

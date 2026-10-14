@@ -1,12 +1,21 @@
 //! System-wide selection capture.
 //!
-//! Fallback ladder, per the feasibility study:
+//! Fallback ladder:
 //! 1. Accessibility API (macOS AX `AXSelectedText`, Windows UIA TextPattern).
-//!    No side effects, so always tried first.
-//! 2. Guarded clipboard: synthesize Copy, read, restore the user's clipboard
-//!    only if nothing else wrote to it (see `pluck_core::clipboard_guard`).
+//!    No side effects, so always tried first. Native apps answer here.
+//! 2. Guarded clipboard: save the clipboard, trigger Copy in the frontmost
+//!    app, read the text, put the clipboard back (see
+//!    `pluck_core::clipboard_guard`). Chrome, Slack and other Electron or web
+//!    apps usually need this path.
 //!
-//! Secure fields are intentionally unreadable by both paths.
+//! Robustness rules, learned the hard way:
+//! * On macOS, AppKit (NSPasteboard) runs on the main thread only — see
+//!   [`on_main`]. Keyboard-layout (TIS/TSM) APIs are never used at all.
+//! * Nothing in a capture may take the app down: every step returns an
+//!   error instead of panicking, and the whole capture is wrapped in
+//!   `catch_unwind` as a last line of defence.
+//! * One capture at a time; a second shortcut press while one is running is
+//!   ignored rather than racing on the clipboard.
 
 mod clipboard;
 #[cfg(target_os = "macos")]
@@ -14,10 +23,13 @@ mod macos;
 #[cfg(windows)]
 mod windows;
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use pluck_core::clipboard_guard::{capture_via_clipboard, FallbackOutcome};
 use serde::Serialize;
+use tauri::AppHandle;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -26,12 +38,16 @@ pub enum CaptureResult {
         text: String,
         method: CaptureMethod,
     },
-    /// Nothing was selected, or the app doesn't expose its selection.
+    /// Nothing was selected, or the app doesn't allow copying it.
     NothingSelected,
     /// macOS: Accessibility permission has not been granted yet.
     PermissionNeeded,
-    /// The clipboard holds images/files we'd destroy, so we didn't touch it.
+    /// The clipboard holds something too large to save and restore safely.
     ClipboardBusy,
+    /// Something went wrong; the message says what.
+    Failed {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -41,11 +57,60 @@ pub enum CaptureMethod {
     Clipboard,
 }
 
-/// How long to wait for the frontmost app to respond to a synthesized Copy.
-const COPY_TIMEOUT: Duration = Duration::from_millis(400);
+/// How long to wait for the frontmost app to put its selection on the
+/// clipboard. Electron apps (Slack) can take several hundred milliseconds.
+const COPY_TIMEOUT: Duration = Duration::from_millis(1200);
+/// How long to wait for a main-thread clipboard call.
+const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// Blocking: call from a worker thread, never the UI thread.
-pub fn capture_selection() -> CaptureResult {
+static CAPTURING: AtomicBool = AtomicBool::new(false);
+
+/// Run `f` on the main thread and wait for its result. Returns None if the
+/// main thread is unavailable, too slow, or `f` panicked. Never call this
+/// from the main thread itself.
+pub(crate) fn on_main<T, F>(app: &AppHandle, f: F) -> Option<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let scheduled = app.run_on_main_thread(move || match catch_unwind(AssertUnwindSafe(f)) {
+        Ok(value) => {
+            let _ = tx.send(value);
+        }
+        Err(_) => log::error!("a main-thread clipboard call panicked"),
+    });
+    if let Err(e) = scheduled {
+        log::error!("could not reach the main thread: {e}");
+        return None;
+    }
+    match rx.recv_timeout(MAIN_THREAD_TIMEOUT) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            log::error!("main-thread clipboard call did not finish: {e}");
+            None
+        }
+    }
+}
+
+/// Capture the current selection. Blocking: call from a worker thread.
+/// Returns None if another capture is already running.
+pub fn capture_selection(app: &AppHandle) -> Option<CaptureResult> {
+    if CAPTURING.swap(true, Ordering::SeqCst) {
+        log::info!("capture already in progress; ignoring shortcut");
+        return None;
+    }
+    let result = catch_unwind(AssertUnwindSafe(|| capture_inner(app))).unwrap_or_else(|_| {
+        log::error!("capture panicked");
+        CaptureResult::Failed {
+            message: "Something went wrong reading the selection. Please try again.".into(),
+        }
+    });
+    CAPTURING.store(false, Ordering::SeqCst);
+    Some(result)
+}
+
+fn capture_inner(app: &AppHandle) -> CaptureResult {
     if !accessibility_trusted(false) {
         return CaptureResult::PermissionNeeded;
     }
@@ -53,6 +118,7 @@ pub fn capture_selection() -> CaptureResult {
     if let Some(text) = read_selection_via_accessibility() {
         let text = text.trim().to_string();
         if !text.is_empty() {
+            log::info!("captured {} chars via accessibility", text.chars().count());
             return CaptureResult::Text {
                 text,
                 method: CaptureMethod::Accessibility,
@@ -60,27 +126,40 @@ pub fn capture_selection() -> CaptureResult {
         }
     }
 
-    // Give the user a moment to release the shortcut's modifier keys so the
-    // synthesized Copy isn't merged with them (Cmd+Shift+C ≠ Cmd+C).
-    std::thread::sleep(Duration::from_millis(150));
+    // Give the user a moment to let go of the shortcut keys.
+    std::thread::sleep(Duration::from_millis(120));
 
-    let clip = match clipboard::SystemClipboard::new() {
+    let clip = match clipboard::SystemClipboard::new(app) {
         Ok(c) => c,
         Err(e) => {
             log::warn!("clipboard unavailable: {e}");
-            return CaptureResult::NothingSelected;
+            return CaptureResult::Failed {
+                message: format!("Pluck couldn't open the clipboard ({e})."),
+            };
         }
     };
     match capture_via_clipboard(&clip, COPY_TIMEOUT) {
         FallbackOutcome::Captured { text, restored } => {
-            log::debug!("clipboard capture ok, restored={restored}");
+            log::info!(
+                "captured {} chars via clipboard (restored: {restored})",
+                text.chars().count()
+            );
             CaptureResult::Text {
                 text,
                 method: CaptureMethod::Clipboard,
             }
         }
-        FallbackOutcome::NothingCopied => CaptureResult::NothingSelected,
+        FallbackOutcome::NothingCopied => {
+            log::info!("nothing was copied");
+            CaptureResult::NothingSelected
+        }
         FallbackOutcome::Refused => CaptureResult::ClipboardBusy,
+        FallbackOutcome::Failed(e) => {
+            log::warn!("clipboard capture failed: {e}");
+            CaptureResult::Failed {
+                message: format!("Pluck couldn't copy the selection ({e})."),
+            }
+        }
     }
 }
 

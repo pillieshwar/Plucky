@@ -36,7 +36,8 @@ export type CaptureResult =
   | { kind: "text"; text: string; method: "accessibility" | "clipboard" }
   | { kind: "nothing_selected" }
   | { kind: "permission_needed" }
-  | { kind: "clipboard_busy" };
+  | { kind: "clipboard_busy" }
+  | { kind: "failed"; message: string };
 
 export interface Status {
   accessibility: boolean;

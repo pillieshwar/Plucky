@@ -125,6 +125,17 @@ export function SettingsTab({ shortcuts, onShortcuts }: Props) {
           Snap to right edge
         </button>
       </section>
+
+      <section className="settings-section">
+        <h2 className="settings-h">Troubleshooting</h2>
+        <p className="settings-intro">
+          Pluck keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
+          report.
+        </p>
+        <button type="button" className="ghost" onClick={() => void api.revealLogs().catch(() => undefined)}>
+          Show log file
+        </button>
+      </section>
     </div>
   );
 }

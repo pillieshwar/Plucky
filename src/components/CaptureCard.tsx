@@ -201,7 +201,11 @@ function Notice({
     },
     clipboard_busy: {
       title: "Couldn’t read this selection safely",
-      body: "This app didn’t expose its selection, and your clipboard holds an image or file that copying would overwrite. Copy the text yourself and press the shortcut again.",
+      body: "Your clipboard holds something very large (like a big image) that Pluck can’t safely set aside. Copy the text yourself (⌘C), then press the shortcut again.",
+    },
+    failed: {
+      title: "Couldn’t read the selection",
+      body: `${result.kind === "failed" ? result.message : ""} If this keeps happening, use “Show log file” in Settings and send it along.`,
     },
   }[result.kind];
   return (

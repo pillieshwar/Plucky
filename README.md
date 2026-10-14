@@ -49,6 +49,7 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 | "Apple could not verify Pluck…" | Expected for this early build. Use **Privacy & Security → Open Anyway** (step 3 above). |
 | ⇧⌘Z does nothing | Check the Pluck icon is in the menu bar. Another app may also use ⇧⌘Z — choose a different shortcut in Pluck's **Settings** tab. |
 | "No selected text found" | Select the text again and press ⇧⌘Z. Password fields and some secure apps can't be read, by design. |
+| Something else went wrong | **Settings → Show log file** opens Pluck's log (`~/Library/Logs/Pluck/pluck.log`). It stays on your Mac; attach it to a bug report. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Pluck with **–**, then capture again and re-grant. |
 | A model download failed | Click **Resume download** in the Models tab — it continues where it stopped. |
 | "The model took too long to load" | Close some memory-heavy apps, or switch to *Llama 3.2 1B* in the Models tab. |

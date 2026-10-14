@@ -39,6 +39,7 @@ export const api = {
     invoke<ShortcutSettings>("set_shortcut", { action, spec }),
   resetShortcuts: () => invoke<ShortcutSettings>("reset_shortcuts"),
   pauseShortcuts: (paused: boolean) => invoke<void>("pause_shortcuts", { paused }),
+  revealLogs: () => invoke<string>("reveal_logs"),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
