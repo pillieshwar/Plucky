@@ -16,8 +16,9 @@ import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import type { CaptureResult, NewTask, Status, Task, TaskPatch } from "./lib/types";
+import { safeLocale } from "./lib/locale";
 
-const LOCALE = navigator.language;
+const LOCALE = safeLocale();
 
 type Tab = "tasks" | "models" | "settings";
 const TABS: { id: Tab; label: string }[] = [

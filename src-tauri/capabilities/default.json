@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal permissions for the task panel: hide it and drag it by its header. The shortcut and window sizing are handled in Rust.",
+  "description": "Minimal permissions for Pluck's two windows (the task panel and the menu-bar popover): hide the panel and drag it by its header. Shortcuts, sizing and positioning are handled in Rust.",
   "windows": [
-    "panel"
+    "panel",
+    "popover"
   ],
   "permissions": [
     "core:default",

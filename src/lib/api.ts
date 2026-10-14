@@ -40,6 +40,8 @@ export const api = {
   resetShortcuts: () => invoke<ShortcutSettings>("reset_shortcuts"),
   pauseShortcuts: (paused: boolean) => invoke<void>("pause_shortcuts", { paused }),
   revealLogs: () => invoke<string>("reveal_logs"),
+  openMain: (taskId: number | null, tab: string | null) => invoke<void>("open_main", { taskId, tab }),
+  hidePopover: () => invoke<void>("hide_popover"),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
@@ -71,4 +73,9 @@ export function onShortcutsChanged(handler: (s: ShortcutSettings) => void): Prom
 /** A task was picked from the menu-bar list. */
 export function onHighlightTask(handler: (id: number) => void): Promise<UnlistenFn> {
   return listen<number>("highlight-task", (e) => handler(e.payload));
+}
+
+/** The menu-bar popover was just opened. */
+export function onPopoverShown(handler: () => void): Promise<UnlistenFn> {
+  return listen("popover-shown", () => handler());
 }

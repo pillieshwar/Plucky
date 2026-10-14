@@ -21,7 +21,7 @@ That's it. There's nothing else to install — the model runtime is built into t
 - **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⇧⌘Z**. The panel slides in on the right with a suggested task and due date.
 - **Confirm:** edit the title if you like, pick or change the date, and press **Return**. **Esc** discards it.
 - **Unclear dates** ("next Friday", "soon", or no date) — Pluck asks instead of guessing.
-- **Today at a glance:** click the Pluck icon in the menu bar to see what's due today (overdue first); the icon shows the count. Pick a task to jump to it.
+- **Today at a glance:** click the Pluck icon in the menu bar for a calendar and today's agenda (overdue first; the icon shows the count). Pick any day to see what's due, tick tasks off, or press **+** to add one. The arrow under the calendar expands it to the whole month. Right-click the icon for the menu.
 - **Your list:** menu bar icon → **Open Pluck**. Tick to complete, double-click to rename, hover to change the date or delete. **Esc** hides the panel.
 - **Shortcuts:** the **Settings** tab lets you change the capture shortcut (default **⇧⌘Z**) and add one to show or hide Pluck. Note that ⇧⌘Z is Redo in most apps, so Redo by shortcut won't work while Pluck runs — pick another shortcut if you use it.
 - **Models:** menu bar icon → **Models…** to download another model, switch models, or remove one to free space. Already have a GGUF model from Ollama, LM Studio or Hugging Face? Pluck lists the ones it finds, or paste the file's path under **Already have a model?** — no second download. The first capture after a pause takes a few seconds while the model loads; it unloads itself after 5 idle minutes to give the memory back.

@@ -1,15 +1,16 @@
-//! The menu-bar icon. Clicking it lists today's pending tasks (overdue ones
-//! first), and the icon carries a count of them. Choosing a task opens the
-//! panel at that task.
+//! The menu-bar icon, which carries a count of today's open tasks.
+//!
+//! * Left click: the calendar popover (see `popover`).
+//! * Right click: a menu with today's tasks and app actions.
 
 use chrono::Local;
 use pluck_core::Task;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::shortcuts::Shortcuts;
-use crate::{panel, AppState};
+use crate::{panel, popover, AppState};
 
 const TRAY_ID: &str = "pluck";
 const MAX_TASKS: usize = 8;
@@ -19,7 +20,19 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(tooltip(app))
         .menu(&menu(app)?)
-        .on_menu_event(on_menu_event);
+        .show_menu_on_left_click(false)
+        .on_menu_event(on_menu_event)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
+                popover::toggle(tray.app_handle(), rect);
+            }
+        });
     if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
@@ -185,6 +198,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 }
 
 fn open_tab(app: &AppHandle, tab: &str) {
+    popover::hide(app);
     panel::show(app);
     let _ = app.emit_to("panel", "open-tab", tab);
 }

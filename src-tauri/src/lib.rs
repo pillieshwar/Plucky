@@ -11,6 +11,7 @@ mod capture;
 mod engine;
 mod models;
 mod panel;
+mod popover;
 mod shortcuts;
 mod tray;
 
@@ -195,6 +196,22 @@ fn request_accessibility() -> bool {
 #[tauri::command]
 fn hide_panel(app: AppHandle) {
     panel::hide(&app);
+}
+
+/// From the popover: open the main panel, optionally at a task or tab.
+#[tauri::command]
+fn open_main(app: AppHandle, task_id: Option<i64>, tab: Option<String>) {
+    popover::hide(&app);
+    panel::show(&app);
+    let _ = app.emit_to("panel", "open-tab", tab.as_deref().unwrap_or("tasks"));
+    if let Some(id) = task_id {
+        let _ = app.emit_to("panel", "highlight-task", id);
+    }
+}
+
+#[tauri::command]
+fn hide_popover(app: AppHandle) {
+    popover::hide(&app);
 }
 
 #[tauri::command]
@@ -443,12 +460,15 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Moved(pos) = event {
-                if window.label() == "panel" {
-                    panel::on_moved(window.app_handle(), *pos);
-                }
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Moved(pos) if window.label() == "panel" => {
+                panel::on_moved(window.app_handle(), *pos);
             }
+            // The popover behaves like a menu: clicking elsewhere closes it.
+            tauri::WindowEvent::Focused(false) if window.label() == popover::LABEL => {
+                popover::hide(window.app_handle());
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             extract,
@@ -473,7 +493,9 @@ pub fn run() {
             set_shortcut,
             reset_shortcuts,
             pause_shortcuts,
-            reveal_logs
+            reveal_logs,
+            open_main,
+            hide_popover
         ])
         .build(tauri::generate_context!())
         .expect("error while building Pluck")

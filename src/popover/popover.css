@@ -1,0 +1,170 @@
+/* Menu-bar popover. Uses the tokens defined in styles.css. */
+
+html[data-view="popover"],
+html[data-view="popover"] body {
+  background: transparent;
+}
+
+.pop {
+  --pop-bg: var(--panel);
+  --pop-raise: var(--paper);
+  --pop-sel: var(--teal);
+  --pop-sel-ink: #ffffff;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--pop-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  outline: none;
+  animation: pop-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transform-origin: top center;
+}
+@media (prefers-color-scheme: dark) {
+  .pop { --pop-sel-ink: #0f1513; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.985); }
+}
+
+/* Header */
+.pop-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 10px 6px 18px;
+}
+.pop-month { margin: 0; font: 700 22px/1 var(--serif); letter-spacing: -0.02em; }
+.pop-year { color: var(--faint); font-weight: 400; }
+.pop-actions { display: flex; align-items: center; gap: 2px; }
+.pop-icon {
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.pop-icon:hover, .pop-icon.on { background: var(--line); color: var(--ink); }
+.pop-today {
+  margin-right: 4px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; font-size: 11px; font-weight: 600; color: var(--teal); cursor: pointer;
+}
+.pop-today:hover { border-color: var(--teal); }
+
+/* Calendar */
+.pop-cal { padding: 0 12px 2px; border-bottom: 1px solid var(--line); }
+.pop-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.pop-dow {
+  text-align: center; font-size: 11px; font-weight: 600; color: var(--faint);
+  padding: 6px 0 4px; letter-spacing: 0.02em;
+}
+.pop-day {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; height: 42px; padding: 0; border: 0; background: transparent; cursor: pointer; color: var(--ink);
+}
+.pop-num {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%;
+  font-size: 14px; font-variant-numeric: tabular-nums; transition: background 120ms, color 120ms;
+}
+.pop-day:hover .pop-num { background: var(--line); }
+.pop-day.out .pop-num { color: var(--faint); }
+.pop-day.past:not(.on) .pop-num { color: var(--muted); }
+.pop-day.today .pop-num { color: var(--teal); font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--teal); }
+.pop-day.on .pop-num {
+  background: var(--pop-sel); color: var(--pop-sel-ink); font-weight: 700; box-shadow: none;
+}
+.pop-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--teal); flex: none; }
+.pop-dot.late { background: var(--accent); }
+.pop-dot.none { visibility: hidden; }
+.pop-day:focus-visible { outline: none; }
+.pop-day:focus-visible .pop-num { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pop-expand {
+  display: grid; place-items: center; width: 28px; height: 18px; margin: 0 auto 4px; padding: 0;
+  border: 0; border-radius: 999px; background: transparent; color: var(--faint); cursor: pointer;
+  transition: transform 160ms ease, background 120ms;
+}
+.pop-expand:hover { background: var(--line); color: var(--ink); }
+.pop-expand.up { transform: rotate(180deg); }
+
+/* Agenda */
+.pop-agenda { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 8px 14px; }
+.pop-ah { margin: 0 0 8px 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.pop-ah .lead { color: var(--teal); }
+.pop-ah .sep { color: var(--faint); }
+
+.pop-add {
+  display: flex; gap: 6px; margin: 0 0 10px; padding: 6px; border: 1px solid var(--teal);
+  border-radius: 10px; background: var(--pop-raise); animation: pop-in 120ms ease-out;
+}
+.pop-add input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none; padding: 4px 6px;
+  font-size: 13px; user-select: text;
+}
+.pop-add button {
+  border: 0; border-radius: 7px; padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+.pop-add button:disabled { opacity: 0.4; cursor: default; }
+
+.pop-list { list-style: none; margin: 0; padding: 0; }
+.pop-row {
+  position: relative; display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 8px 9px 14px; margin-bottom: 2px; border-radius: 9px;
+  transition: background 120ms, opacity 200ms;
+}
+.pop-row::before {
+  content: ""; position: absolute; left: 4px; top: 9px; bottom: 9px; width: 3px; border-radius: 2px;
+  background: var(--teal);
+}
+.pop-row.late::before { background: var(--accent); }
+.pop-row.done::before { background: var(--line); }
+.pop-row:hover { background: color-mix(in srgb, var(--line) 55%, transparent); }
+
+.pop-check {
+  flex: none; display: grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; padding: 0;
+  border: 1.5px solid var(--faint); border-radius: 50%; background: transparent; color: transparent;
+  cursor: pointer; transition: background 140ms, border-color 140ms, color 140ms, transform 140ms;
+}
+.pop-check:hover { border-color: var(--teal); color: var(--teal); }
+.pop-row.checked .pop-check { background: var(--teal); border-color: var(--teal); color: #fff; }
+.pop-check:active { transform: scale(0.9); }
+.pop-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pop-body {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0;
+  background: transparent; text-align: left; cursor: pointer; color: inherit;
+}
+.pop-title {
+  font-size: 13.5px; font-weight: 600; line-height: 1.35; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pop-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pop-row.late .pop-meta { color: var(--accent); font-weight: 600; }
+.pop-row.checked .pop-title { color: var(--faint); text-decoration: line-through; font-weight: 500; }
+.pop-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.pop-empty { padding: 22px 8px 10px; text-align: center; color: var(--muted); font-size: 12px; }
+.pop-empty p { margin: 0 0 6px; }
+.pop-empty .big { font: 600 15px/1.3 var(--serif); color: var(--ink); }
+.pop-link {
+  border: 0; padding: 0; background: transparent; color: var(--teal); font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+.pop-link:hover { text-decoration: underline; }
+
+.pop-done { margin-top: 6px; }
+.pop-done-toggle {
+  margin: 4px 0 4px 4px; border: 0; padding: 0; background: transparent; font-size: 11px;
+  color: var(--faint); cursor: pointer;
+}
+.pop-done-toggle:hover { color: var(--ink); }
+.pop-error { margin: 0 4px 8px; font-size: 12px; color: var(--accent); }
+
+/* Footer */
+.pop-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 16px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint);
+}
+.pop-foot .pop-link { font-size: 11px; }
+.pop-hint { display: inline-flex; align-items: center; gap: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop, .pop-add { animation: none; }
+  .pop-expand, .pop-check, .pop-num { transition: none; }
+}

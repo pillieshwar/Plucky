@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar } from "./Calendar";
 import { addDays, dayOrderForLocale, relativeLabel, resolveExtraction, toISODate } from "../lib/dates";
 import type { CaptureResult, Extraction, NewTask } from "../lib/types";
+import { safeLocale } from "../lib/locale";
 
 export type CaptureState =
   | { phase: "extracting"; selection: string }
@@ -17,7 +18,7 @@ interface Props {
   onGrantAccess: () => void;
 }
 
-const LOCALE = typeof navigator !== "undefined" ? navigator.language : "en-US";
+const LOCALE = safeLocale();
 
 export function CaptureCard({ state, now, onSave, onCancel, onGrantAccess }: Props) {
   if (state.phase === "notice")
