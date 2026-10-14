@@ -14,7 +14,6 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use pluck_core::models::CatalogModel;
 use pluck_core::{extract_task, Extraction, LlamaServerClient, OllamaClient, OllamaConfig};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
