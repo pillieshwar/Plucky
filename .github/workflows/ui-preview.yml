@@ -1,0 +1,46 @@
+name: UI preview
+
+# Renders the UI with a fake backend and pushes screenshots to the
+# `ui-previews` branch, so changes can be reviewed without a Mac.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [v0.2-features]
+    paths: ["src/**", "scripts/ui-preview/**", ".github/workflows/ui-preview.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ui-preview
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Screenshots
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          sleep 3
+          TZ=America/Los_Angeles node scripts/ui-preview/preview.mjs http://localhost:4173 shots
+      - name: Push to ui-previews
+        run: |
+          cd shots
+          git init -q -b ui-previews
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "UI preview for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ui-previews
