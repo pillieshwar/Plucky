@@ -67,7 +67,8 @@ mod double_option {
     }
 }
 
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
 CREATE TABLE tasks (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     title         TEXT    NOT NULL CHECK (length(trim(title)) > 0),
@@ -79,7 +80,26 @@ CREATE TABLE tasks (
     completed_at  TEXT
 );
 CREATE INDEX tasks_open_due ON tasks (done, due_date);
-"#];
+"#,
+    r#"
+CREATE TABLE reminder_links (
+    task_id      INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    reminder_id  TEXT    NOT NULL UNIQUE,
+    base_title   TEXT    NOT NULL,
+    base_due     TEXT,
+    base_done    INTEGER NOT NULL
+);
+"#,
+];
+
+/// A Pluck task linked to an external reminder, with the state both sides
+/// last agreed on (see `reminders_sync`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReminderLink {
+    pub task_id: i64,
+    pub reminder_id: String,
+    pub base: crate::reminders_sync::SyncState,
+}
 
 pub struct Store {
     conn: Connection,
@@ -164,6 +184,54 @@ impl Store {
         }
         tx.commit()?;
         self.get(id)
+    }
+
+    pub fn reminder_links(&self) -> Result<Vec<ReminderLink>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT task_id, reminder_id, base_title, base_due, base_done FROM reminder_links ORDER BY task_id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(ReminderLink {
+                task_id: r.get(0)?,
+                reminder_id: r.get(1)?,
+                base: crate::reminders_sync::SyncState {
+                    title: r.get(2)?,
+                    due: r.get(3)?,
+                    done: r.get(4)?,
+                },
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn reminder_link(&self, task_id: i64) -> Result<Option<ReminderLink>, StoreError> {
+        Ok(self
+            .reminder_links()?
+            .into_iter()
+            .find(|l| l.task_id == task_id))
+    }
+
+    /// Create or replace the link for `link.task_id`.
+    pub fn save_reminder_link(&self, link: &ReminderLink) -> Result<(), StoreError> {
+        self.conn.execute(
+            "INSERT INTO reminder_links (task_id, reminder_id, base_title, base_due, base_done)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(task_id) DO UPDATE SET reminder_id = ?2, base_title = ?3, base_due = ?4, base_done = ?5",
+            params![
+                link.task_id,
+                link.reminder_id,
+                link.base.title,
+                link.base.due,
+                link.base.done
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_reminder_link(&self, task_id: i64) -> Result<(), StoreError> {
+        self.conn
+            .execute("DELETE FROM reminder_links WHERE task_id = ?1", [task_id])?;
+        Ok(())
     }
 
     pub fn delete(&self, id: i64) -> Result<(), StoreError> {
@@ -341,5 +409,48 @@ mod tests {
             .unwrap();
         assert_eq!(mode.to_lowercase(), "wal");
         assert_eq!(s.list(None).unwrap()[0].title, "persisted");
+    }
+
+    #[test]
+    fn reminder_links_round_trip_and_cascade() {
+        use crate::reminders_sync::SyncState;
+        let s = Store::open_in_memory().unwrap();
+        let t = s.insert(task("x", Some("2026-10-16"))).unwrap();
+        let mut link = ReminderLink {
+            task_id: t.id,
+            reminder_id: "ABC-123".into(),
+            base: SyncState {
+                title: "x".into(),
+                due: Some("2026-10-16".into()),
+                done: false,
+            },
+        };
+        s.save_reminder_link(&link).unwrap();
+        assert_eq!(s.reminder_link(t.id).unwrap(), Some(link.clone()));
+        link.base.done = true;
+        s.save_reminder_link(&link).unwrap();
+        assert_eq!(s.reminder_links().unwrap(), vec![link]);
+        // Deleting the task removes its link.
+        s.delete(t.id).unwrap();
+        assert!(s.reminder_links().unwrap().is_empty());
+    }
+
+    #[test]
+    fn upgrades_a_version_1_database() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tasks.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, created_at) VALUES ('old task', '2026-10-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+        let s = Store::open(&path).unwrap();
+        assert_eq!(s.list(None).unwrap()[0].title, "old task");
+        assert!(s.reminder_links().unwrap().is_empty());
     }
 }

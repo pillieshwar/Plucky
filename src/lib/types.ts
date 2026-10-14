@@ -96,3 +96,37 @@ export interface LocalModels {
   added: CustomModelInfo[];
   found: FoundModel[];
 }
+
+/** Mirrors `reminders::Access`. */
+export type RemindersAccess = "not_determined" | "denied" | "restricted" | "full" | "write_only" | "unsupported";
+
+/** Mirrors `reminders::ListInfo`. */
+export interface RemindersList {
+  id: string;
+  title: string;
+  /** "iCloud", "On My Mac", an Exchange account… */
+  source: string;
+  /** The list syncs off this Mac (iCloud or another account). */
+  leaves_mac: boolean;
+  icloud: boolean;
+  writable: boolean;
+}
+
+/** Mirrors `reminders::Status`. */
+export interface RemindersStatus {
+  supported: boolean;
+  access: RemindersAccess;
+  enabled: boolean;
+  include_notes: boolean;
+  list: RemindersList | null;
+  linked: number;
+  last_sync: string | null;
+  last_error: string | null;
+}
+
+export interface RemindersEnableRequest {
+  /** null = create a list called "Pluck". */
+  list_id: string | null;
+  include_notes: boolean;
+  push_existing: boolean;
+}

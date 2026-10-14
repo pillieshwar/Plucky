@@ -12,6 +12,7 @@ mod engine;
 mod models;
 mod panel;
 mod popover;
+mod reminders;
 mod shortcuts;
 mod tray;
 
@@ -73,6 +74,7 @@ fn add_task(app: AppHandle, state: State<'_, AppState>, task: NewTask) -> CmdRes
     let t = state.store.lock().map_err(err)?.insert(task).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
+    nudge_reminders(&app);
     Ok(t)
 }
 
@@ -91,15 +93,101 @@ fn update_task(
         .map_err(err)?;
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
+    nudge_reminders(&app);
     Ok(t)
 }
 
 #[tauri::command]
 fn delete_task(app: AppHandle, state: State<'_, AppState>, id: i64) -> CmdResult<()> {
-    state.store.lock().map_err(err)?.delete(id).map_err(err)?;
+    let link = {
+        let store = state.store.lock().map_err(err)?;
+        let link = store.reminder_link(id).ok().flatten();
+        store.delete(id).map_err(err)?;
+        link
+    };
+    if let (Some(link), Some(r)) = (link, app.try_state::<reminders::Reminders>()) {
+        r.deleted(link.reminder_id);
+    }
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
     Ok(())
+}
+
+fn nudge_reminders(app: &AppHandle) {
+    if let Some(r) = app.try_state::<reminders::Reminders>() {
+        r.nudge();
+    }
+}
+
+// ── Apple Reminders ─────────────────────────────────────────────────────────
+
+fn linked_count(state: &State<'_, AppState>) -> usize {
+    state
+        .store
+        .lock()
+        .ok()
+        .and_then(|s| s.reminder_links().ok())
+        .map(|l| l.len())
+        .unwrap_or(0)
+}
+
+#[tauri::command]
+fn reminders_status(
+    state: State<'_, AppState>,
+    r: State<'_, reminders::Reminders>,
+) -> reminders::Status {
+    r.status(linked_count(&state))
+}
+
+/// Blocking (waits for the user to answer the macOS prompt), so async.
+#[tauri::command]
+async fn reminders_request_access(
+    r: State<'_, reminders::Reminders>,
+) -> CmdResult<reminders::Access> {
+    r.request_access()
+}
+
+#[tauri::command]
+async fn reminders_lists(
+    r: State<'_, reminders::Reminders>,
+) -> CmdResult<Vec<reminders::ListInfo>> {
+    r.lists()
+}
+
+#[tauri::command]
+async fn reminders_enable(
+    r: State<'_, reminders::Reminders>,
+    request: reminders::EnableRequest,
+) -> CmdResult<()> {
+    r.enable(request)
+}
+
+#[tauri::command]
+async fn reminders_disable(r: State<'_, reminders::Reminders>) -> CmdResult<()> {
+    r.disable()
+}
+
+#[tauri::command]
+fn reminders_sync_now(r: State<'_, reminders::Reminders>) {
+    r.nudge();
+}
+
+/// System Settings → Privacy & Security → Reminders.
+#[tauri::command]
+fn reminders_open_privacy_settings() -> CmdResult<()> {
+    if !cfg!(target_os = "macos") {
+        return Err("Only available on macOS.".into());
+    }
+    std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
+        .spawn()
+        .map(|_| ())
+        .map_err(err)
+}
+
+#[tauri::command]
+fn reminders_set_include_notes(r: State<'_, reminders::Reminders>, include: bool) {
+    r.set_include_notes(include);
 }
 
 #[derive(Serialize)]
@@ -430,6 +518,7 @@ pub fn run() {
             app.manage(panel::PanelState::new(&data_dir));
             app.manage(Engine::new(&log_dir));
             app.manage(Shortcuts::new(&data_dir));
+            app.manage(reminders::Reminders::start(app.handle(), &data_dir));
 
             // Every 30 s: release the model's memory when idle, and roll the
             // menu-bar list over to the new day at midnight.
@@ -495,7 +584,15 @@ pub fn run() {
             pause_shortcuts,
             reveal_logs,
             open_main,
-            hide_popover
+            hide_popover,
+            reminders_status,
+            reminders_request_access,
+            reminders_lists,
+            reminders_enable,
+            reminders_disable,
+            reminders_sync_now,
+            reminders_set_include_notes,
+            reminders_open_privacy_settings
         ])
         .build(tauri::generate_context!())
         .expect("error while building Pluck")

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { RemindersSection } from "./RemindersSection";
 import {
   formatShortcut,
   sameShortcut,
@@ -117,6 +118,8 @@ export function SettingsTab({ shortcuts, onShortcuts }: Props) {
           Restore default ({formatShortcut({ meta: isMac(), ctrl: !isMac(), alt: false, shift: true, code: "KeyZ" })})
         </button>
       </section>
+
+      <RemindersSection />
 
       <section className="settings-section">
         <h2 className="settings-h">Panel</h2>

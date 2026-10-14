@@ -12,6 +12,7 @@
 //! * [`models`] — the downloadable model catalog and Hugging Face metadata.
 //! * [`download`] — resumable, checksum-verified model downloads.
 //! * [`local_models`] — using GGUF files the user already has.
+//! * [`reminders_sync`] — merge rules for two-way Apple Reminders sync.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
@@ -21,8 +22,9 @@ pub mod llm;
 pub mod local_models;
 pub mod models;
 pub mod prompt;
+pub mod reminders_sync;
 pub mod store;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};
 pub use llm::{extract_task, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig};
-pub use store::{NewTask, Store, StoreError, Task, TaskPatch};
+pub use store::{NewTask, ReminderLink, Store, StoreError, Task, TaskPatch};

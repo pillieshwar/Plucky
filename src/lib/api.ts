@@ -9,6 +9,10 @@ import type {
   LocalModels,
   ModelInfo,
   NewTask,
+  RemindersAccess,
+  RemindersEnableRequest,
+  RemindersList,
+  RemindersStatus,
   Status,
   Task,
   TaskPatch,
@@ -42,6 +46,14 @@ export const api = {
   revealLogs: () => invoke<string>("reveal_logs"),
   openMain: (taskId: number | null, tab: string | null) => invoke<void>("open_main", { taskId, tab }),
   hidePopover: () => invoke<void>("hide_popover"),
+  remindersStatus: () => invoke<RemindersStatus>("reminders_status"),
+  remindersRequestAccess: () => invoke<RemindersAccess>("reminders_request_access"),
+  remindersLists: () => invoke<RemindersList[]>("reminders_lists"),
+  remindersEnable: (request: RemindersEnableRequest) => invoke<void>("reminders_enable", { request }),
+  remindersDisable: () => invoke<void>("reminders_disable"),
+  remindersSyncNow: () => invoke<void>("reminders_sync_now"),
+  remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
+  remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
 };
 
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
@@ -78,4 +90,9 @@ export function onHighlightTask(handler: (id: number) => void): Promise<Unlisten
 /** The menu-bar popover was just opened. */
 export function onPopoverShown(handler: () => void): Promise<UnlistenFn> {
   return listen("popover-shown", () => handler());
+}
+
+/** Reminders sync status changed (a pass finished, settings changed…). */
+export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("reminders-changed", () => handler());
 }
