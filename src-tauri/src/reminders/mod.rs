@@ -270,16 +270,16 @@ impl Worker {
     fn run(self, rx: Receiver<Cmd>) {
         // Reminders sync is macOS-only; answer requests so callers never hang.
         while let Ok(cmd) = rx.recv() {
-            let unsupported = || Err("Apple Reminders is only available on macOS.".to_string());
+            const UNSUPPORTED: &str = "Apple Reminders is only available on macOS.";
             match cmd {
                 Cmd::RequestAccess(tx) => {
                     let _ = tx.send(Ok(Access::Unsupported));
                 }
                 Cmd::Lists(tx) => {
-                    let _ = tx.send(unsupported());
+                    let _ = tx.send(Err(UNSUPPORTED.to_string()));
                 }
                 Cmd::Enable(_, tx) | Cmd::Disable(tx) => {
-                    let _ = tx.send(unsupported());
+                    let _ = tx.send(Err(UNSUPPORTED.to_string()));
                 }
                 Cmd::Sync | Cmd::Deleted(_) => {}
             }
