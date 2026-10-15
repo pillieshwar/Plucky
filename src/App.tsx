@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
 import { Onboarding } from "./components/Onboarding";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskList } from "./components/TaskList";
 import { Toasts, useToasts } from "./components/Toasts";
@@ -413,11 +414,7 @@ export default function App() {
         ))}
       </nav>
 
-      {update.state === "ready" && tab !== "settings" && (
-        <Banner tone="info" action={{ label: "Restart", run: () => api.installUpdate().catch((e) => setError(String(e))) }}>
-          Plucky {update.version} is ready — restart to update.
-        </Banner>
-      )}
+      {tab !== "settings" && <UpdateBanner update={update} onError={setError} />}
       {status && !status.accessibility && !capture && !onboarding && (
         <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
           Plucky needs Accessibility permission to read selected text.

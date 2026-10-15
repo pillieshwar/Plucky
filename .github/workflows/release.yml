@@ -68,12 +68,15 @@ jobs:
       - name: Cache llama-server build
         uses: actions/cache@v4
         with:
-          path: target/llama.cpp
+          path: .llama-build
           key: llama-universal-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
 
       - name: Build bundled model runtime (universal llama-server)
         shell: bash
-        run: scripts/build-llama-server.sh universal-apple-darwin
+        run: |
+          # Older runs built this inside target/; drop it from the restored Rust cache.
+          rm -rf target/llama.cpp
+          scripts/build-llama-server.sh universal-apple-darwin
 
       - run: npm install
 
