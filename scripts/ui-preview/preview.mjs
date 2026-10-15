@@ -57,7 +57,11 @@ const TASKS = [
     source_url: "https://app.slack.com/client/T1/C2",
     source_text: "Could you send me the Q3 numbers by 3pm today?",
   }),
-  task("Review the rollout checklist", { due_date: day(0), source_app: "Mail" }),
+  task("Review the rollout checklist", {
+    due_date: day(0),
+    source_app: "Mail",
+    notes: "Checklist: https://docs.example.com/rollout/v2 — ping Dana before sign-off",
+  }),
   task("Water the plants #home", { due_date: day(0), due_time: hm(40), recurrence: "weekly" }),
   task("Renew passport", { due_date: day(-3) }),
   task("Reply to the design review thread #work", {
@@ -210,6 +214,11 @@ await shot("panel-focus-today", PANEL, scenario(), async (p) => {
 await shot("panel-snooze", PANEL, scenario(), async (p) => {
   await p.locator(".task").nth(2).hover();
   await p.locator(".task").nth(2).locator(".task-date").first().click({ force: true });
+});
+await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
+  await p.locator(".task").nth(3).hover();
+  await p.locator(".task").nth(3).locator('[aria-label="Add a description"]').click({ force: true });
+  await p.keyboard.type("Deck: https://slides.example.com/q3");
 });
 await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");
