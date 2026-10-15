@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, onRemindersChanged } from "../lib/api";
 import { safeLocale } from "../lib/locale";
 import type { RemindersList, RemindersStatus } from "../lib/types";
+import { Toggle } from "./GeneralSettings";
 
 const LOCALE = safeLocale();
 const NEW_LIST = "__new__";
@@ -95,73 +96,75 @@ export function RemindersSection() {
   const needsAck = mayLeave;
   const accessBlocked = status.access === "denied" || status.access === "restricted";
 
+  const synced = status.last_sync
+    ? ` · synced ${new Date(status.last_sync).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" })}`
+    : "";
+
   return (
     <section className="settings-section">
       <h2 className="settings-h">Apple Reminders</h2>
 
       {!status.enabled && !setup && (
-        <>
-          <p className="settings-intro">
-            Add new tasks to the Reminders app and keep them in sync both ways — check one off on your iPhone and it’s
-            done in Pluck too.
-          </p>
-          {accessBlocked ? (
-            <div className="rem-note error">
-              <p>
-                Reminders access is turned off for Pluck. Turn it on in System Settings → Privacy &amp; Security →
-                Reminders, then come back here.
-              </p>
-              <button type="button" className="ghost" onClick={() => void api.remindersOpenPrivacySettings()}>
-                Open System Settings
+        <div className="card-stack">
+          <Toggle
+            label="Sync with Apple Reminders"
+            hint="Two-way: tick a task off on your iPhone and it’s done here too."
+            checked={false}
+            disabled={busy || accessBlocked}
+            onChange={(v) => v && void startSetup()}
+          />
+          {busy && <p className="setting-line muted">Waiting for permission…</p>}
+          {accessBlocked && (
+            <div className="setting-line">
+              <span className="dot warn" aria-hidden />
+              <span className="setting-line-text">Reminders access is off for Pluck.</span>
+              <button type="button" className="ghost small" onClick={() => void api.remindersOpenPrivacySettings()}>
+                Allow
               </button>
             </div>
-          ) : (
-            <button type="button" className="ghost" disabled={busy} onClick={() => void startSetup()}>
-              {busy ? "Waiting for permission…" : "Set up Reminders sync…"}
-            </button>
           )}
-        </>
+        </div>
       )}
 
       {!status.enabled && setup && (
-        <div className="rem-setup">
-          <PrivacyWarning detail />
-
-          <label className="rem-field">
-            <span>Sync with</span>
-            <select value={choice} onChange={(e) => setChoice(e.target.value)}>
-              <option value={NEW_LIST}>New list “Pluck”</option>
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.title} — {l.source}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className={mayLeave ? "rem-dest leaves" : "rem-dest local"}>
-            {choice === NEW_LIST
-              ? "Created in your default Reminders account — usually iCloud."
-              : chosen?.leaves_mac
-                ? `This list syncs through ${chosen.source}.`
-                : "This list is stored only on this Mac."}
-          </p>
-
-          <label className="rem-check">
-            <input type="checkbox" checked={pushExisting} onChange={(e) => setPushExisting(e.target.checked)} />
-            Also add the open tasks already in Pluck
-          </label>
-          <label className="rem-check">
-            <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
-            Include the original selected text in each reminder’s notes
-          </label>
-          {needsAck && (
-            <label className="rem-check ack">
-              <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />I
-              understand my tasks will be copied to {chosen && !chosen.icloud ? chosen.source : "iCloud"} and leave this
-              Mac.
+        <>
+          <div className="card-stack">
+            <label className="setting-select">
+              <span className="toggle-text">
+                <span className="toggle-label">List</span>
+                <span className="toggle-hint">Where your tasks appear in Reminders.</span>
+              </span>
+              <select value={choice} onChange={(e) => setChoice(e.target.value)}>
+                <option value={NEW_LIST}>New list “Pluck”</option>
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.title} — {l.source}
+                  </option>
+                ))}
+              </select>
             </label>
-          )}
-
+            <Where leaves={mayLeave} source={chosen && !chosen.icloud ? chosen.source : "iCloud"} />
+            <Toggle
+              label="Add my open tasks too"
+              hint="Copies the tasks already in Pluck to the list."
+              checked={pushExisting}
+              onChange={setPushExisting}
+            />
+            <Toggle
+              label="Include the original text"
+              hint="Puts the text you selected in each reminder’s notes."
+              checked={includeNotes}
+              onChange={setIncludeNotes}
+            />
+            {needsAck && (
+              <Toggle
+                label={`OK to copy tasks to ${chosen && !chosen.icloud ? chosen.source : "iCloud"}`}
+                hint="Titles and dates sync to your other devices. Pick an “On My Mac” list to keep everything here."
+                checked={acknowledged}
+                onChange={setAcknowledged}
+              />
+            )}
+          </div>
           <div className="rem-actions">
             <button type="button" className="ghost" disabled={busy} onClick={() => setSetup(false)}>
               Cancel
@@ -175,95 +178,62 @@ export function RemindersSection() {
               {busy ? "Turning on…" : "Turn on sync"}
             </button>
           </div>
-        </div>
+        </>
       )}
 
       {status.enabled && (
-        <div className="rem-on">
-          <p className="rem-line">
-            <span className="rem-pill">On</span>
-            {status.list ? (
-              <>
-                Syncing with <b>“{status.list.title}”</b> · {status.list.source}
-              </>
-            ) : (
-              "Syncing with Reminders"
-            )}
-          </p>
-          {status.list && !status.list.leaves_mac ? (
-            <p className="rem-dest local">This list is stored only on this Mac.</p>
-          ) : (
-            <PrivacyWarning source={status.list?.icloud === false ? status.list.source : "iCloud"} />
-          )}
-          <label className="rem-check">
-            <input
-              type="checkbox"
-              checked={status.include_notes}
-              onChange={(e) => {
-                void api.remindersSetIncludeNotes(e.target.checked).then(refresh);
-              }}
-            />
-            Include the original selected text in new reminders’ notes
-          </label>
-          <p className="rem-meta">
-            {status.linked} {status.linked === 1 ? "task" : "tasks"} linked
-            {status.last_sync && (
-              <>
-                {" "}
-                · last synced{" "}
-                {new Date(status.last_sync).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" })}
-              </>
-            )}
-          </p>
-          {status.last_error && <p className="rem-error">{status.last_error}</p>}
-          {status.access !== "full" && (
-            <button type="button" className="ghost" onClick={() => void api.remindersOpenPrivacySettings()}>
-              Open System Settings
-            </button>
-          )}
-          <p className="rem-small">
-            Deleting a task in Pluck deletes its reminder. Deleting a reminder only unlinks it — the task stays in
-            Pluck.
-          </p>
-          <div className="rem-actions">
-            <button type="button" className="ghost" disabled={busy} onClick={() => void api.remindersSyncNow()}>
+        <div className="card-stack">
+          <Toggle
+            label="Sync with Apple Reminders"
+            hint={`${status.list ? `“${status.list.title}” · ` : ""}${status.linked} ${status.linked === 1 ? "task" : "tasks"} linked${synced}`}
+            checked
+            disabled={busy}
+            onChange={(v) => !v && void turnOff()}
+          />
+          <Where
+            leaves={!(status.list && !status.list.leaves_mac)}
+            source={status.list?.icloud === false ? status.list.source : "iCloud"}
+          />
+          <Toggle
+            label="Include the original text"
+            hint="Puts the text you selected in new reminders’ notes."
+            checked={status.include_notes}
+            onChange={(v) => void api.remindersSetIncludeNotes(v).then(refresh)}
+          />
+          <div className="setting-line">
+            <span className="setting-line-text muted">
+              Deleting a task here deletes its reminder. Deleting a reminder keeps the task.
+            </span>
+            <button type="button" className="ghost small" disabled={busy} onClick={() => void api.remindersSyncNow()}>
               Sync now
             </button>
-            <button type="button" className="ghost" disabled={busy} onClick={() => void turnOff()}>
-              Turn off
-            </button>
           </div>
+          {status.access !== "full" && (
+            <div className="setting-line">
+              <span className="dot warn" aria-hidden />
+              <span className="setting-line-text">Reminders access is off for Pluck.</span>
+              <button type="button" className="ghost small" onClick={() => void api.remindersOpenPrivacySettings()}>
+                Allow
+              </button>
+            </div>
+          )}
         </div>
       )}
 
+      {status.last_error && status.enabled && <p className="rem-error">{status.last_error}</p>}
       {error && <p className="rem-error">{error}</p>}
     </section>
   );
 }
 
-function PrivacyWarning({ detail, source = "iCloud" }: { detail?: boolean; source?: string }) {
+/** One line saying whether the list keeps tasks on this Mac. */
+function Where({ leaves, source }: { leaves: boolean; source: string }) {
   return (
-    <div className="rem-warning" role="note">
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M8 1.8 15 14H1L8 1.8Z" strokeLinejoin="round" />
-        <path d="M8 6.2v3.6M8 11.6v.4" strokeLinecap="round" />
-      </svg>
-      <div>
-        <p className="rem-warning-title">Your tasks may leave this Mac</p>
-        {detail ? (
-          <p>
-            If the Reminders list syncs with iCloud (or another account), everything Pluck adds to it — task titles, due
-            dates and, if you choose, the original selected text — is uploaded to that account and appears on your other
-            devices. Pluck’s own processing still happens only on this Mac. To keep everything local, pick a list stored
-            “On My Mac”.
-          </p>
-        ) : (
-          <p>
-            Tasks are copied to {source} and your other devices through this Reminders list. Pluck’s own processing
-            still happens only on this Mac.
-          </p>
-        )}
-      </div>
+    <div className="setting-line">
+      <span className={leaves ? "dot warn" : "dot ok"} aria-hidden />
+      <span className="setting-line-text">
+        {leaves ? `Syncs through ${source} — tasks leave this Mac.` : "Stored only on this Mac."}
+      </span>
     </div>
   );
 }

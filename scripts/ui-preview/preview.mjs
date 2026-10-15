@@ -83,6 +83,8 @@ const SETTINGS = {
   last_summary: null,
   last_backup: null,
   seen_version: "0.2.1",
+  show_on_start: true,
+  last_greeted: null,
 };
 
 const SHORTCUTS = {
@@ -127,7 +129,8 @@ function mockTauri(s) {
         id: "llama-3.2-3b",
         name: "Llama 3.2 3B Instruct",
         publisher: "Meta",
-        description: "Recommended.",
+        description:
+          "The best balance of quality and speed for most Macs. Reads messages, emails and web pages well and handles dates reliably.",
         license: "Llama 3.2 Community License",
         repo: "x",
         file: "x",
@@ -140,8 +143,8 @@ function mockTauri(s) {
         progress: null,
       },
     ],
-    list_local_models: () => ({ added: [], found: [] }),
-    reminders_status: () => ({
+    list_local_models: () => s.local ?? { added: [], found: [] },
+    reminders_status: () => s.reminders ?? ({
       supported: true,
       access: "not_determined",
       enabled: false,
@@ -275,6 +278,61 @@ await shot(
     settings: { ...SETTINGS, onboarding_done: false },
     status: { accessibility: false, engine: "bundled", active_model: null, version: "0.2.1", platform: "macos" },
   }),
+);
+const FRESH = scenario({
+  tasks: [],
+  settings: { ...SETTINGS, onboarding_done: false },
+  status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.1", platform: "macos" },
+});
+for (let step = 1; step <= 7; step++) {
+  await shot(`panel-tour-${step}`, PANEL, FRESH, async (p) => {
+    for (let i = 1; i < step; i++) {
+      await p.locator(".onboard-actions .primary").click();
+      await p.waitForTimeout(150);
+    }
+  });
+}
+await shot(
+  "panel-models",
+  PANEL,
+  scenario({
+    local: {
+      added: [],
+      found: [{ name: "llama3.2:3b", path: "/Users/me/.ollama/models/blobs/sha256-x", source: "Ollama", size: 2_019_000_000 }],
+    },
+  }),
+  async (p) => {
+    await p.getByRole("tab", { name: "Models" }).click();
+  },
+);
+await shot("panel-models-local-open", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Models" }).click();
+  await p.locator(".local-toggle").click();
+  await p.locator(".local-toggle").scrollIntoViewIfNeeded();
+});
+await shot("panel-settings-reminders-off", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Settings" }).click();
+  await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
+});
+await shot(
+  "panel-settings-reminders-on",
+  PANEL,
+  scenario({
+    reminders: {
+      supported: true,
+      access: "full",
+      enabled: true,
+      include_notes: false,
+      list: { id: "l1", title: "Pluck", source: "iCloud", icloud: true, leaves_mac: true, writable: true },
+      linked: 12,
+      last_sync: new Date().toISOString(),
+      last_error: null,
+    },
+  }),
+  async (p) => {
+    await p.getByRole("tab", { name: "Settings" }).click();
+    await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
+  },
 );
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
 await shot("panel-whats-new", PANEL, scenario({ settings: { ...SETTINGS, seen_version: "0.1.6" } }));

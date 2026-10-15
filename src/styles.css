@@ -60,11 +60,21 @@ kbd {
 }
 code { font: 12px var(--mono); }
 
+/* The panel window is transparent; the panel itself is a rounded card. */
+html[data-view="panel"],
+html[data-view="panel"] body {
+  background: transparent;
+}
 .panel {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-left: 4px solid var(--teal);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 /* Header */
@@ -232,7 +242,10 @@ code { font: 12px var(--mono); }
 }
 .badge.on { background: var(--teal-soft); color: var(--teal); }
 .model-meta { margin: 3px 0 0; font-size: 11px; color: var(--faint); }
-.model-desc { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.model-desc {
+  margin: 6px 0 0; font-size: 12px; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .model-license { margin: 8px 0 0; font-size: 10px; color: var(--faint); }
 .model-error { margin: 8px 0 0; font-size: 12px; color: var(--accent); user-select: text; }
 .model-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
@@ -322,9 +335,16 @@ code { font: 12px var(--mono); }
 
 /* Models: files already on this Mac */
 .local-models {
-  margin: 0 0 6px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px;
+  margin: 14px 0 6px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px;
 }
 .local-models .models-h { margin-top: 0; }
+.local-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; margin: 0 0 4px;
+  border: 0; background: transparent; cursor: pointer; text-align: left;
+  font: 600 13px var(--sans); color: var(--ink);
+}
+.local-count { font-weight: 500; font-size: 11px; color: var(--teal); }
+.local-chevron { margin-left: auto; color: var(--faint); font-size: 11px; }
 .local-hint, .local-tip { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
 .local-tip { margin: 6px 0 0; font-size: 11px; color: var(--faint); }
 .local-tip kbd { font-size: 9px; }
@@ -568,6 +588,24 @@ code { font: 12px var(--mono); }
   border-top: 1px solid var(--line); font-size: 12px; font-weight: 600;
 }
 .update-state { color: var(--muted); font-weight: 400; }
+/* A plain row inside a card stack: a note, a status or a button. */
+.setting-line {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 12px;
+  border-top: 1px solid var(--line); font-size: 12px;
+}
+.card-stack > .setting-line:first-child { border-top: 0; }
+.setting-line.muted, .setting-line-text.muted { color: var(--muted); font-size: 11.5px; }
+.setting-line-text { flex: 1; min-width: 0; line-height: 1.35; }
+.dot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.dot.ok { background: var(--teal); }
+.dot.warn { background: var(--amber); }
+.setting-select {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px;
+}
+.setting-select select {
+  max-width: 55%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--paper); color: var(--ink); font: inherit; font-size: 12px;
+}
 button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .row-actions .ghost { border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
@@ -585,7 +623,26 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
   margin: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel);
   box-shadow: 0 10px 30px rgba(20, 24, 22, 0.1); animation: rise 180ms ease-out;
 }
-.onboard-steps { display: flex; gap: 5px; list-style: none; margin: 0 0 14px; padding: 0; }
+.onboard-top { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.onboard-steps { flex: 1; display: flex; gap: 5px; list-style: none; margin: 0; padding: 0; }
+.onboard-count { flex: none; font-size: 11px; font-weight: 600; color: var(--faint); }
+.onboard-body p.onboard-muted { font-size: 12px; color: var(--faint); }
+.onboard-body p.onboard-warn { font-size: 12px; color: var(--amber); }
+.onboard-body > .primary { border-radius: 8px; padding: 7px 14px; cursor: pointer; margin: 0 0 12px; }
+.onboard-shortcuts .shortcut-row { padding: 10px 12px; }
+.onboard-shortcuts .shortcut-text h3 { font-size: 13px; }
+.onboard-howto { margin: 0 0 12px; padding-left: 20px; font-size: 13px; color: var(--ink); }
+.onboard-howto li { margin: 0 0 6px; padding-left: 2px; }
+.onboard-howto li::marker { color: var(--teal); font-weight: 700; }
+.onboard-body p.onboard-wait { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--teal); }
+.onboard-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); animation: onboard-pulse 1.4s ease-in-out infinite; }
+@keyframes onboard-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .onboard-pulse { animation: none; } }
+.onboard-tips { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.onboard-tips li { padding: 9px 12px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.onboard-tips li:first-child { border-top: 0; }
+.onboard-tips b { color: var(--ink); }
+.onboard-tips kbd { margin-right: 4px; }
 .onboard-steps li { flex: 1; height: 3px; border-radius: 2px; background: var(--line); transition: background 200ms; }
 .onboard-steps li.done { background: var(--teal); opacity: 0.5; }
 .onboard-steps li.on { background: var(--teal); }

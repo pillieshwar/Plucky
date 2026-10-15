@@ -61,14 +61,12 @@ export function ModelsTab({ onChanged }: Props) {
     <div className="models">
       <p className="models-intro">
         {anyInstalled
-          ? "Models run entirely on this Mac. Switch any time — the new one loads on your next capture."
-          : "Pluck needs one model to read your selections. It downloads once and then runs entirely on this Mac."}
+          ? "Runs entirely on this Mac. Switch any time."
+          : "Pluck needs one model. It downloads once, then runs entirely on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
 
-      <LocalModelsSection local={local} errors={errors} run={run} />
-
-      <h2 className="models-h">{anyInstalled ? "Download a model" : "Or download one"}</h2>
+      <h2 className="models-h">Download a model</h2>
       <ul className="model-list">
         {models.map((m) => {
           const downloading = m.progress !== null;
@@ -88,7 +86,9 @@ export function ModelsTab({ onChanged }: Props) {
                   </p>
                 </div>
               </div>
-              <p className="model-desc">{m.description}</p>
+              <p className="model-desc" title={`${m.description} License: ${m.license}.`}>
+                {m.description}
+              </p>
 
               {downloading && (
                 <div
@@ -147,15 +147,13 @@ export function ModelsTab({ onChanged }: Props) {
                     </button>
                   ))}
               </div>
-              <p className="model-license">License: {m.license}</p>
             </li>
           );
         })}
       </ul>
-      <p className="models-foot">
-        Downloads come from Hugging Face and are checked against their published checksum. This is the only time Pluck
-        uses the internet.
-      </p>
+      <LocalModelsSection local={local} errors={errors} run={run} />
+
+      <p className="models-foot">Downloads come from Hugging Face and are checked before use.</p>
     </div>
   );
 }
@@ -171,6 +169,8 @@ function LocalModelsSection({
 }) {
   const [path, setPath] = useState("");
   const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState(false);
+  const expanded = open || local.added.length > 0;
 
   async function addPath() {
     if (!path.trim() || adding) return;
@@ -184,13 +184,22 @@ function LocalModelsSection({
 
   return (
     <section className="local-models" aria-labelledby="local-models-h">
-      <h2 className="models-h" id="local-models-h">
-        Already have a model?
-      </h2>
-      <p className="local-hint">
-        Point Pluck at a GGUF model file on this Mac and it will use it directly — no download. Files from Ollama, LM
-        Studio and Hugging Face work.
-      </p>
+      <button
+        type="button"
+        className="local-toggle"
+        id="local-models-h"
+        aria-expanded={expanded}
+        onClick={() => setOpen(!open)}
+      >
+        <span>Already have a model file?</span>
+        {local.found.length > 0 && <span className="local-count">{local.found.length} found on this Mac</span>}
+        <span className="local-chevron" aria-hidden>
+          {expanded ? "▾" : "▸"}
+        </span>
+      </button>
+      {expanded && (
+      <>
+      <p className="local-hint">Use a GGUF file from Ollama, LM Studio or Hugging Face — no download.</p>
       <form
         className="path-form"
         onSubmit={(e) => {
@@ -214,7 +223,7 @@ function LocalModelsSection({
       </form>
       {errors._path && <p className="model-error">{errors._path}</p>}
       <p className="local-tip">
-        Tip: in Finder, right-click the file, hold <kbd>⌥</kbd> and choose <b>Copy “…” as Pathname</b>, then paste here.
+        In Finder, right-click the file, hold <kbd>⌥</kbd>, choose <b>Copy as Pathname</b> and paste it here.
       </p>
 
       {local.added.length > 0 && (
@@ -275,6 +284,8 @@ function LocalModelsSection({
             ))}
           </ul>
         </>
+      )}
+      </>
       )}
     </section>
   );

@@ -112,6 +112,7 @@ export default function App() {
       setError(String(e));
     }
   }, []);
+  const refreshStatus = useCallback(() => void checkStatus(), [checkStatus]);
 
   // Keep "today" correct across midnight and after sleep.
   useEffect(() => {
@@ -144,16 +145,26 @@ export default function App() {
       .catch(() => undefined);
   }, [checkStatus]);
 
+  // The tour opens on a first run (nothing set up yet) and stays open until
+  // it's finished or skipped, even once the model arrives mid-way.
+  const [tour, setTour] = useState(false);
+  const tourDecided = useRef(false);
+  useEffect(() => {
+    if (tourDecided.current || !settings || !status) return;
+    tourDecided.current = true;
+    if (!settings.onboarding_done && !status.active_model && status.engine !== "ollama") setTour(true);
+  }, [settings, status]);
+
   // People upgrading with a model already set up skip the walkthrough.
   useEffect(() => {
-    if (!settings || !status || settings.onboarding_done) return;
+    if (!settings || !status || settings.onboarding_done || tour) return;
     if (status.active_model || status.engine === "ollama") {
       api
         .setSettings({ ...settings, onboarding_done: true })
         .then(setSettings)
         .catch(() => undefined);
     }
-  }, [settings, status]);
+  }, [settings, status, tour]);
 
   // A task picked from the menu bar flashes briefly.
   useEffect(() => {
@@ -328,7 +339,7 @@ export default function App() {
   const captureLabel = shortcuts ? formatShortcut(shortcuts.capture) : "…";
   const quickLabel = shortcuts?.quick_add ? formatShortcut(shortcuts.quick_add) : null;
   const dueToday = tasks.filter((t) => !t.done && t.due_date !== null && t.due_date <= today).length;
-  const onboarding = !!settings && !!status && !settings.onboarding_done && !status.active_model && status.engine !== "ollama";
+  const onboarding = tour;
 
   function minimize(next: boolean) {
     setCollapsed(next);
@@ -426,14 +437,18 @@ export default function App() {
       {tab === "tasks" && onboarding && (
         <Onboarding
           status={status}
-          captureShortcut={captureLabel}
-          quickShortcut={quickLabel}
-          onRefreshStatus={() => void checkStatus()}
-          onOpenModels={() => setTab("models")}
+          shortcuts={shortcuts}
+          onShortcuts={setShortcuts}
+          settings={settings}
+          onSettings={setSettings}
+          taskCount={tasks.length}
+          hidden={!!capture}
+          onRefreshStatus={refreshStatus}
           onTry={(text) => void handleCapture({ kind: "text", text, method: "service", source: null })}
-          onDone={() =>
-            void saveSettings({ ...settings!, onboarding_done: true, seen_version: status?.version ?? null })
-          }
+          onDone={() => {
+            setTour(false);
+            if (settings) void saveSettings({ ...settings, onboarding_done: true, seen_version: status?.version ?? null });
+          }}
         />
       )}
 
@@ -527,6 +542,10 @@ export default function App() {
             status={status}
             update={update}
             onError={setError}
+            onTour={() => {
+              setTab("tasks");
+              setTour(true);
+            }}
           />
         )}
       </main>
