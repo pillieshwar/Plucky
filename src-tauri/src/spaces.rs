@@ -1,5 +1,12 @@
 //! Keeping Plucky's windows reachable over full-screen apps (macOS).
 //!
+//! The menu-bar popover and quick add are turned into *non-activating
+//! panels* — the kind of window Spotlight and other menu-bar dropdowns use.
+//! An ordinary window has to activate Plucky to take the keyboard, and when
+//! another app is full screen, activating a menu-bar app either shows
+//! nothing or switches back to the desktop. A non-activating panel floats
+//! over the full-screen app and takes typing while that app stays active.
+//!
 //! A full-screen app lives in its own Space, and by default other apps'
 //! windows can't appear there — so showing the panel, the menu-bar popover
 //! or quick add would either do nothing visible or yank the user back to
@@ -16,8 +23,8 @@ pub enum Kind {
     Overlay,
 }
 
-/// Apply the right Space behaviour to every Plucky window. Call during
-/// setup (main thread) and again before showing a window.
+/// Apply the right Space behaviour to every Plucky window, and turn the
+/// popover and quick add into panels. Call once during setup (main thread).
 pub fn configure_all(app: &AppHandle) {
     for (label, kind) in [
         ("panel", Kind::Panel),
@@ -25,8 +32,44 @@ pub fn configure_all(app: &AppHandle) {
         (crate::quick::LABEL, Kind::Overlay),
     ] {
         if let Some(win) = app.get_webview_window(label) {
+            #[cfg(target_os = "macos")]
+            if matches!(kind, Kind::Overlay) {
+                if objc2::MainThreadMarker::new().is_some() {
+                    macos::make_panel(&win);
+                } else {
+                    let w = win.clone();
+                    let _ = win.run_on_main_thread(move || macos::make_panel(&w));
+                }
+            }
             configure(&win, kind);
         }
+    }
+}
+
+/// Show a window and give it the keyboard. Panels (popover, quick add) do
+/// this without activating Plucky, so they open over full-screen apps;
+/// other windows are shown and focused as usual.
+pub fn present(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        let w = win.clone();
+        let run = move || {
+            if !macos::present_panel(&w) {
+                let _ = w.show();
+                macos::order_front(&w);
+                let _ = w.set_focus();
+            }
+        };
+        if objc2::MainThreadMarker::new().is_some() {
+            run();
+        } else {
+            let _ = win.run_on_main_thread(run);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = win.show();
+        let _ = win.set_focus();
     }
 }
 
@@ -67,10 +110,98 @@ pub fn bring_to_front(win: &WebviewWindow) {
 mod macos {
     #![allow(unused_unsafe)]
 
-    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+    use std::panic::AssertUnwindSafe;
+
+    use objc2::runtime::{AnyObject, NSObjectProtocol};
+    use objc2::{define_class, msg_send, sel, ClassType, MainThreadOnly};
+    use objc2_app_kit::{
+        NSPanel, NSResponder, NSWindow, NSWindowCollectionBehavior, NSWindowStyleMask,
+    };
+    use objc2_foundation::NSObject;
     use tauri::WebviewWindow;
 
     use super::Kind;
+
+    define_class!(
+        // SAFETY: no ivars and no Drop, so an existing NSWindow can be
+        // re-classed to this NSPanel subclass (as tauri-nspanel does). It
+        // only answers two questions differently from NSPanel.
+        #[unsafe(super(NSPanel, NSWindow, NSResponder, NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "PluckyPanel"]
+        struct PluckyPanel;
+
+        unsafe impl NSObjectProtocol for PluckyPanel {}
+
+        impl PluckyPanel {
+            /// Take the keyboard (typing a task, arrow keys) even though
+            /// Plucky isn't the active app.
+            #[unsafe(method(canBecomeKeyWindow))]
+            fn can_become_key_window(&self) -> bool {
+                true
+            }
+
+            #[unsafe(method(canBecomeMainWindow))]
+            fn can_become_main_window(&self) -> bool {
+                false
+            }
+        }
+    );
+
+    fn is_panel(ns: &NSWindow) -> bool {
+        unsafe { msg_send![ns, isKindOfClass: PluckyPanel::class()] }
+    }
+
+    /// Turn a Tauri window into a non-activating panel. Main thread only.
+    pub fn make_panel(win: &WebviewWindow) {
+        let Some(ns) = ns_window(win) else {
+            return;
+        };
+        if is_panel(ns) {
+            return;
+        }
+        // SAFETY: PluckyPanel adds no ivars, so the object's memory layout
+        // is unchanged; NSPanel is an NSWindow subclass.
+        unsafe {
+            let obj: &AnyObject = &*(ns as *const NSWindow as *const AnyObject);
+            let _ = AnyObject::set_class(obj, PluckyPanel::class());
+        }
+        let result = objc2::exception::catch(AssertUnwindSafe(|| unsafe {
+            ns.setStyleMask(ns.styleMask() | NSWindowStyleMask::NonactivatingPanel);
+            // Re-classing skips NSPanel's own setup, which is where AppKit
+            // tells the window server not to activate the app for clicks in
+            // this window. Do that part by hand where it exists.
+            let prevent = sel!(_setPreventsActivation:);
+            let responds: bool = msg_send![ns, respondsToSelector: prevent];
+            if responds {
+                let _: () = msg_send![ns, _setPreventsActivation: true];
+            }
+            let panel: &NSPanel = &*(ns as *const NSWindow as *const NSPanel);
+            panel.setFloatingPanel(true);
+            panel.setBecomesKeyOnlyIfNeeded(false);
+            panel.setWorksWhenModal(true);
+        }));
+        match result {
+            Ok(()) => log::info!("{} is now a non-activating panel", win.label()),
+            Err(e) => log::warn!("could not make {} non-activating: {e:?}", win.label()),
+        }
+    }
+
+    /// Show a panel and make it key without activating Plucky. Returns
+    /// false for windows that aren't panels.
+    pub fn present_panel(win: &WebviewWindow) -> bool {
+        let Some(ns) = ns_window(win) else {
+            return false;
+        };
+        if !is_panel(ns) {
+            return false;
+        }
+        unsafe {
+            ns.orderFrontRegardless();
+            ns.makeKeyWindow();
+        }
+        true
+    }
 
     /// NSFloatingWindowLevel and NSPopUpMenuWindowLevel.
     const FLOATING: isize = 3;

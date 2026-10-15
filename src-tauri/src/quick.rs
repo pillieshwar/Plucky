@@ -25,9 +25,7 @@ pub fn show(app: &AppHandle) {
     if let Err(e) = place(&win) {
         log::warn!("could not position quick add: {e}");
     }
-    let _ = win.show();
-    crate::spaces::bring_to_front(&win);
-    let _ = win.set_focus();
+    crate::spaces::present(&win);
     let _ = app.emit_to(LABEL, "quick-shown", ());
 }
 
