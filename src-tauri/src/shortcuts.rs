@@ -42,15 +42,34 @@ pub struct ShortcutSettings {
     pub quick_add: Option<ShortcutSpec>,
     #[serde(default)]
     pub toggle_panel: Option<ShortcutSpec>,
+    /// Which built-in defaults this file has been offered (see `new`).
+    #[serde(default)]
+    pub defaults_version: u32,
 }
+
+/// 2 = "Show or hide Pluck" gained a default (0.3.1), so the panel can be
+/// opened while a full-screen app hides the menu bar.
+const DEFAULTS_VERSION: u32 = 2;
 
 impl Default for ShortcutSettings {
     fn default() -> Self {
         Self {
             capture: default_capture(),
             quick_add: default_quick_add_opt(),
-            toggle_panel: None,
+            toggle_panel: Some(default_toggle_panel()),
+            defaults_version: DEFAULTS_VERSION,
         }
+    }
+}
+
+/// ⌥⇧⌘P (Ctrl+Alt+Shift+P elsewhere) — P for Pluck.
+pub fn default_toggle_panel() -> ShortcutSpec {
+    ShortcutSpec {
+        meta: cfg!(target_os = "macos"),
+        ctrl: !cfg!(target_os = "macos"),
+        alt: true,
+        shift: true,
+        code: "KeyP".into(),
     }
 }
 
@@ -332,6 +351,20 @@ impl Shortcuts {
         if settings.capture.to_shortcut().is_err() {
             settings.capture = default_capture();
         }
+        if settings.defaults_version < DEFAULTS_VERSION {
+            // Offer the new panel shortcut once, unless the user already
+            // set one (or it would clash with theirs).
+            if settings.toggle_panel.is_none() {
+                settings.toggle_panel = Some(default_toggle_panel());
+                if check_distinct(&settings).is_err() {
+                    settings.toggle_panel = None;
+                }
+            }
+            settings.defaults_version = DEFAULTS_VERSION;
+            if let Ok(bytes) = serde_json::to_vec_pretty(&settings) {
+                let _ = std::fs::write(&path, bytes);
+            }
+        }
         if check_distinct(&settings).is_err() {
             settings.quick_add = None;
         }
@@ -347,6 +380,10 @@ impl Shortcuts {
 
     pub fn capture_label(&self) -> String {
         self.get().capture.label()
+    }
+
+    pub fn toggle_panel_label(&self) -> Option<String> {
+        self.get().toggle_panel.map(|t| t.label())
     }
 
     pub fn quick_add_label(&self) -> Option<String> {
@@ -533,6 +570,7 @@ mod tests {
             capture: spec(false, true, true, false, "KeyT"),
             quick_add: None,
             toggle_panel: Some(spec(false, true, true, false, "KeyY")),
+            defaults_version: DEFAULTS_VERSION,
         };
         s.save(&custom).unwrap();
         let s2 = Shortcuts::new(dir.path());
@@ -552,6 +590,19 @@ mod tests {
         let s = Shortcuts::new(dir.path()).get();
         assert_eq!(s.quick_add, Some(default_quick_add()));
         assert!(default_quick_add().validate().is_ok());
+        // Older files also get the show/hide shortcut, once.
+        assert_eq!(s.toggle_panel, Some(default_toggle_panel()));
+        assert!(default_toggle_panel().validate().is_ok());
+    }
+
+    #[test]
+    fn a_cleared_panel_shortcut_stays_cleared() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Shortcuts::new(dir.path());
+        let mut cleared = s.get();
+        cleared.toggle_panel = None;
+        s.save(&cleared).unwrap();
+        assert_eq!(Shortcuts::new(dir.path()).get().toggle_panel, None);
     }
 
     #[test]

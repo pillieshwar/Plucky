@@ -207,6 +207,7 @@ pub fn show(app: &AppHandle) {
             log::warn!("could not position panel: {e}");
         }
     }
+    crate::spaces::configure(&win, crate::spaces::Kind::Panel);
     let _ = win.show();
     let _ = win.set_focus();
     let _ = app.emit_to(LABEL, "panel-collapsed", false);

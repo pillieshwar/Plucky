@@ -20,6 +20,7 @@ mod reminders;
 mod services;
 mod settings;
 mod shortcuts;
+mod spaces;
 mod tray;
 mod updates;
 
@@ -938,6 +939,8 @@ pub fn run() {
 
             app.state::<Shortcuts>().register_all(app.handle());
             tray::build(app.handle())?;
+            // Let Pluck's windows open over full-screen apps.
+            spaces::configure_all(app.handle());
             notifications::init(app.handle());
             notifications::start_scheduler(app.handle());
             updates::start(app.handle());
