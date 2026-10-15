@@ -192,3 +192,9 @@ html[data-view="popover"] body {
 }
 .pop-ghost span { color: color-mix(in srgb, var(--paper) 70%, var(--teal)); }
 .pop .toasts { bottom: 44px; }
+
+/* ── 0.3 ── */
+.pop-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pop-meta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pop .due-now { margin: 0 0 10px; padding: 9px 10px; }
+.pop .due-now .sn-chip { padding: 3px 8px; font-size: 11.5px; }

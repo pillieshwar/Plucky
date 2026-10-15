@@ -309,16 +309,17 @@ impl Store {
                 params![rule, id],
             )?;
         }
-        if let Some(snooze) = patch.snoozed_until {
-            tx.execute(
-                "UPDATE tasks SET snoozed_until = ?1 WHERE id = ?2",
-                params![snooze, id],
-            )?;
-        } else if reschedule {
+        if reschedule {
             // A new due moment gets a fresh notification.
             tx.execute(
                 "UPDATE tasks SET snoozed_until = NULL, notified_at = NULL WHERE id = ?1",
                 [id],
+            )?;
+        }
+        if let Some(snooze) = patch.snoozed_until {
+            tx.execute(
+                "UPDATE tasks SET snoozed_until = ?1 WHERE id = ?2",
+                params![snooze, id],
             )?;
         }
         if let Some(done) = patch.done {
@@ -807,6 +808,20 @@ mod tests {
                 t.id,
                 TaskPatch {
                     due_date: Some(Some("2026-10-17".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!((t.notified_at, t.snoozed_until), (None, None));
+        // Moving a fired reminder to another day while clearing its snooze
+        // also forgets the old notification.
+        s.mark_notified(t.id, "2026-10-17T09:00:00").unwrap();
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    due_date: Some(Some("2026-10-18".into())),
+                    snoozed_until: Some(None),
                     ..Default::default()
                 },
             )

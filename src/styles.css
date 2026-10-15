@@ -605,3 +605,63 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .foot-keys { flex: none; }
 .de-quick .cal-quick.clear { margin-left: 0; }
 .tag { font-size: 0.92em; }
+
+/* ── 0.3: due chips, time picker, snooze, due now, focus ──────────────── */
+.due-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; line-height: 17px; white-space: nowrap;
+  background: var(--teal-soft); color: var(--teal);
+}
+.due-chip svg { flex: none; }
+.due-chip.overdue { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.due-chip.soon { background: var(--amber-soft); color: var(--amber); }
+.due-chip.later { background: color-mix(in srgb, var(--line) 70%, transparent); color: var(--muted); }
+.due-chip.done { background: transparent; color: var(--faint); font-weight: 500; text-decoration: line-through; padding-left: 0; }
+.task:has(.due-chip.overdue) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.task-date.on { color: var(--teal); }
+
+.time-picker { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.tp-chip {
+  border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 3px 9px;
+  font-size: 11.5px; color: var(--muted); cursor: pointer;
+}
+.tp-chip:hover { border-color: var(--ink); color: var(--ink); }
+.tp-chip.on { background: var(--teal); border-color: var(--teal); color: #fff; font-weight: 600; }
+.tp-other select {
+  appearance: none; -webkit-appearance: none; border: 1px dashed var(--line); background: transparent;
+  border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--muted); cursor: pointer;
+}
+.tp-other.on select { border-style: solid; background: var(--teal); border-color: var(--teal); color: #fff; font-weight: 600; }
+.capture .time-picker { margin-top: 10px; }
+
+.snooze-bar { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0 28px; animation: rise 120ms ease-out; }
+.sn-chip {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 4px 9px;
+  font-size: 12px; font-weight: 600; color: var(--ink); cursor: pointer;
+}
+.sn-chip:hover { border-color: var(--amber); color: var(--amber); }
+.sn-chip.done { background: var(--teal); border-color: var(--teal); color: #fff; }
+.sn-chip.done:hover { color: #fff; filter: brightness(1.08); }
+
+.due-now {
+  margin: 10px 12px 0 18px; padding: 10px 12px; border-radius: 12px;
+  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  animation: rise 160ms ease-out;
+}
+.due-now-h { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
+.due-now-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); animation: pulse 900ms infinite alternate; }
+.due-now ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.due-now-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13.5px; font-weight: 700; }
+.due-now .snooze-bar { margin-left: 0; }
+.due-now-more { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+
+.search-line { display: flex; gap: 6px; align-items: stretch; }
+.search-line .search-box { flex: 1; min-width: 0; }
+.focus-toggle {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--panel); font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer;
+}
+.focus-toggle:hover { color: var(--ink); border-color: var(--ink); }
+.focus-dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; box-sizing: border-box; }
+.focus-toggle.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.focus-toggle.on .focus-dot { background: #fff; border-color: #fff; }

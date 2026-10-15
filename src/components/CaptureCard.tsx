@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
-import { CalendarIcon, ClockIcon, RepeatIcon } from "./icons";
+import { TimePicker } from "./TimePicker";
+import { CalendarIcon, RepeatIcon } from "./icons";
 import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import { repeatLabel, resolveCaptured, timeLabel } from "../lib/schedule";
 import { sourceLabel } from "../lib/taskText";
@@ -268,24 +269,22 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
           <CalendarIcon /> More…
         </button>
       </div>
-      {(draft.time || draft.repeat) && draft.date && (
+      {draft.date && (
+        <TimePicker
+          value={draft.time}
+          locale={LOCALE}
+          now={draft.date === toISODate(now) ? now : undefined}
+          onChange={(time) => onChange({ time })}
+        />
+      )}
+      {draft.repeat && draft.date && (
         <p className="capture-extras">
-          {draft.time && (
-            <span className="extra">
-              <ClockIcon /> {timeLabel(draft.time, LOCALE)}
-              <button type="button" aria-label="Remove time" onClick={() => onChange({ time: null })}>
-                ×
-              </button>
-            </span>
-          )}
-          {draft.repeat && (
-            <span className="extra">
-              <RepeatIcon /> {repeatLabel(draft.repeat)}
-              <button type="button" aria-label="Don't repeat" onClick={() => onChange({ repeat: null })}>
-                ×
-              </button>
-            </span>
-          )}
+          <span className="extra">
+            <RepeatIcon /> {repeatLabel(draft.repeat)}
+            <button type="button" aria-label="Don't repeat" onClick={() => onChange({ repeat: null })}>
+              ×
+            </button>
+          </span>
         </p>
       )}
       {picking && (
