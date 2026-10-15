@@ -357,7 +357,7 @@ export default function App() {
         <header className="mini" data-tauri-drag-region onDoubleClick={() => minimize(false)}>
           <DragGrip />
           <span className="mini-title" data-tauri-drag-region>
-            Plucky
+            Pluck
           </span>
           <span className="mini-meta" data-tauri-drag-region>
             {open} open{dueToday ? ` · ${dueToday} due` : ""}
@@ -381,7 +381,7 @@ export default function App() {
                 ? status?.active_model
                   ? `Using ${status.active_model}`
                   : "No model yet"
-                : `Plucky ${status?.version ?? ""}`}
+                : `Pluck ${status?.version ?? ""}`}
           </p>
         </div>
         {controls}
@@ -404,17 +404,17 @@ export default function App() {
 
       {update.state === "ready" && tab !== "settings" && (
         <Banner tone="info" action={{ label: "Restart", run: () => api.installUpdate().catch((e) => setError(String(e))) }}>
-          Plucky {update.version} is ready — restart to update.
+          Pluck {update.version} is ready — restart to update.
         </Banner>
       )}
       {status && !status.accessibility && !capture && !onboarding && (
         <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
-          Plucky needs Accessibility permission to read selected text.
+          Pluck needs Accessibility permission to read selected text.
         </Banner>
       )}
       {tab === "tasks" && status?.engine === "bundled" && !status.active_model && !onboarding && (
         <Banner tone="warn" action={{ label: "Get a model", run: () => setTab("models") }}>
-          Download a model so Plucky can read your selections.
+          Download a model so Pluck can read your selections.
         </Banner>
       )}
       {error && (

@@ -155,14 +155,14 @@ ALTER TABLE tasks ADD COLUMN notes TEXT;
 "#,
 ];
 
-/// A Plucky task linked to an external reminder, with the state both sides
+/// A Pluck task linked to an external reminder, with the state both sides
 /// last agreed on (see `reminders_sync`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReminderLink {
     pub task_id: i64,
     pub reminder_id: String,
     pub base: crate::reminders_sync::SyncState,
-    /// The reminder was deleted outside Plucky; the task no longer syncs.
+    /// The reminder was deleted outside Pluck; the task no longer syncs.
     #[serde(default)]
     pub detached: bool,
 }

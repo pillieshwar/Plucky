@@ -62,7 +62,7 @@ export function ModelsTab({ onChanged }: Props) {
       <p className="models-intro">
         {anyInstalled
           ? "Models run entirely on this Mac. Switch any time — the new one loads on your next capture."
-          : "Plucky needs one model to read your selections. It downloads once and then runs entirely on this Mac."}
+          : "Pluck needs one model to read your selections. It downloads once and then runs entirely on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
 
@@ -153,7 +153,7 @@ export function ModelsTab({ onChanged }: Props) {
         })}
       </ul>
       <p className="models-foot">
-        Downloads come from Hugging Face and are checked against their published checksum. This is the only time Plucky
+        Downloads come from Hugging Face and are checked against their published checksum. This is the only time Pluck
         uses the internet.
       </p>
     </div>
@@ -188,7 +188,7 @@ function LocalModelsSection({
         Already have a model?
       </h2>
       <p className="local-hint">
-        Point Plucky at a GGUF model file on this Mac and it will use it directly — no download. Files from Ollama, LM
+        Point Pluck at a GGUF model file on this Mac and it will use it directly — no download. Files from Ollama, LM
         Studio and Hugging Face work.
       </p>
       <form
@@ -239,10 +239,10 @@ function LocalModelsSection({
                 )}
                 <button
                   className="ghost"
-                  title="Plucky forgets this file; the file itself stays where it is."
+                  title="Pluck forgets this file; the file itself stays where it is."
                   onClick={() => void run(m.id, () => api.removeModelFile(m.id))}
                 >
-                  Remove from Plucky
+                  Remove from Pluck
                 </button>
               </div>
             </li>

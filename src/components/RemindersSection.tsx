@@ -48,8 +48,7 @@ export function RemindersSection() {
       if (access !== "full") return;
       const found = (await api.remindersLists()).filter((l) => l.writable);
       setLists(found);
-      // Reuse the list an earlier version (named Pluck) made.
-      const existing = found.find((l) => l.title === "Plucky") ?? found.find((l) => l.title === "Pluck");
+      const existing = found.find((l) => l.title === "Pluck");
       setChoice(existing ? existing.id : NEW_LIST);
       setAcknowledged(false);
       setSetup(true);
@@ -104,12 +103,12 @@ export function RemindersSection() {
         <>
           <p className="settings-intro">
             Add new tasks to the Reminders app and keep them in sync both ways — check one off on your iPhone and it’s
-            done in Plucky too.
+            done in Pluck too.
           </p>
           {accessBlocked ? (
             <div className="rem-note error">
               <p>
-                Reminders access is turned off for Plucky. Turn it on in System Settings → Privacy &amp; Security →
+                Reminders access is turned off for Pluck. Turn it on in System Settings → Privacy &amp; Security →
                 Reminders, then come back here.
               </p>
               <button type="button" className="ghost" onClick={() => void api.remindersOpenPrivacySettings()}>
@@ -131,7 +130,7 @@ export function RemindersSection() {
           <label className="rem-field">
             <span>Sync with</span>
             <select value={choice} onChange={(e) => setChoice(e.target.value)}>
-              <option value={NEW_LIST}>New list “Plucky”</option>
+              <option value={NEW_LIST}>New list “Pluck”</option>
               {lists.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.title} — {l.source}
@@ -149,7 +148,7 @@ export function RemindersSection() {
 
           <label className="rem-check">
             <input type="checkbox" checked={pushExisting} onChange={(e) => setPushExisting(e.target.checked)} />
-            Also add the open tasks already in Plucky
+            Also add the open tasks already in Pluck
           </label>
           <label className="rem-check">
             <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
@@ -223,8 +222,8 @@ export function RemindersSection() {
             </button>
           )}
           <p className="rem-small">
-            Deleting a task in Plucky deletes its reminder. Deleting a reminder only unlinks it — the task stays in
-            Plucky.
+            Deleting a task in Pluck deletes its reminder. Deleting a reminder only unlinks it — the task stays in
+            Pluck.
           </p>
           <div className="rem-actions">
             <button type="button" className="ghost" disabled={busy} onClick={() => void api.remindersSyncNow()}>
@@ -253,14 +252,14 @@ function PrivacyWarning({ detail, source = "iCloud" }: { detail?: boolean; sourc
         <p className="rem-warning-title">Your tasks may leave this Mac</p>
         {detail ? (
           <p>
-            If the Reminders list syncs with iCloud (or another account), everything Plucky adds to it — task titles, due
+            If the Reminders list syncs with iCloud (or another account), everything Pluck adds to it — task titles, due
             dates and, if you choose, the original selected text — is uploaded to that account and appears on your other
-            devices. Plucky’s own processing still happens only on this Mac. To keep everything local, pick a list stored
+            devices. Pluck’s own processing still happens only on this Mac. To keep everything local, pick a list stored
             “On My Mac”.
           </p>
         ) : (
           <p>
-            Tasks are copied to {source} and your other devices through this Reminders list. Plucky’s own processing
+            Tasks are copied to {source} and your other devices through this Reminders list. Pluck’s own processing
             still happens only on this Mac.
           </p>
         )}

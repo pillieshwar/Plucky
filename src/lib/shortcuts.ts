@@ -68,7 +68,7 @@ export function formatShortcut(spec: ShortcutSpec, mac = isMacPlatform()): strin
 
 const MODIFIER_CODE = /^(Meta|Control|Alt|Shift|OS|CapsLock|Fn)/;
 
-/** Keys Plucky can register (kept in step with `parse_code` in Rust). */
+/** Keys Pluck can register (kept in step with `parse_code` in Rust). */
 const SUPPORTED = new Set([
   ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((c) => `Key${c}`),
   ..."0123456789".split("").map((d) => `Digit${d}`),
@@ -100,7 +100,7 @@ export function validateShortcut(s: ShortcutSpec, mac = isMacPlatform()): string
   if (!(s.meta || s.ctrl || s.alt)) {
     return `Include ${mac ? "⌘, ⌃ or ⌥" : "Ctrl or Alt"} so the shortcut doesn't fire while you type.`;
   }
-  if (!SUPPORTED.has(s.code)) return `Plucky can't use that key in a shortcut. Try a letter, number or F-key.`;
+  if (!SUPPORTED.has(s.code)) return `Pluck can't use that key in a shortcut. Try a letter, number or F-key.`;
   const reserved = ["KeyC", "KeyV", "KeyX", "KeyA", "KeyZ", "KeyQ", "KeyW", "Tab", "Space"];
   if (primaryOnly(s, mac) && reserved.includes(s.code)) {
     return `${formatShortcut(s, mac)} is used by the system for basic editing or switching apps.`;
@@ -135,20 +135,20 @@ const PRIMARY_USES: Record<string, string> = {
 };
 
 /**
- * A heads-up when a shortcut overrides something common. Plucky still allows
- * it — while Plucky runs, the shortcut is Plucky's in every app.
+ * A heads-up when a shortcut overrides something common. Pluck still allows
+ * it — while Pluck runs, the shortcut is Pluck's in every app.
  */
 export function shortcutWarning(s: ShortcutSpec, mac = isMacPlatform()): string | null {
   const label = formatShortcut(s, mac);
   const primary = mac ? s.meta && !s.ctrl : s.ctrl && !s.meta;
   if (primary && s.shift && !s.alt && s.code === "KeyZ") {
-    return `${label} is Redo in most apps. While Plucky uses it, Redo by shortcut won't work elsewhere — use the Edit menu, or pick another shortcut here.`;
+    return `${label} is Redo in most apps. While Pluck uses it, Redo by shortcut won't work elsewhere — use the Edit menu, or pick another shortcut here.`;
   }
   if (primary && s.shift && !s.alt && s.code === "KeyT") {
     return `${label} reopens closed tabs in browsers.`;
   }
   if (primaryOnly(s, mac) && Object.prototype.hasOwnProperty.call(PRIMARY_USES, s.code)) {
-    return `${label} is ${PRIMARY_USES[s.code]} in many apps, and won't work there while Plucky uses it.`;
+    return `${label} is ${PRIMARY_USES[s.code]} in many apps, and won't work there while Pluck uses it.`;
   }
   if (s.ctrl && !s.meta && !s.shift && s.code === "Space" && mac) {
     return `${label} switches keyboard input sources on macOS.`;

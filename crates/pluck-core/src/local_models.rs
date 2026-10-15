@@ -22,9 +22,9 @@ pub enum LocalModelError {
     NotFound,
     #[error("That's a folder — choose the model file inside it (it usually ends in .gguf).")]
     IsDirectory,
-    #[error("Plucky can't read that file: {0}")]
+    #[error("Pluck can't read that file: {0}")]
     Unreadable(String),
-    #[error("That isn't a GGUF model file. Plucky runs models in the GGUF format (usually ending in .gguf).")]
+    #[error("That isn't a GGUF model file. Pluck runs models in the GGUF format (usually ending in .gguf).")]
     NotGguf,
     #[error("That file is too small to be a language model.")]
     TooSmall,

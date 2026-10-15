@@ -38,7 +38,7 @@ define_class!(
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl UNUserNotificationCenterDelegate for Delegate {
-        /// Show banners even while a Plucky window is in front.
+        /// Show banners even while a Pluck window is in front.
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
         fn will_present(
             &self,

@@ -10,7 +10,7 @@ const LOCALE = safeLocale();
 const ORDER = dayOrderForLocale(LOCALE);
 
 /**
- * The quick-add bar: type a task in plain words, see how Plucky reads it,
+ * The quick-add bar: type a task in plain words, see how Pluck reads it,
  * press Return. Dates are read on this Mac, instantly, without the model.
  */
 export default function QuickAdd() {

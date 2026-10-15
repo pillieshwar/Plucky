@@ -22,7 +22,7 @@ use crate::engine::Engine;
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     active_model: Option<String>,
-    /// Model files the user pointed Plucky at instead of downloading.
+    /// Model files the user pointed Pluck at instead of downloading.
     #[serde(default)]
     custom_models: Vec<CustomModel>,
 }

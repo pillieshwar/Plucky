@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Plucky",
+  "productName": "Pluck",
   "version": "0.4.0",
   "identifier": "app.pluck.desktop",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "panel",
-        "title": "Plucky",
+        "title": "Pluck",
         "width": 360,
         "height": 720,
         "resizable": false,
@@ -27,7 +27,7 @@
       },
       {
         "label": "popover",
-        "title": "Plucky Today",
+        "title": "Pluck Today",
         "url": "index.html",
         "width": 340,
         "height": 540,
@@ -43,7 +43,7 @@
       },
       {
         "label": "quick",
-        "title": "Plucky Quick Add",
+        "title": "Pluck Quick Add",
         "url": "index.html",
         "width": 640,
         "height": 300,
