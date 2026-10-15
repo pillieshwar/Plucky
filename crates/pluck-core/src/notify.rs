@@ -163,6 +163,7 @@ mod tests {
             snoozed_until: None,
             notified_at: None,
             next_id: None,
+            notes: None,
         }
     }
 

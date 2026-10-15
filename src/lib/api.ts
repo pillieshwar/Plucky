@@ -59,6 +59,7 @@ export const api = {
   remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
   remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
   openSource: (id: number) => invoke<void>("open_source", { id }),
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
   restoreTask: (task: Task) => invoke<Task>("restore_task", { task }),
   getSettings: () => invoke<AppSettings>("get_settings"),
   setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),

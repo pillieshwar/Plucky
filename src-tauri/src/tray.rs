@@ -178,10 +178,17 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         None::<&str>,
     )?)?;
+    let open_label = match app
+        .try_state::<Shortcuts>()
+        .and_then(|s| s.toggle_panel_label())
+    {
+        Some(sc) => format!("Open Pluck  {sc}"),
+        None => "Open Pluck".to_string(),
+    };
     menu.append(&MenuItem::with_id(
         app,
         "show",
-        "Open Pluck",
+        open_label,
         true,
         None::<&str>,
     )?)?;

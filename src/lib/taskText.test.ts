@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesQuery, sourceLabel, tagsOf, titleParts, topTags } from "./taskText";
+import { linkParts, matchesQuery, sourceLabel, tagsOf, titleParts, topTags } from "./taskText";
 import type { Task } from "./types";
 
 let id = 0;
@@ -20,6 +20,7 @@ const task = (title: string, extra: Partial<Task> = {}): Task => ({
   snoozed_until: null,
   notified_at: null,
   next_id: null,
+  notes: null,
   ...extra,
 });
 
@@ -59,5 +60,21 @@ describe("sourceLabel", () => {
     expect(sourceLabel({ source_app: "Preview", source_url: "file:///Users/me/Q3%20plan.pdf" })).toBe("Q3 plan.pdf");
     expect(sourceLabel({ source_app: "Notes", source_url: null })).toBe("Notes");
     expect(sourceLabel({ source_app: null, source_url: null })).toBeNull();
+  });
+});
+
+describe("linkParts", () => {
+  it("finds links and leaves trailing punctuation out", () => {
+    expect(linkParts("Form: https://example.com/a?b=1. Ask Sam")).toEqual([
+      { text: "Form: ", url: null },
+      { text: "https://example.com/a?b=1", url: "https://example.com/a?b=1" },
+      { text: ". Ask Sam", url: null },
+    ]);
+    expect(linkParts("mail mailto:sam@example.com")[1].url).toBe("mailto:sam@example.com");
+    expect(linkParts("no links here")).toEqual([{ text: "no links here", url: null }]);
+  });
+
+  it("searches descriptions too", () => {
+    expect(matchesQuery(task("Pay rent", { notes: "portal at bank.example" }), "portal")).toBe(true);
   });
 });

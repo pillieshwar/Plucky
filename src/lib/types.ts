@@ -18,6 +18,8 @@ export interface Task {
   snoozed_until: string | null;
   notified_at: string | null;
   next_id: number | null;
+  /** The user's description: links, details. */
+  notes: string | null;
 }
 
 /** Mirrors `pluck_core::NewTask` (created_tz is filled in by Rust). */
@@ -30,6 +32,7 @@ export interface NewTask {
   source_app?: string | null;
   source_bundle?: string | null;
   source_url?: string | null;
+  notes?: string | null;
 }
 
 /** Mirrors `pluck_core::TaskPatch`. Omit a key to leave it unchanged. */
@@ -39,6 +42,7 @@ export interface TaskPatch {
   due_time?: string | null;
   recurrence?: string | null;
   snoozed_until?: string | null;
+  notes?: string | null;
   done?: boolean;
 }
 

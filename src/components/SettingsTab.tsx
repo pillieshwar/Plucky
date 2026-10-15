@@ -40,7 +40,7 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
   {
     action: "toggle_panel",
     title: "Show or hide Pluck",
-    hint: "Open your task list from anywhere. Optional.",
+    hint: "Open your task list from anywhere — even over a full-screen app, where the menu bar is hidden.",
     optional: true,
   },
 ];

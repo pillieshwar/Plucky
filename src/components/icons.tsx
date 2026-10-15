@@ -36,3 +36,11 @@ export function SearchIcon() {
     </svg>
   );
 }
+
+export function NoteIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M3 4.5h10M3 8h10M3 11.5h6" strokeLinecap="round" />
+    </svg>
+  );
+}

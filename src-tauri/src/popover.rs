@@ -37,6 +37,7 @@ pub fn toggle(app: &AppHandle, icon: Rect) {
     if recently_hidden() {
         return;
     }
+    crate::spaces::configure(&win, crate::spaces::Kind::Overlay);
     if let Err(e) = place(&win, icon) {
         log::warn!("could not position popover: {e}");
     }

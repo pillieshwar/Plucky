@@ -318,6 +318,7 @@ mod tests {
             snoozed_until: None,
             notified_at: None,
             next_id: None,
+            notes: None,
         };
         assert_eq!(body_for(&t), "Due 3:00 PM · from Slack · repeats");
         t.snoozed_until = Some("2026-10-14T15:15:00".into());

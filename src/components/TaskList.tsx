@@ -1,19 +1,19 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
-import { CalendarIcon, ClockIcon, RepeatIcon } from "./icons";
+import { CalendarIcon, ClockIcon, NoteIcon, RepeatIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
 import type { DayGroup } from "../lib/grouping";
 import { repeatLabel, repeatShort } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
-import { sourceLabel, titleParts } from "../lib/taskText";
+import { linkParts, sourceLabel, titleParts } from "../lib/taskText";
 import type { Task, TaskPatch } from "../lib/types";
 
 /** A keyboard command for one row (from the panel's shortcuts). */
 export interface RowCommand {
   id: number;
-  kind: "edit" | "date" | "snooze";
+  kind: "edit" | "date" | "snooze" | "notes";
   /** Changes every time, so repeating the same command re-triggers it. */
   n: number;
 }
@@ -122,6 +122,7 @@ function TaskRow({
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [draft, setDraft] = useState(task.title);
 
@@ -139,6 +140,7 @@ function TaskRow({
     }
     if (command.kind === "date") setPicking((p) => !p);
     if (command.kind === "snooze" && !task.done) setSnoozing((v) => !v);
+    if (command.kind === "notes") setNotesOpen(true);
     // Only react to new commands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
@@ -266,6 +268,17 @@ function TaskRow({
               )}
             </span>
           )}
+          {notesOpen ? (
+            <NotesEditor
+              initial={task.notes ?? ""}
+              onDone={(notes) => {
+                setNotesOpen(false);
+                if (notes !== null && notes.trim() !== (task.notes ?? "")) void actions.update(task, { notes: notes.trim() || null });
+              }}
+            />
+          ) : (
+            task.notes && <Notes text={task.notes} onEdit={() => setNotesOpen(true)} onError={actions.fail} />
+          )}
           {meta.length > 0 && <div className="task-meta">{meta}</div>}
         </div>
         <div className="task-tools">
@@ -279,6 +292,17 @@ function TaskRow({
               onClick={() => setSnoozing((v) => !v)}
             >
               <ClockIcon />
+            </button>
+          )}
+          {!task.notes && !notesOpen && (
+            <button
+              type="button"
+              className="task-date"
+              title="Add a description (N)"
+              aria-label="Add a description"
+              onClick={() => setNotesOpen(true)}
+            >
+              <NoteIcon />
             </button>
           )}
           <button
@@ -322,6 +346,61 @@ function TaskRow({
         />
       )}
     </li>
+  );
+}
+
+/** The description: one quiet line, links clickable, click to edit. */
+function Notes({ text, onEdit, onError }: { text: string; onEdit: () => void; onError: (e: unknown) => void }) {
+  return (
+    <p className="task-notes" title={text} onClick={onEdit}>
+      {linkParts(text).map((p, i) =>
+        p.url ? (
+          <a
+            key={i}
+            href={p.url}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void api.openUrl(p.url!).catch(onError);
+            }}
+          >
+            {p.url.replace(/^(https?:\/\/(www\.)?|mailto:)/i, "")}
+          </a>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+/** Inline editor; Enter or clicking away saves, Esc cancels. */
+function NotesEditor({ initial, onDone }: { initial: string; onDone: (notes: string | null) => void }) {
+  const [value, setValue] = useState(initial);
+  const done = useRef(false);
+  const finish = (v: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(v);
+  };
+  return (
+    <input
+      className="task-notes-edit"
+      autoFocus
+      value={value}
+      maxLength={2000}
+      placeholder="Add a description, link or detail…"
+      aria-label="Description"
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") finish(value);
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          finish(null);
+        }
+      }}
+    />
   );
 }
 

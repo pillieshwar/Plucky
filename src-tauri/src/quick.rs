@@ -21,6 +21,7 @@ pub fn toggle(app: &AppHandle) {
 pub fn show(app: &AppHandle) {
     let Some(win) = window(app) else { return };
     crate::popover::hide(app);
+    crate::spaces::configure(&win, crate::spaces::Kind::Overlay);
     if let Err(e) = place(&win) {
         log::warn!("could not position quick add: {e}");
     }

@@ -46,6 +46,7 @@ const KEYS: [string, string][] = [
   ["⌫", "Delete"],
   ["⌘Z", "Undo"],
   ["S", "Snooze"],
+  ["N", "Description"],
   ["F", "Today only (focus)"],
   ["/ or ⌘F", "Search"],
 ];
@@ -276,6 +277,7 @@ export default function App() {
       else if (key === "Enter" || lower === "e") setCommand({ id: current.id, kind: "edit", n });
       else if (lower === "d") setCommand({ id: current.id, kind: "date", n });
       else if (lower === "s") setCommand({ id: current.id, kind: "snooze", n });
+      else if (lower === "n") setCommand({ id: current.id, kind: "notes", n });
       else if (lower === "t") void actions.reschedule(current, { due_date: toISODate(new Date()) });
       else if (lower === "m") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 1)) });
       else if (lower === "w") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 7)) });

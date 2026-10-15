@@ -23,6 +23,7 @@ const task = (extra: Partial<Task> = {}): Task => ({
   snoozed_until: null,
   notified_at: null,
   next_id: null,
+  notes: null,
   ...extra,
 });
 
