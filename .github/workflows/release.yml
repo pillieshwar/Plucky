@@ -3,8 +3,10 @@ name: Release
 # Builds the Mac app and publishes it as a GitHub Release. Run it either by
 # pushing a tag like v0.1.0, or from the Actions tab ("Release" → "Run
 # workflow"), which tags the current commit with the version in
-# src-tauri/tauri.conf.json. The "Download Pluck" button links to
-#   https://github.com/<owner>/<repo>/releases/latest/download/Pluck-macOS.dmg
+# src-tauri/tauri.conf.json. The "Download Plucky" button links to
+#   https://github.com/<owner>/<repo>/releases/latest/download/Plucky-macOS.dmg
+# (Pluck-macOS.dmg, the name from before the rename, is uploaded too so old
+# links keep working).
 # which always points at the newest release.
 #
 # Signing (optional): add these repository secrets to ship a Developer ID
@@ -17,8 +19,8 @@ name: Release
 # In-app updates: add TAURI_SIGNING_PRIVATE_KEY and
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the key whose public half is in
 # tauri.conf.json → plugins.updater.pubkey). The release then also carries
-# Pluck.app.tar.gz, its .sig and latest.json, which installed copies of
-# Pluck check for updates.
+# Plucky.app.tar.gz, its .sig and latest.json, which installed copies of
+# Plucky check for updates.
 
 on:
   push:
@@ -75,7 +77,7 @@ jobs:
 
       - run: npm install
 
-      - name: Build Pluck.app and .dmg (universal)
+      - name: Build Plucky.app and .dmg (universal)
         shell: bash
         env:
           CERT: ${{ secrets.APPLE_CERTIFICATE }}
@@ -112,7 +114,7 @@ jobs:
         run: |
           app=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app)
           lipo -info "$app/Contents/MacOS/llama-server"
-          lipo -info "$app/Contents/MacOS/pluck" || lipo -info "$app/Contents/MacOS/Pluck"
+          lipo -info "$app/Contents/MacOS/Plucky" || lipo -info "$app/Contents/MacOS/pluck"
           codesign --verify --deep --strict --verbose=2 "$app"
           "$app/Contents/MacOS/llama-server" --version
           if [ "$SIGNED" = "true" ]; then
@@ -131,22 +133,23 @@ jobs:
         run: |
           mkdir -p dist-release
           dmg=$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
+          cp "$dmg" dist-release/Plucky-macOS.dmg
           cp "$dmg" dist-release/Pluck-macOS.dmg
           cp "$dmg" "dist-release/$(basename "$dmg")"
           tarball=$(ls target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -n1 || true)
           if [ -n "$tarball" ] && [ -f "$tarball.sig" ]; then
-            cp "$tarball" dist-release/Pluck.app.tar.gz
-            cp "$tarball.sig" dist-release/Pluck.app.tar.gz.sig
-            # The manifest installed copies of Pluck read to find updates.
+            cp "$tarball" dist-release/Plucky.app.tar.gz
+            cp "$tarball.sig" dist-release/Plucky.app.tar.gz.sig
+            # The manifest installed copies of Plucky read to find updates.
             python3 - <<'PY'
           import json, os, datetime
           tag = os.environ["TAG"]
-          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/Pluck.app.tar.gz"
-          sig = open("dist-release/Pluck.app.tar.gz.sig").read().strip()
+          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/Plucky.app.tar.gz"
+          sig = open("dist-release/Plucky.app.tar.gz.sig").read().strip()
           entry = {"signature": sig, "url": url}
           manifest = {
               "version": tag.lstrip("v"),
-              "notes": f"Pluck {tag}",
+              "notes": f"Plucky {tag}",
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
           }
@@ -160,7 +163,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Pluck-macOS
+          name: Plucky-macOS
           path: dist-release/*
 
       - name: Publish GitHub Release
@@ -173,14 +176,14 @@ jobs:
           cat > notes.md <<'EOF'
           ## Download
 
-          **[Download Pluck for Mac](https://github.com/${{ github.repository }}/releases/latest/download/Pluck-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
+          **[Download Plucky for Mac](https://github.com/${{ github.repository }}/releases/latest/download/Plucky-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
 
-          1. Open `Pluck-macOS.dmg` and drag **Pluck** into **Applications**.
-          2. Open Pluck. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
-          3. In Pluck's **Models** tab, download a model (about 2 GB, once).
-          4. Select text anywhere and press **⇧⌘Z**, or press **⇧⌘Space** to type a task.
+          1. Open `Plucky-macOS.dmg` and drag **Plucky** into **Applications**.
+          2. Open Plucky. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          3. In Plucky's **Models** tab, download a model (about 2 GB, once).
+          4. Select text anywhere and press **⇧⌘S** (or right-click → **Add to Plucky**). Press **⇧⌘Space** to type a task, **⇧⌘H** to show or hide Plucky.
 
-          Already on Pluck 0.2 or later? It updates itself — look for **Restart to update** in the menu bar.
+          Already on Pluck or Plucky 0.2 or later? It updates itself — look for **Restart to update** in the menu bar.
           EOF
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — replacing its files"
@@ -188,5 +191,5 @@ jobs:
           else
             # Creates the tag on this commit if it doesn't exist yet.
             gh release create "$TAG" dist-release/* --target "$GITHUB_SHA" \
-              --title "Pluck $TAG" --notes-file notes.md
+              --title "Plucky $TAG" --notes-file notes.md
           fi

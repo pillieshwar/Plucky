@@ -1,4 +1,4 @@
-// Renders Pluck's UI in Chromium with a fake Tauri backend and saves
+// Renders Plucky's UI in Chromium with a fake Tauri backend and saves
 // screenshots of the main states. Used by .github/workflows/ui-preview.yml.
 //
 //   node scripts/ui-preview/preview.mjs http://localhost:4173 out/
@@ -86,9 +86,9 @@ const SETTINGS = {
 };
 
 const SHORTCUTS = {
-  capture: { meta: true, ctrl: false, alt: false, shift: true, code: "KeyZ" },
+  capture: { meta: true, ctrl: false, alt: false, shift: true, code: "KeyS" },
   quick_add: { meta: true, ctrl: false, alt: false, shift: true, code: "Space" },
-  toggle_panel: null,
+  toggle_panel: { meta: true, ctrl: false, alt: false, shift: true, code: "KeyH" },
 };
 
 function scenario(overrides = {}) {

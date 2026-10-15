@@ -32,7 +32,7 @@ COMMON=(
   -DLLAMA_BUILD_EXAMPLES=OFF
   -DLLAMA_BUILD_TOOLS=ON
   -DLLAMA_BUILD_SERVER=ON
-  -DLLAMA_BUILD_UI=OFF         # no web UI: Pluck only uses the API
+  -DLLAMA_BUILD_UI=OFF         # no web UI: Plucky only uses the API
   -DLLAMA_USE_PREBUILT_UI=OFF  # and never download one during the build
   -DLLAMA_OPENSSL=OFF          # the server only listens on 127.0.0.1
 )

@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Merged into Pluck.app's Info.plist by Tauri. Reminders access is only
+<!-- Merged into Plucky.app's Info.plist by Tauri. Reminders access is only
      requested if the user turns on Reminders sync in Settings. NSServices
-     adds "Add to Pluck" to the Services menu for selected text. -->
+     adds "Add to Plucky" to the Services menu for selected text. -->
 <plist version="1.0">
 <dict>
   <key>NSRemindersFullAccessUsageDescription</key>
-  <string>Pluck adds your tasks to Reminders and keeps them in sync, because you turned this on in Pluck's Settings.</string>
+  <string>Plucky adds your tasks to Reminders and keeps them in sync, because you turned this on in Plucky's Settings.</string>
   <key>NSRemindersUsageDescription</key>
-  <string>Pluck adds your tasks to Reminders and keeps them in sync, because you turned this on in Pluck's Settings.</string>
+  <string>Plucky adds your tasks to Reminders and keeps them in sync, because you turned this on in Plucky's Settings.</string>
   <key>NSServices</key>
   <array>
     <dict>
       <key>NSMenuItem</key>
       <dict>
         <key>default</key>
-        <string>Add to Pluck</string>
+        <string>Add to Plucky</string>
       </dict>
       <key>NSMessage</key>
       <string>addToPluck</string>
       <key>NSPortName</key>
-      <string>Pluck</string>
+      <string>Plucky</string>
       <key>NSSendTypes</key>
       <array>
         <string>public.utf8-plain-text</string>

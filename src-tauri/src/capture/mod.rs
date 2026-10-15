@@ -65,7 +65,7 @@ pub enum CaptureResult {
 pub enum CaptureMethod {
     Accessibility,
     Clipboard,
-    /// Right-click → Services → Add to Pluck.
+    /// Right-click → Services → Add to Plucky.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Service,
 }
@@ -181,7 +181,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         Err(e) => {
             log::warn!("clipboard unavailable: {e}");
             return CaptureResult::Failed {
-                message: format!("Pluck couldn't open the clipboard ({e})."),
+                message: format!("Plucky couldn't open the clipboard ({e})."),
             };
         }
     };
@@ -205,7 +205,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         FallbackOutcome::Failed(e) => {
             log::warn!("clipboard capture failed: {e}");
             CaptureResult::Failed {
-                message: format!("Pluck couldn't copy the selection ({e})."),
+                message: format!("Plucky couldn't copy the selection ({e})."),
             }
         }
     }

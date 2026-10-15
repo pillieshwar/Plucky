@@ -19,7 +19,7 @@ const SAMPLE = "Hi! Could you send me the Q3 numbers by Friday 3pm? Thanks!";
 const STEPS = ["Welcome", "Permission", "Model", "Reminders", "Try it"] as const;
 
 /**
- * First run, in five short steps: what Pluck does, the one permission it
+ * First run, in five short steps: what Plucky does, the one permission it
  * needs, a model, reminders, and a real capture of sample text.
  */
 export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshStatus, onTry, onDone, onOpenModels }: Props) {
@@ -88,7 +88,7 @@ export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshSt
   const hasModel = !!status?.active_model || status?.engine === "ollama";
 
   return (
-    <section className="onboard" aria-label="Get started with Pluck">
+    <section className="onboard" aria-label="Get started with Plucky">
       <ol className="onboard-steps" aria-label="Steps">
         {STEPS.map((s, i) => (
           <li key={s} className={i === step ? "on" : i < step ? "done" : ""} aria-current={i === step ? "step" : undefined}>
@@ -101,7 +101,7 @@ export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshSt
         <div className="onboard-body">
           <h2>Turn any text into a task</h2>
           <p>
-            Select a message, an email or a web page, press <kbd>{captureShortcut}</kbd>, and Pluck writes the to-do —
+            Select a message, an email or a web page, press <kbd>{captureShortcut}</kbd>, and Plucky writes the to-do —
             with the right date — using a small model that runs on this Mac. Nothing you capture leaves it.
           </p>
           <div className="onboard-actions">
@@ -117,9 +117,9 @@ export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshSt
 
       {step === 1 && (
         <div className="onboard-body">
-          <h2>Let Pluck read selected text</h2>
+          <h2>Let Plucky read selected text</h2>
           <p>
-            macOS asks you to allow this once, in System Settings → Privacy &amp; Security → Accessibility. Pluck only
+            macOS asks you to allow this once, in System Settings → Privacy &amp; Security → Accessibility. Plucky only
             reads the selection when you press the shortcut.
           </p>
           {status?.accessibility ? (
@@ -189,7 +189,7 @@ export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshSt
               onChange={setNotify}
             />
             <Toggle
-              label="Open Pluck when I log in"
+              label="Open Plucky when I log in"
               hint="So the shortcut always works."
               checked={login}
               onChange={setLogin}
@@ -215,7 +215,7 @@ export function Onboarding({ status, captureShortcut, quickShortcut, onRefreshSt
                 , or press <kbd>{quickShortcut}</kbd> to type a task
               </>
             )}
-            . You can also right-click selected text → Services → <strong>Add to Pluck</strong>.
+            . You can also right-click selected text and choose <strong>Add to Plucky</strong> (in some apps it’s under Services).
           </p>
           <div className="onboard-actions">
             <button type="button" className="link-btn" onClick={onDone}>

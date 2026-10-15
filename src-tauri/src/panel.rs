@@ -209,6 +209,7 @@ pub fn show(app: &AppHandle) {
     }
     crate::spaces::configure(&win, crate::spaces::Kind::Panel);
     let _ = win.show();
+    crate::spaces::bring_to_front(&win);
     let _ = win.set_focus();
     let _ = app.emit_to(LABEL, "panel-collapsed", false);
 }

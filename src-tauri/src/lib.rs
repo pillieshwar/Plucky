@@ -1,4 +1,4 @@
-//! Pluck desktop shell: tray icon, global shortcut, docked task panel.
+//! Plucky desktop shell: tray icon, global shortcut, docked task panel.
 //!
 //! Lifecycle of one capture:
 //!   shortcut released → pre-warm the bundled model runtime and capture the
@@ -513,7 +513,7 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
         "json" => ("json", serde_json::to_string_pretty(&tasks).map_err(err)?),
         other => return Err(format!("Unknown export format {other}")),
     };
-    let stem = format!("Pluck tasks {}", chrono::Local::now().format("%Y-%m-%d"));
+    let stem = format!("Plucky tasks {}", chrono::Local::now().format("%Y-%m-%d"));
     let path = data::free_name(&data::downloads_dir(), &stem, ext);
     std::fs::write(&path, body).map_err(err)?;
     reveal(&path, true)?;
@@ -748,7 +748,33 @@ fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     }
 }
 
-/// Text sent through Services → "Add to Pluck".
+/// Up to 0.3 the app was called Pluck, and its login item was
+/// `~/Library/LaunchAgents/Pluck.plist`, pointing at an executable that the
+/// update renamed. Swap it for the new one so "Open at login" keeps working.
+fn migrate_login_item(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let Some(home) = std::env::var_os("HOME") else {
+            return;
+        };
+        let old = std::path::PathBuf::from(home).join("Library/LaunchAgents/Pluck.plist");
+        if !old.is_file() {
+            return;
+        }
+        if let Err(e) = std::fs::remove_file(&old) {
+            log::warn!("could not remove the old login item: {e}");
+            return;
+        }
+        match app.autolaunch().enable() {
+            Ok(()) => log::info!("moved the login item to Plucky"),
+            Err(e) => log::warn!("could not re-create the login item: {e}"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// Text sent through Services → "Add to Plucky".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
     let with_source = app.state::<Settings>().get().remember_source;
@@ -805,13 +831,13 @@ fn open_store(path: &std::path::Path) -> Store {
 
 // ── Logging ─────────────────────────────────────────────────────────────────
 
-/// `~/Library/Logs/Pluck/pluck.log` on macOS; the temp folder elsewhere.
+/// `~/Library/Logs/Plucky/pluck.log` on macOS; the temp folder elsewhere.
 fn log_file_path() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         std::env::var_os("HOME")
-            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Pluck/pluck.log"))
+            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Plucky/pluck.log"))
     } else {
-        Some(std::env::temp_dir().join("Pluck").join("pluck.log"))
+        Some(std::env::temp_dir().join("Plucky").join("pluck.log"))
     }
 }
 
@@ -838,7 +864,7 @@ fn init_logging() {
         }
     }
     let _ = builder.try_init();
-    log::info!("Pluck {} starting", env!("CARGO_PKG_VERSION"));
+    log::info!("Plucky {} starting", env!("CARGO_PKG_VERSION"));
 
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -955,7 +981,7 @@ pub fn run() {
 
             app.state::<Shortcuts>().register_all(app.handle());
             tray::build(app.handle())?;
-            // Let Pluck's windows open over full-screen apps.
+            // Let Plucky's windows open over full-screen apps.
             spaces::configure_all(app.handle());
             notifications::init(app.handle());
             notifications::start_scheduler(app.handle());
@@ -966,9 +992,10 @@ pub fn run() {
                 services::register(move |text| on_service_text(handle.clone(), text));
             }
 
-            // Pluck lives in the menu bar, so open it at login — once, by
+            // Plucky lives in the menu bar, so open it at login — once, by
             // default; after that it's the user's switch in Settings.
             let settings = app.state::<Settings>();
+            migrate_login_item(app.handle());
             if !settings.get().autostart_initialized {
                 if let Err(e) = app.autolaunch().enable() {
                     log::warn!("could not enable open at login: {e}");
@@ -991,7 +1018,7 @@ pub fn run() {
             }
             // The popover behaves like a menu: clicking elsewhere closes it.
             tauri::WindowEvent::Focused(false) if window.label() == popover::LABEL => {
-                popover::hide(window.app_handle());
+                popover::on_blur(window.app_handle());
             }
             tauri::WindowEvent::Focused(false) if window.label() == quick::LABEL => {
                 quick::hide(window.app_handle());
@@ -1055,7 +1082,7 @@ pub fn run() {
             hide_quick_add
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Pluck")
+        .expect("error while building Plucky")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<Engine>().kill_now();
