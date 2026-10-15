@@ -274,7 +274,7 @@ export default function Popover() {
     <div ref={rootRef} className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>
       {update.state === "ready" && (
         <button type="button" className="pop-update" onClick={() => void api.installUpdate().catch((e) => setError(String(e)))}>
-          Pluck {update.version} is ready · <strong>Restart to update</strong>
+          Plucky {update.version} is ready · <strong>Restart to update</strong>
         </button>
       )}
       <header className="pop-head">
@@ -297,7 +297,7 @@ export default function Popover() {
           <IconButton label="Add a task (N)" onClick={() => setAdding((a) => !a)} active={adding}>
             <path d="M8 3v10M3 8h10" />
           </IconButton>
-          <IconButton label="Open Pluck" onClick={() => void api.openMain(null, null)}>
+          <IconButton label="Open Plucky" onClick={() => void api.openMain(null, null)}>
             <rect x="2.5" y="3" width="11" height="10" rx="2" />
             <path d="M9.5 3v10" />
           </IconButton>
@@ -541,7 +541,7 @@ function Row({
         type="button"
         className="pop-body"
         onClick={() => onOpen(task)}
-        title="Open in Pluck · drag onto a day to move it"
+        title="Open in Plucky · drag onto a day to move it"
       >
         <span className="pop-title">{task.title}</span>
         {(chip || meta) && (

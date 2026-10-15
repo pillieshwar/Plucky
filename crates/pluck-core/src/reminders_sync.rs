@@ -3,14 +3,14 @@
 //!
 //! Each linked task keeps a *base*: the title, due day and done state both
 //! sides last agreed on. On every sync pass we compare the base with the
-//! current Pluck task (local) and the current reminder (remote) and merge
+//! current Plucky task (local) and the current reminder (remote) and merge
 //! field by field — a three-way merge, like version control:
 //!
 //! * only one side changed a field → that change wins;
 //! * both changed the same field → the reminder wins (it is the side the
-//!   user most recently touched outside Pluck, e.g. on their iPhone).
+//!   user most recently touched outside Plucky, e.g. on their iPhone).
 //!
-//! Deleting a reminder never deletes the Pluck task; the task is *detached*
+//! Deleting a reminder never deletes the Plucky task; the task is *detached*
 //! and is never re-added to Reminders.
 
 use std::collections::HashSet;
@@ -34,7 +34,7 @@ pub struct Merge {
     pub result: SyncState,
     /// The reminder must be updated.
     pub push_remote: bool,
-    /// The Pluck task must be updated.
+    /// The Plucky task must be updated.
     pub update_local: bool,
 }
 
@@ -67,7 +67,7 @@ fn normalize(title: &str) -> String {
         .to_lowercase()
 }
 
-/// Pair unlinked Pluck tasks with unlinked reminders that are evidently the
+/// Pair unlinked Plucky tasks with unlinked reminders that are evidently the
 /// same item (same title, ignoring case and spacing, and the same due day),
 /// so turning sync back on doesn't create duplicates. Each side is used at
 /// most once. Returns `(local_index, remote_index)` pairs.
@@ -126,13 +126,13 @@ pub struct PassOptions<'a> {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct PassReport {
-    /// Pluck tasks updated from Reminders.
+    /// Plucky tasks updated from Reminders.
     pub pulled: usize,
-    /// Reminders updated from Pluck.
+    /// Reminders updated from Plucky.
     pub pushed: usize,
-    /// New reminders created for Pluck tasks.
+    /// New reminders created for Plucky tasks.
     pub created: usize,
-    /// New Pluck tasks created from reminders.
+    /// New Plucky tasks created from reminders.
     pub imported: usize,
     /// Tasks detached because their reminder was deleted.
     pub unlinked: usize,
@@ -266,7 +266,7 @@ pub fn run_pass(
         })?;
     }
 
-    // 4. Pluck → Reminders.
+    // 4. Plucky → Reminders.
     for (i, task) in local_new.iter().enumerate() {
         if paired_local.contains(&i) {
             continue;
@@ -291,7 +291,7 @@ pub fn run_pass(
         }
     }
 
-    // 5. Reminders → Pluck.
+    // 5. Reminders → Plucky.
     for (i, (id, state)) in remote_new.iter().enumerate() {
         if paired_remote.contains(&i) {
             continue;
@@ -513,7 +513,7 @@ mod tests {
         run_pass(&store, &mut rem, &opts()).unwrap();
         let rid = |task_id| store.reminder_link(task_id).unwrap().unwrap().reminder_id;
 
-        // Done in Pluck → completed in Reminders.
+        // Done in Plucky → completed in Reminders.
         store
             .update(
                 a.id,
@@ -523,7 +523,7 @@ mod tests {
                 },
             )
             .unwrap();
-        // Completed in Reminders → done in Pluck.
+        // Completed in Reminders → done in Plucky.
         rem.items.get_mut(&rid(b.id)).unwrap().1.done = true;
 
         let r = run_pass(&store, &mut rem, &opts()).unwrap();

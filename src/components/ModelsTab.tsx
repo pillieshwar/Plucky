@@ -62,7 +62,7 @@ export function ModelsTab({ onChanged }: Props) {
       <p className="models-intro">
         {anyInstalled
           ? "Runs entirely on this Mac. Switch any time."
-          : "Pluck needs one model. It downloads once, then runs entirely on this Mac."}
+          : "Plucky needs one model. It downloads once, then runs entirely on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
 
@@ -248,10 +248,10 @@ function LocalModelsSection({
                 )}
                 <button
                   className="ghost"
-                  title="Pluck forgets this file; the file itself stays where it is."
+                  title="Plucky forgets this file; the file itself stays where it is."
                   onClick={() => void run(m.id, () => api.removeModelFile(m.id))}
                 >
-                  Remove from Pluck
+                  Remove from Plucky
                 </button>
               </div>
             </li>

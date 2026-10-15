@@ -72,7 +72,7 @@ describe("validation", () => {
     expect(validateShortcut(s("ctrl", "KeyV"), false)).toContain("system");
   });
 
-  it("rejects keys Pluck can't register", () => {
+  it("rejects keys Plucky can't register", () => {
     expect(validateShortcut(s("cmd alt", "NumpadAdd"), true)).toContain("can't use");
   });
 });

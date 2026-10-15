@@ -26,7 +26,7 @@ const SAMPLE = "Hi! Could you send me the Q3 numbers by Friday 3pm? Thanks!";
 const STEPS = ["Welcome", "Permission", "Model", "Shortcuts", "Reminders", "Try it", "Tour"] as const;
 
 /**
- * The first-run tour: what Pluck does, the one permission it needs, the
+ * The first-run tour: what Plucky does, the one permission it needs, the
  * model, shortcuts, reminders, a real capture from the browser, and a quick
  * look around. Shown on first launch and from Settings → General.
  */
@@ -140,7 +140,7 @@ export function Onboarding({
   );
 
   return (
-    <section className="onboard" aria-label="Get started with Pluck">
+    <section className="onboard" aria-label="Get started with Plucky">
       <div className="onboard-top">
         <ol className="onboard-steps" aria-label="Steps">
           {STEPS.map((s, i) => (
@@ -158,7 +158,7 @@ export function Onboarding({
         <div className="onboard-body">
           <h2>Turn any text into a task</h2>
           <p>
-            Select a message, an email or a web page, press <kbd>{capture}</kbd>, and Pluck writes the to-do with the
+            Select a message, an email or a web page, press <kbd>{capture}</kbd>, and Plucky writes the to-do with the
             right date — using a small model that runs on this Mac. Nothing you capture leaves it.
           </p>
           <p className="onboard-muted">This tour takes about two minutes and sets everything up.</p>
@@ -173,10 +173,10 @@ export function Onboarding({
 
       {step === 1 && (
         <div className="onboard-body">
-          <h2>Let Pluck read selected text</h2>
+          <h2>Let Plucky read selected text</h2>
           <p>
             macOS asks you to allow this once, in <b>System Settings → Privacy &amp; Security → Accessibility</b>. Turn
-            on <b>Pluck</b> there. It only reads your selection when you press the shortcut.
+            on <b>Plucky</b> there. It only reads your selection when you press the shortcut.
           </p>
           {status?.accessibility ? (
             <p className="onboard-ok">✓ Access granted</p>
@@ -252,7 +252,7 @@ export function Onboarding({
               checked={notify}
               onChange={setNotify}
             />
-            <Toggle label="Open Pluck when I log in" hint="So the shortcuts always work." checked={login} onChange={setLogin} />
+            <Toggle label="Open Plucky when I log in" hint="So the shortcuts always work." checked={login} onChange={setLogin} />
             <Toggle
               label="Show this panel each morning"
               hint="When your Mac starts or first wakes each day."
@@ -274,14 +274,14 @@ export function Onboarding({
         <div className="onboard-body">
           <h2>Try it in your browser</h2>
           {captured ? (
-            <p className="onboard-ok">✓ Your first task is in Pluck. Nice!</p>
+            <p className="onboard-ok">✓ Your first task is in Plucky. Nice!</p>
           ) : (
             <>
               <ol className="onboard-howto">
                 <li>Open any web page in your browser.</li>
                 <li>Select a sentence — something like a to-do or a date.</li>
                 <li>
-                  Press <kbd>{capture}</kbd>, or right-click it and choose <b>Add to Pluck</b>.
+                  Press <kbd>{capture}</kbd>, or right-click it and choose <b>Add to Plucky</b>.
                 </li>
                 <li>Check the task here and press Return.</li>
               </ol>
@@ -327,7 +327,7 @@ export function Onboarding({
             )}
             {toggle && (
               <li>
-                <kbd>{toggle}</kbd> <b>Show or hide Pluck</b> — even over full-screen apps.
+                <kbd>{toggle}</kbd> <b>Show or hide Plucky</b> — even over full-screen apps.
               </li>
             )}
             <li>
@@ -343,7 +343,7 @@ export function Onboarding({
           <div className="onboard-actions">
             {back}
             <button type="button" className="primary" onClick={onDone}>
-              Start using Pluck
+              Start using Plucky
             </button>
           </div>
         </div>

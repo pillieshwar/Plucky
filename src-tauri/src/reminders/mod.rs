@@ -2,11 +2,11 @@
 //!
 //! Off by default. When on, a single worker thread owns the EventKit store
 //! and runs a sync pass (see `pluck_core::reminders_sync::run_pass`):
-//! * soon after any change in Pluck,
+//! * soon after any change in Plucky,
 //! * every 30 seconds, to pick up changes made in Reminders (e.g. on iPhone),
 //! * when asked from Settings.
 //!
-//! Privacy: Pluck itself never uploads anything, but if the chosen list
+//! Privacy: Plucky itself never uploads anything, but if the chosen list
 //! belongs to iCloud (or another account), macOS syncs it — so the UI warns
 //! before turning this on and while it's on.
 
@@ -27,7 +27,9 @@ use tauri::{AppHandle, Emitter, Manager};
 const POLL: Duration = Duration::from_secs(30);
 /// Wait for a burst of local edits to finish before syncing.
 const DEBOUNCE: Duration = Duration::from_millis(400);
-pub const DEFAULT_LIST: &str = "Pluck";
+pub const DEFAULT_LIST: &str = "Plucky";
+/// The app was called Pluck up to 0.4.1.
+const OLD_LIST: &str = "Pluck";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,10 +87,10 @@ pub struct Status {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnableRequest {
-    /// An existing list, or None to create a "Pluck" list.
+    /// An existing list, or None to create a "Plucky" list.
     pub list_id: Option<String>,
     pub include_notes: bool,
-    /// Also add tasks that already exist in Pluck.
+    /// Also add tasks that already exist in Plucky.
     pub push_existing: bool,
 }
 
@@ -175,14 +177,14 @@ impl Reminders {
         self.settings.lock().map(|s| s.enabled).unwrap_or(false)
     }
 
-    /// Something changed in Pluck; sync soon.
+    /// Something changed in Plucky; sync soon.
     pub fn nudge(&self) {
         if self.enabled() {
             self.send(Cmd::Sync);
         }
     }
 
-    /// A linked task was deleted in Pluck; delete its reminder too.
+    /// A linked task was deleted in Plucky; delete its reminder too.
     pub fn deleted(&self, reminder_id: String) {
         if self.enabled() {
             self.send(Cmd::Deleted(reminder_id));
@@ -337,7 +339,7 @@ impl Worker {
                     ek.refresh();
                     Ok(ek.lists())
                 } else {
-                    Err("Pluck doesn't have access to Reminders.".into())
+                    Err("Plucky doesn't have access to Reminders.".into())
                 };
                 let _ = tx.send(result);
                 false
@@ -361,7 +363,7 @@ impl Worker {
     #[cfg(target_os = "macos")]
     fn enable(&self, ek: &eventkit::EventKit, req: EnableRequest) -> Result<(), String> {
         if eventkit::access() != Access::Full {
-            return Err("Allow Pluck to use Reminders first.".into());
+            return Err("Allow Plucky to use Reminders first.".into());
         }
         ek.refresh();
         let list = match req.list_id {
@@ -372,7 +374,12 @@ impl Worker {
                 .lists()
                 .into_iter()
                 .find(|l| l.title == DEFAULT_LIST && l.writable)
-            {
+                .or_else(|| {
+                    // The list versions before the rename made.
+                    ek.lists()
+                        .into_iter()
+                        .find(|l| l.title == OLD_LIST && l.writable)
+                }) {
                 Some(existing) => existing,
                 None => ek.create_list(DEFAULT_LIST)?,
             },
@@ -404,7 +411,7 @@ impl Worker {
         };
         if eventkit::access() != Access::Full {
             self.set_runtime(|r| {
-                r.last_error = Some("Pluck no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
+                r.last_error = Some("Plucky no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
             });
             return;
         }
@@ -413,7 +420,7 @@ impl Worker {
         if list.is_none() {
             self.set_runtime(|r| {
                 r.list = None;
-                r.last_error = Some("The Reminders list Pluck syncs with was deleted. Choose another list in Settings.".into());
+                r.last_error = Some("The Reminders list Plucky syncs with was deleted. Choose another list in Settings.".into());
             });
             return;
         }

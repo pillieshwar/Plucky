@@ -230,7 +230,7 @@ impl RemindersBackend for EventKit {
             let cal = self
                 .store
                 .calendarWithIdentifier(&ns(list_id))
-                .ok_or("The Reminders list Pluck syncs with no longer exists.")?;
+                .ok_or("The Reminders list Plucky syncs with no longer exists.")?;
             let rem = EKReminder::reminderWithEventStore(&self.store);
             rem.setCalendar(Some(&cal));
             apply(&rem, state);
@@ -246,7 +246,7 @@ impl RemindersBackend for EventKit {
 
     fn incomplete_in_list(&mut self, list_id: &str) -> Result<Vec<(String, SyncState)>, String> {
         let cal = unsafe { self.store.calendarWithIdentifier(&ns(list_id)) }
-            .ok_or("The Reminders list Pluck syncs with no longer exists.")?;
+            .ok_or("The Reminders list Plucky syncs with no longer exists.")?;
         let cals = NSArray::from_retained_slice(&[cal]);
         let predicate = unsafe { self.store.predicateForRemindersInCalendars(Some(&cals)) };
         let (tx, rx) = mpsc::channel::<Vec<(String, SyncState)>>();

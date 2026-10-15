@@ -25,7 +25,7 @@ pub struct AppSettings {
     pub last_backup: Option<String>,
     /// The "what's new" note for this version was dismissed.
     pub seen_version: Option<String>,
-    /// Open the task panel when Pluck starts and the first time the Mac
+    /// Open the task panel when Plucky starts and the first time the Mac
     /// wakes each day, so it's never out of sight for long.
     pub show_on_start: bool,
     /// Last day (`YYYY-MM-DD`) the panel was shown for that reason.

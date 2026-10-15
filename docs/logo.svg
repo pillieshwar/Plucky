@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 100 100" role="img" aria-label="Pluck">
-  <title>Pluck</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 100 100" role="img" aria-label="Plucky">
+  <title>Plucky</title>
   <rect x="2" y="2" width="96" height="96" rx="22" fill="#171b1a"/>
   <path d="M23 25 H35 M29 25 V75 M23 75 H35" fill="none" stroke="#f4f1e9" stroke-width="7" stroke-linecap="round"/>
   <rect x="40" y="32" width="41" height="36" rx="8.5" fill="#0f7168"/>
