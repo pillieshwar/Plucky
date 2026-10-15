@@ -123,7 +123,7 @@ pub fn send_test(app: &AppHandle) {
         Note {
             id: "pluck-test".into(),
             title: "Notifications are on".into(),
-            body: "Pluck will remind you like this when a task is due.".into(),
+            body: "Plucky will remind you like this when a task is due.".into(),
             actions: false,
         },
     );
@@ -227,7 +227,7 @@ fn tick(app: &AppHandle) {
                     Note {
                         id: SUMMARY_ID.into(),
                         title: "Good morning".into(),
-                        body: format!("{} — open Pluck to plan your day.", summary.text()),
+                        body: format!("{} — open Plucky to plan your day.", summary.text()),
                         actions: false,
                     },
                 );

@@ -1,4 +1,4 @@
-// Renders Pluck's UI in Chromium with a fake Tauri backend and saves
+// Renders Plucky's UI in Chromium with a fake Tauri backend and saves
 // screenshots of the main states. Used by .github/workflows/ui-preview.yml.
 //
 //   node scripts/ui-preview/preview.mjs http://localhost:4173 out/
@@ -323,7 +323,7 @@ await shot(
       access: "full",
       enabled: true,
       include_notes: false,
-      list: { id: "l1", title: "Pluck", source: "iCloud", icloud: true, leaves_mac: true, writable: true },
+      list: { id: "l1", title: "Plucky", source: "iCloud", icloud: true, leaves_mac: true, writable: true },
       linked: 12,
       last_sync: new Date().toISOString(),
       last_error: null,

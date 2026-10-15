@@ -1,4 +1,4 @@
-//! Keep the task panel in sight: open it when Pluck starts (at login too)
+//! Keep the task panel in sight: open it when Plucky starts (at login too)
 //! and the first time the Mac wakes up each day.
 //!
 //! Waking is noticed without any OS hooks: a background thread ticks every

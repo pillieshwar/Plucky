@@ -23,7 +23,7 @@ type AXUIElementRef = *const c_void;
 type AXError = i32;
 const AX_ERROR_SUCCESS: AXError = 0;
 /// Seconds to wait for another app to answer an AX request. A hung app must
-/// not hang Pluck (the default is 6 s).
+/// not hang Plucky (the default is 6 s).
 const AX_TIMEOUT_SECS: f32 = 0.35;
 
 #[link(name = "ApplicationServices", kind = "framework")]

@@ -1,4 +1,4 @@
-//! Keeping Pluck's windows reachable over full-screen apps (macOS).
+//! Keeping Plucky's windows reachable over full-screen apps (macOS).
 //!
 //! A full-screen app lives in its own Space, and by default other apps'
 //! windows can't appear there — so showing the panel, the menu-bar popover
@@ -16,7 +16,7 @@ pub enum Kind {
     Overlay,
 }
 
-/// Apply the right Space behaviour to every Pluck window. Call during
+/// Apply the right Space behaviour to every Plucky window. Call during
 /// setup (main thread) and again before showing a window.
 pub fn configure_all(app: &AppHandle) {
     for (label, kind) in [
@@ -47,7 +47,7 @@ pub fn configure(win: &WebviewWindow, kind: Kind) {
 }
 
 /// Put a just-shown window in front even over a full-screen app, whether or
-/// not macOS finished activating Pluck.
+/// not macOS finished activating Plucky.
 pub fn bring_to_front(win: &WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
@@ -94,7 +94,7 @@ mod macos {
             return;
         };
         // Every window joins all Spaces: if one sat on the desktop Space,
-        // activating Pluck from a full-screen app would make macOS jump
+        // activating Plucky from a full-screen app would make macOS jump
         // back to the desktop instead of showing the popover.
         let (behavior, level) = match kind {
             Kind::Panel => (

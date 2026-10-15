@@ -1,5 +1,5 @@
 //! The menu-bar popover: a small calendar + agenda window that drops down
-//! from the Pluck icon when it's clicked, and hides when it loses focus.
+//! from the Plucky icon when it's clicked, and hides when it loses focus.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};

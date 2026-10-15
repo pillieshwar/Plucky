@@ -41,7 +41,7 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
   },
   {
     action: "toggle_panel",
-    title: "Show or hide Pluck",
+    title: "Show or hide Plucky",
     hint: "Open your task list from anywhere — even over a full-screen app, where the menu bar is hidden.",
     optional: true,
   },
@@ -53,7 +53,7 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
       <section className="settings-section">
         <h2 className="settings-h">Keyboard shortcuts</h2>
         <p className="settings-intro">
-          These work in every app while Pluck is running. Click a shortcut, then press the keys you want.
+          These work in every app while Plucky is running. Click a shortcut, then press the keys you want.
         </p>
         <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} />
       </section>
@@ -75,7 +75,7 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
 
       <section className="settings-section">
         <h2 className="settings-h">Panel</h2>
-        <p className="settings-intro">Drag the panel by its header to put it anywhere. Pluck remembers the spot.</p>
+        <p className="settings-intro">Drag the panel by its header to put it anywhere. Plucky remembers the spot.</p>
         <button type="button" className="ghost" onClick={() => void api.snapPanelToEdge()}>
           Snap to right edge
         </button>
@@ -84,7 +84,7 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
       <section className="settings-section">
         <h2 className="settings-h">Troubleshooting</h2>
         <p className="settings-intro">
-          Pluck keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
+          Plucky keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
           report.
         </p>
         <button type="button" className="ghost" onClick={() => void api.revealLogs().catch(() => undefined)}>
@@ -163,7 +163,7 @@ export function ShortcutEditor({
                     const err =
                       validateShortcut(spec) ??
                       (others.some((o) => sameShortcut(spec, o))
-                        ? "That shortcut is already used by another Pluck action."
+                        ? "That shortcut is already used by another Plucky action."
                         : null);
                     if (err) setErrors((e) => ({ ...e, [row.action]: err }));
                     else void save(row.action, spec);
@@ -221,7 +221,7 @@ function Recorder({
   const handlers = useRef({ onCancel, onRecorded });
   handlers.current = { onCancel, onRecorded };
 
-  // While recording, Pluck's own global shortcuts are paused so pressing the
+  // While recording, Plucky's own global shortcuts are paused so pressing the
   // current one is recorded instead of triggering a capture.
   useEffect(() => {
     if (!recording) return;

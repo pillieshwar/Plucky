@@ -1,4 +1,4 @@
-//! Pluck desktop shell: tray icon, global shortcut, docked task panel.
+//! Plucky desktop shell: tray icon, global shortcut, docked task panel.
 //!
 //! Lifecycle of one capture:
 //!   shortcut released → pre-warm the bundled model runtime and capture the
@@ -515,7 +515,7 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
         "json" => ("json", serde_json::to_string_pretty(&tasks).map_err(err)?),
         other => return Err(format!("Unknown export format {other}")),
     };
-    let stem = format!("Pluck tasks {}", chrono::Local::now().format("%Y-%m-%d"));
+    let stem = format!("Plucky tasks {}", chrono::Local::now().format("%Y-%m-%d"));
     let path = data::free_name(&data::downloads_dir(), &stem, ext);
     std::fs::write(&path, body).map_err(err)?;
     reveal(&path, true)?;
@@ -750,7 +750,73 @@ fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     }
 }
 
-/// Text sent through Services → "Add to Pluck".
+/// Up to 0.4.1 the app was called Pluck. An update keeps the old bundle
+/// path, so finish the rename on first launch: move `Pluck.app` to
+/// `Plucky.app` and reopen from there. Returns true when relaunching.
+#[cfg(target_os = "macos")]
+fn finish_rename(app: &AppHandle) -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    // …/Pluck.app/Contents/MacOS/Pluck (the executable keeps its old name,
+    // so copies updating from Pluck can restart into the new version).
+    let Some(bundle) = exe.ancestors().nth(3).map(|p| p.to_path_buf()) else {
+        return false;
+    };
+    if bundle.file_name().and_then(|n| n.to_str()) != Some("Pluck.app") {
+        return false;
+    }
+    let target = bundle.with_file_name("Plucky.app");
+    if target.exists() {
+        return false;
+    }
+    if let Err(e) = std::fs::rename(&bundle, &target) {
+        log::warn!("could not rename {} to Plucky.app: {e}", bundle.display());
+        return false;
+    }
+    log::info!("renamed the app to {}", target.display());
+    match std::process::Command::new("/usr/bin/open")
+        .arg("-n")
+        .arg(&target)
+        .spawn()
+    {
+        Ok(_) => {
+            app.exit(0);
+            true
+        }
+        Err(e) => {
+            log::warn!("could not reopen as Plucky: {e}");
+            false
+        }
+    }
+}
+
+/// The login item of versions called Pluck (`Pluck.plist`) points at the old
+/// app. Replace it with Plucky's, if it was on.
+fn migrate_login_item(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let Some(home) = std::env::var_os("HOME") else {
+            return;
+        };
+        let old = std::path::PathBuf::from(home).join("Library/LaunchAgents/Pluck.plist");
+        if !old.is_file() {
+            return;
+        }
+        if let Err(e) = std::fs::remove_file(&old) {
+            log::warn!("could not remove the old login item: {e}");
+            return;
+        }
+        match app.autolaunch().enable() {
+            Ok(()) => log::info!("moved the login item to Plucky"),
+            Err(e) => log::warn!("could not re-create the login item: {e}"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// Text sent through Services → "Add to Plucky".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
     let with_source = app.state::<Settings>().get().remember_source;
@@ -807,13 +873,13 @@ fn open_store(path: &std::path::Path) -> Store {
 
 // ── Logging ─────────────────────────────────────────────────────────────────
 
-/// `~/Library/Logs/Pluck/pluck.log` on macOS; the temp folder elsewhere.
+/// `~/Library/Logs/Plucky/pluck.log` on macOS; the temp folder elsewhere.
 fn log_file_path() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         std::env::var_os("HOME")
-            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Pluck/pluck.log"))
+            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Plucky/pluck.log"))
     } else {
-        Some(std::env::temp_dir().join("Pluck").join("pluck.log"))
+        Some(std::env::temp_dir().join("Plucky").join("pluck.log"))
     }
 }
 
@@ -840,7 +906,7 @@ fn init_logging() {
         }
     }
     let _ = builder.try_init();
-    log::info!("Pluck {} starting", env!("CARGO_PKG_VERSION"));
+    log::info!("Plucky {} starting", env!("CARGO_PKG_VERSION"));
 
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -906,6 +972,10 @@ pub fn run() {
         )
         .setup(|app| {
             #[cfg(target_os = "macos")]
+            if finish_rename(app.handle()) {
+                return Ok(());
+            }
+            #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let data_dir = app.path().app_data_dir()?;
@@ -957,7 +1027,7 @@ pub fn run() {
 
             app.state::<Shortcuts>().register_all(app.handle());
             tray::build(app.handle())?;
-            // Let Pluck's windows open over full-screen apps.
+            // Let Plucky's windows open over full-screen apps.
             spaces::configure_all(app.handle());
             notifications::init(app.handle());
             notifications::start_scheduler(app.handle());
@@ -968,9 +1038,10 @@ pub fn run() {
                 services::register(move |text| on_service_text(handle.clone(), text));
             }
 
-            // Pluck lives in the menu bar, so open it at login — once, by
+            // Plucky lives in the menu bar, so open it at login — once, by
             // default; after that it's the user's switch in Settings.
             let settings = app.state::<Settings>();
+            migrate_login_item(app.handle());
             if !settings.get().autostart_initialized {
                 if let Err(e) = app.autolaunch().enable() {
                     log::warn!("could not enable open at login: {e}");
@@ -1057,11 +1128,17 @@ pub fn run() {
             hide_quick_add
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Pluck")
+        .expect("error while building Plucky")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                app.state::<Engine>().kill_now();
-                app.state::<panel::PanelState>().flush();
+                // try_state: a relaunch after the rename exits before setup
+                // registers anything.
+                if let Some(engine) = app.try_state::<Engine>() {
+                    engine.kill_now();
+                }
+                if let Some(panel) = app.try_state::<panel::PanelState>() {
+                    panel.flush();
+                }
             }
         });
 }
