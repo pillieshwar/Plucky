@@ -149,6 +149,7 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | **Add to Plucky** isn't in the right-click menu | Open Plucky from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
 | No reminders appear | **Settings → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Plucky with **–**, then capture again and re-allow it. |
+| The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Plucky starts next to the battery, but never moves the icon again after that. |
 | Something else | **Settings → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/pluck/issues). |
 
 ## Uninstall

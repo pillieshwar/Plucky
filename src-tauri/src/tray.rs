@@ -17,7 +17,46 @@ const TRAY_ID: &str = "pluck";
 const MAX_TASKS: usize = 8;
 const MAX_TITLE: usize = 48;
 
+/// Give the menu-bar icon its starting spot, once per install: at the right
+/// end of the menu bar, next to the battery and just left of Control Center
+/// and the clock (which always stay rightmost).
+///
+/// macOS has no API for this. It remembers each status item's spot in the
+/// app's own defaults, under `NSStatusItem Preferred Position <name>` — the
+/// distance in points from the right edge of the screen — and reads it when
+/// the item is created. Tauri doesn't let us name the item, so AppKit calls
+/// it `Item-0` (the app's first and only status item). That key lives in the
+/// `app.pluck.desktop` defaults, which the rename to Plucky kept, so a spot
+/// the user picks by ⌘-dragging survives updates. Writing a small distance
+/// before the item exists places it as far right as macOS allows. After
+/// this one time the spot is left to the user.
+#[cfg(target_os = "macos")]
+fn place(app: &AppHandle) {
+    #![allow(unused_unsafe)]
+    use objc2_foundation::{NSString, NSUserDefaults};
+
+    let settings = app.state::<crate::settings::Settings>();
+    if settings.get().menubar_placed {
+        return;
+    }
+    let key = NSString::from_str("NSStatusItem Preferred Position Item-0");
+    unsafe {
+        let defaults = NSUserDefaults::standardUserDefaults();
+        defaults.setDouble_forKey(RIGHT_EDGE, &key);
+        defaults.synchronize();
+    }
+    settings.update(|s| s.menubar_placed = true);
+    log::info!("placed the menu-bar icon at the right end of the menu bar");
+}
+
+/// Points from the right edge of the screen; anything this small means "as
+/// far right as third-party icons may go".
+#[cfg(target_os = "macos")]
+const RIGHT_EDGE: f64 = 1.0;
+
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    place(app);
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(tooltip(app))
         .menu(&menu(app)?)
