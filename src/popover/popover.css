@@ -198,3 +198,13 @@ html[data-view="popover"] body {
 .pop-meta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pop .due-now { margin: 0 0 10px; padding: 9px 10px; }
 .pop .due-now .sn-chip { padding: 3px 8px; font-size: 11.5px; }
+
+/* Reviewing a captured selection under the menu-bar icon */
+.pop-capture { display: flex; flex-direction: column; }
+.pop-capture-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 12px 4px 18px;
+}
+.pop-capture-title { font: 650 15px/1.2 var(--sans); color: var(--ink); }
+.pop-capture-body { flex: 1; min-height: 0; overflow-y: auto; }
+.pop-capture-body .capture { margin: 6px 12px 12px; }

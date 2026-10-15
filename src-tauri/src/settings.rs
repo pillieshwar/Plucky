@@ -32,6 +32,9 @@ pub struct AppSettings {
     pub last_greeted: Option<String>,
     /// The menu-bar icon was given its starting spot (see `tray::place`).
     pub menubar_placed: bool,
+    /// Review captures in the dropdown under the menu-bar icon (true) or in
+    /// the side panel.
+    pub capture_in_menu_bar: bool,
 }
 
 impl Default for AppSettings {
@@ -48,6 +51,7 @@ impl Default for AppSettings {
             show_on_start: true,
             last_greeted: None,
             menubar_placed: false,
+            capture_in_menu_bar: true,
         }
     }
 }

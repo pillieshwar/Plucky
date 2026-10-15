@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
 import { Onboarding } from "./components/Onboarding";
+import { processCapture } from "./lib/capture";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskList } from "./components/TaskList";
@@ -176,30 +177,8 @@ export default function App() {
 
   const handleCapture = useCallback(async (result: CaptureResult) => {
     const seq = ++captureSeq.current;
-    if (result.kind !== "text") {
-      setCapture({ phase: "notice", result });
-      return;
-    }
-    setTab("tasks");
-    const selection = result.text;
-    const source = result.source;
-    const st = statusRef.current;
-    if (st && st.engine === "bundled" && !st.active_model) {
-      setCapture({
-        phase: "manual",
-        selection,
-        source,
-        error: "No model downloaded yet — add this one by hand, or get a model in the Models tab.",
-      });
-      return;
-    }
-    setCapture({ phase: "extracting", selection, source });
-    try {
-      const extraction = await api.extract(selection);
-      if (seq === captureSeq.current) setCapture({ phase: "review", selection, source, extraction });
-    } catch (e) {
-      if (seq === captureSeq.current) setCapture({ phase: "manual", selection, source, error: String(e) });
-    }
+    if (result.kind === "text") setTab("tasks");
+    await processCapture(result, statusRef.current, setCapture, () => seq === captureSeq.current);
   }, []);
 
   useEffect(() => {

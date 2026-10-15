@@ -14,6 +14,11 @@ use crate::updates::{UpdateStatus, Updates};
 use crate::{panel, popover, quick, AppState};
 
 const TRAY_ID: &str = "pluck";
+
+/// Where the menu-bar icon is on screen, if it's showing.
+pub fn icon_rect(app: &AppHandle) -> Option<tauri::Rect> {
+    app.tray_by_id(TRAY_ID)?.rect().ok().flatten()
+}
 const MAX_TASKS: usize = 8;
 const MAX_TITLE: usize = 48;
 
