@@ -746,3 +746,5 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
   margin-top: 4px; border: 0; padding: 0; background: transparent; font-size: 11.5px; color: var(--faint); cursor: pointer;
 }
 .add-desc:hover { color: var(--teal); }
+.onboard-body .card-stack + p { margin-top: 10px; }
+.local-chevron { font-size: 13px; }
