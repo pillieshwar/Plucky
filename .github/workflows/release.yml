@@ -114,9 +114,11 @@ jobs:
         run: |
           app=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app)
           lipo -info "$app/Contents/MacOS/llama-server"
-          lipo -info "$app/Contents/MacOS/Plucky" || lipo -info "$app/Contents/MacOS/pluck"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          "$app/Contents/MacOS/llama-server" --version
+          echo "::notice::bundle $app contains: $(ls "$app/Contents/MacOS" | tr '\n' ' ')"
+          exe=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")
+          lipo -info "$app/Contents/MacOS/$exe" || { echo "::error::main binary $exe: lipo failed"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app" 2>codesign.txt || { echo "::error::codesign: $(tr '\n' ' ' < codesign.txt)"; exit 1; }
+          "$app/Contents/MacOS/llama-server" --version || { echo "::error::llama-server --version failed"; exit 1; }
           if [ "$SIGNED" = "true" ]; then
             # Must say "accepted, source=Notarized Developer ID" or users get the warning.
             codesign -dv --verbose=2 "$app" 2>&1 | grep -E "Authority|TeamIdentifier"
