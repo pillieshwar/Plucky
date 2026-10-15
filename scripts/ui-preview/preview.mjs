@@ -1,4 +1,4 @@
-// Renders Plucky's UI in Chromium with a fake Tauri backend and saves
+// Renders Pluck's UI in Chromium with a fake Tauri backend and saves
 // screenshots of the main states. Used by .github/workflows/ui-preview.yml.
 //
 //   node scripts/ui-preview/preview.mjs http://localhost:4173 out/

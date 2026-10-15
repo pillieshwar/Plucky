@@ -14,7 +14,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::settings::Settings;
 
-/// How often to look for updates while Plucky is running.
+/// How often to look for updates while Pluck is running.
 const INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

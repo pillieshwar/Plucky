@@ -1,4 +1,4 @@
-//! Platform-independent core of Plucky.
+//! Platform-independent core of Pluck.
 //!
 //! Everything here is pure Rust with no UI or OS hooks, so it can be unit
 //! tested on any machine:

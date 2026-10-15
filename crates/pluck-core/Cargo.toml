@@ -1,6 +1,6 @@
 [package]
 name = "pluck-core"
-description = "Platform-independent core of Plucky: local extraction, validation and task storage."
+description = "Platform-independent core of Pluck: local extraction, validation and task storage."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

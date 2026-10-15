@@ -62,7 +62,7 @@ export function updateText(u: UpdateStatus): string {
     case "downloading":
       return `Downloading ${u.version}${u.percent !== null ? ` · ${u.percent}%` : "…"}`;
     case "ready":
-      return `Plucky ${u.version} is ready to install.`;
+      return `Pluck ${u.version} is ready to install.`;
     case "failed":
       return `Couldn't check for updates (${u.message}).`;
     default:
@@ -95,7 +95,7 @@ export function GeneralSection(props: SettingsProps & { status: Status | null; u
       <h2 className="settings-h">General</h2>
       <div className="card-stack">
         <Toggle
-          label="Open Plucky when I log in"
+          label="Open Pluck when I log in"
           hint="Keeps capture and reminders working after a restart."
           checked={!!login}
           disabled={login === null}
@@ -117,7 +117,7 @@ export function GeneralSection(props: SettingsProps & { status: Status | null; u
         />
         <div className="update-line">
           <span>
-            Plucky {status?.version ?? ""}
+            Pluck {status?.version ?? ""}
             {update.state !== "idle" && <span className="update-state"> — {updateText(update)}</span>}
           </span>
           {update.state === "ready" ? (
@@ -164,11 +164,11 @@ export function NotificationsSection(props: SettingsProps) {
     <section className="settings-section">
       <h2 className="settings-h">Notifications</h2>
       <p className="settings-intro">
-        Plucky reminds you when a task is due, right on this Mac. Each reminder has Done, Snooze and Tomorrow buttons.
+        Pluck reminds you when a task is due, right on this Mac. Each reminder has Done, Snooze and Tomorrow buttons.
       </p>
       {permission === "denied" && (
         <div className="rem-note error">
-          <p>Notifications for Plucky are turned off in System Settings.</p>
+          <p>Notifications for Pluck are turned off in System Settings.</p>
           <button type="button" className="ghost" onClick={() => void api.openNotificationSettings().catch(() => undefined)}>
             Open Notification settings
           </button>
@@ -250,7 +250,7 @@ export function DataSection({ onError }: { onError: (message: string) => void })
     <section className="settings-section">
       <h2 className="settings-h">Your data</h2>
       <p className="settings-intro">
-        Tasks live in one file on this Mac. Plucky keeps a backup for each of the last 7 days.
+        Tasks live in one file on this Mac. Pluck keeps a backup for each of the last 7 days.
       </p>
       <div className="row-actions">
         <button type="button" className="ghost" onClick={() => void run(() => api.exportTasks("csv"), "Saved a CSV to Downloads.")}>

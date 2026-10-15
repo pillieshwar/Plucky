@@ -195,7 +195,7 @@ export interface RemindersStatus {
 }
 
 export interface RemindersEnableRequest {
-  /** null = create a list called "Plucky". */
+  /** null = create a list called "Pluck". */
   list_id: string | null;
   include_notes: boolean;
   push_existing: boolean;

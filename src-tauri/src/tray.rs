@@ -106,7 +106,7 @@ fn tooltip(app: &AppHandle) -> String {
         n => format!("{n} tasks due today"),
     };
     format!(
-        "Plucky — {due}. Select text and press {}.",
+        "Pluck — {due}. Select text and press {}.",
         capture_label(app)
     )
 }
@@ -182,8 +182,8 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .try_state::<Shortcuts>()
         .and_then(|s| s.toggle_panel_label())
     {
-        Some(sc) => format!("Open Plucky  {sc}"),
-        None => "Open Plucky".to_string(),
+        Some(sc) => format!("Open Pluck  {sc}"),
+        None => "Open Pluck".to_string(),
     };
     menu.append(&MenuItem::with_id(
         app,
@@ -238,7 +238,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "Quit Plucky",
+        "Quit Pluck",
         true,
         None::<&str>,
     )?)?;

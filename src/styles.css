@@ -13,7 +13,7 @@
   --amber: #a65b00;
   --amber-soft: #f2dfbd;
   /* One family everywhere: the system UI font — SF Pro on macOS, Segoe UI
-     Variable on Windows — so Plucky reads like a native app at every size.
+     Variable on Windows — so Pluck reads like a native app at every size.
      Monospace is kept only for file paths and code. */
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Code", Consolas, monospace;
