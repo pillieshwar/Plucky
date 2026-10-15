@@ -96,7 +96,7 @@ export function TaskList(props: Props) {
           </h2>
           <ul>
             {g.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} overdue={g.tone === "overdue"} {...props} />
+              <TaskRow key={t.id} task={t} {...props} />
             ))}
           </ul>
         </section>
@@ -107,7 +107,6 @@ export function TaskList(props: Props) {
 
 function TaskRow({
   task,
-  overdue,
   actions,
   now,
   locale,
@@ -116,7 +115,7 @@ function TaskRow({
   onFocus,
   command,
   onTag,
-}: { task: Task; overdue: boolean } & Props) {
+}: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
   const focused = focusId === task.id;
