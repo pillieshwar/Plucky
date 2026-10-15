@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar } from "./Calendar";
+import { TimePicker } from "./TimePicker";
 import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import { REPEATS, repeatLabel, resolveSchedule, timeLabel } from "../lib/schedule";
 import type { TaskPatch } from "../lib/types";
@@ -111,22 +112,14 @@ export function DateEditor({ date, time, repeat, now, locale, onApply, onClose }
         </button>
       </div>
 
+      <TimePicker
+        value={time}
+        locale={locale}
+        now={!date || date === today ? now : undefined}
+        onChange={(t) => apply({ due_date: date ?? today, due_time: t }, false)}
+      />
+
       <div className="de-row">
-        <label className="de-field">
-          <span>Time</span>
-          <input
-            type="time"
-            value={time ?? ""}
-            onChange={(e) =>
-              apply({ due_date: date ?? today, due_time: e.target.value || null }, false)
-            }
-          />
-        </label>
-        {time && (
-          <button type="button" className="link-btn" onClick={() => apply({ due_time: null }, false)}>
-            Clear time
-          </button>
-        )}
         <label className="de-field">
           <span>Repeat</span>
           <select

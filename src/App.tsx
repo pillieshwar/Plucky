@@ -20,6 +20,8 @@ import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import { taskActions } from "./lib/taskActions";
+import { dueNow } from "./lib/due";
+import { DueNowCard } from "./components/DueNowCard";
 import { matchesQuery, topTags } from "./lib/taskText";
 import type { AppSettings, CaptureResult, NewTask, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
@@ -43,10 +45,10 @@ const KEYS: [string, string][] = [
   ["O", "Open where it came from"],
   ["⌫", "Delete"],
   ["⌘Z", "Undo"],
+  ["S", "Snooze"],
+  ["F", "Today only (focus)"],
   ["/ or ⌘F", "Search"],
 ];
-
-const minor = (v: string | null) => (v ?? "").split(".").slice(0, 2).join(".");
 
 function typingIn(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -70,6 +72,21 @@ export default function App() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [command, setCommand] = useState<RowCommand | null>(null);
   const [showKeys, setShowKeys] = useState(false);
+  // Today-only focus: just overdue and today's tasks. Remembered per Mac.
+  const [focusToday, setFocusToday] = useState(() => {
+    try {
+      return localStorage.getItem("pluck.focusToday") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("pluck.focusToday", focusToday ? "1" : "0");
+    } catch {
+      // Storage unavailable: the toggle still works for this session.
+    }
+  }, [focusToday]);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -192,7 +209,16 @@ export default function App() {
     };
   }, [handleCapture, refresh]);
 
-  const visible = useMemo(() => (query.trim() ? tasks.filter((t) => matchesQuery(t, query)) : tasks), [tasks, query]);
+  const visible = useMemo(
+    () =>
+      tasks.filter(
+        (t) =>
+          (!query.trim() || matchesQuery(t, query)) &&
+          (!focusToday || (t.due_date !== null && t.due_date <= today)),
+      ),
+    [tasks, query, focusToday, today],
+  );
+  const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
   const groups = useMemo(() => groupTasks(visible, now, LOCALE), [visible, now]);
   const flat = useMemo(() => groups.flatMap((g) => g.tasks), [groups]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
@@ -244,10 +270,12 @@ export default function App() {
       if (key === "ArrowDown" || lower === "j") move(1);
       else if (key === "ArrowUp" || lower === "k") move(-1);
       else if (key === "?") setShowKeys((v) => !v);
+      else if (lower === "f") setFocusToday((v) => !v);
       else if (!current) handled = false;
       else if (key === " " || lower === "x") void actions.setDone(current, !current.done);
       else if (key === "Enter" || lower === "e") setCommand({ id: current.id, kind: "edit", n });
       else if (lower === "d") setCommand({ id: current.id, kind: "date", n });
+      else if (lower === "s") setCommand({ id: current.id, kind: "snooze", n });
       else if (lower === "t") void actions.reschedule(current, { due_date: toISODate(new Date()) });
       else if (lower === "m") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 1)) });
       else if (lower === "w") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 7)) });
@@ -299,13 +327,6 @@ export default function App() {
   const quickLabel = shortcuts?.quick_add ? formatShortcut(shortcuts.quick_add) : null;
   const dueToday = tasks.filter((t) => !t.done && t.due_date !== null && t.due_date <= today).length;
   const onboarding = !!settings && !!status && !settings.onboarding_done && !status.active_model && status.engine !== "ollama";
-  const whatsNew =
-    !!settings &&
-    !!status &&
-    settings.onboarding_done &&
-    !onboarding &&
-    // Only for new feature releases (0.2 → 0.3), not fixes (0.2.0 → 0.2.1).
-    minor(settings.seen_version) !== minor(status.version);
 
   function minimize(next: boolean) {
     setCollapsed(next);
@@ -394,18 +415,6 @@ export default function App() {
           Download a model so Pluck can read your selections.
         </Banner>
       )}
-      {whatsNew && tab === "tasks" && !capture && (
-        <Banner
-          tone="info"
-          action={{
-            label: "Got it",
-            run: () => saveSettings({ ...settings!, seen_version: status!.version }),
-          }}
-        >
-          <strong>New in {status!.version}:</strong> due-time reminders with snooze, {quickLabel ?? "quick add"} to type a
-          task, links back to where a task came from, repeating tasks, and automatic updates.
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" action={{ label: "Dismiss", run: () => setError(null) }}>
           {error}
@@ -426,6 +435,10 @@ export default function App() {
         />
       )}
 
+      {tab === "tasks" && !onboarding && !capture && (
+        <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} />
+      )}
+
       {tab === "tasks" && capture && (
         <CaptureCard
           state={capture}
@@ -438,6 +451,7 @@ export default function App() {
 
       {tab === "tasks" && !onboarding && tasks.length > 0 && (
         <div className="search">
+          <div className="search-line">
           <label className="search-box">
             <SearchIcon />
             <input
@@ -456,6 +470,17 @@ export default function App() {
               <kbd>/</kbd>
             )}
           </label>
+          <button
+            type="button"
+            className={focusToday ? "focus-toggle on" : "focus-toggle"}
+            aria-pressed={focusToday}
+            onClick={() => setFocusToday((v) => !v)}
+            title="Show only today's and overdue tasks (F)"
+          >
+            <span className="focus-dot" aria-hidden />
+            Today
+          </button>
+          </div>
           {tags.length > 0 && (
             <div className="tag-row" aria-label="Tags">
               {tags.map((t) => {
@@ -486,6 +511,7 @@ export default function App() {
             command={command}
             onTag={toggleTag}
             filtered={!!query.trim()}
+            focusToday={focusToday}
             today={today}
           />
         )}

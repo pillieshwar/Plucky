@@ -34,8 +34,16 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 popover::toggle(tray.app_handle(), rect);
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
+    // A black-on-transparent template image: macOS tints it to match the
+    // menu bar (dark or light, highlighted or not).
+    match tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png")) {
+        Ok(icon) => tray = tray.icon(icon).icon_as_template(true),
+        Err(e) => {
+            log::warn!("tray icon failed to load: {e}");
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+        }
     }
     tray.build(app)?;
     refresh(app);

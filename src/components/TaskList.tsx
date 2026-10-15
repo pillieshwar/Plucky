@@ -1,10 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
-import { CalendarIcon, RepeatIcon } from "./icons";
+import { CalendarIcon, ClockIcon, RepeatIcon } from "./icons";
+import { SnoozeBar } from "./SnoozeBar";
+import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
-import { parseISODate } from "../lib/dates";
 import type { DayGroup } from "../lib/grouping";
-import { repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
+import { repeatLabel, repeatShort } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import { sourceLabel, titleParts } from "../lib/taskText";
 import type { Task, TaskPatch } from "../lib/types";
@@ -12,7 +13,7 @@ import type { Task, TaskPatch } from "../lib/types";
 /** A keyboard command for one row (from the panel's shortcuts). */
 export interface RowCommand {
   id: number;
-  kind: "edit" | "date";
+  kind: "edit" | "date" | "snooze";
   /** Changes every time, so repeating the same command re-triggers it. */
   n: number;
 }
@@ -34,11 +35,22 @@ interface Props {
   onTag: (tag: string) => void;
   /** A search or tag filter is active. */
   filtered: boolean;
+  /** Today-only focus is on. */
+  focusToday: boolean;
   today: string;
 }
 
 export function TaskList(props: Props) {
-  const { groups, shortcut, quickShortcut, filtered, actions, today } = props;
+  const { groups, shortcut, quickShortcut, filtered, focusToday, actions, today } = props;
+  if (!groups.length && focusToday && !filtered) {
+    return (
+      <div className="empty">
+        <EmptyArt />
+        <p className="empty-big">Nothing left for today</p>
+        <p>Turn off Today focus to see what’s coming up.</p>
+      </div>
+    );
+  }
   if (!groups.length) {
     if (filtered) {
       return (
@@ -110,6 +122,7 @@ function TaskRow({
   const focused = focusId === task.id;
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [snoozing, setSnoozing] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [draft, setDraft] = useState(task.title);
 
@@ -126,6 +139,7 @@ function TaskRow({
       setEditing(true);
     }
     if (command.kind === "date") setPicking((p) => !p);
+    if (command.kind === "snooze" && !task.done) setSnoozing((v) => !v);
     // Only react to new commands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
@@ -157,14 +171,15 @@ function TaskRow({
   const source = sourceLabel(task);
   const repeat = repeatLabel(task.recurrence);
   const meta: ReactNode[] = [];
-  if (overdue && task.due_date) {
+  const chip = dueChip(task, now, locale);
+  if (chip) {
     meta.push(
-      <span key="d" className="meta-late">
-        {parseISODate(task.due_date).toLocaleDateString(locale, { month: "short", day: "numeric" })}
+      <span key="due" className={`due-chip ${chip.tone}`}>
+        {chip.tone !== "overdue" && <ClockIcon />}
+        {chip.label}
       </span>,
     );
   }
-  if (task.due_time) meta.push(<span key="t">{timeLabel(task.due_time, locale)}</span>);
   if (repeat) {
     meta.push(
       <span key="r" className="meta-repeat" title={repeat}>
@@ -172,7 +187,6 @@ function TaskRow({
       </span>,
     );
   }
-  if (task.snoozed_until && !task.done) meta.push(<span key="s">Snoozed</span>);
   if (source) {
     meta.push(
       <button
@@ -193,7 +207,7 @@ function TaskRow({
       className={[
         "task",
         task.done ? "done" : "",
-        picking ? "picking" : "",
+        picking || snoozing ? "picking" : "",
         highlighted ? "flash" : "",
         focused ? "focused" : "",
         completing ? "completing" : "",
@@ -256,6 +270,18 @@ function TaskRow({
           {meta.length > 0 && <div className="task-meta">{meta}</div>}
         </div>
         <div className="task-tools">
+          {!task.done && (
+            <button
+              type="button"
+              className={snoozing ? "task-date on" : "task-date"}
+              title="Snooze (S)"
+              aria-label="Snooze"
+              aria-expanded={snoozing}
+              onClick={() => setSnoozing((v) => !v)}
+            >
+              <ClockIcon />
+            </button>
+          )}
           <button
             type="button"
             className="task-date"
@@ -277,6 +303,14 @@ function TaskRow({
           </button>
         </div>
       </div>
+      {snoozing && !task.done && (
+        <SnoozeBar
+          onSnooze={(kind) => {
+            setSnoozing(false);
+            void actions.snooze(task, kind);
+          }}
+        />
+      )}
       {picking && (
         <DateEditor
           date={task.due_date}

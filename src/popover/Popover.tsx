@@ -20,6 +20,8 @@ import { sourceLabel } from "../lib/taskText";
 import type { Task, UpdateStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
+import { DueNowCard } from "../components/DueNowCard";
+import { dueChip, dueNow, type DueChip } from "../lib/due";
 
 const LOCALE = safeLocale();
 const ORDER = dayOrderForLocale(LOCALE);
@@ -361,6 +363,10 @@ export default function Popover() {
           <span>{heading.date}</span>
         </h2>
 
+        {selected === today && (
+          <DueNowCard tasks={dueNow(tasks, new Date())} actions={actions} now={new Date()} locale={LOCALE} compact />
+        )}
+
         {adding && (
           <form className="pop-add" onSubmit={add}>
             <input
@@ -400,7 +406,8 @@ export default function Popover() {
             <Row
               key={t.id}
               task={t}
-              meta={[overdueLabel(t.due_date!, today), ...rowMeta(t)].join(" · ")}
+              chip={dueChip(t, new Date(), LOCALE) ?? { tone: "overdue", label: overdueLabel(t.due_date!, today) }}
+              meta={rowMeta(t).join(" · ") || null}
               tone="late"
               onToggle={toggleDone}
               onOpen={openTask}
@@ -412,6 +419,7 @@ export default function Popover() {
             <Row
               key={t.id}
               task={t}
+              chip={dueChip(t, new Date(), LOCALE)}
               meta={rowMeta(t).join(" · ") || snippet(t.source_text)}
               tone="due"
               onToggle={toggleDone}
@@ -447,7 +455,7 @@ export default function Popover() {
             {showDone && (
               <ul className="pop-list">
                 {agenda.done.map((t) => (
-                  <Row key={t.id} task={t} meta={null} tone="done" onToggle={toggleDone} onOpen={openTask} />
+                  <Row key={t.id} task={t} chip={null} meta={null} tone="done" onToggle={toggleDone} onOpen={openTask} />
                 ))}
               </ul>
             )}
@@ -484,10 +492,9 @@ export default function Popover() {
   );
 }
 
-/** Time, repeat and source, for the line under a title. */
+/** Repeat and source, for the line under a title (time is in the chip). */
 function rowMeta(t: Task): string[] {
   const parts: string[] = [];
-  if (t.due_time) parts.push(timeLabel(t.due_time, LOCALE));
   const r = repeatShort(t.recurrence);
   if (r) parts.push(r);
   const src = sourceLabel(t);
@@ -497,6 +504,7 @@ function rowMeta(t: Task): string[] {
 
 function Row({
   task,
+  chip,
   meta,
   tone,
   onToggle,
@@ -505,6 +513,7 @@ function Row({
   dragging,
 }: {
   task: Task;
+  chip: DueChip | null;
   meta: string | null;
   tone: "late" | "due" | "done";
   onToggle: (t: Task) => void;
@@ -535,7 +544,12 @@ function Row({
         title="Open in Pluck · drag onto a day to move it"
       >
         <span className="pop-title">{task.title}</span>
-        {meta && <span className="pop-meta">{meta}</span>}
+        {(chip || meta) && (
+          <span className="pop-meta">
+            {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
+            {meta && <span className="pop-meta-text">{meta}</span>}
+          </span>
+        )}
       </button>
     </li>
   );

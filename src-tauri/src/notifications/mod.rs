@@ -181,6 +181,8 @@ fn tick(app: &AppHandle) {
                 }
             }
         }
+        // Windows show a "Due now" card for reminders that just went off.
+        let _ = app.emit("tasks-changed", ());
         if due.len() > MAX_SEPARATE {
             send(
                 app,

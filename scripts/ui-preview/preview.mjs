@@ -16,6 +16,15 @@ const day = (n) => {
   return iso(d);
 };
 
+const hm = (offsetMin) => {
+  const d = new Date(Date.now() + offsetMin * 60000);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const localStamp = (offsetMin) => {
+  const d = new Date(Date.now() + offsetMin * 60000);
+  return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+};
+
 let nextId = 1;
 const task = (title, extra = {}) => ({
   id: nextId++,
@@ -40,14 +49,15 @@ const task = (title, extra = {}) => ({
 const TASKS = [
   task("Send Q3 numbers to Priya #work", {
     due_date: day(0),
-    due_time: "15:00",
+    due_time: hm(-5),
+    notified_at: localStamp(-5),
     source_app: "Slack",
     source_bundle: "com.tinyspeck.slackmacgap",
     source_url: "https://app.slack.com/client/T1/C2",
     source_text: "Could you send me the Q3 numbers by 3pm today?",
   }),
   task("Review the rollout checklist", { due_date: day(0), source_app: "Mail" }),
-  task("Water the plants #home", { due_date: day(0), due_time: "09:00", recurrence: "weekly" }),
+  task("Water the plants #home", { due_date: day(0), due_time: hm(40), recurrence: "weekly" }),
   task("Renew passport", { due_date: day(-3) }),
   task("Reply to the design review thread #work", {
     due_date: day(1),
@@ -192,6 +202,13 @@ await shot("panel-tasks-dark", PANEL, scenario(), async () => {}, true);
 await shot("panel-focus-keys", PANEL, scenario(), async (p) => {
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("ArrowDown");
+});
+await shot("panel-focus-today", PANEL, scenario(), async (p) => {
+  await p.keyboard.press("f");
+});
+await shot("panel-snooze", PANEL, scenario(), async (p) => {
+  await p.locator(".task").nth(2).hover();
+  await p.locator(".task").nth(2).locator(".task-date").first().click({ force: true });
 });
 await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");

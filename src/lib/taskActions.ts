@@ -1,7 +1,10 @@
 import { api } from "./api";
-import { relativeLabel } from "./dates";
+import { addDays, relativeLabel, toISODate } from "./dates";
+import { formatLocal } from "./due";
 import type { Task, TaskPatch } from "./types";
 import type { Toast } from "../components/Toasts";
+
+export type SnoozeKind = "15m" | "1h" | "tonight" | "tomorrow" | "week";
 
 type Show = (text: string, action?: Toast["action"], tone?: Toast["tone"]) => number;
 
@@ -84,6 +87,36 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
+  /** Remind later today, or move to tomorrow / next week. */
+  async function snooze(task: Task, kind: SnoozeKind) {
+    const now = new Date();
+    const before: TaskPatch = { due_date: task.due_date, due_time: task.due_time, snoozed_until: task.snoozed_until };
+    let patch: TaskPatch;
+    let text: string;
+    if (kind === "15m" || kind === "1h" || kind === "tonight") {
+      const at =
+        kind === "tonight"
+          ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0)
+          : new Date(now.getTime() + (kind === "15m" ? 15 : 60) * 60 * 1000);
+      at.setSeconds(0, 0);
+      patch = { snoozed_until: formatLocal(at) };
+      text = `Snoozed until ${at.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })}`;
+    } else {
+      const day = toISODate(addDays(now, kind === "tomorrow" ? 1 : 7));
+      patch = { due_date: day, snoozed_until: null };
+      text = `Moved to ${relativeLabel(day, now, locale).toLowerCase()}`;
+    }
+    try {
+      await api.updateTask(task.id, patch);
+      show(`${text} · “${short(task.title)}”`, {
+        label: "Undo",
+        run: () => api.updateTask(task.id, before).then(() => undefined, fail),
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   async function update(task: Task, patch: TaskPatch) {
     try {
       await api.updateTask(task.id, patch);
@@ -92,7 +125,7 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
-  return { setDone, remove, reschedule, moveAll, update, fail };
+  return { setDone, remove, reschedule, moveAll, snooze, update, fail };
 }
 
 export type TaskActions = ReturnType<typeof taskActions>;

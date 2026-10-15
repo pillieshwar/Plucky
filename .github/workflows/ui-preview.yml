@@ -6,7 +6,7 @@ name: UI preview
 on:
   workflow_dispatch:
   push:
-    branches: [v0.2-features]
+    branches: ["v0.*"]
     paths: ["src/**", "scripts/ui-preview/**", ".github/workflows/ui-preview.yml"]
 
 permissions:
