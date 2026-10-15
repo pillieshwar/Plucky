@@ -67,7 +67,7 @@ const SETTINGS = {
   autostart_initialized: true,
   last_summary: null,
   last_backup: null,
-  seen_version: "0.2.0",
+  seen_version: "0.2.1",
 };
 
 const SHORTCUTS = {
@@ -81,7 +81,7 @@ function scenario(overrides = {}) {
     label: "panel",
     tasks: TASKS,
     settings: SETTINGS,
-    status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.0", platform: "macos" },
+    status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
     extract: null,
     backups: [
@@ -208,30 +208,9 @@ await shot("panel-toast", PANEL, scenario(), async (p) => {
   await p.waitForTimeout(700);
 });
 await shot(
-  "panel-capture-multi",
-  PANEL,
-  scenario({
-    extract: [
-      { task: "Send the Q3 numbers to Dana", date_text: "by Friday 3pm", date_confidence: "high" },
-      { task: "Book a room for the design review", date_text: "Monday", date_confidence: "high" },
-      { task: "Share the agenda with the team", date_text: "next week", date_confidence: "low" },
-    ],
-  }),
-  async (p) => {
-    await p.evaluate(() =>
-      window.__emit("capture", {
-        kind: "text",
-        method: "accessibility",
-        text: "Hi! Could you send me the Q3 numbers by Friday 3pm? Please also book a room for Monday's design review, and share the agenda with the team next week.",
-        source: { app: "Slack", bundle: "com.tinyspeck.slackmacgap", url: "https://app.slack.com/client/T1/C2" },
-      }),
-    );
-  },
-);
-await shot(
   "panel-capture-single",
   PANEL,
-  scenario({ extract: [{ task: "Water the plants", date_text: "every Monday morning", date_confidence: "high" }] }),
+  scenario({ extract: { task: "Water the plants", date_text: "every Monday morning", date_confidence: "high" } }),
   async (p) => {
     await p.evaluate(() =>
       window.__emit("capture", {
@@ -267,7 +246,7 @@ await shot(
   scenario({
     tasks: [],
     settings: { ...SETTINGS, onboarding_done: false },
-    status: { accessibility: false, engine: "bundled", active_model: null, version: "0.2.0", platform: "macos" },
+    status: { accessibility: false, engine: "bundled", active_model: null, version: "0.2.1", platform: "macos" },
   }),
 );
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));

@@ -17,10 +17,10 @@ That's it. There's nothing else to install — the model runtime is built into t
 
 ## Using Pluck
 
-- **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⇧⌘Z**. The panel slides in with a suggested task and due date — including the time ("by Friday 3pm") and repeats ("every Monday"). If the text holds several action items, like meeting notes, you get one row per task to keep or untick.
+- **Capture:** select text anywhere (Slack, Mail, a web page, a document) and press **⇧⌘Z**. The panel slides in with a suggested task and due date — including the time ("by Friday 3pm") and repeats ("every Monday").
 - **Or use the Services menu:** right-click selected text → **Services → Add to Pluck**. This never touches your clipboard.
 - **Quick add:** press **⇧⌘Space** anywhere and type, e.g. `pay rent friday 5pm #home`, `water plants every monday`, `call mom tomorrow 6pm`. Pluck shows how it read the date as you type; **Return** saves.
-- **Confirm:** edit the title if you like, pick or change the date, and press **Return** (**⌘Return** for several). **Esc** discards. Unclear dates ("next Friday", "soon", or none) — Pluck asks instead of guessing.
+- **Confirm:** edit the title if you like, pick or change the date, and press **Return**. **Esc** discards. Unclear dates ("next Friday", "soon", or none) — Pluck asks instead of guessing.
 - **Reminders:** at a task's time (or 9:00 for tasks with only a day — your choice) you get a notification with **Done**, **Snooze 15 min**, **Snooze 1 hour** and **Tomorrow**. Prefer one morning summary? Turn it on in **Settings → Notifications**.
 - **Back to the source:** each task remembers the app it came from and, in browsers, Slack and documents, the page or file. Click **Slack ↗** (or the site name) under a task to jump back. Turn this off in **Settings → General**.
 - **Today at a glance:** click the Pluck icon in the menu bar for a calendar and today's agenda (overdue first; the icon shows the count). Drag a task onto another day to move it, tick tasks off, or press **+** and type ("dentist fri 3pm"). Right-click the icon for the menu.
@@ -71,7 +71,7 @@ shortcut released ─▶ capture selection ─▶ show panel ─▶ extract (127
 ```
 
 1. **Capture** (`src-tauri/src/capture/`) — reads the selection through macOS Accessibility (`AXSelectedText`) or Windows UI Automation (`TextPattern`). If that fails, it synthesizes Copy, reads the text, and restores your clipboard only if its change counter proves nothing else wrote to it in between. It refuses to touch a clipboard holding images or files.
-2. **Extract** (`src-tauri/src/engine.rs`, `crates/pluck-core/src/llm.rs`) — the bundled llama.cpp `llama-server` is started on demand on a random 127.0.0.1 port with a random API key, and gets one request with a JSON Schema for a list of up to 6 tasks, each with 3 fields (`task`, `date_text`, `date_confidence`), temperature 0. Output is validated in Rust; one repair retry, then the panel falls back to a manual edit state. Clients refuse any non-loopback URL. The server stops after 5 idle minutes.
+2. **Extract** (`src-tauri/src/engine.rs`, `crates/pluck-core/src/llm.rs`) — the bundled llama.cpp `llama-server` is started on demand on a random 127.0.0.1 port with a random API key, and gets one request with a 3-field JSON Schema (`task`, `date_text`, `date_confidence`), temperature 0. Output is validated in Rust; one repair retry, then the panel falls back to a manual edit state. Clients refuse any non-loopback URL. The server stops after 5 idle minutes.
 3. **Resolve the date** (`src/lib/dates.ts`, `src/lib/schedule.ts`) — the model only copies the phrase ("by Friday 3pm", "every Monday"); code turns it into a day, time and repeat rule against today's real date. Ambiguous phrases ("next Friday" on a Tuesday, `3/4`) offer both readings and ask. Quick add uses the same reader directly, without the model.
 4. **Store** (`crates/pluck-core/src/store.rs`) — SQLite in WAL mode in the app data folder. Due dates are calendar days with an optional local time; creation time is UTC plus your time zone. Completing a repeating task creates the next one (`recurrence.rs`).
 5. **Remind** (`src-tauri/src/notifications/`, `crates/pluck-core/src/notify.rs`) — a 15-second scheduler shows a UserNotifications banner when a task is due, with Done / Snooze / Tomorrow actions.

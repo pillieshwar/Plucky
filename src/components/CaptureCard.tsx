@@ -9,23 +9,22 @@ import { safeLocale } from "../lib/locale";
 
 export type CaptureState =
   | { phase: "extracting"; selection: string; source: SourceInfo | null }
-  | { phase: "review"; selection: string; source: SourceInfo | null; extractions: Extraction[] }
+  | { phase: "review"; selection: string; source: SourceInfo | null; extraction: Extraction }
   | { phase: "manual"; selection: string; source: SourceInfo | null; error: string }
   | { phase: "notice"; result: Exclude<CaptureResult, { kind: "text" }> };
 
 interface Props {
   state: CaptureState;
   now: Date;
-  onSave: (tasks: NewTask[]) => Promise<void>;
+  onSave: (task: NewTask) => Promise<void>;
   onCancel: () => void;
   onGrantAccess: () => void;
 }
 
 const LOCALE = safeLocale();
 
-/** One task being reviewed before it's saved. */
+/** The task being reviewed before it's saved. */
 interface Draft {
-  include: boolean;
   title: string;
   date: string | null;
   time: string | null;
@@ -36,35 +35,29 @@ interface Draft {
   mustAsk: boolean;
 }
 
-function draftsFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, now: Date): Draft[] {
+function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, now: Date): Draft {
   if (state.phase === "manual") {
-    return [
-      {
-        include: true,
-        title: firstLine(state.selection),
-        date: null,
-        time: null,
-        repeat: null,
-        dateText: null,
-        alternatives: [],
-        mustAsk: true,
-      },
-    ];
-  }
-  const order = dayOrderForLocale(LOCALE);
-  return state.extractions.map((x) => {
-    const r = resolveCaptured(x.date_text, x.date_confidence, now, order);
     return {
-      include: true,
-      title: x.task,
-      date: r.date,
-      time: r.time,
-      repeat: r.repeat,
-      dateText: x.date_text,
-      alternatives: r.alternatives,
-      mustAsk: r.mustAsk,
+      title: firstLine(state.selection),
+      date: null,
+      time: null,
+      repeat: null,
+      dateText: null,
+      alternatives: [],
+      mustAsk: true,
     };
-  });
+  }
+  const x = state.extraction;
+  const r = resolveCaptured(x.date_text, x.date_confidence, now, dayOrderForLocale(LOCALE));
+  return {
+    title: x.task,
+    date: r.date,
+    time: r.time,
+    repeat: r.repeat,
+    dateText: x.date_text,
+    alternatives: r.alternatives,
+    mustAsk: r.mustAsk,
+  };
 }
 
 export function CaptureCard({ state, now, onSave, onCancel, onGrantAccess }: Props) {
@@ -113,38 +106,28 @@ function Review({
   onSave: Props["onSave"];
   onCancel: () => void;
 }) {
-  const [drafts, setDrafts] = useState<Draft[]>(() => draftsFor(state, now));
+  const [draft, setDraft] = useState<Draft>(() => draftFor(state, now));
   const [saving, setSaving] = useState(false);
-  const multi = drafts.length > 1;
-
-  const chosen = drafts.filter((d) => d.include && d.title.trim());
-
-  function patch(i: number, p: Partial<Draft>) {
-    setDrafts((ds) => ds.map((d, j) => (j === i ? { ...d, ...p } : d)));
-  }
+  const ready = !!draft.title.trim();
 
   async function save() {
-    if (!chosen.length || saving) return;
+    if (!ready || saving) return;
     setSaving(true);
     try {
-      await onSave(
-        chosen.map((d) => ({
-          title: d.title.trim(),
-          due_date: d.date,
-          due_time: d.date ? d.time : null,
-          recurrence: d.repeat,
-          source_text: state.selection,
-          source_app: state.source?.app ?? null,
-          source_bundle: state.source?.bundle ?? null,
-          source_url: state.source?.url ?? null,
-        })),
-      );
+      await onSave({
+        title: draft.title.trim(),
+        due_date: draft.date,
+        due_time: draft.date ? draft.time : null,
+        recurrence: draft.repeat,
+        source_text: state.selection,
+        source_app: state.source?.app ?? null,
+        source_bundle: state.source?.bundle ?? null,
+        source_url: state.source?.url ?? null,
+      });
     } finally {
       setSaving(false);
     }
   }
-
-  const label = multi ? `Add ${chosen.length} ${chosen.length === 1 ? "task" : "tasks"}` : "Add task";
 
   return (
     <form
@@ -158,33 +141,15 @@ function Review({
           e.stopPropagation();
           onCancel();
         }
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          void save();
-        }
       }}
     >
       <Kicker
         source={state.source}
-        text={
-          state.phase === "manual"
-            ? "Couldn’t read it — edit it yourself"
-            : multi
-              ? `${drafts.length} tasks found`
-              : "New task"
-        }
+        text={state.phase === "manual" ? "Couldn’t read it — edit it yourself" : "New task"}
       />
       {state.phase === "manual" && <p className="capture-error">{state.error}</p>}
 
-      {multi ? (
-        <ul className="capture-multi">
-          {drafts.map((d, i) => (
-            <MultiRow key={i} draft={d} now={now} onChange={(p) => patch(i, p)} autoFocus={i === 0} />
-          ))}
-        </ul>
-      ) : (
-        <Single draft={drafts[0]} now={now} onChange={(p) => patch(0, p)} />
-      )}
+      <Single draft={draft} now={now} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
 
       <details className="capture-source-toggle">
         <summary>Selected text</summary>
@@ -194,8 +159,8 @@ function Review({
         <button type="button" className="ghost" onClick={onCancel}>
           Discard <kbd>Esc</kbd>
         </button>
-        <button type="submit" className="primary" disabled={!chosen.length || saving}>
-          {label} <kbd>{multi ? "⌘↵" : "↵"}</kbd>
+        <button type="submit" className="primary" disabled={!ready || saving}>
+          Add task <kbd>↵</kbd>
         </button>
       </div>
     </form>
@@ -335,61 +300,6 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
         />
       )}
     </>
-  );
-}
-
-function MultiRow({
-  draft,
-  now,
-  onChange,
-  autoFocus,
-}: {
-  draft: Draft;
-  now: Date;
-  onChange: (p: Partial<Draft>) => void;
-  autoFocus: boolean;
-}) {
-  const [picking, setPicking] = useState(false);
-  return (
-    <li className={draft.include ? "cm-row" : "cm-row off"}>
-      <div className="cm-line">
-        <input
-          type="checkbox"
-          checked={draft.include}
-          onChange={(e) => onChange({ include: e.target.checked })}
-          aria-label={draft.include ? "Don't add this task" : "Add this task"}
-        />
-        <input
-          className="cm-title"
-          value={draft.title}
-          maxLength={200}
-          autoFocus={autoFocus}
-          onChange={(e) => onChange({ title: e.target.value })}
-          aria-label="Task title"
-        />
-      </div>
-      <button
-        type="button"
-        className={draft.mustAsk && draft.dateText ? "cm-when ask" : "cm-when"}
-        onClick={() => setPicking((p) => !p)}
-        aria-expanded={picking}
-        disabled={!draft.include}
-      >
-        <CalendarIcon /> {whenLabel(draft, now)}
-        {draft.mustAsk && draft.dateText && <span className="cm-q"> · “{draft.dateText}”?</span>}
-      </button>
-      {picking && (
-        <DateEditor
-          date={draft.date}
-          time={draft.time}
-          repeat={draft.repeat}
-          now={now}
-          locale={LOCALE}
-          onApply={(p) => onChange(applyPatch(draft, p))}
-          onClose={() => setPicking(false)}
-        />
-      )}
-    </li>
   );
 }
 

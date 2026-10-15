@@ -57,7 +57,7 @@ async fn extract(
     engine: State<'_, Engine>,
     models: State<'_, ModelManager>,
     selection: String,
-) -> CmdResult<Vec<Extraction>> {
+) -> CmdResult<Extraction> {
     let path = match models.active() {
         Some(m) => m.path,
         None if engine.kind() == "ollama" => Default::default(),

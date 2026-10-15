@@ -46,6 +46,8 @@ const KEYS: [string, string][] = [
   ["/ or ⌘F", "Search"],
 ];
 
+const minor = (v: string | null) => (v ?? "").split(".").slice(0, 2).join(".");
+
 function typingIn(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
@@ -163,10 +165,8 @@ export default function App() {
     }
     setCapture({ phase: "extracting", selection, source });
     try {
-      const extractions = await api.extract(selection);
-      if (seq !== captureSeq.current) return;
-      if (extractions.length) setCapture({ phase: "review", selection, source, extractions });
-      else setCapture({ phase: "manual", selection, source, error: "The model didn't find a task." });
+      const extraction = await api.extract(selection);
+      if (seq === captureSeq.current) setCapture({ phase: "review", selection, source, extraction });
     } catch (e) {
       if (seq === captureSeq.current) setCapture({ phase: "manual", selection, source, error: String(e) });
     }
@@ -263,11 +263,11 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [actions, undoLast]);
 
-  async function save(newTasks: NewTask[]) {
+  async function save(task: NewTask) {
     try {
-      for (const t of newTasks) await api.addTask(t);
+      await api.addTask(task);
       setCapture(null);
-      show(newTasks.length === 1 ? "Task added" : `${newTasks.length} tasks added`);
+      show("Task added");
     } catch (e) {
       setError(String(e));
     }
@@ -300,7 +300,12 @@ export default function App() {
   const dueToday = tasks.filter((t) => !t.done && t.due_date !== null && t.due_date <= today).length;
   const onboarding = !!settings && !!status && !settings.onboarding_done && !status.active_model && status.engine !== "ollama";
   const whatsNew =
-    !!settings && !!status && settings.onboarding_done && !onboarding && settings.seen_version !== status.version;
+    !!settings &&
+    !!status &&
+    settings.onboarding_done &&
+    !onboarding &&
+    // Only for new feature releases (0.2 → 0.3), not fixes (0.2.0 → 0.2.1).
+    minor(settings.seen_version) !== minor(status.version);
 
   function minimize(next: boolean) {
     setCollapsed(next);
@@ -398,7 +403,7 @@ export default function App() {
           }}
         >
           <strong>New in {status!.version}:</strong> due-time reminders with snooze, {quickLabel ?? "quick add"} to type a
-          task, links back to where a task came from, several tasks from one selection, and automatic updates.
+          task, links back to where a task came from, repeating tasks, and automatic updates.
         </Banner>
       )}
       {error && (
