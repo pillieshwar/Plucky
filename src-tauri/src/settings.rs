@@ -30,6 +30,8 @@ pub struct AppSettings {
     pub show_on_start: bool,
     /// Last day (`YYYY-MM-DD`) the panel was shown for that reason.
     pub last_greeted: Option<String>,
+    /// The menu-bar icon was given its starting spot (see `tray::place`).
+    pub menubar_placed: bool,
 }
 
 impl Default for AppSettings {
@@ -45,6 +47,7 @@ impl Default for AppSettings {
             seen_version: None,
             show_on_start: true,
             last_greeted: None,
+            menubar_placed: false,
         }
     }
 }

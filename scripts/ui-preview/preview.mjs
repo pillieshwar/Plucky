@@ -85,6 +85,7 @@ const SETTINGS = {
   seen_version: "0.2.1",
   show_on_start: true,
   last_greeted: null,
+  menubar_placed: true,
 };
 
 const SHORTCUTS = {
