@@ -9,12 +9,12 @@
 Select a message, an email or a web page, press <kbd>⇧⌘S</kbd>, and Plucky writes the to-do, finds the due date and reminds you on time.<br>
 A small AI model runs entirely on your own computer, so nothing you select ever leaves it.
 
-[![Latest release](https://img.shields.io/github/v/release/pillieshwar/pluck?label=release&color=0f7168)](https://github.com/pillieshwar/pluck/releases/latest)
-[![CI](https://github.com/pillieshwar/pluck/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/pluck/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/pillieshwar/pluck?label=release&color=0f7168)](https://github.com/pillieshwar/Plucky/releases/latest)
+[![CI](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml)
 [![macOS 11+](https://img.shields.io/badge/macOS-11%2B-171b1a?logo=apple)](#install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<a href="https://github.com/pillieshwar/pluck/releases/latest/download/Plucky-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Plucky for Mac" width="248" height="52"></a>
+<a href="https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Plucky for Mac" width="248" height="52"></a>
 
 <sub>Free and open source · Apple silicon and Intel · one model download (about 2 GB) from inside the app</sub>
 
@@ -53,7 +53,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 
 ## Install
 
-1. **Download** [`Plucky-macOS.dmg`](https://github.com/pillieshwar/pluck/releases/latest/download/Plucky-macOS.dmg).
+1. **Download** [`Plucky-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg).
 2. **Open it** and drag **Plucky** into **Applications**.
 3. **Launch Plucky.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
 4. **Follow the short setup.** Plucky asks for **Accessibility** access (how macOS lets an app read selected text), downloads the recommended model (*Llama 3.2 3B Instruct*, about 2 GB, once), turns on reminders and lets you try a capture.
@@ -111,7 +111,7 @@ Selected text is treated as untrusted input: it's wrapped and sanitized as data,
 **Prerequisites:** Rust (stable), Node 20+, CMake and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (`xcode-select --install` on macOS).
 
 ```bash
-git clone https://github.com/pillieshwar/pluck.git && cd pluck
+git clone https://github.com/pillieshwar/Plucky.git && cd Plucky
 npm install
 scripts/build-llama-server.sh   # build the bundled model runtime once (a few minutes)
 npm run tauri dev               # run in development
@@ -150,7 +150,7 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | No reminders appear | **Settings → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Plucky with **–**, then capture again and re-allow it. |
 | The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Plucky starts next to the battery, but never moves the icon again after that. |
-| Something else | **Settings → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/pluck/issues). |
+| Something else | **Settings → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
 
 ## Uninstall
 
@@ -164,7 +164,7 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 
 Bug reports, ideas and pull requests are welcome.
 
-1. Open an [issue](https://github.com/pillieshwar/pluck/issues) describing the bug or idea — for bugs, attach the log from **Settings → Show log file**.
+1. Open an [issue](https://github.com/pillieshwar/Plucky/issues) describing the bug or idea — for bugs, attach the log from **Settings → Show log file**.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows.
 
