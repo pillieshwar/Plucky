@@ -1,7 +1,8 @@
 name: UI preview
 
 # Renders the UI with a fake backend and pushes screenshots to the
-# `ui-previews` branch, so changes can be reviewed without a Mac.
+# `ui-previews` branch, so changes can be reviewed without a Mac. Runs on
+# macOS so the shots use the real system font and Mac shortcut symbols.
 
 on:
   workflow_dispatch:
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   shots:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,7 +30,7 @@ jobs:
       - name: Install Playwright
         run: |
           npm install --no-save playwright@1.48.2
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
       - name: Screenshots
         run: |
           npx vite preview --port 4173 --strictPort &
