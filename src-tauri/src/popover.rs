@@ -48,9 +48,7 @@ pub fn toggle(app: &AppHandle, icon: Rect) {
     if let Ok(mut t) = LAST_SHOWN.lock() {
         *t = Some(Instant::now());
     }
-    let _ = win.show();
-    crate::spaces::bring_to_front(&win);
-    let _ = win.set_focus();
+    crate::spaces::present(&win);
     let _ = app.emit_to(LABEL, "popover-shown", ());
 }
 
@@ -64,7 +62,7 @@ pub fn on_blur(app: &AppHandle) {
     if fresh {
         // Take focus back so a real click elsewhere still closes it.
         if let Some(win) = window(app) {
-            let _ = win.set_focus();
+            crate::spaces::present(&win);
         }
         return;
     }
