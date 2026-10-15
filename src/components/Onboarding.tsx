@@ -14,8 +14,7 @@ interface Props {
   onOpenModels: () => void;
 }
 
-const SAMPLE =
-  "Hi! Could you send me the Q3 numbers by Friday 3pm? Also, please book a room for Monday's design review.";
+const SAMPLE = "Hi! Could you send me the Q3 numbers by Friday 3pm? Thanks!";
 
 const STEPS = ["Welcome", "Permission", "Model", "Reminders", "Try it"] as const;
 

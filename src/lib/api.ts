@@ -23,7 +23,7 @@ import type {
 } from "./types";
 
 export const api = {
-  extract: (selection: string) => invoke<Extraction[]>("extract", { selection }),
+  extract: (selection: string) => invoke<Extraction>("extract", { selection }),
   listTasks: (doneSince: string | null) => invoke<Task[]>("list_tasks", { doneSince }),
   addTask: (task: NewTask) => invoke<Task>("add_task", { task }),
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
