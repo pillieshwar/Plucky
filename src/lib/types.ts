@@ -97,6 +97,8 @@ export interface AppSettings {
   last_summary: string | null;
   last_backup: string | null;
   seen_version: string | null;
+  show_on_start: boolean;
+  last_greeted: string | null;
 }
 
 export type NotificationPermission = "not_determined" | "denied" | "granted" | "unsupported";

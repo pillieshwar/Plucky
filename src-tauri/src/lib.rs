@@ -10,6 +10,7 @@
 mod capture;
 mod data;
 mod engine;
+mod greet;
 mod models;
 mod notifications;
 mod panel;
@@ -383,6 +384,7 @@ fn set_settings(settings: State<'_, Settings>, value: AppSettings) -> AppSetting
         v.remember_source = value.remember_source;
         v.onboarding_done = value.onboarding_done;
         v.seen_version = value.seen_version;
+        v.show_on_start = value.show_on_start;
     })
 }
 
@@ -976,13 +978,13 @@ pub fn run() {
                 settings.update(|s| s.autostart_initialized = true);
             }
 
-            // First launch: no model yet, so open the panel (on the Models tab)
-            // instead of starting silently in the menu bar.
-            if app.state::<ModelManager>().active().is_none()
-                && app.state::<Engine>().kind() == "bundled"
-            {
-                panel::show(app.handle());
-            }
+            // Show the panel at launch (always on a first run, for the tour),
+            // and again on the first wake of each day.
+            let first_run = !app.state::<Settings>().get().onboarding_done
+                && app.state::<ModelManager>().active().is_none()
+                && app.state::<Engine>().kind() == "bundled";
+            greet::on_launch(app.handle(), first_run);
+            greet::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {

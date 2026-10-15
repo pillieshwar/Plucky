@@ -70,8 +70,10 @@ export function updateText(u: UpdateStatus): string {
   }
 }
 
-export function GeneralSection(props: SettingsProps & { status: Status | null; update: UpdateStatus }) {
-  const { settings, status, update, onError } = props;
+export function GeneralSection(
+  props: SettingsProps & { status: Status | null; update: UpdateStatus; onTour?: () => void },
+) {
+  const { settings, status, update, onError, onTour } = props;
   const save = useSave(props);
   const [login, setLogin] = useState<boolean | null>(null);
 
@@ -100,6 +102,13 @@ export function GeneralSection(props: SettingsProps & { status: Status | null; u
           checked={!!login}
           disabled={login === null}
           onChange={(v) => void setLoginItem(v)}
+        />
+        <Toggle
+          label="Show Pluck when my Mac starts or wakes"
+          hint="Opens this panel at login and the first time you open your Mac each day."
+          checked={settings?.show_on_start ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
         />
         <Toggle
           label="Remember where tasks came from"
@@ -135,6 +144,14 @@ export function GeneralSection(props: SettingsProps & { status: Status | null; u
             </button>
           )}
         </div>
+        {onTour && (
+          <div className="update-line">
+            <span>New to Pluck, or forgot something?</span>
+            <button type="button" className="ghost small" onClick={onTour}>
+              Take the tour again
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

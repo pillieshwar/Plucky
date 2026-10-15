@@ -22,6 +22,8 @@ interface Props {
   status: Status | null;
   update: UpdateStatus;
   onError: (message: string) => void;
+  /** Start the first-run tour again. */
+  onTour: () => void;
 }
 
 const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boolean }[] = [
@@ -45,7 +47,65 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
   },
 ];
 
-export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, status, update, onError }: Props) {
+export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, status, update, onError, onTour }: Props) {
+  return (
+    <div className="settings">
+      <section className="settings-section">
+        <h2 className="settings-h">Keyboard shortcuts</h2>
+        <p className="settings-intro">
+          These work in every app while Pluck is running. Click a shortcut, then press the keys you want.
+        </p>
+        <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} />
+      </section>
+
+      <GeneralSection
+        settings={settings}
+        onSettings={onSettings}
+        status={status}
+        update={update}
+        onError={onError}
+        onTour={onTour}
+      />
+
+      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
+
+      <RemindersSection />
+
+      <DataSection onError={onError} />
+
+      <section className="settings-section">
+        <h2 className="settings-h">Panel</h2>
+        <p className="settings-intro">Drag the panel by its header to put it anywhere. Pluck remembers the spot.</p>
+        <button type="button" className="ghost" onClick={() => void api.snapPanelToEdge()}>
+          Snap to right edge
+        </button>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-h">Troubleshooting</h2>
+        <p className="settings-intro">
+          Pluck keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
+          report.
+        </p>
+        <button type="button" className="ghost" onClick={() => void api.revealLogs().catch(() => undefined)}>
+          Show log file
+        </button>
+      </section>
+    </div>
+  );
+}
+
+/** The three global shortcuts, each with a click-to-record keycap. */
+export function ShortcutEditor({
+  shortcuts,
+  onShortcuts,
+  compact,
+}: {
+  shortcuts: ShortcutSettings | null;
+  onShortcuts: (s: ShortcutSettings) => void;
+  /** Leave out the hints and the reset button (first-run tour). */
+  compact?: boolean;
+}) {
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [errors, setErrors] = useState<Partial<Record<ShortcutAction, string>>>({});
   const [busy, setBusy] = useState(false);
@@ -75,12 +135,7 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
   }
 
   return (
-    <div className="settings">
-      <section className="settings-section">
-        <h2 className="settings-h">Keyboard shortcuts</h2>
-        <p className="settings-intro">
-          These work in every app while Pluck is running. Click a shortcut, then press the keys you want.
-        </p>
+    <>
         {ROWS.map((row) => {
           const current = shortcuts ? shortcuts[row.action] : null;
           const warning = current ? shortcutWarning(current) : null;
@@ -88,7 +143,7 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
             <div key={row.action} className="shortcut-row">
               <div className="shortcut-text">
                 <h3>{row.title}</h3>
-                <p>{row.hint}</p>
+                {!compact && <p>{row.hint}</p>}
               </div>
               <div className="shortcut-controls">
                 <Recorder
@@ -130,40 +185,14 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
             </div>
           );
         })}
+        {!compact && (
         <button type="button" className="ghost reset-btn" disabled={busy} onClick={() => void reset()}>
           Restore defaults ({["KeyS", "Space", "KeyH"]
             .map((code) => formatShortcut({ meta: isMac(), ctrl: !isMac(), alt: false, shift: true, code }))
             .join(" · ")})
         </button>
-      </section>
-
-      <GeneralSection settings={settings} onSettings={onSettings} status={status} update={update} onError={onError} />
-
-      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <RemindersSection />
-
-      <DataSection onError={onError} />
-
-      <section className="settings-section">
-        <h2 className="settings-h">Panel</h2>
-        <p className="settings-intro">Drag the panel by its header to put it anywhere. Pluck remembers the spot.</p>
-        <button type="button" className="ghost" onClick={() => void api.snapPanelToEdge()}>
-          Snap to right edge
-        </button>
-      </section>
-
-      <section className="settings-section">
-        <h2 className="settings-h">Troubleshooting</h2>
-        <p className="settings-intro">
-          Pluck keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
-          report.
-        </p>
-        <button type="button" className="ghost" onClick={() => void api.revealLogs().catch(() => undefined)}>
-          Show log file
-        </button>
-      </section>
-    </div>
+        )}
+    </>
   );
 }
 

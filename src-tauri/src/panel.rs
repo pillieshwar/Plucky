@@ -21,13 +21,12 @@ const WIDTH: f64 = 360.0;
 const COLLAPSED_HEIGHT: f64 = 52.0;
 /// Smallest logical height of the expanded panel.
 const MIN_HEIGHT: f64 = 320.0;
-/// Logical insets that keep the docked panel clear of the menu bar / taskbar.
-#[cfg(target_os = "macos")]
-const INSETS: (f64, f64) = (32.0, 8.0);
-#[cfg(windows)]
-const INSETS: (f64, f64) = (8.0, 56.0);
-#[cfg(not(any(target_os = "macos", windows)))]
-const INSETS: (f64, f64) = (8.0, 8.0);
+/// Tallest logical height of the docked panel; on big screens it floats as
+/// a card rather than running edge to edge.
+const MAX_HEIGHT: f64 = 760.0;
+/// Logical gaps kept between the docked panel and the usable screen area
+/// (the screen minus the menu bar and the Dock or taskbar).
+const GAP: (f64, f64) = (10.0, 14.0);
 /// Moves reported this soon after we positioned the window ourselves are
 /// ours, not the user's.
 const SELF_MOVE_GRACE: Duration = Duration::from_millis(400);
@@ -146,22 +145,37 @@ fn apply(
     Ok(())
 }
 
-/// Dock to the right edge of the monitor under the cursor.
+/// The part of a monitor windows can use: without the menu bar and the Dock
+/// (or the taskbar), as (x, y, width, height) in physical pixels.
+fn usable(m: &Monitor) -> (i32, i32, i32, i32) {
+    let area = m.work_area();
+    (
+        area.position.x,
+        area.position.y,
+        area.size.width as i32,
+        area.size.height as i32,
+    )
+}
+
+/// Dock to the right edge of the monitor under the cursor, clear of the
+/// menu bar and the Dock.
 fn dock(win: &WebviewWindow, inner: &mut Inner) -> tauri::Result<()> {
     let Some(m) = monitor_under_cursor(win)? else {
         return Ok(());
     };
     let scale = m.scale_factor();
-    let (top, bottom) = ((INSETS.0 * scale) as i32, (INSETS.1 * scale) as i32);
+    let (top, bottom) = ((GAP.0 * scale) as i32, (GAP.1 * scale) as i32);
     let width = (WIDTH * scale).round() as i32;
-    let margin = (8.0 * scale) as i32;
-    let (size, pos) = (m.size(), m.position());
-    let height = (size.height as i32 - top - bottom).max((MIN_HEIGHT * scale) as i32);
+    let margin = (10.0 * scale) as i32;
+    let (x, y, w, h) = usable(&m);
+    let height = (h - top - bottom)
+        .min((MAX_HEIGHT * scale) as i32)
+        .max((MIN_HEIGHT * scale) as i32);
     apply(
         win,
         inner,
-        pos.x + size.width as i32 - width - margin,
-        pos.y + top,
+        x + w - width - margin,
+        y + top,
         width as u32,
         height as u32,
     )
@@ -175,15 +189,14 @@ fn restore(win: &WebviewWindow, inner: &mut Inner, p: Placement) -> tauri::Resul
         return Ok(false);
     };
     let scale = m.scale_factor();
-    let (mpos, msize) = (m.position(), m.size());
+    let (ux, uy, uw, uh) = usable(&m);
     let width = (WIDTH * scale).round() as i32;
-    let top_inset = (INSETS.0 * scale) as i32;
+    let gap = (GAP.1 * scale) as i32;
     let min_h = (MIN_HEIGHT * scale) as i32;
-    let max_h = msize.height as i32 - top_inset;
+    let max_h = (uh - gap).min((MAX_HEIGHT * scale) as i32);
     let height = (p.height as i32).clamp(min_h.min(max_h), max_h);
-    let x = p.x.clamp(mpos.x, mpos.x + msize.width as i32 - width);
-    let y =
-        p.y.clamp(mpos.y + top_inset, mpos.y + msize.height as i32 - height);
+    let x = p.x.clamp(ux, ux + uw - width);
+    let y = p.y.clamp(uy, (uy + uh - gap - height).max(uy));
     apply(win, inner, x, y, width as u32, height as u32)?;
     Ok(true)
 }
