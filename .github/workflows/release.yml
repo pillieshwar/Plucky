@@ -112,6 +112,8 @@ jobs:
         env:
           SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' }}
         run: |
+          trap 'echo "::error::Verify failed at: $BASH_COMMAND"' ERR
+          echo "::notice::bundle/macos: $(ls target/universal-apple-darwin/release/bundle/macos 2>&1 | tr '\n' ' ')"
           app=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app)
           lipo -info "$app/Contents/MacOS/llama-server"
           echo "::notice::bundle $app contains: $(ls "$app/Contents/MacOS" | tr '\n' ' ')"
