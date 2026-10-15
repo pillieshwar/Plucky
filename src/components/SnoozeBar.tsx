@@ -20,8 +20,10 @@ export function SnoozeBar({
   compact?: boolean;
 }) {
   const now = new Date();
-  // "Tonight" only before 7 pm.
-  const options = OPTIONS.filter((o) => o.kind !== "tonight" || now.getHours() < 19).slice(0, compact ? 4 : 5);
+  // "Tonight" only before 7 pm; compact keeps the three most used.
+  const options = compact
+    ? OPTIONS.filter((o) => o.kind === "15m" || o.kind === "1h" || o.kind === "tomorrow")
+    : OPTIONS.filter((o) => o.kind !== "tonight" || now.getHours() < 19);
   return (
     <div className="snooze-bar" role="group" aria-label="Snooze">
       {onDone && (

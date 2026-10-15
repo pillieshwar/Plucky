@@ -436,7 +436,7 @@ export default function App() {
       )}
 
       {tab === "tasks" && !onboarding && !capture && (
-        <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} />
+        <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
       )}
 
       {tab === "tasks" && capture && (

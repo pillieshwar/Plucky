@@ -421,7 +421,7 @@ export default function Popover() {
               task={t}
               chip={dueChip(t, new Date(), LOCALE)}
               meta={rowMeta(t).join(" · ") || snippet(t.source_text)}
-              tone="due"
+              tone={dueChip(t, new Date(), LOCALE)?.tone === "overdue" ? "late" : "due"}
               onToggle={toggleDone}
               onOpen={openTask}
               onPointerDown={onRowPointerDown}
