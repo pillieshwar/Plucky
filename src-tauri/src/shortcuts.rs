@@ -1,6 +1,6 @@
 //! Configurable global shortcuts, saved in `shortcuts.json`.
 //!
-//! * Capture selected text — default ⌘⇧Z (Ctrl+Shift+Z on Windows).
+//! * Capture selected text — default ⇧⌘S (Ctrl+Shift+S on Windows).
 //! * Quick add (type a task) — default ⇧⌘Space (Ctrl+Shift+Space).
 //! * Show/hide the panel — optional, unset by default.
 //!
@@ -47,9 +47,11 @@ pub struct ShortcutSettings {
     pub defaults_version: u32,
 }
 
-/// 2 = "Show or hide Pluck" gained a default (0.3.1), so the panel can be
+/// 2 = "Show or hide Plucky" gained a default (0.3.1), so the panel can be
 /// opened while a full-screen app hides the menu bar.
-const DEFAULTS_VERSION: u32 = 2;
+/// 3 = new defaults in 0.4: capture ⇧⌘S (was ⇧⌘Z, which is Redo) and
+/// show/hide ⇧⌘H (was ⌥⇧⌘P). Only shortcuts still on the old default move.
+const DEFAULTS_VERSION: u32 = 3;
 
 impl Default for ShortcutSettings {
     fn default() -> Self {
@@ -62,14 +64,30 @@ impl Default for ShortcutSettings {
     }
 }
 
-/// ⌥⇧⌘P (Ctrl+Alt+Shift+P elsewhere) — P for Pluck.
+/// ⇧⌘H (Ctrl+Shift+H elsewhere).
 pub fn default_toggle_panel() -> ShortcutSpec {
+    primary_shift("KeyH")
+}
+
+fn primary_shift(code: &str) -> ShortcutSpec {
     ShortcutSpec {
         meta: cfg!(target_os = "macos"),
         ctrl: !cfg!(target_os = "macos"),
-        alt: true,
+        alt: false,
         shift: true,
-        code: "KeyP".into(),
+        code: code.into(),
+    }
+}
+
+/// The defaults before 0.4, recognised so they can be moved to the new ones.
+fn old_default_capture() -> ShortcutSpec {
+    primary_shift("KeyZ")
+}
+
+fn old_default_toggle_panel() -> ShortcutSpec {
+    ShortcutSpec {
+        alt: true,
+        ..primary_shift("KeyP")
     }
 }
 
@@ -101,14 +119,9 @@ impl ShortcutSettings {
     }
 }
 
+/// ⇧⌘S (Ctrl+Shift+S elsewhere) — S for selection.
 pub fn default_capture() -> ShortcutSpec {
-    ShortcutSpec {
-        meta: cfg!(target_os = "macos"),
-        ctrl: !cfg!(target_os = "macos"),
-        alt: false,
-        shift: true,
-        code: "KeyZ".into(),
-    }
+    primary_shift("KeyS")
 }
 
 impl ShortcutSpec {
@@ -160,7 +173,7 @@ impl ShortcutSpec {
     pub fn to_shortcut(&self) -> Result<Shortcut, String> {
         self.validate()?;
         let code = parse_code(&self.code)
-            .ok_or_else(|| format!("Pluck can't use the key “{}” in a shortcut.", self.code))?;
+            .ok_or_else(|| format!("Plucky can't use the key “{}” in a shortcut.", self.code))?;
         let mut mods = Modifiers::empty();
         if self.meta {
             mods |= Modifiers::SUPER;
@@ -215,7 +228,7 @@ impl ShortcutSpec {
     }
 }
 
-/// The keys Pluck accepts in shortcuts, by W3C code name.
+/// The keys Plucky accepts in shortcuts, by W3C code name.
 fn parse_code(code: &str) -> Option<Code> {
     Some(match code {
         "KeyA" => Code::KeyA,
@@ -328,7 +341,7 @@ fn check_distinct(s: &ShortcutSettings) -> Result<(), String> {
         a.to_shortcut()?;
         if all[..i].iter().any(|(_, b)| b == a) {
             return Err(format!(
-                "{} is already used by another Pluck shortcut.",
+                "{} is already used by another Plucky shortcut.",
                 a.label()
             ));
         }
@@ -354,10 +367,24 @@ impl Shortcuts {
         if settings.defaults_version < DEFAULTS_VERSION {
             // Offer the new panel shortcut once, unless the user already
             // set one (or it would clash with theirs).
-            if settings.toggle_panel.is_none() {
+            if settings.defaults_version < 2 && settings.toggle_panel.is_none() {
                 settings.toggle_panel = Some(default_toggle_panel());
                 if check_distinct(&settings).is_err() {
                     settings.toggle_panel = None;
+                }
+            }
+            if settings.defaults_version < 3 {
+                // Move shortcuts still on the old defaults; keep anything the
+                // user picked, and back off if the new key clashes with theirs.
+                let before = settings.clone();
+                if settings.capture == old_default_capture() {
+                    settings.capture = default_capture();
+                }
+                if settings.toggle_panel == Some(old_default_toggle_panel()) {
+                    settings.toggle_panel = Some(default_toggle_panel());
+                }
+                if check_distinct(&settings).is_err() {
+                    settings = before;
                 }
             }
             settings.defaults_version = DEFAULTS_VERSION;
@@ -505,9 +532,9 @@ mod tests {
     }
 
     #[test]
-    fn default_is_primary_shift_z() {
+    fn default_is_primary_shift_s() {
         let d = default_capture();
-        assert!(d.shift && d.code == "KeyZ");
+        assert!(d.shift && d.code == "KeyS");
         assert!(d.validate().is_ok());
         assert!(d.to_shortcut().is_ok());
     }
@@ -593,6 +620,45 @@ mod tests {
         // Older files also get the show/hide shortcut, once.
         assert_eq!(s.toggle_panel, Some(default_toggle_panel()));
         assert!(default_toggle_panel().validate().is_ok());
+    }
+
+    #[test]
+    fn old_defaults_move_to_the_new_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = ShortcutSettings {
+            capture: old_default_capture(),
+            quick_add: Some(default_quick_add()),
+            toggle_panel: Some(old_default_toggle_panel()),
+            defaults_version: 2,
+        };
+        std::fs::write(
+            dir.path().join("shortcuts.json"),
+            serde_json::to_vec(&old).unwrap(),
+        )
+        .unwrap();
+        let s = Shortcuts::new(dir.path()).get();
+        assert_eq!(s.capture, default_capture());
+        assert_eq!(s.toggle_panel, Some(default_toggle_panel()));
+        assert_eq!(s.defaults_version, DEFAULTS_VERSION);
+    }
+
+    #[test]
+    fn custom_shortcuts_survive_the_new_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let mine = ShortcutSettings {
+            capture: spec(false, true, true, false, "KeyT"),
+            quick_add: Some(default_quick_add()),
+            toggle_panel: Some(spec(false, true, true, false, "KeyY")),
+            defaults_version: 2,
+        };
+        std::fs::write(
+            dir.path().join("shortcuts.json"),
+            serde_json::to_vec(&mine).unwrap(),
+        )
+        .unwrap();
+        let s = Shortcuts::new(dir.path()).get();
+        assert_eq!(s.capture, mine.capture);
+        assert_eq!(s.toggle_panel, mine.toggle_panel);
     }
 
     #[test]

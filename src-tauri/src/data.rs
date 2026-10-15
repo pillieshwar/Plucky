@@ -1,6 +1,6 @@
 //! Backups and export.
 //!
-//! * Once a day Pluck writes a copy of the task database to
+//! * Once a day Plucky writes a copy of the task database to
 //!   `backups/tasks-YYYY-MM-DD.db` and keeps the newest seven.
 //! * Settings can restore one of those copies (the current database is
 //!   backed up first) or export every task as CSV or JSON to Downloads.
@@ -81,7 +81,7 @@ pub fn backup_path(data_dir: &Path, name: &str) -> Result<PathBuf, String> {
         && !name.contains(['/', '\\'])
         && !name.contains("..");
     if !ok {
-        return Err("That isn't a Pluck backup.".into());
+        return Err("That isn't a Plucky backup.".into());
     }
     let path = backup_dir(data_dir).join(name);
     if !path.is_file() {
@@ -220,9 +220,9 @@ mod tests {
     #[test]
     fn free_names_count_up() {
         let dir = tempfile::tempdir().unwrap();
-        let a = free_name(dir.path(), "Pluck tasks", "csv");
+        let a = free_name(dir.path(), "Plucky tasks", "csv");
         std::fs::write(&a, "").unwrap();
-        let b = free_name(dir.path(), "Pluck tasks", "csv");
-        assert!(b.ends_with("Pluck tasks 2.csv"));
+        let b = free_name(dir.path(), "Plucky tasks", "csv");
+        assert!(b.ends_with("Plucky tasks 2.csv"));
     }
 }

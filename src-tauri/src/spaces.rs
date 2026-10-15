@@ -1,4 +1,4 @@
-//! Keeping Pluck's windows reachable over full-screen apps (macOS).
+//! Keeping Plucky's windows reachable over full-screen apps (macOS).
 //!
 //! A full-screen app lives in its own Space, and by default other apps'
 //! windows can't appear there — so showing the panel, the menu-bar popover
@@ -10,13 +10,13 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 
 #[derive(Clone, Copy)]
 pub enum Kind {
-    /// The side panel: follows the user to whichever Space is active.
+    /// The side panel: on every Space while it's open, floating.
     Panel,
     /// Popover and quick add: on every Space, above full-screen windows.
     Overlay,
 }
 
-/// Apply the right Space behaviour to every Pluck window. Call during
+/// Apply the right Space behaviour to every Plucky window. Call during
 /// setup (main thread) and again before showing a window.
 pub fn configure_all(app: &AppHandle) {
     for (label, kind) in [
@@ -30,15 +30,37 @@ pub fn configure_all(app: &AppHandle) {
     }
 }
 
-/// Re-apply on the main thread (safe to call from any thread).
+/// Apply now when called on the main thread (tray clicks, shortcuts), else
+/// queue it there.
 pub fn configure(win: &WebviewWindow, kind: Kind) {
     #[cfg(target_os = "macos")]
     {
-        let w = win.clone();
-        let _ = win.run_on_main_thread(move || macos::apply(&w, kind));
+        if objc2::MainThreadMarker::new().is_some() {
+            macos::apply(win, kind);
+        } else {
+            let w = win.clone();
+            let _ = win.run_on_main_thread(move || macos::apply(&w, kind));
+        }
     }
     #[cfg(not(target_os = "macos"))]
     let _ = (win, kind);
+}
+
+/// Put a just-shown window in front even over a full-screen app, whether or
+/// not macOS finished activating Plucky.
+pub fn bring_to_front(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        let w = win.clone();
+        let run = move || macos::order_front(&w);
+        if objc2::MainThreadMarker::new().is_some() {
+            run();
+        } else {
+            let _ = win.run_on_main_thread(run);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = win;
 }
 
 #[cfg(target_os = "macos")]
@@ -54,19 +76,29 @@ mod macos {
     const FLOATING: isize = 3;
     const POP_UP_MENU: isize = 101;
 
+    /// SAFETY of the cast: Tauri hands out the window's live NSWindow, and
+    /// callers only run this on the main thread.
+    fn ns_window(win: &WebviewWindow) -> Option<&NSWindow> {
+        let ptr = win.ns_window().ok()?;
+        (!ptr.is_null()).then(|| unsafe { &*(ptr as *const NSWindow) })
+    }
+
+    pub fn order_front(win: &WebviewWindow) {
+        if let Some(ns) = ns_window(win) {
+            unsafe { ns.orderFrontRegardless() };
+        }
+    }
+
     pub fn apply(win: &WebviewWindow, kind: Kind) {
-        let Ok(ptr) = win.ns_window() else {
+        let Some(ns) = ns_window(win) else {
             return;
         };
-        if ptr.is_null() {
-            return;
-        }
-        // SAFETY: Tauri hands out the window's live NSWindow, and this runs
-        // on the main thread (see `configure`).
-        let ns: &NSWindow = unsafe { &*(ptr as *const NSWindow) };
+        // Every window joins all Spaces: if one sat on the desktop Space,
+        // activating Plucky from a full-screen app would make macOS jump
+        // back to the desktop instead of showing the popover.
         let (behavior, level) = match kind {
             Kind::Panel => (
-                NSWindowCollectionBehavior::MoveToActiveSpace
+                NSWindowCollectionBehavior::CanJoinAllSpaces
                     | NSWindowCollectionBehavior::FullScreenAuxiliary,
                 FLOATING,
             ),

@@ -33,7 +33,7 @@ html[data-view="popover"] body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 10px 6px 18px;
 }
-.pop-month { margin: 0; font: 700 22px/1 var(--serif); letter-spacing: -0.02em; }
+.pop-month { margin: 0; font: 650 22px/1 var(--sans); letter-spacing: -0.02em; }
 .pop-year { color: var(--faint); font-weight: 400; }
 .pop-actions { display: flex; align-items: center; gap: 2px; }
 .pop-icon {
@@ -141,7 +141,7 @@ html[data-view="popover"] body {
 
 .pop-empty { padding: 22px 8px 10px; text-align: center; color: var(--muted); font-size: 12px; }
 .pop-empty p { margin: 0 0 6px; }
-.pop-empty .big { font: 600 15px/1.3 var(--serif); color: var(--ink); }
+.pop-empty .big { font: 600 15px/1.3 var(--sans); color: var(--ink); }
 .pop-link {
   border: 0; padding: 0; background: transparent; color: var(--teal); font: inherit; font-weight: 600;
   cursor: pointer;

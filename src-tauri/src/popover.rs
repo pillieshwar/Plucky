@@ -1,5 +1,5 @@
 //! The menu-bar popover: a small calendar + agenda window that drops down
-//! from the Pluck icon when it's clicked, and hides when it loses focus.
+//! from the Plucky icon when it's clicked, and hides when it loses focus.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -14,6 +14,10 @@ const GAP: f64 = 6.0;
 const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
 static LAST_HIDDEN: Mutex<Option<Instant>> = Mutex::new(None);
+static LAST_SHOWN: Mutex<Option<Instant>> = Mutex::new(None);
+/// Over a full-screen app the menu bar slides away as the popover opens,
+/// which can briefly take focus from it; don't treat that as "clicked away".
+const BLUR_GRACE: Duration = Duration::from_millis(400);
 
 fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(LABEL)
@@ -41,9 +45,30 @@ pub fn toggle(app: &AppHandle, icon: Rect) {
     if let Err(e) = place(&win, icon) {
         log::warn!("could not position popover: {e}");
     }
+    if let Ok(mut t) = LAST_SHOWN.lock() {
+        *t = Some(Instant::now());
+    }
     let _ = win.show();
+    crate::spaces::bring_to_front(&win);
     let _ = win.set_focus();
     let _ = app.emit_to(LABEL, "popover-shown", ());
+}
+
+/// The popover lost focus: close it, unless it only just opened.
+pub fn on_blur(app: &AppHandle) {
+    let fresh = LAST_SHOWN
+        .lock()
+        .ok()
+        .and_then(|t| *t)
+        .is_some_and(|t| t.elapsed() < BLUR_GRACE);
+    if fresh {
+        // Take focus back so a real click elsewhere still closes it.
+        if let Some(win) = window(app) {
+            let _ = win.set_focus();
+        }
+        return;
+    }
+    hide(app);
 }
 
 pub fn hide(app: &AppHandle) {
