@@ -43,6 +43,7 @@ const task = (title, extra = {}) => ({
   snoozed_until: null,
   notified_at: null,
   next_id: null,
+  notes: null,
   ...extra,
 });
 

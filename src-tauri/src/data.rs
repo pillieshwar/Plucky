@@ -112,7 +112,7 @@ fn csv_field(s: &str) -> String {
 
 pub fn to_csv(tasks: &[Task]) -> String {
     let mut out = String::from(
-        "title,due_date,due_time,repeats,done,completed_at,created_at,source_app,source_url,source_text\n",
+        "title,due_date,due_time,repeats,done,completed_at,created_at,description,source_app,source_url,source_text\n",
     );
     for t in tasks {
         let row = [
@@ -123,6 +123,7 @@ pub fn to_csv(tasks: &[Task]) -> String {
             if t.done { "yes" } else { "no" },
             t.completed_at.as_deref().unwrap_or(""),
             t.created_at.as_str(),
+            t.notes.as_deref().unwrap_or(""),
             t.source_app.as_deref().unwrap_or(""),
             t.source_url.as_deref().unwrap_or(""),
             t.source_text.as_deref().unwrap_or(""),

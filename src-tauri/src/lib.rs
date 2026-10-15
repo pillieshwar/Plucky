@@ -123,6 +123,21 @@ pub(crate) fn apply_patch(app: &AppHandle, id: i64, patch: TaskPatch) -> CmdResu
     Ok(task)
 }
 
+/// Open a link from a task's description in the default browser or app.
+#[tauri::command]
+fn open_url(url: String) -> CmdResult<()> {
+    let lower = url.to_ascii_lowercase();
+    let ok = (lower.starts_with("https://")
+        || lower.starts_with("http://")
+        || lower.starts_with("mailto:"))
+        && !url.chars().any(char::is_whitespace)
+        && url.len() <= 2048;
+    if !ok {
+        return Err("Only web and email links can be opened.".into());
+    }
+    open_target(&OpenTarget::Url(url))
+}
+
 /// Open the page or app a task was captured from.
 #[tauri::command]
 fn open_source(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
@@ -229,6 +244,7 @@ fn restore_task(app: AppHandle, state: State<'_, AppState>, task: Task) -> CmdRe
                 source_app: task.source_app.clone(),
                 source_bundle: task.source_bundle.clone(),
                 source_url: task.source_url.clone(),
+                notes: task.notes.clone(),
                 created_tz: task.created_tz.clone(),
             })
             .map_err(err)?;
@@ -1017,6 +1033,7 @@ pub fn run() {
             reminders_set_include_notes,
             reminders_open_privacy_settings,
             open_source,
+            open_url,
             restore_task,
             get_settings,
             set_settings,
@@ -1069,6 +1086,7 @@ mod tests {
             snoozed_until: None,
             notified_at: None,
             next_id: None,
+            notes: None,
         }
     }
 

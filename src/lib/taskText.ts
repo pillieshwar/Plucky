@@ -37,8 +37,18 @@ export function matchesQuery(task: Task, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const tags = tagsOf(task.title);
-  const hay = [task.title, task.source_text ?? "", task.source_app ?? ""].join(" ").toLowerCase();
+  const hay = [task.title, task.notes ?? "", task.source_text ?? "", task.source_app ?? ""].join(" ").toLowerCase();
   return words.every((w) => (w.startsWith("#") && w.length > 1 ? tags.includes(w) : hay.includes(w)));
+}
+
+const LINK = /((?:https?:\/\/|mailto:)[^\s<>"']+[^\s<>"'.,;:!?)\]])/i;
+
+/** Split a description into text and link parts, for rendering. */
+export function linkParts(text: string): { text: string; url: string | null }[] {
+  return text
+    .split(LINK)
+    .filter((p) => p !== "")
+    .map((p) => ({ text: p, url: /^(https?:\/\/|mailto:)/i.test(p) ? p : null }));
 }
 
 /** "Slack", or the site name for a web link with no app ("github.com"). */

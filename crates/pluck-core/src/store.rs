@@ -56,6 +56,8 @@ pub struct Task {
     pub notified_at: Option<String>,
     /// For a completed repeating task: the occurrence it created.
     pub next_id: Option<i64>,
+    /// The user's own description: links, details, anything useful later.
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -69,6 +71,7 @@ pub struct NewTask {
     pub source_app: Option<String>,
     pub source_bundle: Option<String>,
     pub source_url: Option<String>,
+    pub notes: Option<String>,
     pub created_tz: Option<String>,
 }
 
@@ -82,6 +85,9 @@ pub struct TaskPatch {
     pub due_time: Option<Option<String>>,
     #[serde(default, with = "double_option")]
     pub recurrence: Option<Option<String>>,
+    /// `Some(None)` (or an empty string) clears the description.
+    #[serde(default, with = "double_option")]
+    pub notes: Option<Option<String>>,
     /// Local `YYYY-MM-DDTHH:MM:SS`; `Some(None)` cancels a snooze.
     #[serde(default, with = "double_option")]
     pub snoozed_until: Option<Option<String>>,
@@ -143,6 +149,9 @@ ALTER TABLE tasks ADD COLUMN source_url TEXT;
 ALTER TABLE tasks ADD COLUMN snoozed_until TEXT;
 ALTER TABLE tasks ADD COLUMN notified_at TEXT;
 ALTER TABLE tasks ADD COLUMN next_id INTEGER;
+"#,
+    r#"
+ALTER TABLE tasks ADD COLUMN notes TEXT;
 "#,
 ];
 
@@ -210,7 +219,14 @@ impl Store {
                 t.created_tz
             ],
         )?;
-        self.get(self.conn.last_insert_rowid())
+        let id = self.conn.last_insert_rowid();
+        if let Some(notes) = clean_notes(t.notes.as_deref()) {
+            self.conn.execute(
+                "UPDATE tasks SET notes = ?1 WHERE id = ?2",
+                params![notes, id],
+            )?;
+        }
+        self.get(id)
     }
 
     pub fn get(&self, id: i64) -> Result<Task, StoreError> {
@@ -301,6 +317,12 @@ impl Store {
                 params![time, id],
             )?;
             reschedule |= time != before.due_time;
+        }
+        if let Some(notes) = patch.notes {
+            tx.execute(
+                "UPDATE tasks SET notes = ?1 WHERE id = ?2",
+                params![clean_notes(notes.as_deref()), id],
+            )?;
         }
         if let Some(rule) = patch.recurrence {
             let rule = rule.as_deref().map(check_rule).transpose()?;
@@ -399,7 +421,7 @@ impl Store {
 }
 
 const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
-    due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id FROM tasks";
+    due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes FROM tasks";
 
 /// By day, all-day tasks before timed ones, then by time.
 const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
@@ -422,6 +444,7 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
         snoozed_until: r.get(13)?,
         notified_at: r.get(14)?,
         next_id: r.get(15)?,
+        notes: r.get(16)?,
     })
 }
 
@@ -462,6 +485,10 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     )?;
     let next_id = tx.last_insert_rowid();
     tx.execute(
+        "UPDATE tasks SET notes = ?1 WHERE id = ?2",
+        params![t.notes, next_id],
+    )?;
+    tx.execute(
         "UPDATE tasks SET next_id = ?1 WHERE id = ?2",
         params![next_id, id],
     )?;
@@ -476,6 +503,15 @@ fn unspawn_next(tx: &rusqlite::Transaction<'_>, before: &Task) -> Result<Option<
     let removed = tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [next])?;
     tx.execute("UPDATE tasks SET next_id = NULL WHERE id = ?1", [before.id])?;
     Ok((removed > 0).then_some(next))
+}
+
+/// Longest description kept, in characters.
+pub const MAX_NOTES_CHARS: usize = 2000;
+
+/// Trimmed, capped, and `None` when empty.
+fn clean_notes(s: Option<&str>) -> Option<String> {
+    let s = s?.trim();
+    (!s.is_empty()).then(|| s.chars().take(MAX_NOTES_CHARS).collect())
 }
 
 fn clean_opt(s: Option<String>) -> Option<String> {
@@ -827,6 +863,58 @@ mod tests {
             )
             .unwrap();
         assert_eq!((t.notified_at, t.snoozed_until), (None, None));
+    }
+
+    #[test]
+    fn descriptions_are_saved_cleared_and_carried_to_the_next_repeat() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Pay rent".into(),
+                notes: Some("  https://bank.example/pay  ".into()),
+                due_date: Some(
+                    chrono::Local::now()
+                        .date_naive()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                ),
+                recurrence: Some("monthly".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(t.notes.as_deref(), Some("https://bank.example/pay"));
+        let (_, fx) = s
+            .update_with_effects(
+                t.id,
+                TaskPatch {
+                    done: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let next = s.get(fx.spawned.unwrap()).unwrap();
+        assert_eq!(next.notes, t.notes);
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    notes: Some(Some("   ".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(t.notes, None);
+        let long = "x".repeat(MAX_NOTES_CHARS + 10);
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    notes: Some(Some(long)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(t.notes.unwrap().chars().count(), MAX_NOTES_CHARS);
     }
 
     #[test]

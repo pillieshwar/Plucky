@@ -27,6 +27,8 @@ const LOCALE = safeLocale();
 /** The task being reviewed before it's saved. */
 interface Draft {
   title: string;
+  /** Optional description the user adds. */
+  notes: string;
   date: string | null;
   time: string | null;
   repeat: string | null;
@@ -40,6 +42,7 @@ function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, 
   if (state.phase === "manual") {
     return {
       title: firstLine(state.selection),
+      notes: "",
       date: null,
       time: null,
       repeat: null,
@@ -52,6 +55,7 @@ function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, 
   const r = resolveCaptured(x.date_text, x.date_confidence, now, dayOrderForLocale(LOCALE));
   return {
     title: x.task,
+    notes: "",
     date: r.date,
     time: r.time,
     repeat: r.repeat,
@@ -120,6 +124,7 @@ function Review({
         due_date: draft.date,
         due_time: draft.date ? draft.time : null,
         recurrence: draft.repeat,
+        notes: draft.notes.trim() || null,
         source_text: state.selection,
         source_app: state.source?.app ?? null,
         source_bundle: state.source?.bundle ?? null,
@@ -232,6 +237,7 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
         onChange={(e) => onChange({ title: e.target.value })}
         aria-label="Task title"
       />
+      <DescriptionField value={draft.notes} onChange={(notes) => onChange({ notes })} />
       <p className={draft.mustAsk ? "capture-question ask" : "capture-question"}>{question}</p>
       <div className="chips" role="radiogroup" aria-label="Due date">
         {choices.map((d) => (
@@ -299,6 +305,29 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
         />
       )}
     </>
+  );
+}
+
+/** Hidden behind a quiet link until wanted, so the card stays short. */
+function DescriptionField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(!!value);
+  if (!open) {
+    return (
+      <button type="button" className="add-desc" onClick={() => setOpen(true)}>
+        + Add description
+      </button>
+    );
+  }
+  return (
+    <input
+      className="capture-desc"
+      autoFocus
+      value={value}
+      maxLength={2000}
+      placeholder="Links, details, anything useful later…"
+      aria-label="Description"
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 
