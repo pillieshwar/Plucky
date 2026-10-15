@@ -125,6 +125,17 @@ html[data-view="panel"] body {
   padding: 3px 10px; font-size: 12px; cursor: pointer;
 }
 
+/* New version */
+.update-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  margin: 10px 12px 0; padding: 10px 12px; border-radius: 10px;
+  background: var(--teal-soft); color: var(--ink); font-size: 12px; line-height: 1.4;
+}
+.update-banner p { flex: 1; min-width: 160px; margin: 0; }
+.update-banner-icon { flex: none; color: var(--teal); }
+.update-banner-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.update-banner .primary.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+
 /* Capture card */
 .capture {
   margin: 12px; padding: 14px; background: var(--panel); border: 1px solid var(--line);

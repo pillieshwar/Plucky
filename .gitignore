@@ -10,3 +10,4 @@ src-tauri/gen/
 !.vscode/extensions.json
 .env
 src-tauri/binaries/
+.llama-build/

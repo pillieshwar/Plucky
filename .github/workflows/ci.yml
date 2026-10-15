@@ -67,11 +67,14 @@ jobs:
       - name: Cache llama-server build
         uses: actions/cache@v4
         with:
-          path: target/llama.cpp
+          path: .llama-build
           key: llama-${{ runner.os }}-${{ runner.arch }}-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
       - name: Build bundled model runtime (llama-server)
         shell: bash
-        run: scripts/build-llama-server.sh
+        run: |
+          # Older runs built this inside target/; drop it from the restored Rust cache.
+          rm -rf target/llama.cpp
+          scripts/build-llama-server.sh
       - run: npm install
       - run: npm run build
       - name: Clippy

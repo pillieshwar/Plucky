@@ -335,6 +335,9 @@ await shot(
     await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
   },
 );
+await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));
+await shot("panel-update-ready", PANEL, scenario({ update: { state: "ready", version: "0.4.5", notes: null } }));
+await shot("panel-update-ready-dark", PANEL, scenario({ update: { state: "ready", version: "0.4.5", notes: null } }), async () => {}, true);
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
 await shot("panel-whats-new", PANEL, scenario({ settings: { ...SETTINGS, seen_version: "0.1.6" } }));
 await shot("popover", POP, scenario({ label: "popover" }));

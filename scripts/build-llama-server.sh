@@ -12,7 +12,9 @@ set -euo pipefail
 
 LLAMA_CPP_REF="${LLAMA_CPP_REF:-b11609}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WORK="${LLAMA_WORK_DIR:-$ROOT/target/llama.cpp}"
+# Kept out of target/ so the Rust build cache neither scans nor stores it;
+# CI caches this folder on its own.
+WORK="${LLAMA_WORK_DIR:-$ROOT/.llama-build}"
 SRC="$WORK/src-$LLAMA_CPP_REF"
 OUT="$ROOT/src-tauri/binaries"
 TRIPLE="${1:-$(rustc -vV | sed -n 's/^host: //p')}"
