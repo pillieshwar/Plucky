@@ -385,6 +385,7 @@ fn set_settings(settings: State<'_, Settings>, value: AppSettings) -> AppSetting
         v.onboarding_done = value.onboarding_done;
         v.seen_version = value.seen_version;
         v.show_on_start = value.show_on_start;
+        v.capture_in_menu_bar = value.capture_in_menu_bar;
     })
 }
 
@@ -660,6 +661,12 @@ fn hide_popover(app: AppHandle) {
     popover::hide(&app);
 }
 
+/// The popover is (or stops) reviewing a capture; keep it open meanwhile.
+#[tauri::command]
+fn set_popover_pinned(pinned: bool) {
+    popover::set_pinned(pinned);
+}
+
 #[tauri::command]
 fn set_panel_collapsed(app: AppHandle, collapsed: bool) -> CmdResult<()> {
     panel::set_collapsed(&app, collapsed).map_err(err)
@@ -742,10 +749,18 @@ fn on_capture(app: AppHandle) {
     });
 }
 
+/// Show the capture for review: under the menu-bar icon by default, or in
+/// the side panel (the user's choice, or when the icon isn't on screen).
 fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     quick::hide(app);
-    panel::show(app);
-    if let Err(e) = app.emit_to("panel", "capture", result) {
+    let in_menu_bar = app.state::<Settings>().get().capture_in_menu_bar;
+    let target = if in_menu_bar && popover::show_for_capture(app) {
+        popover::LABEL
+    } else {
+        panel::show(app);
+        "panel"
+    };
+    if let Err(e) = app.emit_to(target, "capture", result) {
         log::error!("failed to deliver capture: {e}");
     }
 }
@@ -1097,6 +1112,7 @@ pub fn run() {
             reveal_logs,
             open_main,
             hide_popover,
+            set_popover_pinned,
             reminders_status,
             reminders_request_access,
             reminders_lists,

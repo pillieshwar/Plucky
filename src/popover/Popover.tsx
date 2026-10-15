@@ -10,14 +10,16 @@ import {
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCapture, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { processCapture } from "../lib/capture";
+import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
 import { addDays, dayOrderForLocale, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
-import type { Task, UpdateStatus } from "../lib/types";
+import type { NewTask, Task, UpdateStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
@@ -63,6 +65,10 @@ export default function Popover() {
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { toasts, show, dismiss, undoLast } = useToasts();
+  // A selection captured with the shortcut (or Add to Plucky), reviewed
+  // right here under the menu-bar icon.
+  const [capture, setCapture] = useState<CaptureState | null>(null);
+  const captureSeq = useRef(0);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
@@ -107,9 +113,40 @@ export default function Popover() {
       onPopoverShown(reset),
       onShortcutsChanged((s) => setShortcut(formatShortcut(s.capture))),
       onUpdateStatus(setUpdate),
+      onCapture((r) => {
+        const seq = ++captureSeq.current;
+        void api
+          .status()
+          .catch(() => null)
+          .then((st) => processCapture(r, st, setCapture, () => seq === captureSeq.current));
+      }),
     ];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [load, reset]);
+
+  // Keep the popover open while a capture is being reviewed.
+  useEffect(() => {
+    void api.setPopoverPinned(capture !== null).catch(() => undefined);
+  }, [capture]);
+
+  function endCapture() {
+    captureSeq.current++;
+    setCapture(null);
+    void api.hidePopover();
+  }
+
+  async function saveCapture(task: NewTask) {
+    try {
+      await api.addTask(task);
+      captureSeq.current++;
+      setCapture(null);
+      show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : "Task added");
+      // Let the confirmation show for a moment, then get out of the way.
+      window.setTimeout(() => void api.hidePopover(), 1100);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   useEffect(() => {
     if (adding) inputRef.current?.focus();
@@ -244,6 +281,13 @@ export default function Popover() {
   function onKey(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
     const typing = target.tagName === "INPUT";
+    if (capture) {
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        e.preventDefault();
+        endCapture();
+      }
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       if (adding) setAdding(false);
@@ -269,6 +313,32 @@ export default function Popover() {
   }
 
   const empty = agenda.overdue.length === 0 && agenda.due.length === 0;
+
+  if (capture) {
+    return (
+      <div ref={rootRef} className="pop pop-capture" key={openKey} onKeyDown={onKey} tabIndex={-1}>
+        <header className="pop-capture-head">
+          <span className="pop-capture-title">Add to Plucky</span>
+          <IconButton label="Discard (Esc)" onClick={endCapture}>
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </IconButton>
+        </header>
+        <div className="pop-capture-body">
+          <CaptureCard
+            state={capture}
+            now={new Date()}
+            onSave={saveCapture}
+            onCancel={endCapture}
+            onGrantAccess={() => {
+              void api.requestAccessibility();
+              endCapture();
+            }}
+          />
+        </div>
+        <Toasts toasts={toasts} onDismiss={dismiss} />
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>

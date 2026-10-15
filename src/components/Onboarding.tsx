@@ -283,7 +283,7 @@ export function Onboarding({
                 <li>
                   Press <kbd>{capture}</kbd>, or right-click it and choose <b>Add to Plucky</b>.
                 </li>
-                <li>Check the task here and press Return.</li>
+                <li>A card drops down from the Plucky icon in the menu bar — check it and press Return.</li>
               </ol>
               {!status?.accessibility && (
                 <p className="onboard-warn">

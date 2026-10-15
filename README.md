@@ -39,7 +39,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 
 | | |
 | --- | --- |
-| **Capture from anywhere** | Select text in any app and press <kbd>⇧⌘S</kbd>, or right-click → **Add to Plucky**. The panel slides in with a suggested title, date and time. |
+| **Capture from anywhere** | Select text in any app and press <kbd>⇧⌘S</kbd>, or right-click → **Add to Plucky**. A card drops down from the Plucky icon in the menu bar with a suggested title, date and time. |
 | **Quick add** | Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm #home` — Plucky shows how it reads the date as you type. |
 | **Reminders that respect you** | Notifications with **Done**, **Snooze** and **Tomorrow** buttons, or one morning summary instead. A **Due now** card keeps fired reminders one click away. |
 | **See what matters** | Due-time chips are red when overdue, amber when due soon, muted when done. **Today focus** (<kbd>F</kbd>) hides everything but today. |

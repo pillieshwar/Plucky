@@ -1,6 +1,7 @@
 //! The menu-bar popover: a small calendar + agenda window that drops down
 //! from the Plucky icon when it's clicked, and hides when it loses focus.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -15,6 +16,9 @@ const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
 static LAST_HIDDEN: Mutex<Option<Instant>> = Mutex::new(None);
 static LAST_SHOWN: Mutex<Option<Instant>> = Mutex::new(None);
+/// A capture is being reviewed in the popover: clicking elsewhere (say, back
+/// into the page to re-read it) must not throw it away.
+static PINNED: AtomicBool = AtomicBool::new(false);
 /// Over a full-screen app the menu bar slides away as the popover opens,
 /// which can briefly take focus from it; don't treat that as "clicked away".
 const BLUR_GRACE: Duration = Duration::from_millis(400);
@@ -41,19 +45,49 @@ pub fn toggle(app: &AppHandle, icon: Rect) {
     if recently_hidden() {
         return;
     }
-    crate::spaces::configure(&win, crate::spaces::Kind::Overlay);
-    if let Err(e) = place(&win, icon) {
+    open(app, &win, icon);
+}
+
+fn open(app: &AppHandle, win: &WebviewWindow, icon: Rect) {
+    crate::spaces::configure(win, crate::spaces::Kind::Overlay);
+    if let Err(e) = place(win, icon) {
         log::warn!("could not position popover: {e}");
     }
     if let Ok(mut t) = LAST_SHOWN.lock() {
         *t = Some(Instant::now());
     }
-    crate::spaces::present(&win);
+    crate::spaces::present(win);
     let _ = app.emit_to(LABEL, "popover-shown", ());
+}
+
+/// Open the popover under the menu-bar icon to review a capture. Returns
+/// false when the icon isn't on screen (so the caller can use the panel).
+pub fn show_for_capture(app: &AppHandle) -> bool {
+    let Some(win) = window(app) else {
+        return false;
+    };
+    let Some(icon) = crate::tray::icon_rect(app) else {
+        return false;
+    };
+    PINNED.store(true, Ordering::SeqCst);
+    if win.is_visible().unwrap_or(false) {
+        crate::spaces::present(&win);
+    } else {
+        open(app, &win, icon);
+    }
+    true
+}
+
+/// The popover's capture review started or ended.
+pub fn set_pinned(pinned: bool) {
+    PINNED.store(pinned, Ordering::SeqCst);
 }
 
 /// The popover lost focus: close it, unless it only just opened.
 pub fn on_blur(app: &AppHandle) {
+    if PINNED.load(Ordering::SeqCst) {
+        return;
+    }
     let fresh = LAST_SHOWN
         .lock()
         .ok()

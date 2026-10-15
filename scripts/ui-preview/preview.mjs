@@ -86,6 +86,7 @@ const SETTINGS = {
   show_on_start: true,
   last_greeted: null,
   menubar_placed: true,
+  capture_in_menu_bar: true,
 };
 
 const SHORTCUTS = {
@@ -338,6 +339,40 @@ await shot(
 await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));
 await shot("panel-update-ready", PANEL, scenario({ update: { state: "ready", version: "0.4.5", notes: null } }));
 await shot("panel-update-ready-dark", PANEL, scenario({ update: { state: "ready", version: "0.4.5", notes: null } }), async () => {}, true);
+const CAPTURED = {
+  kind: "text",
+  method: "accessibility",
+  text: "Hey — can you send the Q3 numbers to Priya by Friday 3pm? Thanks!",
+  source: { app: "Slack", bundle: "com.tinyspeck.slackmacgap", url: null },
+};
+await shot(
+  "popover-capture",
+  POP,
+  scenario({
+    label: "popover",
+    extract: { task: "Send Q3 numbers to Priya", date_text: "by Friday 3pm", date_confidence: "high" },
+  }),
+  async (p) => {
+    await p.evaluate((c) => window.__emit("capture", c), CAPTURED);
+    await p.waitForTimeout(300);
+  },
+);
+await shot("popover-capture-reading", POP, scenario({ label: "popover", extract: "pending" }), async (p) => {
+  await p.evaluate((c) => window.__emit("capture", c), CAPTURED);
+});
+await shot(
+  "popover-capture-dark",
+  POP,
+  scenario({
+    label: "popover",
+    extract: { task: "Send Q3 numbers to Priya", date_text: "by Friday 3pm", date_confidence: "high" },
+  }),
+  async (p) => {
+    await p.evaluate((c) => window.__emit("capture", c), CAPTURED);
+    await p.waitForTimeout(300);
+  },
+  true,
+);
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
 await shot("panel-whats-new", PANEL, scenario({ settings: { ...SETTINGS, seen_version: "0.1.6" } }));
 await shot("popover", POP, scenario({ label: "popover" }));

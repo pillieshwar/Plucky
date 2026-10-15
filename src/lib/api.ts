@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
   AppSettings,
@@ -50,6 +51,7 @@ export const api = {
   revealLogs: () => invoke<string>("reveal_logs"),
   openMain: (taskId: number | null, tab: string | null) => invoke<void>("open_main", { taskId, tab }),
   hidePopover: () => invoke<void>("hide_popover"),
+  setPopoverPinned: (pinned: boolean) => invoke<void>("set_popover_pinned", { pinned }),
   remindersStatus: () => invoke<RemindersStatus>("reminders_status"),
   remindersRequestAccess: () => invoke<RemindersAccess>("reminders_request_access"),
   remindersLists: () => invoke<RemindersList[]>("reminders_lists"),
@@ -90,8 +92,9 @@ export function onQuickShown(handler: () => void): Promise<UnlistenFn> {
   return listen("quick-shown", () => handler());
 }
 
+/** A capture sent to this window (the side panel or the menu-bar dropdown). */
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
-  return listen<CaptureResult>("capture", (e) => handler(e.payload));
+  return getCurrentWebviewWindow().listen<CaptureResult>("capture", (e) => handler(e.payload));
 }
 
 export function onTasksChanged(handler: () => void): Promise<UnlistenFn> {

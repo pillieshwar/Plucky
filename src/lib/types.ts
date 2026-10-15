@@ -100,6 +100,7 @@ export interface AppSettings {
   show_on_start: boolean;
   last_greeted: string | null;
   menubar_placed: boolean;
+  capture_in_menu_bar: boolean;
 }
 
 export type NotificationPermission = "not_determined" | "denied" | "granted" | "unsupported";

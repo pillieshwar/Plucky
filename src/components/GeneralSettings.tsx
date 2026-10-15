@@ -111,6 +111,13 @@ export function GeneralSection(
           onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
         />
         <Toggle
+          label="Review captures under the menu-bar icon"
+          hint="A card drops down from the Plucky icon. Off: captures open in this panel."
+          checked={settings?.capture_in_menu_bar ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, capture_in_menu_bar: v }))}
+        />
+        <Toggle
           label="Remember where tasks came from"
           hint="Saves the app and page link with each capture, on this Mac only."
           checked={settings?.remember_source ?? true}
