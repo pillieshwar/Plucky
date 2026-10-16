@@ -113,6 +113,10 @@ jobs:
           ls -l "$app/Contents/MacOS"
           test -x "$app/Contents/MacOS/llama-server"
           "$app/Contents/MacOS/llama-server" --version
+          # plucky:// must be registered, or Slack sign-in can't come back.
+          scheme=$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$app/Contents/Info.plist")
+          echo "::notice::URL scheme: $scheme"
+          test "$scheme" = "plucky"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pluck-${{ matrix.os }}
