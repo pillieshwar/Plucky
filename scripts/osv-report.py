@@ -28,7 +28,14 @@ def main(path: str) -> int:
             for vuln in pkg.get("vulnerabilities", []):
                 vid = vuln.get("id", "?")
                 summary = (vuln.get("summary") or vuln.get("details") or "").splitlines()[0][:200]
-                informational = (vuln.get("database_specific") or {}).get("informational")
+                informational = (vuln.get("database_specific") or {}).get("informational") or next(
+                    (
+                        (a.get("database_specific") or {}).get("informational")
+                        for a in vuln.get("affected", [])
+                        if (a.get("database_specific") or {}).get("informational")
+                    ),
+                    None,
+                )
                 where = f"{name} {version} ({lockfile})"
                 if informational:
                     warnings += 1

@@ -71,9 +71,10 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 22
+          node-version: 24
+          package-manager-cache: false # no caches in releases
 
       - name: Cargo.lock is up to date
         run: cargo metadata --locked --format-version 1 > /dev/null

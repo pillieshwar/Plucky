@@ -1,7 +1,28 @@
 # OSV-Scanner settings, used by .github/workflows/security.yml.
-# To accept a finding, add it with a reason and a review date, e.g.:
+# Every accepted finding needs a reason and a date to look at it again.
 #
-# [[IgnoredVulns]]
-# id = "GHSA-xxxx-xxxx-xxxx"
-# ignoreUntil = 2027-01-01
-# reason = "Only affects the dev server, which Plucky never ships."
+# OSV-Scanner reads the whole Cargo.lock, including crates that only Linux
+# builds use. Plucky ships for macOS and Windows only, and cargo-deny (which
+# knows the targets, see deny.toml) checks what actually gets compiled. The
+# entries below come from Tauri's Linux support (GTK, xkbcommon) and are
+# never built into Plucky.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2027-04-15
+reason = "glib 0.18 (GTK): Linux-only via tauri/tao/muda; not compiled for macOS or Windows."
+
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+ignoreUntil = 2027-04-15
+reason = "Same glib 0.18 advisory as RUSTSEC-2024-0429; Linux-only."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-04-15
+reason = "proc-macro-error is unmaintained; only used by glib/gtk3 macros (Linux-only)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0186"
+ignoreUntil = 2027-04-15
+reason = "memmap2 0.8 via xkbcommon (Linux keyboard handling in tao); not compiled for macOS or Windows."
