@@ -237,7 +237,7 @@ fn free_port() -> std::io::Result<u16> {
 
 fn random_key() -> Result<String, String> {
     let mut buf = [0u8; 24];
-    getrandom::getrandom(&mut buf).map_err(|e| e.to_string())?;
+    getrandom::fill(&mut buf).map_err(|e| e.to_string())?;
     Ok(buf.iter().map(|b| format!("{b:02x}")).collect())
 }
 
