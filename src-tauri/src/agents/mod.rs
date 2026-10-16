@@ -11,6 +11,9 @@
 //! learn anything about the user's tasks by probing. Nothing leaves the Mac,
 //! and agents in the cloud can't reach it.
 
+// The socket listener is Unix-only; elsewhere most of this is unused.
+#![cfg_attr(not(unix), allow(dead_code))]
+
 pub mod mcp;
 
 use std::collections::VecDeque;

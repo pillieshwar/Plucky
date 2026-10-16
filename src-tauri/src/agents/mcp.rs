@@ -7,6 +7,9 @@
 //!
 //! Nothing but protocol messages may go to stdout.
 
+// The socket hand-off is Unix-only; elsewhere most of this is unused.
+#![cfg_attr(not(unix), allow(dead_code))]
+
 use std::io::{BufRead, Write};
 
 use serde_json::{json, Value};
@@ -101,11 +104,8 @@ impl<D: Deliver> Server<D> {
             return Some(error(&Value::Null, -32600, "Invalid Request"));
         };
         let method = obj.get("method").and_then(Value::as_str);
-        let id = match obj.get("id") {
-            Some(id) => id.clone(),
-            // A notification (e.g. notifications/initialized): no reply.
-            None => return None,
-        };
+        // No id: a notification (e.g. notifications/initialized), no reply.
+        let id = obj.get("id")?.clone();
         let params = obj.get("params").cloned().unwrap_or(Value::Null);
         Some(match method {
             Some("initialize") => {
