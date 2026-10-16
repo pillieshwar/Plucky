@@ -101,7 +101,20 @@ export interface AppSettings {
   last_greeted: string | null;
   menubar_placed: boolean;
   capture_in_menu_bar: boolean;
+  theme: Theme;
+  /** Once a day, open the menu-bar dropdown on tasks that have no date. */
+  undated_nudge: boolean;
+  /** When, `HH:MM` local time. */
+  undated_time: string;
+  last_undated_nudge: string | null;
+  /** When a task's time comes, also open the dropdown on it. */
+  due_spotlight: boolean;
 }
+
+export type Theme = "system" | "light" | "dark";
+
+/** Mirrors `popover::Focus`: why the popover opened by itself. */
+export type PopoverFocus = { kind: "due"; ids: number[] } | { kind: "undated" };
 
 export type NotificationPermission = "not_determined" | "denied" | "granted" | "unsupported";
 

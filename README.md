@@ -44,6 +44,8 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 | **Capture from anywhere** | Select text in any app and press <kbd>⇧⌘S</kbd>, or right-click → **Add to Plucky**. A card drops down from the Plucky icon in the menu bar with a suggested title, date and time. |
 | **Quick add** | Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm #home` — Plucky shows how it reads the date as you type. |
 | **Reminders that respect you** | Notifications with **Done**, **Snooze** and **Tomorrow** buttons, or one morning summary instead. A **Due now** card keeps fired reminders one click away. |
+| **Check-ins in the menu bar** | When a task's time comes, the menu-bar dropdown opens on just that task — everything else blurred — with **Done** and **Snooze**. Once a day (4:00 PM by default) it asks you to plan tasks that have no date, one tap each. Neither takes your keyboard. |
+| **Light, dark or system** | Pick the look in **Preferences → Appearance**. |
 | **See what matters** | Due-time chips are red when overdue, amber when due soon, muted when done. **Today focus** (<kbd>F</kbd>) hides everything but today. |
 | **Menu-bar calendar** | Click the icon for a month view and today's agenda. Drag a task onto another day to move it. |
 | **Back to the source** | Each task remembers where it came from — the Slack thread, web page or file — and opens it in one click. |
@@ -74,7 +76,7 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 ## Keyboard shortcuts
 
-**Anywhere on your Mac** — change them in **Settings → Keyboard shortcuts**:
+**Anywhere on your Mac** — change them in **Preferences → Keyboard shortcuts**:
 
 | Shortcut | Action |
 | --- | --- |
@@ -97,7 +99,7 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
-- **Plucky uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Settings → General**), and — only if you connect it — talking to Slack directly from your Mac. The Slack sign-in is stored in your macOS Keychain; there is no Plucky server.
+- **Plucky uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**), and — only if you connect it — talking to Slack directly from your Mac. The Slack sign-in is stored in your macOS Keychain; there is no Plucky server.
 - **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
 - **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. Plucky warns you and asks first; pick an "On My Mac" list to stay fully local.
 
@@ -154,13 +156,13 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | Problem | Fix |
 | --- | --- |
 | "Apple could not verify Plucky…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
-| <kbd>⇧⌘S</kbd> does nothing | Check that the Plucky icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Settings → Keyboard shortcuts**. |
+| <kbd>⇧⌘S</kbd> does nothing | Check that the Plucky icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Preferences → Keyboard shortcuts**. |
 | "No selected text found" | Select the text again. Password fields and some secure apps can't be read, by design. |
 | **Add to Plucky** isn't in the right-click menu | Open Plucky from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
-| No reminders appear | **Settings → Notifications** shows whether they're allowed and can send a test notification. |
+| No reminders appear | **Preferences → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Plucky with **–**, then capture again and re-allow it. |
 | The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Plucky starts next to the battery, but never moves the icon again after that. |
-| Something else | **Settings → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
+| Something else | **Preferences → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
 
 ## Uninstall
 
@@ -174,7 +176,7 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 
 Bug reports, ideas and pull requests are welcome.
 
-1. Open an [issue](https://github.com/pillieshwar/Plucky/issues) describing the bug or idea — for bugs, attach the log from **Settings → Show log file**.
+1. Open an [issue](https://github.com/pillieshwar/Plucky/issues) describing the bug or idea — for bugs, attach the log from **Preferences → Show log file**.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows and runs the security checks. Commit `Cargo.lock` and `package-lock.json` changes along with the dependency change that caused them.
 

@@ -36,7 +36,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "tasks", label: "Tasks" },
   { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
-  { id: "settings", label: "Settings" },
+  { id: "settings", label: "Preferences" },
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 

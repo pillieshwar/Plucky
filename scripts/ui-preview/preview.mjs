@@ -87,6 +87,11 @@ const SETTINGS = {
   last_greeted: null,
   menubar_placed: true,
   capture_in_menu_bar: true,
+  theme: "system",
+  undated_nudge: true,
+  undated_time: "16:00",
+  last_undated_nudge: null,
+  due_spotlight: true,
 };
 
 const SHORTCUTS = {
@@ -274,12 +279,19 @@ await shot("panel-extracting", PANEL, scenario({ extract: "pending" }), async (p
     }),
   );
 });
+await shot("panel-preferences", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Preferences" }).click();
+});
+// Dark chosen in Preferences while macOS is light.
+await shot("panel-preferences-dark", PANEL, scenario({ settings: { ...SETTINGS, theme: "dark" } }), async (p) => {
+  await p.getByRole("tab", { name: "Preferences" }).click();
+});
 await shot("panel-settings", PANEL, scenario({ update: { state: "ready", version: "0.2.1", notes: null } }), async (p) => {
-  await p.getByRole("tab", { name: "Settings" }).click();
+  await p.getByRole("tab", { name: "Preferences" }).click();
   await p.locator(".settings-h", { hasText: "General" }).scrollIntoViewIfNeeded();
 });
 await shot("panel-settings-data", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Settings" }).click();
+  await p.getByRole("tab", { name: "Preferences" }).click();
   await p.locator(".settings-h", { hasText: "Your data" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -430,6 +442,32 @@ await shot("popover-add", POP, scenario({ label: "popover" }), async (p) => {
   await p.keyboard.press("n");
   await p.keyboard.type("dentist fri 3pm");
 });
+const focus = (f) => async (p) => {
+  await p.waitForTimeout(200);
+  await p.evaluate((x) => window.__emit("popover-focus", x), f);
+  await p.waitForTimeout(400);
+};
+await shot("popover-focus-due", POP, scenario({ label: "popover" }), focus({ kind: "due", ids: [TASKS[0].id] }));
+await shot(
+  "popover-focus-due-dark",
+  POP,
+  scenario({ label: "popover" }),
+  focus({ kind: "due", ids: [TASKS[0].id, TASKS[2].id] }),
+  true,
+);
+const UNDATED = [
+  ...TASKS,
+  task("Look into the flaky login test #work", { source_app: "Slack" }),
+  task("Get a quote for the bike service"),
+  task("Draft the offsite agenda #work"),
+];
+await shot("popover-focus-undated", POP, scenario({ label: "popover", tasks: UNDATED }), focus({ kind: "undated" }));
+await shot(
+  "popover-focus-undated-dark",
+  POP,
+  scenario({ label: "popover", tasks: UNDATED, settings: { ...SETTINGS, theme: "dark" } }),
+  focus({ kind: "undated" }),
+);
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));
 await shot("quick-typed", QUICK, scenario({ label: "quick" }), async (p) => {
   await p.keyboard.type("pay rent friday 5pm every month #home");

@@ -78,6 +78,41 @@ pub fn show_for_capture(app: &AppHandle) -> bool {
     true
 }
 
+/// Why the popover opened by itself.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Focus {
+    /// Tasks whose time just came.
+    Due { ids: Vec<i64> },
+    /// The daily "tasks without a date" check-in.
+    Undated,
+}
+
+/// Open the popover under the menu-bar icon on its own, focused on `focus`,
+/// without taking the keyboard from the app in front. False when the icon
+/// isn't on screen.
+pub fn show_focus(app: &AppHandle, focus: Focus) -> bool {
+    let Some(win) = window(app) else {
+        return false;
+    };
+    let Some(icon) = crate::tray::icon_rect(app) else {
+        return false;
+    };
+    if !win.is_visible().unwrap_or(false) {
+        crate::spaces::configure(&win, crate::spaces::Kind::Overlay);
+        if let Err(e) = place(&win, icon) {
+            log::warn!("could not position popover: {e}");
+        }
+        if let Ok(mut t) = LAST_SHOWN.lock() {
+            *t = Some(Instant::now());
+        }
+        crate::spaces::present_passive(&win);
+        let _ = app.emit_to(LABEL, "popover-shown", ());
+    }
+    let _ = app.emit_to(LABEL, "popover-focus", &focus);
+    true
+}
+
 /// The popover's capture review started or ended.
 pub fn set_pinned(pinned: bool) {
     PINNED.store(pinned, Ordering::SeqCst);

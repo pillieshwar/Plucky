@@ -249,7 +249,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     menu.append(&MenuItem::with_id(
         app,
         "settings",
-        "Settings…",
+        "Preferences…",
         true,
         None::<&str>,
     )?)?;

@@ -166,12 +166,47 @@ fn open_tasks(app: &AppHandle) -> Vec<Task> {
 fn tick(app: &AppHandle) {
     let settings = app.state::<Settings>().get();
     let s: &NotifySettings = &settings.notify;
-    if !s.enabled {
+    let now: NaiveDateTime = Local::now().naive_local();
+
+    // The daily check-in on tasks with no date, in the menu-bar dropdown.
+    if settings.undated_nudge {
+        let at = notify::parse_time(&settings.undated_time)
+            .unwrap_or(chrono::NaiveTime::from_hms_opt(16, 0, 0).unwrap());
+        if notify::undated_nudge_due(now, at, settings.last_undated_nudge.as_deref()) {
+            let today = now.date().format("%Y-%m-%d").to_string();
+            app.state::<Settings>()
+                .update(|v| v.last_undated_nudge = Some(today));
+            let tasks = open_tasks(app);
+            let count = notify::undated(&tasks).len();
+            if count > 0 && !crate::popover::show_focus(app, crate::popover::Focus::Undated) {
+                // The menu-bar icon is hidden: fall back to a notification.
+                send(
+                    app,
+                    Note {
+                        id: "pluck-undated".into(),
+                        title: if count == 1 {
+                            "1 task has no date".into()
+                        } else {
+                            format!("{count} tasks have no date")
+                        },
+                        body: "Open Plucky to plan them.".into(),
+                        actions: false,
+                    },
+                );
+            }
+        }
+    }
+
+    // Due tasks: a notification, and the dropdown opened on them.
+    if !s.enabled && !settings.due_spotlight {
         return;
     }
-    let now: NaiveDateTime = Local::now().naive_local();
+    let rules = NotifySettings {
+        enabled: true,
+        ..s.clone()
+    };
     let tasks = open_tasks(app);
-    let due: Vec<&Task> = notify::due_now(&tasks, now, s);
+    let due: Vec<&Task> = notify::due_now(&tasks, now, &rules);
     if !due.is_empty() {
         let stamp = format_local(now);
         if let Some(state) = app.try_state::<AppState>() {
@@ -183,7 +218,18 @@ fn tick(app: &AppHandle) {
         }
         // Windows show a "Due now" card for reminders that just went off.
         let _ = app.emit("tasks-changed", ());
-        if due.len() > MAX_SEPARATE {
+        // Tasks with a set time (or a snooze ending) get the spotlight; all-day
+        // reminders stay a quiet notification.
+        let timed: Vec<i64> = due
+            .iter()
+            .filter(|t| t.due_time.is_some() || t.snoozed_until.is_some())
+            .map(|t| t.id)
+            .collect();
+        if settings.due_spotlight && !timed.is_empty() {
+            crate::popover::show_focus(app, crate::popover::Focus::Due { ids: timed });
+        }
+        // With notifications off, the spotlight above is all there is.
+        if s.enabled && due.len() > MAX_SEPARATE {
             send(
                 app,
                 Note {
@@ -198,7 +244,7 @@ fn tick(app: &AppHandle) {
                     actions: false,
                 },
             );
-        } else {
+        } else if s.enabled {
             for t in due {
                 send(
                     app,
@@ -214,7 +260,7 @@ fn tick(app: &AppHandle) {
     }
 
     // Morning summary, once a day at the all-day time.
-    if s.daily_summary {
+    if s.enabled && s.daily_summary {
         let today = now.date().format("%Y-%m-%d").to_string();
         let at = now.date().and_time(s.all_day());
         let fresh = now >= at && now - at < notify::STALE_AFTER;

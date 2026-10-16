@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
-import type { AppSettings, BackupInfo, NotificationPermission, Status, UpdateStatus } from "../lib/types";
+import { applyTheme } from "../lib/theme";
+import type { AppSettings, Theme, BackupInfo, NotificationPermission, Status, UpdateStatus } from "../lib/types";
 
 interface SettingsProps {
   settings: AppSettings | null;
@@ -159,6 +160,92 @@ export function GeneralSection(
             </button>
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+const THEMES: { id: Theme; label: string; hint: string }[] = [
+  { id: "system", label: "System", hint: "Match macOS" },
+  { id: "light", label: "Light", hint: "Always light" },
+  { id: "dark", label: "Dark", hint: "Always dark" },
+];
+
+/** Light, dark, or follow macOS — for every Plucky window. */
+export function AppearanceSection(props: SettingsProps) {
+  const save = useSave(props);
+  const current = props.settings?.theme ?? "system";
+  function choose(theme: Theme) {
+    applyTheme(theme); // right away; the other windows follow on save
+    void save((s) => ({ ...s, theme }));
+  }
+  return (
+    <section className="settings-section">
+      <h2 className="settings-h">Appearance</h2>
+      <div className="theme-picker" role="radiogroup" aria-label="Appearance">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={current === t.id}
+            className={current === t.id ? "theme-option on" : "theme-option"}
+            disabled={!props.settings}
+            onClick={() => choose(t.id)}
+          >
+            <span className={`theme-swatch ${t.id}`} aria-hidden>
+              <span className="theme-swatch-bar" />
+              <span className="theme-swatch-line" />
+              <span className="theme-swatch-line short" />
+            </span>
+            <span className="theme-label">{t.label}</span>
+            <span className="theme-hint">{t.hint}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The menu-bar dropdown opening by itself: due tasks and the daily check-in. */
+export function MenuBarNudgesSection(props: SettingsProps) {
+  const { settings } = props;
+  const save = useSave(props);
+  return (
+    <section className="settings-section">
+      <h2 className="settings-h">Menu bar check-ins</h2>
+      <p className="settings-intro">
+        Plucky can open its menu-bar dropdown on its own, showing just what needs you. It never takes over your
+        keyboard — keep typing, and answer when you're ready.
+      </p>
+      <div className="card-stack">
+        <Toggle
+          label="Spotlight tasks when their time comes"
+          hint="The dropdown opens on that task with Done and Snooze, everything else blurred."
+          checked={settings?.due_spotlight ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, due_spotlight: v }))}
+        />
+        <Toggle
+          label="Daily check-in for tasks without a date"
+          hint="Once a day, plan undated tasks with one tap — today, tomorrow or next week. Skipped when there are none."
+          checked={settings?.undated_nudge ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, undated_nudge: v }))}
+        />
+        <label className={settings?.undated_nudge ? "toggle-row" : "toggle-row disabled"}>
+          <span className="toggle-text">
+            <span className="toggle-label">Check-in time</span>
+            <span className="toggle-hint">Your local time</span>
+          </span>
+          <input
+            type="time"
+            className="time-input"
+            value={settings?.undated_time ?? "16:00"}
+            disabled={!settings?.undated_nudge}
+            onChange={(e) => e.target.value && void save((s) => ({ ...s, undated_time: e.target.value }))}
+          />
+        </label>
       </div>
     </section>
   );

@@ -337,7 +337,7 @@ export function Onboarding({
               <kbd>?</kbd> <b>Keyboard</b> — every key for the task list, like <kbd>Space</kbd> to complete.
             </li>
             <li>
-              <b>Settings</b> — shortcuts, reminders, backups. Take this tour again from General.
+              <b>Preferences</b> — dark mode, shortcuts, reminders, backups. Take this tour again from General.
             </li>
           </ul>
           <div className="onboard-actions">

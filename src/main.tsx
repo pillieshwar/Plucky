@@ -2,6 +2,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { api, onSettingsChanged } from "./lib/api";
+import { applyTheme } from "./lib/theme";
 import Popover from "./popover/Popover";
 import QuickAdd from "./quick/QuickAdd";
 import "./styles.css";
@@ -19,6 +21,17 @@ function currentView(): string {
 
 const view = currentView();
 document.documentElement.dataset.view = view;
+
+// Every window follows the Appearance preference, live.
+try {
+  api
+    .getSettings()
+    .then((s) => applyTheme(s.theme))
+    .catch(() => undefined);
+  void onSettingsChanged((s) => applyTheme(s.theme)).catch(() => undefined);
+} catch {
+  // Outside Tauri (e.g. a browser preview): follow the system.
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>{view === "popover" ? <Popover /> : view === "quick" ? <QuickAdd /> : <App />}</React.StrictMode>,

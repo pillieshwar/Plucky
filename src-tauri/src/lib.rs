@@ -533,8 +533,17 @@ fn get_settings(settings: State<'_, Settings>) -> AppSettings {
 
 /// Save the user-editable preferences; bookkeeping fields are kept.
 #[tauri::command]
-fn set_settings(settings: State<'_, Settings>, value: AppSettings) -> AppSettings {
-    settings.update(|v| {
+fn set_settings(app: AppHandle, settings: State<'_, Settings>, value: AppSettings) -> AppSettings {
+    let theme = match value.theme.as_str() {
+        "light" | "dark" => value.theme.clone(),
+        _ => "system".to_string(),
+    };
+    let undated_time = if chrono::NaiveTime::parse_from_str(&value.undated_time, "%H:%M").is_ok() {
+        value.undated_time.clone()
+    } else {
+        "16:00".to_string()
+    };
+    let next = settings.update(|v| {
         v.notify = value.notify;
         v.auto_update = value.auto_update;
         v.remember_source = value.remember_source;
@@ -542,7 +551,14 @@ fn set_settings(settings: State<'_, Settings>, value: AppSettings) -> AppSetting
         v.seen_version = value.seen_version;
         v.show_on_start = value.show_on_start;
         v.capture_in_menu_bar = value.capture_in_menu_bar;
-    })
+        v.theme = theme;
+        v.undated_nudge = value.undated_nudge;
+        v.undated_time = undated_time;
+        v.due_spotlight = value.due_spotlight;
+    });
+    // Every window follows the theme (and other preferences) right away.
+    let _ = app.emit("settings-changed", &next);
+    next
 }
 
 #[tauri::command]
