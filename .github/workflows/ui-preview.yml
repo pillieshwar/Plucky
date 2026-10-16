@@ -10,8 +10,7 @@ on:
     branches: ["v0.*"]
     paths: ["src/**", "scripts/ui-preview/**", ".github/workflows/ui-preview.yml"]
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: ui-preview
@@ -20,14 +19,22 @@ concurrency:
 jobs:
   shots:
     runs-on: macos-latest
+    permissions:
+      # Pushes the screenshots to the ui-previews branch.
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          node-version: 22
-      - run: npm install
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      - run: npm ci
       - run: npm run build
       - name: Install Playwright
+        # Screenshot tooling only, never part of the app; pinned to an exact
+        # version. (Kept out of package.json: npm 10 can't resolve it next to
+        # vitest's optional Playwright integration.)
         run: |
           npm install --no-save playwright@1.48.2
           npx playwright install chromium
@@ -37,6 +44,8 @@ jobs:
           sleep 3
           TZ=America/Los_Angeles node scripts/ui-preview/preview.mjs http://localhost:4173 shots
       - name: Push to ui-previews
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cd shots
           git init -q -b ui-previews
@@ -44,4 +53,4 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add -A
           git commit -q -m "UI preview for ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ui-previews
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" ui-previews

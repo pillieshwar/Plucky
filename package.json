@@ -2,7 +2,7 @@
   "name": "pluck",
   "private": true,
   "license": "MIT",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "type": "module",
   "description": "Select text anywhere, get a private, dated task. Runs a small model locally.",
   "scripts": {
@@ -24,6 +24,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
     "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
   }
 }
