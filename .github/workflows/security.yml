@@ -29,15 +29,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      DENY_VERSION: "0.20.2"
+      DENY_SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        with:
-          command: check
-          arguments: ""
-          command-arguments: advisories sources
+      - name: Install cargo-deny (pinned release, checksum verified)
+        run: |
+          name="cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl"
+          curl -sSfL -o deny.tgz "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/${name}.tar.gz"
+          echo "${DENY_SHA256}  deny.tgz" | sha256sum -c -
+          tar -xzf deny.tgz
+          install "${name}/cargo-deny" "$HOME/.cargo/bin/cargo-deny"
+      - name: Check
+        # Findings are printed as annotations, so they're readable from the
+        # run summary (and the API) without opening the raw log.
+        run: |
+          set +e
+          cargo deny --format json check advisories sources 2> deny.json
+          status=$?
+          python3 scripts/deny-report.py deny.json
+          exit $status
 
   npm-audit:
     name: npm advisories (npm audit)
