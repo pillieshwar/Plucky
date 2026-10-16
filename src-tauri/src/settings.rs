@@ -37,8 +37,10 @@ pub struct AppSettings {
     pub capture_in_menu_bar: bool,
     /// Calendar connector: show events from the Mac's calendars.
     pub calendar_enabled: bool,
-    /// Calendars to show (ids); `None` = all.
+    /// 0.4.9 only: calendars to show, by id. Migrated to `calendar_hidden`.
     pub calendar_ids: Option<Vec<String>>,
+    /// Calendars the user turned off, by `calendar::key` (account / title).
+    pub calendar_hidden: Vec<String>,
 }
 
 impl Default for AppSettings {
@@ -58,6 +60,7 @@ impl Default for AppSettings {
             capture_in_menu_bar: true,
             calendar_enabled: false,
             calendar_ids: None,
+            calendar_hidden: Vec::new(),
         }
     }
 }

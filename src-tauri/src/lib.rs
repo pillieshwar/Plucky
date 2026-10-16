@@ -344,15 +344,51 @@ fn reminders_open_privacy_settings() -> CmdResult<()> {
 
 // ── Calendar connector ──────────────────────────────────────────────────────
 
-#[tauri::command]
-fn calendar_status(settings: State<'_, Settings>) -> calendar::Status {
-    let s = settings.get();
+fn calendar_state(s: &AppSettings) -> calendar::Status {
     calendar::Status {
         supported: cfg!(target_os = "macos"),
         access: calendar::access(),
         enabled: s.calendar_enabled,
-        calendars: s.calendar_ids,
+        hidden: s.calendar_hidden.clone(),
     }
+}
+
+/// 0.4.9 remembered the calendars to show by id, but macOS can change a
+/// subscribed calendar's id (Holidays, for one) after a sync, which silently
+/// hid it. Convert that once into calendars to hide, by name.
+fn migrate_calendar_ids(settings: &Settings) {
+    let Some(ids) = settings.get().calendar_ids else {
+        return;
+    };
+    if calendar::access() != reminders::Access::Full {
+        return;
+    }
+    let Ok(all) = calendar::calendars() else {
+        return;
+    };
+    if all.is_empty() {
+        return;
+    }
+    let hidden: Vec<String> = all
+        .into_iter()
+        .filter(|c| !ids.contains(&c.id))
+        .map(|c| c.key)
+        .collect();
+    settings.update(|s| {
+        s.calendar_hidden = hidden;
+        s.calendar_ids = None;
+    });
+}
+
+#[tauri::command]
+async fn calendar_status(app: AppHandle) -> CmdResult<calendar::Status> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = app.state::<Settings>();
+        migrate_calendar_ids(&settings);
+        calendar_state(&settings.get())
+    })
+    .await
+    .map_err(err)
 }
 
 /// Blocking (waits for the user to answer the macOS prompt), so async.
@@ -370,25 +406,21 @@ async fn calendar_calendars() -> CmdResult<Vec<calendar::CalendarInfo>> {
         .map_err(err)?
 }
 
-/// Turn the connector on or off, and choose calendars (`None` = all).
+/// Turn the connector on or off, and choose calendars to hide (by key).
 #[tauri::command]
 fn calendar_set(
     app: AppHandle,
     settings: State<'_, Settings>,
     enabled: bool,
-    calendars: Option<Vec<String>>,
+    hidden: Vec<String>,
 ) -> calendar::Status {
     let s = settings.update(|s| {
         s.calendar_enabled = enabled;
-        s.calendar_ids = calendars;
+        s.calendar_hidden = hidden;
+        s.calendar_ids = None;
     });
     let _ = app.emit("calendar-changed", ());
-    calendar::Status {
-        supported: cfg!(target_os = "macos"),
-        access: calendar::access(),
-        enabled: s.calendar_enabled,
-        calendars: s.calendar_ids,
-    }
+    calendar_state(&s)
 }
 
 /// Events for the days `from..=to`; empty when the connector is off.
@@ -402,11 +434,9 @@ async fn calendar_events(
     if !s.calendar_enabled {
         return Ok(Vec::new());
     }
-    tauri::async_runtime::spawn_blocking(move || {
-        calendar::events(&from, &to, s.calendar_ids.as_deref())
-    })
-    .await
-    .map_err(err)?
+    tauri::async_runtime::spawn_blocking(move || calendar::events(&from, &to, &s.calendar_hidden))
+        .await
+        .map_err(err)?
 }
 
 /// System Settings → Privacy & Security → Calendars.
@@ -1152,6 +1182,8 @@ pub fn run() {
                 && app.state::<Engine>().kind() == "bundled";
             greet::on_launch(app.handle(), first_run);
             greet::start(app.handle());
+            // Keep one warm connection to the Mac's calendars (see calendar.rs).
+            calendar::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {

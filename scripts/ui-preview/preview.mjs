@@ -157,11 +157,12 @@ function mockTauri(s) {
       last_error: null,
     }),
     notification_permission: () => "granted",
-    calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, calendars: null },
+    calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
     calendar_calendars: () => [
-      { id: "c1", title: "Work", source: "Google", color: "#3b82f6" },
-      { id: "c2", title: "Home", source: "iCloud", color: "#16a34a" },
-      { id: "c3", title: "Birthdays", source: "Other", color: "#a855f7" },
+      { id: "c1", key: "Google / Work", title: "Work", source: "Google", color: "#3b82f6" },
+      { id: "c2", key: "iCloud / Home", title: "Home", source: "iCloud", color: "#16a34a" },
+      { id: "c3", key: "Other / Birthdays", title: "Birthdays", source: "Other", color: "#a855f7" },
+      { id: "c4", key: "Other / US Holidays", title: "US Holidays", source: "Other", color: "#ef4444" },
     ],
     calendar_events: () => s.events ?? [],
     autostart_enabled: () => true,
@@ -377,7 +378,7 @@ await shot(
   true,
 );
 const EV_DAY = day(0);
-const CAL_ON = { supported: true, access: "full", enabled: true, calendars: ["c1", "c2"] };
+const CAL_ON = { supported: true, access: "full", enabled: true, hidden: ["Other / Birthdays"] };
 const EVENTS = [
   { id: "e0", title: "Office closed (half day)", start: `${EV_DAY}T00:00:00`, end: `${day(1)}T00:00:00`, all_day: true, calendar: "Work", color: "#3b82f6" },
   { id: "e1", title: "Standup", start: `${EV_DAY}T09:30:00`, end: `${EV_DAY}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },

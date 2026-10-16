@@ -137,7 +137,11 @@ function CalendarSection({
   }, []);
 
   useEffect(() => {
-    if (access === "full") loadCalendars();
+    if (access !== "full") return;
+    loadCalendars();
+    // Subscribed calendars can finish loading later; list them when they do.
+    const sub = onCalendarChanged(loadCalendars);
+    return () => void sub.then((u) => u());
   }, [access, loadCalendars]);
 
   if (!status) return null;
@@ -155,7 +159,7 @@ function CalendarSection({
         onStatus(await api.calendarStatus());
         return;
       }
-      onStatus(await api.calendarSet(true, status!.calendars));
+      onStatus(await api.calendarSet(true, status!.hidden));
       loadCalendars();
     } catch (e) {
       setError(String(e));
@@ -165,19 +169,18 @@ function CalendarSection({
   }
 
   async function turnOff() {
-    onStatus(await api.calendarSet(false, status!.calendars));
+    onStatus(await api.calendarSet(false, status!.hidden));
   }
 
-  async function choose(id: string, on: boolean) {
-    const current = status!.calendars ?? calendars.map((c) => c.id);
-    const next = on ? [...new Set([...current, id])] : current.filter((x) => x !== id);
-    // All selected → store "all", so new calendars show up by themselves.
-    const all = calendars.every((c) => next.includes(c.id));
-    onStatus(await api.calendarSet(true, all ? null : next));
+  async function choose(key: string, on: boolean) {
+    // Remember what's hidden, by name: new calendars show up by themselves,
+    // and a calendar whose id macOS changes (Holidays does) stays as chosen.
+    const hidden = status!.hidden.filter((k) => k !== key);
+    onStatus(await api.calendarSet(true, on ? hidden : [...hidden, key]));
   }
 
   const enabled = status.enabled && status.access === "full";
-  const shown = (id: string) => status.calendars === null || status.calendars.includes(id);
+  const shown = (key: string) => !status.hidden.includes(key);
 
   return (
     <div className="connector-body-inner">
@@ -212,9 +215,9 @@ function CalendarSection({
           <h4 className="connector-subhead">Calendars to show</h4>
           <ul className="calendar-list">
             {calendars.map((c) => (
-              <li key={c.id}>
+              <li key={c.key}>
                 <label>
-                  <input type="checkbox" checked={shown(c.id)} onChange={(e) => void choose(c.id, e.target.checked)} />
+                  <input type="checkbox" checked={shown(c.key)} onChange={(e) => void choose(c.key, e.target.checked)} />
                   <span className="calendar-swatch" style={{ background: c.color ?? "var(--faint)" }} aria-hidden />
                   <span className="calendar-name">{c.title}</span>
                   <span className="calendar-source">{c.source}</span>
