@@ -13,7 +13,11 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
-      - run: cargo update -p zip
+      - run: |
+          cargo search zip --limit 1 | sed 's/^/::notice::search /' || true
+          cargo info zip 2>&1 | head -20 | sed 's/^/::notice::info /' || true
+          cargo tree -i zip -e normal --target all 2>&1 | head -10 | sed 's/^/::notice::tree /' || true
+          cargo update -p zip 2>&1 | tee up.log || { sed 's/^/::warning::/' up.log; exit 1; }
       - name: Commit
         env:
           GH_TOKEN: ${{ github.token }}
