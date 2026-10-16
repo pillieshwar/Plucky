@@ -13,7 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
-      - run: cargo metadata --format-version 1 > /dev/null
+      - run: cargo update -p zip
       - name: Commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -21,5 +21,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add Cargo.lock
-          git commit -m "Cargo.lock for 0.4.9"
+          git commit -m "cargo update -p zip"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" "HEAD:${GITHUB_REF_NAME}"
