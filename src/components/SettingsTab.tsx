@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { DataSection, GeneralSection, NotificationsSection } from "./GeneralSettings";
+import { AppearanceSection, DataSection, GeneralSection, MenuBarNudgesSection, NotificationsSection } from "./GeneralSettings";
 import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import {
   formatShortcut,
@@ -49,6 +49,12 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
 export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, status, update, onError, onTour }: Props) {
   return (
     <div className="settings">
+      <AppearanceSection settings={settings} onSettings={onSettings} onError={onError} />
+
+      <MenuBarNudgesSection settings={settings} onSettings={onSettings} onError={onError} />
+
+      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
+
       <section className="settings-section">
         <h2 className="settings-h">Keyboard shortcuts</h2>
         <p className="settings-intro">
@@ -65,8 +71,6 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
         onError={onError}
         onTour={onTour}
       />
-
-      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
 
       <DataSection onError={onError} />
 

@@ -141,6 +141,25 @@ impl Summary {
     }
 }
 
+/// Open tasks with no date at all, oldest first.
+pub fn undated(tasks: &[Task]) -> Vec<&Task> {
+    let mut v: Vec<&Task> = tasks
+        .iter()
+        .filter(|t| !t.done && t.due_date.is_none())
+        .collect();
+    v.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
+    v
+}
+
+/// Is it time for today's "tasks without a date" check-in? Once a day, from
+/// `at` until it's stale (so a Mac that was asleep at 4pm still gets it that
+/// evening, but not the next morning).
+pub fn undated_nudge_due(now: NaiveDateTime, at: NaiveTime, last: Option<&str>) -> bool {
+    let today = now.date().format("%Y-%m-%d").to_string();
+    let when = now.date().and_time(at);
+    now >= when && now - when < STALE_AFTER && last != Some(today.as_str())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +191,44 @@ mod tests {
     }
 
     const NINE: Option<NaiveTime> = NaiveTime::from_hms_opt(9, 0, 0);
+
+    #[test]
+    fn undated_nudge_once_a_day_after_its_time() {
+        let four = NaiveTime::from_hms_opt(16, 0, 0).unwrap();
+        assert!(!undated_nudge_due(at("2026-10-14T15:59:00"), four, None));
+        assert!(undated_nudge_due(at("2026-10-14T16:00:10"), four, None));
+        assert!(undated_nudge_due(
+            at("2026-10-14T21:00:00"),
+            four,
+            Some("2026-10-13")
+        ));
+        assert!(!undated_nudge_due(
+            at("2026-10-14T16:30:00"),
+            four,
+            Some("2026-10-14")
+        ));
+        // Midnight to 4pm the next day: yesterday's is stale, today's not yet.
+        assert!(!undated_nudge_due(
+            at("2026-10-15T08:00:00"),
+            four,
+            Some("2026-10-13")
+        ));
+    }
+
+    #[test]
+    fn undated_lists_open_tasks_without_a_day() {
+        let mut a = task(None, None);
+        a.id = 2;
+        a.created_at = "2026-10-02T00:00:00Z".into();
+        let mut b = task(None, None);
+        b.id = 3;
+        let mut done = task(None, None);
+        done.done = true;
+        let dated = task(Some("2026-10-14"), None);
+        let tasks = [a, b, done, dated];
+        let ids: Vec<i64> = undated(&tasks).iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![3, 2]);
+    }
 
     #[test]
     fn fires_at_the_due_time_once() {

@@ -41,6 +41,16 @@ pub struct AppSettings {
     pub calendar_ids: Option<Vec<String>>,
     /// Calendars the user turned off, by `calendar::key` (account / title).
     pub calendar_hidden: Vec<String>,
+    /// "system", "light" or "dark".
+    pub theme: String,
+    /// Once a day, open the menu-bar dropdown to plan tasks that have no date.
+    pub undated_nudge: bool,
+    /// When to do that, `HH:MM` local time.
+    pub undated_time: String,
+    /// Last day (`YYYY-MM-DD`) the undated nudge was shown.
+    pub last_undated_nudge: Option<String>,
+    /// When a task's time comes, also open the menu-bar dropdown on it.
+    pub due_spotlight: bool,
 }
 
 impl Default for AppSettings {
@@ -61,6 +71,11 @@ impl Default for AppSettings {
             calendar_enabled: false,
             calendar_ids: None,
             calendar_hidden: Vec::new(),
+            theme: "system".into(),
+            undated_nudge: true,
+            undated_time: "16:00".into(),
+            last_undated_nudge: None,
+            due_spotlight: true,
         }
     }
 }

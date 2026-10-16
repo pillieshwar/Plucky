@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
+  PopoverFocus,
   AppSettings,
   BackupInfo,
   CalendarEvent,
@@ -158,4 +159,14 @@ export function onSlackChanged(handler: () => void): Promise<UnlistenFn> {
 /** The Calendar connector was turned on or off, or its calendars changed. */
 export function onCalendarChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("calendar-changed", () => handler());
+}
+
+/** The popover opened by itself on a due task or the undated check-in. */
+export function onPopoverFocus(handler: (f: PopoverFocus) => void): Promise<UnlistenFn> {
+  return getCurrentWebviewWindow().listen<PopoverFocus>("popover-focus", (e) => handler(e.payload));
+}
+
+/** Preferences changed (in any window). */
+export function onSettingsChanged(handler: (s: AppSettings) => void): Promise<UnlistenFn> {
+  return listen<AppSettings>("settings-changed", (e) => handler(e.payload));
 }

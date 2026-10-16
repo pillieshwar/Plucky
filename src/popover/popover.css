@@ -21,8 +21,9 @@ html[data-view="popover"] body {
   animation: pop-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
   transform-origin: top center;
 }
+:root[data-theme="dark"] .pop { --pop-sel-ink: #0f1513; }
 @media (prefers-color-scheme: dark) {
-  .pop { --pop-sel-ink: #0f1513; }
+  :root:not([data-theme="light"]) .pop { --pop-sel-ink: #0f1513; }
 }
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(-4px) scale(0.985); }
@@ -221,4 +222,85 @@ html[data-view="popover"] body {
 .pop-event-time { flex: none; font-size: 11.5px; color: var(--muted); }
 .pop-event-more {
   border: 0; background: transparent; padding: 2px 0 0 13px; font-size: 11.5px; color: var(--teal); cursor: pointer;
+}
+
+/* ── Focus: the popover opened by itself on one thing ── */
+.pop { position: relative; }
+.pop.focusing > :not(.pop-focus):not(.toasts) {
+  filter: blur(7px) saturate(0.85);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: filter 220ms ease, opacity 220ms ease;
+}
+.pop .toasts { z-index: 30; }
+.pop-focus {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  padding: 54px 14px 14px;
+  background: color-mix(in srgb, var(--pop-bg) 35%, transparent);
+  animation: focus-fade 180ms ease-out;
+}
+@keyframes focus-fade { from { opacity: 0; } }
+.focus-card {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 100%; overflow-y: auto;
+  padding: 14px 16px 10px;
+  background: var(--pop-raise);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  animation: focus-rise 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+@keyframes focus-rise { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+.focus-card.due { border-top: 3px solid var(--accent); }
+.focus-card.undated { border-top: 3px solid var(--teal); }
+.focus-kicker {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+}
+.focus-card.due .focus-kicker { color: var(--accent); }
+.focus-card.undated .focus-kicker { color: var(--teal); }
+.focus-when { font-weight: 600; text-transform: none; letter-spacing: 0; }
+.focus-count {
+  margin-left: auto; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--faint);
+}
+.focus-pulse {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: focus-pulse 1.6s ease-out infinite;
+}
+@keyframes focus-pulse { to { box-shadow: 0 0 0 7px transparent; } }
+.focus-glyph { font-size: 13px; line-height: 1; }
+.focus-title {
+  margin: 2px 0 0; font: 650 17px/1.3 var(--sans); letter-spacing: -0.01em; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.focus-meta { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.focus-card .snooze-bar { margin: 6px 0 0; }
+.focus-card .sn-chip { padding: 4px 10px; font-size: 12px; }
+.focus-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
+.focus-list li {
+  display: flex; flex-direction: column; gap: 5px; padding: 8px 0;
+  border-top: 1px solid var(--line);
+  animation: rise 120ms ease-out;
+}
+.focus-row-title {
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.focus-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.focus-chips .sn-chip { padding: 3px 9px; font-size: 11.5px; }
+.focus-chips .sn-chip:hover { border-color: var(--teal); color: var(--teal); }
+.focus-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line);
+}
+.focus-link {
+  padding: 2px 0; border: 0; background: transparent; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--teal); align-self: flex-start;
+}
+.focus-link:hover { text-decoration: underline; }
+.focus-link.quiet { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .pop-focus, .focus-card, .focus-pulse, .focus-list li { animation: none; }
 }

@@ -46,6 +46,30 @@ pub fn configure_all(app: &AppHandle) {
     }
 }
 
+/// Show a panel in front, over full-screen apps too, without taking the
+/// keyboard: for things Plucky brings up on its own (a task coming due), so
+/// whatever the user is typing in keeps the keystrokes.
+pub fn present_passive(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        let w = win.clone();
+        let run = move || {
+            if !macos::show_panel_passive(&w) {
+                let _ = w.show();
+            }
+        };
+        if objc2::MainThreadMarker::new().is_some() {
+            run();
+        } else {
+            let _ = win.run_on_main_thread(run);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = win.show();
+    }
+}
+
 /// Show a window and give it the keyboard. Panels (popover, quick add) do
 /// this without activating Plucky, so they open over full-screen apps;
 /// other windows are shown and focused as usual.
@@ -185,6 +209,19 @@ mod macos {
             Ok(()) => log::info!("{} is now a non-activating panel", win.label()),
             Err(e) => log::warn!("could not make {} non-activating: {e:?}", win.label()),
         }
+    }
+
+    /// Bring a panel to the front without making it key. False for windows
+    /// that aren't panels.
+    pub fn show_panel_passive(win: &WebviewWindow) -> bool {
+        let Some(ns) = ns_window(win) else {
+            return false;
+        };
+        if !is_panel(ns) {
+            return false;
+        }
+        unsafe { ns.orderFrontRegardless() };
+        true
     }
 
     /// Show a panel and make it key without activating Plucky. Returns

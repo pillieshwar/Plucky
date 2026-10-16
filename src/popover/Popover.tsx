@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCalendarChanged, onCapture, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCalendarChanged, onCapture, onPopoverFocus, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
@@ -24,6 +24,7 @@ import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
 import { dueChip, dueNow, type DueChip } from "../lib/due";
+import { FocusCard, type Focus } from "./FocusCard";
 
 const LOCALE = safeLocale();
 const ORDER = dayOrderForLocale(LOCALE);
@@ -73,6 +74,8 @@ export default function Popover() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventsKey, setEventsKey] = useState(0);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
+  // Opened by Plucky itself: a task's time came, or the undated check-in.
+  const [focus, setFocus] = useState<Focus | null>(null);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const labels = useMemo(() => weekdayLabels(LOCALE, weekStart), [weekStart]);
@@ -97,6 +100,7 @@ export default function Popover() {
     setAdding(false);
     setDraft("");
     setShowDone(false);
+    setFocus(null);
     setOpenKey((k) => k + 1);
     void load();
   }, [load]);
@@ -114,6 +118,10 @@ export default function Popover() {
     const subs = [
       onTasksChanged(() => void load()),
       onPopoverShown(reset),
+      onPopoverFocus((f) => {
+        setFocus(f);
+        void load();
+      }),
       onShortcutsChanged((s) => setShortcut(formatShortcut(s.capture))),
       onUpdateStatus(setUpdate),
       onCapture((r) => {
@@ -297,9 +305,30 @@ export default function Popover() {
     void api.openMain(task.id, "tasks");
   }
 
+  function finishFocus(message?: string) {
+    setFocus(null);
+    if (message) show(message);
+    // Leave a confirmation up for a moment, then get out of the way.
+    window.setTimeout(() => void api.hidePopover(), message ? 1100 : 0);
+  }
+
+  function openFromFocus(task: Task | null) {
+    setFocus(null);
+    void api.openMain(task?.id ?? null, "tasks");
+  }
+
   function onKey(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
     const typing = target.tagName === "INPUT";
+    if (focusing && !capture) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        finishFocus();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        if (undoLast()) e.preventDefault();
+      }
+      return;
+    }
     if (capture) {
       if (e.key === "Escape" && !e.defaultPrevented) {
         e.preventDefault();
@@ -332,6 +361,10 @@ export default function Popover() {
   }
 
   const empty = agenda.overdue.length === 0 && agenda.due.length === 0;
+  // Show the focus card only while it has something to show.
+  const focusing =
+    focus !== null &&
+    (focus.kind === "undated" || focus.ids.some((id) => tasks.some((t) => t.id === id && !t.done)));
 
   if (capture) {
     return (
@@ -360,7 +393,13 @@ export default function Popover() {
   }
 
   return (
-    <div ref={rootRef} className={drag ? "pop dragging" : "pop"} key={openKey} onKeyDown={onKey} tabIndex={-1}>
+    <div
+      ref={rootRef}
+      className={["pop", drag ? "dragging" : "", focusing ? "focusing" : ""].filter(Boolean).join(" ")}
+      key={openKey}
+      onKeyDown={onKey}
+      tabIndex={-1}
+    >
       {update.state === "ready" && (
         <button type="button" className="pop-update" onClick={() => void api.installUpdate().catch((e) => setError(String(e)))}>
           Plucky {update.version} is ready · <strong>Restart to update</strong>
@@ -568,6 +607,19 @@ export default function Popover() {
           </span>
         )}
       </footer>
+      {focusing && focus && (
+        // Clicking the blurred popover around the card shows it again.
+        <div className="pop-focus" onClick={(e) => e.target === e.currentTarget && setFocus(null)}>
+          <FocusCard
+            focus={focus}
+            tasks={tasks}
+            actions={actions}
+            locale={LOCALE}
+            onFinish={finishFocus}
+            onOpen={openFromFocus}
+          />
+        </div>
+      )}
       <Toasts toasts={toasts} onDismiss={dismiss} />
       {drag && (
         <div
