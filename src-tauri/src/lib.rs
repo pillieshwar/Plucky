@@ -22,6 +22,7 @@ mod reminders;
 mod services;
 mod settings;
 mod shortcuts;
+mod slack;
 mod spaces;
 mod tray;
 mod updates;
@@ -187,6 +188,11 @@ fn source_target(task: &Task) -> Option<OpenTarget> {
     ok.then(|| OpenTarget::App(bundle.to_string()))
 }
 
+/// Open a web page in the default browser.
+pub(crate) fn open_in_browser(url: &str) -> CmdResult<()> {
+    open_target(&OpenTarget::Url(url.to_string()))
+}
+
 fn open_target(target: &OpenTarget) -> CmdResult<()> {
     let mut cmd = if cfg!(target_os = "macos") {
         let mut c = std::process::Command::new("open");
@@ -340,6 +346,45 @@ fn reminders_open_privacy_settings() -> CmdResult<()> {
         .spawn()
         .map(|_| ())
         .map_err(err)
+}
+
+// ── Slack connector ─────────────────────────────────────────────────────────
+
+/// A `plucky://…` link opened by macOS.
+fn on_deep_link(app: &AppHandle, url: &url::Url) {
+    if url.scheme() != "plucky" {
+        return;
+    }
+    match (url.host_str(), url.path()) {
+        (Some("slack"), "/callback") => app.state::<slack::Slack>().handle_callback(app, url),
+        _ => log::info!(
+            "ignored plucky:// link ({:?}{})",
+            url.host_str(),
+            url.path()
+        ),
+    }
+}
+
+#[tauri::command]
+fn slack_status(slack: State<'_, slack::Slack>) -> slack::Status {
+    slack.status()
+}
+
+/// Open Slack's sign-in page; the result arrives through plucky://.
+#[tauri::command]
+fn slack_connect(app: AppHandle, slack: State<'_, slack::Slack>) -> CmdResult<()> {
+    slack.connect(&app)
+}
+
+#[tauri::command]
+fn slack_cancel(app: AppHandle, slack: State<'_, slack::Slack>) {
+    slack.cancel(&app);
+}
+
+#[tauri::command]
+async fn slack_disconnect(app: AppHandle) -> CmdResult<()> {
+    let slack = app.state::<slack::Slack>();
+    slack.disconnect(&app).await
 }
 
 // ── Calendar connector ──────────────────────────────────────────────────────
@@ -1071,6 +1116,8 @@ fn reveal_logs() -> CmdResult<String> {
 pub fn run() {
     init_logging();
     let builder = tauri::Builder::default()
+        // plucky:// links (Slack sign-in callback).
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -1119,6 +1166,7 @@ pub fn run() {
                 data_dir: data_dir.clone(),
             });
             app.manage(Settings::new(&data_dir));
+            app.manage(slack::Slack::default());
             app.manage(Updates::default());
             app.manage(ModelManager::new(&data_dir));
             app.manage(panel::PanelState::new(&data_dir));
@@ -1184,6 +1232,23 @@ pub fn run() {
             greet::start(app.handle());
             // Keep one warm connection to the Mac's calendars (see calendar.rs).
             calendar::start(app.handle());
+
+            // plucky:// links: while running, and the one Plucky was opened with.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        on_deep_link(&handle, &url);
+                    }
+                });
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    for url in urls {
+                        on_deep_link(app.handle(), &url);
+                    }
+                }
+            }
+            slack::Slack::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -1234,6 +1299,10 @@ pub fn run() {
             reminders_sync_now,
             reminders_set_include_notes,
             reminders_open_privacy_settings,
+            slack_status,
+            slack_connect,
+            slack_cancel,
+            slack_disconnect,
             calendar_status,
             calendar_request_access,
             calendar_calendars,

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, onCalendarChanged, onRemindersChanged } from "../lib/api";
+import { api, onCalendarChanged, onRemindersChanged, onSlackChanged } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
-import type { CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
+import type { CalendarInfo, CalendarStatus, RemindersStatus, SlackStatus } from "../lib/types";
 
 /**
  * Connectors: apps on this Mac that Plucky can work with. Each card shows
@@ -12,20 +12,22 @@ import type { CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types
 export function ConnectorsTab() {
   const [reminders, setReminders] = useState<RemindersStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
-  const [open, setOpen] = useState<"reminders" | "calendar" | null>(null);
+  const [slack, setSlack] = useState<SlackStatus | null>(null);
+  const [open, setOpen] = useState<"reminders" | "calendar" | "slack" | null>(null);
 
   const refresh = useCallback(() => {
     api.remindersStatus().then(setReminders).catch(() => undefined);
     api.calendarStatus().then(setCalendar).catch(() => undefined);
+    api.slackStatus().then(setSlack).catch(() => undefined);
   }, []);
 
   useEffect(() => {
     refresh();
-    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh)];
+    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onSlackChanged(refresh)];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [refresh]);
 
-  const toggle = (id: "reminders" | "calendar") => setOpen((o) => (o === id ? null : id));
+  const toggle = (id: "reminders" | "calendar" | "slack") => setOpen((o) => (o === id ? null : id));
 
   return (
     <div className="connectors">
@@ -56,6 +58,18 @@ export function ConnectorsTab() {
         onToggle={() => toggle("reminders")}
       >
         <RemindersSection embedded />
+      </ConnectorCard>
+
+      <ConnectorCard
+        icon={<ChatGlyph />}
+        tone="slack"
+        name="Slack"
+        description="Find to-dos in your direct messages."
+        connected={!!slack?.connected}
+        open={open === "slack"}
+        onToggle={() => toggle("slack")}
+      >
+        <SlackSection status={slack} />
       </ConnectorCard>
 
       <p className="connectors-foot">More connectors are on the way.</p>
@@ -229,6 +243,96 @@ function CalendarSection({
       )}
       {error && <p className="rem-error">{error}</p>}
     </div>
+  );
+}
+
+/** Settings for the Slack connector: sign in, status, disconnect. */
+function SlackSection({ status }: { status: SlackStatus | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!status) return null;
+  if (!status.supported) return <p className="setting-line muted">Slack is available on macOS.</p>;
+
+  async function run(action: () => Promise<void>) {
+    setError(null);
+    setBusy(true);
+    try {
+      await action();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const shownError = error ?? status.error;
+
+  return (
+    <div className="connector-body-inner">
+      {status.connected || status.needs_reconnect ? (
+        <div className="card-stack">
+          <div className="setting-line">
+            <span className={status.needs_reconnect ? "dot warn" : "dot ok"} aria-hidden />
+            <span className="setting-line-text">
+              {status.needs_reconnect ? (
+                <>Slack sign-in expired for <b>{status.team}</b>. Reconnect to keep going.</>
+              ) : (
+                <>
+                  Connected to <b>{status.team}</b>
+                </>
+              )}
+            </span>
+          </div>
+          <p className="setting-line muted">
+            Turning your DMs into suggested tasks arrives in the next update. Plucky keeps the sign-in fresh until then.
+          </p>
+          <div className="setting-line">
+            <span className="setting-line-text muted">Sign-in is stored in your Mac's Keychain.</span>
+            {status.needs_reconnect && (
+              <button type="button" className="primary small" disabled={busy} onClick={() => void run(api.slackConnect)}>
+                Reconnect
+              </button>
+            )}
+            <button type="button" className="ghost small" disabled={busy} onClick={() => void run(api.slackDisconnect)}>
+              Disconnect
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="card-stack">
+          <p className="setting-line muted">
+            Plucky asks Slack to read your direct and group messages and see member names — nothing in channels, and it
+            can't post. It talks to Slack directly from this Mac; there's no Plucky server.
+          </p>
+          {status.connecting ? (
+            <div className="setting-line">
+              <span className="onboard-pulse" aria-hidden />
+              <span className="setting-line-text">Finish signing in in your browser…</span>
+              <button type="button" className="ghost small" onClick={() => void run(api.slackCancel)}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="setting-line">
+              <span className="setting-line-text muted">Opens Slack's sign-in page in your browser.</span>
+              <button type="button" className="primary small" disabled={busy} onClick={() => void run(api.slackConnect)}>
+                Sign in with Slack
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {shownError && <p className="rem-error">{shownError}</p>}
+    </div>
+  );
+}
+
+function ChatGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5Z" strokeLinejoin="round" />
+      <path d="M6 8.5h8M6 11h5" strokeLinecap="round" />
+    </svg>
   );
 }
 

@@ -33,7 +33,10 @@ upstream project.
 
 ## How Plucky protects you
 
-- **Local only.** Selections and tasks never leave the Mac. The model runtime
+- **Local only.** Selections and tasks never leave the Mac. The optional Slack
+  connector talks to slack.com directly (OAuth with PKCE, no client secret),
+  and keeps its token in the macOS Keychain.
+- **Local model.** The model runtime
   listens on `127.0.0.1` only, on a random port with a random key.
 - **Signed updates.** Every in-app update is verified against the project's
   public key before it's installed.
