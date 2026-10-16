@@ -48,7 +48,7 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 # thread.
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 arboard = "3"
-enigo = "0.2"
+enigo = "0.6"
 tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies]
