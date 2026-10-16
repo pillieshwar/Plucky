@@ -37,7 +37,7 @@ jobs:
         # vitest's optional Playwright integration.)
         run: |
           npm install --no-save playwright@1.48.2 # zizmor: ignore[adhoc-packages]
-          npx playwright install chromium
+          npx playwright install chromium # zizmor: ignore[adhoc-packages]
       - name: Screenshots
         run: |
           npx vite preview --port 4173 --strictPort &
