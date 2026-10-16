@@ -92,6 +92,7 @@ const SETTINGS = {
   undated_time: "16:00",
   last_undated_nudge: null,
   due_spotlight: true,
+  agents_enabled: false,
 };
 
 const SHORTCUTS = {
@@ -162,6 +163,17 @@ function mockTauri(s) {
       last_error: null,
     }),
     notification_permission: () => "granted",
+    agents_status: () =>
+      s.agents ?? {
+        supported: true,
+        enabled: false,
+        command: "/Applications/Plucky.app/Contents/MacOS/Pluck",
+        temporary_location: false,
+        claude_desktop: true,
+        claude_desktop_connected: false,
+        pending: 0,
+      },
+    inbox_list: () => s.inbox ?? [],
     slack_status: () =>
       s.slack ?? { supported: true, connected: false, connecting: false, needs_reconnect: false, team: null, user_id: null, error: null },
     calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
@@ -468,6 +480,27 @@ await shot(
   scenario({ label: "popover", tasks: UNDATED, settings: { ...SETTINGS, theme: "dark" } }),
   focus({ kind: "undated" }),
 );
+const INBOX = [
+  { id: 1, title: "Send the Q3 deck to Priya", due_date: day(1), due_time: "15:00", notes: "She asked for the version with the regional breakdown.", agent: "Claude", received_at: localStamp(0) },
+  { id: 2, title: "Book flights for the Austin offsite", due_date: day(4), due_time: null, notes: null, agent: "Claude", received_at: localStamp(0) },
+];
+await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
+await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
+await shot("popover-inbox-banner", POP, scenario({ label: "popover", inbox: INBOX }));
+const AGENTS_ON = {
+  supported: true,
+  enabled: true,
+  command: "/Applications/Plucky.app/Contents/MacOS/Pluck",
+  temporary_location: false,
+  claude_desktop: true,
+  claude_desktop_connected: false,
+  pending: 0,
+};
+await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-subhead", { hasText: "Connect an app" }).scrollIntoViewIfNeeded();
+});
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));
 await shot("quick-typed", QUICK, scenario({ label: "quick" }), async (p) => {
   await p.keyboard.type("pay rent friday 5pm every month #home");

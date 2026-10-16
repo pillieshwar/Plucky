@@ -45,6 +45,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 | **Quick add** | Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm #home` — Plucky shows how it reads the date as you type. |
 | **Reminders that respect you** | Notifications with **Done**, **Snooze** and **Tomorrow** buttons, or one morning summary instead. A **Due now** card keeps fired reminders one click away. |
 | **Check-ins in the menu bar** | When a task's time comes, the menu-bar dropdown opens on just that task — everything else blurred — with **Done** and **Snooze**. Once a day (4:00 PM by default) it asks you to plan tasks that have no date, one tap each. Neither takes your keyboard. |
+| **AI agents, write-only** | Let Claude Desktop, Claude Code and other MCP apps on your Mac add tasks — "add a Plucky task to send the deck Friday 3pm". They can never read your list, and you approve every task. |
 | **Light, dark or system** | Pick the look in **Preferences → Appearance**. |
 | **See what matters** | Due-time chips are red when overdue, amber when due soon, muted when done. **Today focus** (<kbd>F</kbd>) hides everything but today. |
 | **Menu-bar calendar** | Click the icon for a month view and today's agenda. Drag a task onto another day to move it. |
@@ -100,6 +101,7 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
 - **Plucky uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**), and — only if you connect it — talking to Slack directly from your Mac. The Slack sign-in is stored in your macOS Keychain; there is no Plucky server.
+- **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to Plucky over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
 - **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
 - **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. Plucky warns you and asks first; pick an "On My Mac" list to stay fully local.
 

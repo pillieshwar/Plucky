@@ -304,3 +304,20 @@ html[data-view="popover"] body {
 @media (prefers-reduced-motion: reduce) {
   .pop-focus, .focus-card, .focus-pulse, .focus-list li { animation: none; }
 }
+
+/* Tasks from AI agents */
+.focus-card.inbox { border-top: 3px solid var(--teal); }
+.focus-card.inbox .focus-kicker { color: var(--teal); }
+.focus-row-meta { font-size: 11.5px; color: var(--muted); margin-top: -3px; }
+.focus-row-notes {
+  font-size: 12px; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  user-select: text;
+}
+.pop-inbox {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 10px; padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--teal) 40%, var(--line)); border-radius: 10px;
+  background: var(--teal-soft); color: var(--ink); font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.pop-inbox:hover { border-color: var(--teal); }
+.pop-inbox b { color: var(--teal); font-weight: 650; margin-left: auto; }

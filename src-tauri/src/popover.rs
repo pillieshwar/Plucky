@@ -86,6 +86,8 @@ pub enum Focus {
     Due { ids: Vec<i64> },
     /// The daily "tasks without a date" check-in.
     Undated,
+    /// Tasks AI agents sent, waiting for review.
+    Inbox,
 }
 
 /// Open the popover under the menu-bar icon on its own, focused on `focus`,

@@ -7,6 +7,7 @@
 //!   request) → user confirms the date → `add_task` (one SQLite write).
 //!   The runtime stops itself after a few idle minutes.
 
+mod agents;
 mod calendar;
 mod capture;
 mod data;
@@ -81,15 +82,21 @@ fn list_tasks(state: State<'_, AppState>, done_since: Option<String>) -> CmdResu
 }
 
 #[tauri::command]
-fn add_task(app: AppHandle, state: State<'_, AppState>, task: NewTask) -> CmdResult<Task> {
+fn add_task(app: AppHandle, task: NewTask) -> CmdResult<Task> {
+    insert_task(&app, task)
+}
+
+/// Add a task and update everything that shows tasks.
+pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
     let task = NewTask {
         created_tz: iana_time_zone::get_timezone().ok(),
         ..task
     };
+    let state = app.state::<AppState>();
     let t = state.store.lock().map_err(err)?.insert(task).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
-    tray::refresh(&app);
-    nudge_reminders(&app);
+    tray::refresh(app);
+    nudge_reminders(app);
     Ok(t)
 }
 
@@ -1129,6 +1136,12 @@ fn reveal_logs() -> CmdResult<String> {
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
+/// `Pluck --mcp`: serve the write-only MCP tool over stdio. Returns the
+/// process exit code.
+pub fn run_mcp() -> i32 {
+    agents::mcp::run()
+}
+
 pub fn run() {
     init_logging();
     let builder = tauri::Builder::default()
@@ -1183,6 +1196,7 @@ pub fn run() {
             });
             app.manage(Settings::new(&data_dir));
             app.manage(slack::Slack::default());
+            app.manage(agents::Agents::new(&data_dir));
             app.manage(Updates::default());
             app.manage(ModelManager::new(&data_dir));
             app.manage(panel::PanelState::new(&data_dir));
@@ -1265,6 +1279,7 @@ pub fn run() {
                 }
             }
             slack::Slack::start(app.handle());
+            agents::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -1315,6 +1330,12 @@ pub fn run() {
             reminders_sync_now,
             reminders_set_include_notes,
             reminders_open_privacy_settings,
+            agents::agents_status,
+            agents::agents_set_enabled,
+            agents::agents_connect_claude_desktop,
+            agents::inbox_list,
+            agents::inbox_accept,
+            agents::inbox_discard,
             slack_status,
             slack_connect,
             slack_cancel,
