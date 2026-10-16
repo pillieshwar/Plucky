@@ -7,6 +7,7 @@
 //!   request) → user confirms the date → `add_task` (one SQLite write).
 //!   The runtime stops itself after a few idle minutes.
 
+mod calendar;
 mod capture;
 mod data;
 mod engine;
@@ -336,6 +337,86 @@ fn reminders_open_privacy_settings() -> CmdResult<()> {
     }
     std::process::Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
+        .spawn()
+        .map(|_| ())
+        .map_err(err)
+}
+
+// ── Calendar connector ──────────────────────────────────────────────────────
+
+#[tauri::command]
+fn calendar_status(settings: State<'_, Settings>) -> calendar::Status {
+    let s = settings.get();
+    calendar::Status {
+        supported: cfg!(target_os = "macos"),
+        access: calendar::access(),
+        enabled: s.calendar_enabled,
+        calendars: s.calendar_ids,
+    }
+}
+
+/// Blocking (waits for the user to answer the macOS prompt), so async.
+#[tauri::command]
+async fn calendar_request_access() -> CmdResult<reminders::Access> {
+    tauri::async_runtime::spawn_blocking(calendar::request_access)
+        .await
+        .map_err(err)?
+}
+
+#[tauri::command]
+async fn calendar_calendars() -> CmdResult<Vec<calendar::CalendarInfo>> {
+    tauri::async_runtime::spawn_blocking(calendar::calendars)
+        .await
+        .map_err(err)?
+}
+
+/// Turn the connector on or off, and choose calendars (`None` = all).
+#[tauri::command]
+fn calendar_set(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    enabled: bool,
+    calendars: Option<Vec<String>>,
+) -> calendar::Status {
+    let s = settings.update(|s| {
+        s.calendar_enabled = enabled;
+        s.calendar_ids = calendars;
+    });
+    let _ = app.emit("calendar-changed", ());
+    calendar::Status {
+        supported: cfg!(target_os = "macos"),
+        access: calendar::access(),
+        enabled: s.calendar_enabled,
+        calendars: s.calendar_ids,
+    }
+}
+
+/// Events for the days `from..=to`; empty when the connector is off.
+#[tauri::command]
+async fn calendar_events(
+    settings: State<'_, Settings>,
+    from: String,
+    to: String,
+) -> CmdResult<Vec<calendar::EventInfo>> {
+    let s = settings.get();
+    if !s.calendar_enabled {
+        return Ok(Vec::new());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        calendar::events(&from, &to, s.calendar_ids.as_deref())
+    })
+    .await
+    .map_err(err)?
+}
+
+/// System Settings → Privacy & Security → Calendars.
+#[tauri::command]
+fn calendar_open_privacy_settings() -> CmdResult<()> {
+    if !cfg!(target_os = "macos") {
+        return Err("Only available on macOS.".into());
+    }
+    std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
         .spawn()
         .map(|_| ())
         .map_err(err)
@@ -1121,6 +1202,12 @@ pub fn run() {
             reminders_sync_now,
             reminders_set_include_notes,
             reminders_open_privacy_settings,
+            calendar_status,
+            calendar_request_access,
+            calendar_calendars,
+            calendar_set,
+            calendar_events,
+            calendar_open_privacy_settings,
             open_source,
             open_url,
             restore_task,

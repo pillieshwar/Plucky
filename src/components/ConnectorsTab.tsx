@@ -1,0 +1,253 @@
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { api, onCalendarChanged, onRemindersChanged } from "../lib/api";
+import { Toggle } from "./GeneralSettings";
+import { RemindersSection } from "./RemindersSection";
+import type { CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
+
+/**
+ * Connectors: apps on this Mac that Plucky can work with. Each card shows
+ * whether it's connected and opens to its settings. Everything goes through
+ * macOS on this Mac; nothing signs in to a server.
+ */
+export function ConnectorsTab() {
+  const [reminders, setReminders] = useState<RemindersStatus | null>(null);
+  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [open, setOpen] = useState<"reminders" | "calendar" | null>(null);
+
+  const refresh = useCallback(() => {
+    api.remindersStatus().then(setReminders).catch(() => undefined);
+    api.calendarStatus().then(setCalendar).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh)];
+    return () => subs.forEach((p) => void p.then((u) => u()));
+  }, [refresh]);
+
+  const toggle = (id: "reminders" | "calendar") => setOpen((o) => (o === id ? null : id));
+
+  return (
+    <div className="connectors">
+      <p className="connectors-intro">
+        Connect apps on this Mac to use your tasks with them. Plucky talks to them through macOS — no accounts, no
+        servers.
+      </p>
+
+      <ConnectorCard
+        icon={<CalendarGlyph />}
+        tone="calendar"
+        name="Calendar"
+        description="See your meetings next to your tasks in the menu bar."
+        connected={!!calendar?.enabled && calendar.access === "full"}
+        open={open === "calendar"}
+        onToggle={() => toggle("calendar")}
+      >
+        <CalendarSection status={calendar} onStatus={setCalendar} />
+      </ConnectorCard>
+
+      <ConnectorCard
+        icon={<RemindersGlyph />}
+        tone="reminders"
+        name="Apple Reminders"
+        description="Sync tasks both ways, and tick them off on your iPhone."
+        connected={!!reminders?.enabled}
+        open={open === "reminders"}
+        onToggle={() => toggle("reminders")}
+      >
+        <RemindersSection embedded />
+      </ConnectorCard>
+
+      <p className="connectors-foot">More connectors are on the way.</p>
+    </div>
+  );
+}
+
+function ConnectorCard({
+  icon,
+  tone,
+  name,
+  description,
+  connected,
+  open,
+  onToggle,
+  children,
+}: {
+  icon: ReactNode;
+  tone: string;
+  name: string;
+  description: string;
+  connected: boolean;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className={open ? "connector open" : "connector"}>
+      <div className="connector-head">
+        <span className={`connector-icon ${tone}`} aria-hidden>
+          {icon}
+        </span>
+        <div className="connector-text">
+          <h3>{name}</h3>
+          <p>{description}</p>
+        </div>
+        <button
+          type="button"
+          className={connected ? "connector-action connected" : "connector-action"}
+          onClick={onToggle}
+          aria-expanded={open}
+        >
+          {connected ? (
+            <>
+              <span className="connector-dot" aria-hidden /> Connected
+            </>
+          ) : open ? (
+            "Close"
+          ) : (
+            <>
+              Connect <span aria-hidden>↗</span>
+            </>
+          )}
+        </button>
+      </div>
+      {open && <div className="connector-body">{children}</div>}
+    </section>
+  );
+}
+
+/** Settings for the Calendar connector: on/off, permission, which calendars. */
+function CalendarSection({
+  status,
+  onStatus,
+}: {
+  status: CalendarStatus | null;
+  onStatus: (s: CalendarStatus) => void;
+}) {
+  const [calendars, setCalendars] = useState<CalendarInfo[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const access = status?.access;
+  const loadCalendars = useCallback(() => {
+    api
+      .calendarCalendars()
+      .then(setCalendars)
+      .catch((e) => setError(String(e)));
+  }, []);
+
+  useEffect(() => {
+    if (access === "full") loadCalendars();
+  }, [access, loadCalendars]);
+
+  if (!status) return null;
+  if (!status.supported) return <p className="setting-line muted">Calendar is available on macOS.</p>;
+
+  const blocked = status.access === "denied" || status.access === "restricted" || status.access === "write_only";
+
+  async function turnOn() {
+    setError(null);
+    setBusy(true);
+    try {
+      let a = status!.access;
+      if (a === "not_determined") a = await api.calendarRequestAccess();
+      if (a !== "full") {
+        onStatus(await api.calendarStatus());
+        return;
+      }
+      onStatus(await api.calendarSet(true, status!.calendars));
+      loadCalendars();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function turnOff() {
+    onStatus(await api.calendarSet(false, status!.calendars));
+  }
+
+  async function choose(id: string, on: boolean) {
+    const current = status!.calendars ?? calendars.map((c) => c.id);
+    const next = on ? [...new Set([...current, id])] : current.filter((x) => x !== id);
+    // All selected → store "all", so new calendars show up by themselves.
+    const all = calendars.every((c) => next.includes(c.id));
+    onStatus(await api.calendarSet(true, all ? null : next));
+  }
+
+  const enabled = status.enabled && status.access === "full";
+  const shown = (id: string) => status.calendars === null || status.calendars.includes(id);
+
+  return (
+    <div className="connector-body-inner">
+      <div className="card-stack">
+        <Toggle
+          label="Show calendar events in Plucky"
+          hint="Meetings appear next to your tasks in the menu bar. Read-only — Plucky never changes your calendar."
+          checked={enabled}
+          disabled={busy || blocked}
+          onChange={(v) => void (v ? turnOn() : turnOff())}
+        />
+        {busy && <p className="setting-line muted">Waiting for permission…</p>}
+        {blocked && (
+          <div className="setting-line">
+            <span className="dot warn" aria-hidden />
+            <span className="setting-line-text">Calendar access is off for Plucky.</span>
+            <button type="button" className="ghost small" onClick={() => void api.calendarOpenPrivacySettings()}>
+              Allow
+            </button>
+          </div>
+        )}
+        <div className="setting-line">
+          <span className="dot ok" aria-hidden />
+          <span className="setting-line-text muted">
+            Includes Google, Outlook and iCloud calendars added to the Calendar app. Events stay on this Mac.
+          </span>
+        </div>
+      </div>
+
+      {enabled && calendars.length > 0 && (
+        <>
+          <h4 className="connector-subhead">Calendars to show</h4>
+          <ul className="calendar-list">
+            {calendars.map((c) => (
+              <li key={c.id}>
+                <label>
+                  <input type="checkbox" checked={shown(c.id)} onChange={(e) => void choose(c.id, e.target.checked)} />
+                  <span className="calendar-swatch" style={{ background: c.color ?? "var(--faint)" }} aria-hidden />
+                  <span className="calendar-name">{c.title}</span>
+                  <span className="calendar-source">{c.source}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {error && <p className="rem-error">{error}</p>}
+    </div>
+  );
+}
+
+function CalendarGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2.5" />
+      <path d="M3 8.5h14M7 2.75v3.5M13 2.75v3.5" strokeLinecap="round" />
+      <circle cx="7.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="12" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="12.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function RemindersGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="5" cy="5.5" r="1.6" />
+      <circle cx="5" cy="10" r="1.6" />
+      <circle cx="5" cy="14.5" r="1.6" />
+      <path d="M9 5.5h7.5M9 10h7.5M9 14.5h7.5" strokeLinecap="round" />
+    </svg>
+  );
+}

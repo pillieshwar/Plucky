@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { RemindersSection } from "./RemindersSection";
 import { DataSection, GeneralSection, NotificationsSection } from "./GeneralSettings";
 import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import {
@@ -68,8 +67,6 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
       />
 
       <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <RemindersSection />
 
       <DataSection onError={onError} />
 

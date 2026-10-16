@@ -12,7 +12,7 @@ const NEW_LIST = "__new__";
  * iCloud warning and needs an explicit acknowledgement when the chosen list
  * can sync off this Mac.
  */
-export function RemindersSection() {
+export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
   const [status, setStatus] = useState<RemindersStatus | null>(null);
   const [setup, setSetup] = useState(false);
   const [lists, setLists] = useState<RemindersList[]>([]);
@@ -102,8 +102,8 @@ export function RemindersSection() {
     : "";
 
   return (
-    <section className="settings-section">
-      <h2 className="settings-h">Apple Reminders</h2>
+    <section className={embedded ? "connector-body-inner" : "settings-section"}>
+      {!embedded && <h2 className="settings-h">Apple Reminders</h2>}
 
       {!status.enabled && !setup && (
         <div className="card-stack">

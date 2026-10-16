@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
+import { ConnectorsTab } from "./components/ConnectorsTab";
 import { Onboarding } from "./components/Onboarding";
 import { processCapture } from "./lib/capture";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -30,9 +31,10 @@ import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
 
-type Tab = "tasks" | "models" | "settings";
+type Tab = "tasks" | "connectors" | "models" | "settings";
 const TABS: { id: Tab; label: string }[] = [
   { id: "tasks", label: "Tasks" },
+  { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
   { id: "settings", label: "Settings" },
 ];
@@ -368,7 +370,9 @@ export default function App() {
           <p className="sub" data-tauri-drag-region>
             {tab === "tasks"
               ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
-              : tab === "models"
+              : tab === "connectors"
+                ? "Work with apps on this Mac"
+                : tab === "models"
                 ? status?.active_model
                   ? `Using ${status.active_model}`
                   : "No model yet"
@@ -508,6 +512,7 @@ export default function App() {
             today={today}
           />
         )}
+        {tab === "connectors" && <ConnectorsTab />}
         {tab === "models" && <ModelsTab onChanged={checkStatus} />}
         {tab === "settings" && (
           <SettingsTab
