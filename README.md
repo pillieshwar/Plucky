@@ -97,7 +97,7 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
-- **Plucky uses the internet for two things only:** model downloads you start (from Hugging Face, verified against their SHA-256) and checking GitHub for updates (you can turn this off in **Settings → General**).
+- **Plucky uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Settings → General**), and — only if you connect it — talking to Slack directly from your Mac. The Slack sign-in is stored in your macOS Keychain; there is no Plucky server.
 - **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
 - **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. Plucky warns you and asks first; pick an "On My Mac" list to stay fully local.
 

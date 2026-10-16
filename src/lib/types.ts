@@ -198,6 +198,18 @@ export interface RemindersStatus {
   last_error: string | null;
 }
 
+/** Mirrors `slack::Status`. */
+export interface SlackStatus {
+  supported: boolean;
+  connected: boolean;
+  /** Waiting for the user to finish signing in in the browser. */
+  connecting: boolean;
+  needs_reconnect: boolean;
+  team: string | null;
+  user_id: string | null;
+  error: string | null;
+}
+
 /** Mirrors `calendar::CalendarInfo`. */
 export interface CalendarInfo {
   id: string;

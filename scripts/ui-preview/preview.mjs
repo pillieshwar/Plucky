@@ -157,6 +157,8 @@ function mockTauri(s) {
       last_error: null,
     }),
     notification_permission: () => "granted",
+    slack_status: () =>
+      s.slack ?? { supported: true, connected: false, connecting: false, needs_reconnect: false, team: null, user_id: null, error: null },
     calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
     calendar_calendars: () => [
       { id: "c1", key: "Google / Work", title: "Work", source: "Google", color: "#3b82f6" },
@@ -396,6 +398,19 @@ await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
   await p.locator(".connector-action").nth(1).click();
 });
+await shot("panel-connectors-slack", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(2).click();
+});
+await shot(
+  "panel-connectors-slack-on",
+  PANEL,
+  scenario({ slack: { supported: true, connected: true, connecting: false, needs_reconnect: false, team: "Acme Inc", user_id: "U123", error: null } }),
+  async (p) => {
+    await p.getByRole("tab", { name: "Connectors" }).click();
+    await p.locator(".connector-action").nth(2).click();
+  },
+);
 await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
 await shot("popover-events-dark", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }), async () => {}, true);
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
