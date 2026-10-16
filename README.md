@@ -9,8 +9,10 @@
 Select a message, an email or a web page, press <kbd>⇧⌘S</kbd>, and Plucky writes the to-do, finds the due date and reminds you on time.<br>
 A small AI model runs entirely on your own computer, so nothing you select ever leaves it.
 
-[![Latest release](https://img.shields.io/github/v/release/pillieshwar/pluck?label=release&color=0f7168)](https://github.com/pillieshwar/Plucky/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/pillieshwar/Plucky?label=release&color=0f7168)](https://github.com/pillieshwar/Plucky/releases/latest)
 [![CI](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml)
+[![Security](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pillieshwar/Plucky/badge)](https://scorecard.dev/viewer/?uri=github.com/pillieshwar/Plucky)
 [![macOS 11+](https://img.shields.io/badge/macOS-11%2B-171b1a?logo=apple)](#install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -61,6 +63,14 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 There's nothing else to install. Plucky opens at login and updates itself — look for **Restart to update** when a new version is ready.
 
 > **Coming from Pluck?** Pluck is now called Plucky. It updates itself as usual, renames itself to Plucky in Applications on first launch, and keeps your tasks, models, settings and login item.
+
+**Verify your download (optional).** Every release is built by this repository's public release workflow and carries a signed build-provenance attestation. With the [GitHub CLI](https://cli.github.com):
+
+```bash
+gh attestation verify ~/Downloads/Plucky-macOS.dmg --repo pillieshwar/Plucky
+```
+
+Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 ## Keyboard shortcuts
 
@@ -166,9 +176,13 @@ Bug reports, ideas and pull requests are welcome.
 
 1. Open an [issue](https://github.com/pillieshwar/Plucky/issues) describing the bug or idea — for bugs, attach the log from **Settings → Show log file**.
 2. Fork the repository and create a branch.
-3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows.
+3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows and runs the security checks. Commit `Cargo.lock` and `package-lock.json` changes along with the dependency change that caused them.
 
 Maintainers: releases are cut from **Actions → Release → Run workflow** after bumping `version` in `package.json`, `src-tauri/tauri.conf.json` and `Cargo.toml`. The workflow builds a universal `.dmg`, signs the update archive and publishes `latest.json` for in-app updates.
+
+## Security
+
+Found a vulnerability? Please report it privately — see [SECURITY.md](SECURITY.md). Dependencies are locked (`Cargo.lock`, `package-lock.json`), updated weekly by Dependabot, and checked on every pull request by cargo-deny, npm audit, OSV-Scanner and zizmor.
 
 ## License
 

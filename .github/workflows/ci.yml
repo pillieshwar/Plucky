@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
 
+permissions: {}
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -17,29 +19,40 @@ jobs:
   core:
     name: Rust core (tests)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Cargo.lock is up to date
+        run: cargo metadata --locked --format-version 1 > /dev/null
       - run: cargo fmt --all --check
       - name: Test
         shell: bash
-        run: scripts/ci-annotate.sh cargo test -p pluck-core
+        run: scripts/ci-annotate.sh cargo test --locked -p pluck-core
       - name: Clippy
         shell: bash
-        run: scripts/ci-annotate.sh cargo clippy -p pluck-core --all-targets --message-format=short -- -D warnings
+        run: scripts/ci-annotate.sh cargo clippy --locked -p pluck-core --all-targets --message-format=short -- -D warnings
 
   frontend:
     name: Frontend (typecheck, tests, build)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - name: Typecheck
         shell: bash
         run: scripts/ci-annotate.sh npm run typecheck
@@ -55,17 +68,22 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
           components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: Cache llama-server build
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .llama-build
           key: llama-${{ runner.os }}-${{ runner.arch }}-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
@@ -75,14 +93,14 @@ jobs:
           # Older runs built this inside target/; drop it from the restored Rust cache.
           rm -rf target/llama.cpp
           scripts/build-llama-server.sh
-      - run: npm install
+      - run: npm ci
       - run: npm run build
       - name: Clippy
         shell: bash
-        run: scripts/ci-annotate.sh cargo clippy -p pluck --all-targets --message-format=short -- -D warnings
+        run: scripts/ci-annotate.sh cargo clippy --locked -p pluck --all-targets --message-format=short -- -D warnings
       - name: Unit tests (app crate)
         shell: bash
-        run: scripts/ci-annotate.sh cargo test -p pluck --lib
+        run: scripts/ci-annotate.sh cargo test --locked -p pluck --lib
       - name: Build unsigned debug bundle
         shell: bash
         # Updater archives need the release signing key, which CI doesn't have.
@@ -95,7 +113,7 @@ jobs:
           ls -l "$app/Contents/MacOS"
           test -x "$app/Contents/MacOS/llama-server"
           "$app/Contents/MacOS/llama-server" --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pluck-${{ matrix.os }}
           path: |
@@ -107,8 +125,12 @@ jobs:
   model-catalog:
     name: Model catalog links
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Check every catalog file exists on Hugging Face
         shell: bash
         run: |

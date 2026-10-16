@@ -1,0 +1,25 @@
+# cargo-deny policy, checked by .github/workflows/security.yml.
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Plucky ships for macOS and Windows; ignore crates only Linux builds use.
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+version = 2
+# Known vulnerabilities always fail. Crates marked unmaintained fail only when
+# Plucky depends on them directly; deeper ones are reported as warnings.
+unmaintained = "workspace"
+yanked = "deny"
+# Each ignored advisory needs a reason and is reviewed when it changes.
+ignore = []
+
+[sources]
+# Only crates.io; no git or other registries can sneak in.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

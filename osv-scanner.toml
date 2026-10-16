@@ -1,0 +1,7 @@
+# OSV-Scanner settings, used by .github/workflows/security.yml.
+# To accept a finding, add it with a reason and a review date, e.g.:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2027-01-01
+# reason = "Only affects the dev server, which Plucky never ships."

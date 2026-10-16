@@ -1,0 +1,94 @@
+name: Security
+
+# Known-vulnerability and supply-chain checks, on every pull request, on
+# main, and weekly (new advisories appear without any code changing).
+#
+# - cargo-deny: Rust advisories (vulnerable, yanked, unmaintained), and only
+#   crates.io as a source. Policy in deny.toml.
+# - npm audit: npm advisories for the frontend and build tools.
+# - OSV-Scanner: both lockfiles against the OSV database.
+# - zizmor: security mistakes in these GitHub Actions workflows.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 14 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-deny:
+    name: Rust advisories (cargo-deny)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+          arguments: ""
+          command-arguments: advisories sources
+
+  npm-audit:
+    name: npm advisories (npm audit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      # High and critical fail the check; lower ones are listed in the log.
+      - run: npm audit --audit-level=high
+
+  osv:
+    name: OSV-Scanner (both lockfiles)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Scan
+        # Exits non-zero when it finds anything; the next step decides.
+        continue-on-error: true
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --config=osv-scanner.toml
+            --lockfile=Cargo.lock
+            --lockfile=package-lock.json
+            --format=json
+            --output=osv-results.json
+      - name: Report
+        # Vulnerabilities fail the check. "Unmaintained" notices are only
+        # warnings here; cargo-deny applies the policy for those.
+        run: python3 scripts/osv-report.py osv-results.json
+
+  zizmor:
+    name: Workflow security (zizmor)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+        with:
+          advanced-security: false
+          annotations: true
