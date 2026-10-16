@@ -201,6 +201,8 @@ export interface RemindersStatus {
 /** Mirrors `calendar::CalendarInfo`. */
 export interface CalendarInfo {
   id: string;
+  /** "Account / Title" — how Plucky remembers which calendars to hide. */
+  key: string;
   title: string;
   source: string;
   color: string | null;
@@ -222,8 +224,8 @@ export interface CalendarStatus {
   supported: boolean;
   access: RemindersAccess;
   enabled: boolean;
-  /** null = all calendars. */
-  calendars: string[] | null;
+  /** Calendars turned off, by key. Everything else (and anything new) shows. */
+  hidden: string[];
 }
 
 export interface RemindersEnableRequest {

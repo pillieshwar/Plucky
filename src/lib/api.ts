@@ -66,8 +66,7 @@ export const api = {
   calendarStatus: () => invoke<CalendarStatus>("calendar_status"),
   calendarRequestAccess: () => invoke<RemindersAccess>("calendar_request_access"),
   calendarCalendars: () => invoke<CalendarInfo[]>("calendar_calendars"),
-  calendarSet: (enabled: boolean, calendars: string[] | null) =>
-    invoke<CalendarStatus>("calendar_set", { enabled, calendars }),
+  calendarSet: (enabled: boolean, hidden: string[]) => invoke<CalendarStatus>("calendar_set", { enabled, hidden }),
   /** Events for the days `from..=to` (YYYY-MM-DD); empty when Calendar isn't connected. */
   calendarEvents: (from: string, to: string) => invoke<CalendarEvent[]>("calendar_events", { from, to }),
   calendarOpenPrivacySettings: () => invoke<void>("calendar_open_privacy_settings"),

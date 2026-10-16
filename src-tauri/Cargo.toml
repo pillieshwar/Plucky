@@ -37,7 +37,7 @@ tempfile = "3"
 core-foundation = "0.10"
 # "exception": AppKit can throw when a live window changes style; catch it.
 objc2 = { version = "0.6", features = ["exception"] }
-objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSCalendar", "NSError", "NSDate", "NSPredicate", "NSSet", "NSUserDefaults"] }
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSCalendar", "NSError", "NSDate", "NSPredicate", "NSSet", "NSUserDefaults", "NSNotification", "NSOperation"] }
 block2 = "0.6"
 objc2-event-kit = { version = "0.3", default-features = false, features = ["std", "block2", "EKCalendar", "EKCalendarItem", "EKEventStore", "EKObject", "EKReminder", "EKSource", "EKTypes", "EKError", "EKEvent", "objc2-app-kit"] }
 objc2-app-kit = { version = "0.3", features = ["NSPasteboard", "NSPasteboardItem", "NSApplication", "NSResponder", "NSRunningApplication", "NSWindow", "NSPanel", "NSColor", "NSColorSpace", "libc"] }
