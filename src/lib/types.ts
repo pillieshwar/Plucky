@@ -109,12 +109,36 @@ export interface AppSettings {
   last_undated_nudge: string | null;
   /** When a task's time comes, also open the dropdown on it. */
   due_spotlight: boolean;
+  agents_enabled: boolean;
+}
+
+/** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */
+export interface InboxItem {
+  id: number;
+  title: string;
+  due_date: string | null;
+  due_time: string | null;
+  notes: string | null;
+  /** Display name of the AI app, e.g. "Claude". */
+  agent: string;
+  received_at: string;
+}
+
+/** Mirrors `agents::Status`. */
+export interface AgentsStatus {
+  supported: boolean;
+  enabled: boolean;
+  command: string;
+  temporary_location: boolean;
+  claude_desktop: boolean;
+  claude_desktop_connected: boolean;
+  pending: number;
 }
 
 export type Theme = "system" | "light" | "dark";
 
 /** Mirrors `popover::Focus`: why the popover opened by itself. */
-export type PopoverFocus = { kind: "due"; ids: number[] } | { kind: "undated" };
+export type PopoverFocus = { kind: "due"; ids: number[] } | { kind: "undated" } | { kind: "inbox" };
 
 export type NotificationPermission = "not_determined" | "denied" | "granted" | "unsupported";
 

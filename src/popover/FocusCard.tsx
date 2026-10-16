@@ -4,7 +4,8 @@ import { addDays, relativeLabel, toISODate } from "../lib/dates";
 import { timeLabel } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
-import type { PopoverFocus, Task } from "../lib/types";
+import { api } from "../lib/api";
+import type { InboxItem, PopoverFocus, Task } from "../lib/types";
 
 export type Focus = PopoverFocus;
 
@@ -13,12 +14,13 @@ const UNDATED_SHOWN = 5;
 
 /**
  * A single card over the blurred popover: the task whose time just came, or
- * the daily "tasks without a date" check-in. One clear question, a few
+ * the daily "tasks without a date" check-in, or tasks AI agents sent. One clear question, a few
  * one-tap answers, and a way out.
  */
 export function FocusCard({
   focus,
   tasks,
+  inbox,
   actions,
   locale,
   onFinish,
@@ -26,6 +28,7 @@ export function FocusCard({
 }: {
   focus: Focus;
   tasks: Task[];
+  inbox: InboxItem[];
   actions: TaskActions;
   locale: string;
   /** Close the card (and the popover). */
@@ -33,10 +36,117 @@ export function FocusCard({
   /** Open a task (or the list) in the main window. */
   onOpen: (task: Task | null) => void;
 }) {
-  return focus.kind === "due" ? (
-    <DueFocus ids={focus.ids} tasks={tasks} actions={actions} locale={locale} onFinish={onFinish} onOpen={onOpen} />
-  ) : (
-    <UndatedFocus tasks={tasks} actions={actions} locale={locale} onFinish={onFinish} onOpen={onOpen} />
+  if (focus.kind === "due")
+    return <DueFocus ids={focus.ids} tasks={tasks} actions={actions} locale={locale} onFinish={onFinish} onOpen={onOpen} />;
+  if (focus.kind === "inbox") return <InboxFocus items={inbox} actions={actions} locale={locale} onFinish={onFinish} />;
+  return <UndatedFocus tasks={tasks} actions={actions} locale={locale} onFinish={onFinish} onOpen={onOpen} />;
+}
+
+/** "Fri, Oct 23 · 3:00 PM", or null without a date. */
+function whenLabel(item: InboxItem, locale: string): string | null {
+  if (!item.due_date) return null;
+  const day = relativeLabel(item.due_date, new Date(), locale);
+  return item.due_time ? `${day} · ${timeLabel(item.due_time, locale)}` : day;
+}
+
+/**
+ * Tasks AI agents sent. Nothing joins the list until it's added here, so a
+ * misled agent can't plant tasks (or links) on its own.
+ */
+function InboxFocus({
+  items,
+  actions,
+  locale,
+  onFinish,
+}: {
+  items: InboxItem[];
+  actions: TaskActions;
+  locale: string;
+  onFinish: (message?: string) => void;
+}) {
+  const [busy, setBusy] = useState<number[]>([]);
+  const [added, setAdded] = useState(0);
+  const open = items.filter((i) => !busy.includes(i.id));
+  if (items.length === 0) return null;
+
+  const agents = [...new Set(items.map((i) => i.agent))];
+  const n = items.length;
+  const heading =
+    agents.length === 1
+      ? `${agents[0]} sent ${n === 1 ? "a task" : `${n} tasks`}`
+      : `${n} tasks from AI agents`;
+
+  async function review(list: InboxItem[], accept: boolean) {
+    setBusy((b) => [...b, ...list.map((i) => i.id)]);
+    let count = 0;
+    for (const item of list) {
+      try {
+        if (accept) {
+          await api.inboxAccept(item.id);
+          count++;
+        } else {
+          await api.inboxDiscard(item.id);
+        }
+      } catch (e) {
+        actions.fail(e);
+      }
+    }
+    const total = added + count;
+    setAdded(total);
+    if (list.length === open.length) {
+      onFinish(total > 0 ? `Added ${total} ${total === 1 ? "task" : "tasks"}` : undefined);
+    }
+  }
+
+  return (
+    <div className="focus-card inbox" role="dialog" aria-labelledby="focus-title">
+      <div className="focus-kicker">
+        <span className="focus-glyph" aria-hidden>
+          ✦
+        </span>
+        <span>From AI agents</span>
+      </div>
+      <h2 className="focus-title" id="focus-title">
+        {heading}
+      </h2>
+      <p className="focus-meta">Add the ones you want. Agents can add tasks, but never see your list.</p>
+      <ul className="focus-list">
+        {open.map((item) => {
+          const when = whenLabel(item, locale);
+          return (
+            <li key={item.id}>
+              <span className="focus-row-title" title={item.title}>
+                {item.title}
+              </span>
+              <span className="focus-row-meta">
+                {[when ?? "No date", agents.length > 1 ? `from ${item.agent}` : null].filter(Boolean).join(" · ")}
+              </span>
+              {item.notes && <span className="focus-row-notes">{item.notes}</span>}
+              <span className="focus-chips">
+                <button type="button" className="sn-chip done" onClick={() => void review([item], true)}>
+                  Add
+                </button>
+                <button type="button" className="sn-chip" onClick={() => void review([item], false)}>
+                  Discard
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="focus-foot">
+        {open.length > 1 ? (
+          <button type="button" className="focus-link" onClick={() => void review(open, true)}>
+            Add all {open.length}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button type="button" className="focus-link quiet" onClick={() => onFinish()}>
+          Later
+        </button>
+      </div>
+    </div>
   );
 }
 

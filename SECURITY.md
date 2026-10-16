@@ -36,6 +36,12 @@ upstream project.
 - **Local only.** Selections and tasks never leave the Mac. The optional Slack
   connector talks to slack.com directly (OAuth with PKCE, no client secret),
   and keeps its token in the macOS Keychain.
+- **Write-only AI agents.** `Pluck --mcp` offers AI apps one tool,
+  `add_task`, and nothing to read. It reaches the app over a Unix socket that
+  only the user can open (mode 0600, no network). Every accepted task gets the
+  same reply — no ids, counts or duplicate checks — and lands in an inbox the
+  user reviews before anything joins the task list. Off by default; rate- and
+  size-limited.
 - **Local model.** The model runtime
   listens on `127.0.0.1` only, on a random port with a random key.
 - **Signed updates.** Every in-app update is verified against the project's

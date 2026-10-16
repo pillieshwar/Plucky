@@ -108,6 +108,19 @@ fn send(app: &AppHandle, note: Note) {
     }
 }
 
+/// A plain notification without buttons; clicking it opens Plucky.
+pub fn send_plain(app: &AppHandle, id: &str, title: String, body: String) {
+    send(
+        app,
+        Note {
+            id: id.into(),
+            title,
+            body,
+            actions: false,
+        },
+    );
+}
+
 /// Clear a task's banner, e.g. once it's done.
 pub fn clear_task(id: i64) {
     #[cfg(target_os = "macos")]

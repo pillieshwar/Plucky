@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCalendarChanged, onCapture, onPopoverFocus, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
@@ -19,7 +19,7 @@ import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedu
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
-import type { CalendarEvent, NewTask, Task, UpdateStatus } from "../lib/types";
+import type { CalendarEvent, InboxItem, NewTask, Task, UpdateStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
@@ -76,6 +76,8 @@ export default function Popover() {
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
   // Opened by Plucky itself: a task's time came, or the undated check-in.
   const [focus, setFocus] = useState<Focus | null>(null);
+  // Tasks AI agents sent, waiting for review.
+  const [inbox, setInbox] = useState<InboxItem[]>([]);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const labels = useMemo(() => weekdayLabels(LOCALE, weekStart), [weekStart]);
@@ -84,6 +86,7 @@ export default function Popover() {
     try {
       setTasks(await api.listTasks(toISODate(new Date())));
       setError(null);
+      setInbox(await api.inboxList().catch(() => []));
     } catch (e) {
       setError(String(e));
     }
@@ -117,6 +120,7 @@ export default function Popover() {
       .catch(() => undefined);
     const subs = [
       onTasksChanged(() => void load()),
+      onInboxChanged(() => void api.inboxList().then(setInbox, () => undefined)),
       onPopoverShown(reset),
       onPopoverFocus((f) => {
         setFocus(f);
@@ -364,7 +368,9 @@ export default function Popover() {
   // Show the focus card only while it has something to show.
   const focusing =
     focus !== null &&
-    (focus.kind === "undated" || focus.ids.some((id) => tasks.some((t) => t.id === id && !t.done)));
+    (focus.kind === "undated" ||
+      (focus.kind === "inbox" && inbox.length > 0) ||
+      (focus.kind === "due" && focus.ids.some((id) => tasks.some((t) => t.id === id && !t.done))));
 
   if (capture) {
     return (
@@ -491,6 +497,17 @@ export default function Popover() {
           <span>{heading.date}</span>
         </h2>
 
+        {inbox.length > 0 && (
+          <button type="button" className="pop-inbox" onClick={() => setFocus({ kind: "inbox" })}>
+            <span aria-hidden>✦</span>
+            <span>
+              {inbox.length === 1 ? "1 task" : `${inbox.length} tasks`} from{" "}
+              {new Set(inbox.map((i) => i.agent)).size === 1 ? inbox[0].agent : "AI agents"}
+            </span>
+            <b>Review</b>
+          </button>
+        )}
+
         {events.length > 0 && <EventList events={events} day={selected} now={now} />}
 
         {selected === today && (
@@ -613,6 +630,7 @@ export default function Popover() {
           <FocusCard
             focus={focus}
             tasks={tasks}
+            inbox={inbox}
             actions={actions}
             locale={LOCALE}
             onFinish={finishFocus}

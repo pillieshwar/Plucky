@@ -3,6 +3,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
+  AgentsStatus,
+  InboxItem,
   PopoverFocus,
   AppSettings,
   BackupInfo,
@@ -80,6 +82,12 @@ export const api = {
   openSource: (id: number) => invoke<void>("open_source", { id }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   restoreTask: (task: Task) => invoke<Task>("restore_task", { task }),
+  agentsStatus: () => invoke<AgentsStatus>("agents_status"),
+  agentsSetEnabled: (enabled: boolean) => invoke<AgentsStatus>("agents_set_enabled", { enabled }),
+  agentsConnectClaudeDesktop: () => invoke<AgentsStatus>("agents_connect_claude_desktop"),
+  inboxList: () => invoke<InboxItem[]>("inbox_list"),
+  inboxAccept: (id: number) => invoke<Task>("inbox_accept", { id }),
+  inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),
   getSettings: () => invoke<AppSettings>("get_settings"),
   setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),
   notificationPermission: () => invoke<NotificationPermission>("notification_permission"),
@@ -169,4 +177,9 @@ export function onPopoverFocus(handler: (f: PopoverFocus) => void): Promise<Unli
 /** Preferences changed (in any window). */
 export function onSettingsChanged(handler: (s: AppSettings) => void): Promise<UnlistenFn> {
   return listen<AppSettings>("settings-changed", (e) => handler(e.payload));
+}
+
+/** Tasks from AI agents arrived or were reviewed. */
+export function onInboxChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("inbox-changed", () => handler());
 }

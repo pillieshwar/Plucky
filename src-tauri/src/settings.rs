@@ -51,6 +51,8 @@ pub struct AppSettings {
     pub last_undated_nudge: Option<String>,
     /// When a task's time comes, also open the menu-bar dropdown on it.
     pub due_spotlight: bool,
+    /// Let AI agents on this Mac add tasks (to the review inbox) over MCP.
+    pub agents_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -76,6 +78,7 @@ impl Default for AppSettings {
             undated_time: "16:00".into(),
             last_undated_nudge: None,
             due_spotlight: true,
+            agents_enabled: false,
         }
     }
 }
