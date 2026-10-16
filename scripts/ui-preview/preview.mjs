@@ -319,12 +319,8 @@ await shot("panel-models-local-open", PANEL, scenario(), async (p) => {
   await p.locator(".local-toggle").click();
   await p.locator(".local-toggle").scrollIntoViewIfNeeded();
 });
-await shot("panel-settings-reminders-off", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Settings" }).click();
-  await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
-});
 await shot(
-  "panel-settings-reminders-on",
+  "panel-connectors-reminders-on",
   PANEL,
   scenario({
     reminders: {
@@ -339,8 +335,8 @@ await shot(
     },
   }),
   async (p) => {
-    await p.getByRole("tab", { name: "Settings" }).click();
-    await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
+    await p.getByRole("tab", { name: "Connectors" }).click();
+    await p.locator(".connector-action").nth(1).click();
   },
 );
 await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));

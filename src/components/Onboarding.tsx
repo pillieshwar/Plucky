@@ -260,7 +260,7 @@ export function Onboarding({
               onChange={setShowOnStart}
             />
           </div>
-          <p className="onboard-muted">Want tasks on your iPhone too? Turn on Apple Reminders sync in Settings.</p>
+          <p className="onboard-muted">Want tasks on your iPhone too? Connect Apple Reminders in the Connectors tab.</p>
           <div className="onboard-actions">
             {back}
             <button type="button" className="primary" onClick={() => void saveReminders()}>

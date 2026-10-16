@@ -380,7 +380,7 @@ html[data-view="panel"] body {
 .found .ghost { border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .found .model-error { flex-basis: 100%; }
 
-/* Settings → Apple Reminders */
+/* Connectors → Apple Reminders */
 .rem-setup, .rem-on {
   padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 }
