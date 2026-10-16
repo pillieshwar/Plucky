@@ -32,8 +32,8 @@ export function ConnectorsTab() {
   return (
     <div className="connectors">
       <p className="connectors-intro">
-        Connect apps on this Mac to use your tasks with them. Plucky talks to them through macOS — no accounts, no
-        servers.
+        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Plucky server or
+        account.
       </p>
 
       <ConnectorCard
