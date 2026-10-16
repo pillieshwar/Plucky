@@ -3,7 +3,8 @@ import { api, onModelDownload } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { ShortcutEditor } from "./SettingsTab";
 import { formatShortcut, type ShortcutSettings } from "../lib/shortcuts";
-import type { AppSettings, ModelInfo, Status } from "../lib/types";
+import type { AgentsStatus, AppSettings, ModelInfo, Status } from "../lib/types";
+import { AgentAppList } from "./AgentsSection";
 
 interface Props {
   status: Status | null;
@@ -23,11 +24,11 @@ interface Props {
 
 const SAMPLE = "Hi! Could you send me the Q3 numbers by Friday 3pm? Thanks!";
 
-const STEPS = ["Welcome", "Permission", "Model", "Shortcuts", "Reminders", "Try it", "Tour"] as const;
+const STEPS = ["Welcome", "Permission", "Model", "Shortcuts", "Reminders", "AI apps", "Try it", "Tour"] as const;
 
 /**
  * The first-run tour: what Plucky does, the one permission it needs, the
- * model, shortcuts, reminders, a real capture from the browser, and a quick
+ * model, shortcuts, reminders, AI apps, a real capture from the browser, and a quick
  * look around. Shown on first launch and from Settings → General.
  */
 export function Onboarding({
@@ -50,6 +51,8 @@ export function Onboarding({
   const [login, setLogin] = useState(true);
   const [showOnStart, setShowOnStart] = useState(settings?.show_on_start ?? true);
   const [captured, setCaptured] = useState(false);
+  const [agents, setAgents] = useState<AgentsStatus | null>(null);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
   const baseline = useRef<number | null>(null);
 
   const hasModel = !!status?.active_model || status?.engine === "ollama";
@@ -92,9 +95,17 @@ export function Onboarding({
     return () => void sub.then((u) => u());
   }, [onRefreshStatus]);
 
+  useEffect(() => {
+    if (step !== 5 || agents) return;
+    api
+      .agentsStatus()
+      .then(setAgents)
+      .catch(() => setAgents(null));
+  }, [step, agents]);
+
   // "Try it": a new task appearing means the capture worked.
   useEffect(() => {
-    if (step !== 5) {
+    if (step !== 6) {
       baseline.current = null;
       return;
     }
@@ -272,6 +283,28 @@ export function Onboarding({
 
       {step === 5 && (
         <div className="onboard-body">
+          <h2>Add tasks from your AI apps</h2>
+          <p>
+            Claude and other AI apps on this Mac can send you tasks — “remind me to send the deck Friday”. They can
+            never see your list, and nothing is added until you approve it.
+          </p>
+          {agents && agents.apps.some((a) => a.installed) ? (
+            <AgentAppList status={agents} onStatus={setAgents} onError={setAgentsError} />
+          ) : (
+            <p className="onboard-muted">
+              {agents ? "No AI apps found on this Mac. You can connect them later in Connectors → AI agents." : "Looking for AI apps…"}
+            </p>
+          )}
+          {agentsError && <p className="model-error">{agentsError}</p>}
+          <div className="onboard-actions">
+            {back}
+            {next(agents?.apps.some((a) => a.installed && a.connected) ? "Continue" : "Skip")}
+          </div>
+        </div>
+      )}
+
+      {step === 6 && (
+        <div className="onboard-body">
           <h2>Try it in your browser</h2>
           {captured ? (
             <p className="onboard-ok">✓ Your first task is in Plucky. Nice!</p>
@@ -313,7 +346,7 @@ export function Onboarding({
         </div>
       )}
 
-      {step === 6 && (
+      {step === 7 && (
         <div className="onboard-body">
           <h2>A quick look around</h2>
           <ul className="onboard-tips">

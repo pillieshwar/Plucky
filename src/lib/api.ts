@@ -84,7 +84,12 @@ export const api = {
   restoreTask: (task: Task) => invoke<Task>("restore_task", { task }),
   agentsStatus: () => invoke<AgentsStatus>("agents_status"),
   agentsSetEnabled: (enabled: boolean) => invoke<AgentsStatus>("agents_set_enabled", { enabled }),
-  agentsConnectClaudeDesktop: () => invoke<AgentsStatus>("agents_connect_claude_desktop"),
+  agentsSetProactive: (on: boolean) => invoke<AgentsStatus>("agents_set_proactive", { on }),
+  /** One app by id, or "all" installed apps. Also turns agent access on. */
+  agentsConnect: (id: string) => invoke<AgentsStatus>("agents_connect", { id }),
+  agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),
+  /** Send a test task through `Pluck --mcp`; resolves with a message. */
+  agentsTest: () => invoke<string>("agents_test"),
   inboxList: () => invoke<InboxItem[]>("inbox_list"),
   inboxAccept: (id: number) => invoke<Task>("inbox_accept", { id }),
   inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),

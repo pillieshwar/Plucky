@@ -93,6 +93,32 @@ const SETTINGS = {
   last_undated_nudge: null,
   due_spotlight: true,
   agents_enabled: false,
+  agents_proactive: true,
+};
+
+const agentApp = (id, name, installed, connected = false) => ({
+  id,
+  name,
+  installed,
+  connected,
+  stale: false,
+  restart_hint: "Restart the app to finish.",
+});
+const AGENT_STATUS = {
+  supported: true,
+  enabled: false,
+  proactive: true,
+  command: "/Applications/Plucky.app/Contents/MacOS/Pluck",
+  temporary_location: false,
+  apps: [
+    agentApp("claude_code", "Claude Code", true),
+    agentApp("claude_desktop", "Claude Desktop", true),
+    agentApp("cursor", "Cursor", true),
+    agentApp("vscode", "VS Code", false),
+    agentApp("windsurf", "Windsurf", false),
+    agentApp("lm_studio", "LM Studio", false),
+  ],
+  pending: 0,
 };
 
 const SHORTCUTS = {
@@ -108,6 +134,7 @@ function scenario(overrides = {}) {
     settings: SETTINGS,
     status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
+    agents: AGENT_STATUS,
     extract: null,
     backups: [
       { name: `tasks-${day(0)}.db`, day: day(0), size: 48_000 },
@@ -163,16 +190,8 @@ function mockTauri(s) {
       last_error: null,
     }),
     notification_permission: () => "granted",
-    agents_status: () =>
-      s.agents ?? {
-        supported: true,
-        enabled: false,
-        command: "/Applications/Plucky.app/Contents/MacOS/Pluck",
-        temporary_location: false,
-        claude_desktop: true,
-        claude_desktop_connected: false,
-        pending: 0,
-      },
+    agents_status: () => s.agents,
+    agents_test: () => "Working — AI apps can send tasks to Plucky.",
     inbox_list: () => s.inbox ?? [],
     slack_status: () =>
       s.slack ?? { supported: true, connected: false, connecting: false, needs_reconnect: false, team: null, user_id: null, error: null },
@@ -320,7 +339,7 @@ const FRESH = scenario({
   settings: { ...SETTINGS, onboarding_done: false },
   status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.1", platform: "macos" },
 });
-for (let step = 1; step <= 7; step++) {
+for (let step = 1; step <= 8; step++) {
   await shot(`panel-tour-${step}`, PANEL, FRESH, async (p) => {
     for (let i = 1; i < step; i++) {
       await p.locator(".onboard-actions .primary").click();
@@ -488,18 +507,21 @@ await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
 await shot("popover-inbox-banner", POP, scenario({ label: "popover", inbox: INBOX }));
 const AGENTS_ON = {
-  supported: true,
+  ...AGENT_STATUS,
   enabled: true,
-  command: "/Applications/Plucky.app/Contents/MacOS/Pluck",
-  temporary_location: false,
-  claude_desktop: true,
-  claude_desktop_connected: false,
-  pending: 0,
+  apps: AGENT_STATUS.apps.map((a) => (a.id === "claude_code" ? { ...a, connected: true } : a)),
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
   await p.locator(".connector-action").nth(3).click();
-  await p.locator(".connector-subhead", { hasText: "Connect an app" }).scrollIntoViewIfNeeded();
+  await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
+});
+await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(3).click();
+  await p.getByRole("button", { name: "Send test task" }).click();
+  await p.waitForTimeout(200);
+  await p.locator(".agent-test").scrollIntoViewIfNeeded();
 });
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));
 await shot("quick-typed", QUICK, scenario({ label: "quick" }), async (p) => {

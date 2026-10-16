@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onSlackChanged } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
+import { AgentsSection } from "./AgentsSection";
 import type { AgentsStatus, CalendarInfo, CalendarStatus, RemindersStatus, SlackStatus } from "../lib/types";
 
 /**
@@ -339,122 +340,6 @@ function SlackSection({ status }: { status: SlackStatus | null }) {
         </div>
       )}
       {shownError && <p className="rem-error">{shownError}</p>}
-    </div>
-  );
-}
-
-/** Settings for AI agents: on/off and how to connect each app. */
-function AgentsSection({ status, onStatus }: { status: AgentsStatus | null; onStatus: (s: AgentsStatus) => void }) {
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-  if (!status) return null;
-  if (!status.supported) return <p className="setting-line muted">AI agents are available on macOS.</p>;
-
-  const quoted = `"${status.command}"`;
-  const claudeCode = `claude mcp add --scope user plucky -- ${quoted} --mcp`;
-  const generic = JSON.stringify({ mcpServers: { plucky: { command: status.command, args: ["--mcp"] } } }, null, 2);
-
-  async function copy(key: string, text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(key);
-      window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1600);
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  async function run(action: () => Promise<AgentsStatus>) {
-    setError(null);
-    try {
-      onStatus(await action());
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  return (
-    <div className="connector-body-inner">
-      <div className="card-stack">
-        <Toggle
-          label="Let AI agents on this Mac add tasks"
-          hint="Their tasks wait in the menu bar until you add them. Agents can never read, change or delete your tasks."
-          checked={status.enabled}
-          onChange={(v) => void run(() => api.agentsSetEnabled(v))}
-        />
-        <div className="setting-line">
-          <span className="dot ok" aria-hidden />
-          <span className="setting-line-text muted">
-            Runs only on this Mac over MCP — nothing goes through the internet, and apps in the cloud can't reach it.
-          </span>
-        </div>
-      </div>
-
-      {status.temporary_location && (
-        <div className="setting-line">
-          <span className="dot warn" aria-hidden />
-          <span className="setting-line-text">
-            Move Plucky to your Applications folder first — apps connect to it where it is now.
-          </span>
-        </div>
-      )}
-
-      {status.enabled && (
-        <>
-          <h4 className="connector-subhead">Connect an app</h4>
-          <div className="agent-apps">
-            <div className="agent-app">
-              <div className="agent-app-head">
-                <b>Claude Desktop</b>
-                {status.claude_desktop_connected ? (
-                  <span className="agent-ok">✓ Added</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="primary small"
-                    disabled={!status.claude_desktop}
-                    onClick={() => void run(api.agentsConnectClaudeDesktop)}
-                  >
-                    Add to Claude Desktop
-                  </button>
-                )}
-              </div>
-              <p className="agent-app-hint">
-                {status.claude_desktop_connected
-                  ? "Quit and reopen Claude Desktop to pick up Plucky."
-                  : status.claude_desktop
-                    ? "Adds Plucky to Claude Desktop's MCP servers and keeps a backup of its settings."
-                    : "Claude Desktop isn't installed on this Mac."}
-              </p>
-            </div>
-
-            <div className="agent-app">
-              <div className="agent-app-head">
-                <b>Claude Code</b>
-                <button type="button" className="ghost small" onClick={() => void copy("code", claudeCode)}>
-                  {copied === "code" ? "Copied" : "Copy command"}
-                </button>
-              </div>
-              <code className="agent-cmd">{claudeCode}</code>
-            </div>
-
-            <div className="agent-app">
-              <div className="agent-app-head">
-                <b>Other MCP apps</b>
-                <button type="button" className="ghost small" onClick={() => void copy("json", generic)}>
-                  {copied === "json" ? "Copied" : "Copy JSON"}
-                </button>
-              </div>
-              <p className="agent-app-hint">Cursor, VS Code, LM Studio and others: add a stdio server that runs</p>
-              <code className="agent-cmd">{quoted} --mcp</code>
-            </div>
-          </div>
-          <p className="setting-line muted">
-            Then try: “Add a Plucky task to call the dentist Tuesday at 10am.”
-          </p>
-        </>
-      )}
-      {error && <p className="rem-error">{error}</p>}
     </div>
   );
 }

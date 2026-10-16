@@ -14,6 +14,7 @@
 // The socket listener is Unix-only; elsewhere most of this is unused.
 #![cfg_attr(not(unix), allow(dead_code))]
 
+pub mod apps;
 pub mod mcp;
 
 use std::collections::VecDeque;
@@ -289,6 +290,13 @@ fn on_submission(app: &AppHandle, sub: Submission) -> Reply {
             }
         }
     };
+    // "Send test task" in Connectors: the whole path works, keep nothing.
+    if sub.agent == mcp::SELF_TEST {
+        return Reply {
+            ok: true,
+            error: None,
+        };
+    }
     let agents = app.state::<Agents>();
     if let Err(e) = agents.receive(&sub.agent, draft) {
         return Reply {
@@ -321,6 +329,13 @@ fn on_submission(app: &AppHandle, sub: Submission) -> Reply {
 
 /// Listen for `Pluck --mcp` on the private socket.
 pub fn start(app: &AppHandle) {
+    // Apps connected to a copy of Plucky that has moved: point them here.
+    let command = exe_path();
+    if !is_temporary(&command) {
+        let _ = std::thread::Builder::new()
+            .name("agents-repair".into())
+            .spawn(move || apps::repair(&command));
+    }
     #[cfg(unix)]
     {
         let socket = app.state::<Agents>().socket.clone();
@@ -394,14 +409,15 @@ pub struct Status {
     /// The MCP server needs Unix sockets (macOS).
     pub supported: bool,
     pub enabled: bool,
+    /// Agents add to-dos they notice on their own (still reviewed).
+    pub proactive: bool,
     /// The program AI apps should launch, with `--mcp`.
     pub command: String,
     /// Plucky is running from somewhere temporary (a disk image, or moved by
     /// macOS Gatekeeper), so the path above won't last.
     pub temporary_location: bool,
-    /// Claude Desktop is installed / already set up with Plucky.
-    pub claude_desktop: bool,
-    pub claude_desktop_connected: bool,
+    /// Every supported AI app and whether it's set up.
+    pub apps: Vec<apps::AppStatus>,
     pub pending: usize,
 }
 
@@ -411,47 +427,19 @@ fn exe_path() -> String {
         .unwrap_or_default()
 }
 
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
-}
-
-fn claude_desktop_config() -> Option<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        home().map(|h| h.join("Library/Application Support/Claude/claude_desktop_config.json"))
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        None
-    }
-}
-
-fn claude_desktop_installed() -> bool {
-    if cfg!(target_os = "macos") {
-        Path::new("/Applications/Claude.app").exists()
-            || home().is_some_and(|h| h.join("Applications/Claude.app").exists())
-            || claude_desktop_config().is_some_and(|p| p.parent().is_some_and(Path::exists))
-    } else {
-        false
-    }
-}
-
-fn claude_desktop_connected(command: &str) -> bool {
-    claude_desktop_config()
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-        .is_some_and(|v| v["mcpServers"]["plucky"]["command"].as_str() == Some(command))
+fn is_temporary(command: &str) -> bool {
+    command.contains("/AppTranslocation/") || command.starts_with("/Volumes/")
 }
 
 fn status(app: &AppHandle) -> Status {
     let command = exe_path();
+    let settings = app.state::<Settings>().get();
     Status {
         supported: cfg!(unix),
-        enabled: app.state::<Settings>().get().agents_enabled,
-        temporary_location: command.contains("/AppTranslocation/")
-            || command.starts_with("/Volumes/"),
-        claude_desktop: claude_desktop_installed(),
-        claude_desktop_connected: claude_desktop_connected(&command),
+        enabled: settings.agents_enabled,
+        proactive: settings.agents_proactive,
+        temporary_location: is_temporary(&command),
+        apps: apps::statuses(&command),
         command,
         pending: app.state::<Agents>().items().len(),
     }
@@ -469,40 +457,142 @@ pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
     status(&app)
 }
 
-/// Add Plucky to Claude Desktop's MCP servers, keeping everything else in
-/// its config (and a backup of the original).
+/// Let agents suggest tasks on their own. In Claude Code this adds (or
+/// removes) a small Plucky subagent; other apps follow the tool description.
 #[tauri::command]
-pub fn agents_connect_claude_desktop(app: AppHandle) -> Result<Status, String> {
-    let path = claude_desktop_config().ok_or("Claude Desktop isn't supported here.")?;
-    let mut config: serde_json::Value = match std::fs::read(&path) {
-        Ok(bytes) => {
-            let _ = std::fs::write(path.with_extension("json.plucky-backup"), &bytes);
-            serde_json::from_slice(&bytes).map_err(|_| {
-                "Claude Desktop's settings file isn't valid JSON, so Plucky left it alone."
-            })?
+pub async fn agents_set_proactive(app: AppHandle, on: bool) -> Status {
+    app.state::<Settings>().update(|s| s.agents_proactive = on);
+    let _ = tauri::async_runtime::spawn_blocking(move || apps::set_proactive(on)).await;
+    status(&app)
+}
+
+fn refuse_temporary(command: &str) -> Result<(), String> {
+    if is_temporary(command) {
+        Err("Move Plucky to your Applications folder and open it from there first.".into())
+    } else {
+        Ok(())
+    }
+}
+
+/// Connect one app (or every installed one with `id` = "all"). Connecting
+/// also turns agent access on.
+#[tauri::command]
+pub async fn agents_connect(app: AppHandle, id: String) -> Result<Status, String> {
+    let command = exe_path();
+    refuse_temporary(&command)?;
+    let proactive = app.state::<Settings>().get().agents_proactive;
+    app.state::<Settings>().update(|s| s.agents_enabled = true);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<&'static str> = if id == "all" {
+            apps::statuses(&command)
+                .into_iter()
+                .filter(|a| a.installed && (!a.connected || a.stale))
+                .map(|a| a.id)
+                .collect()
+        } else {
+            match apps::statuses(&command).into_iter().find(|a| a.id == id) {
+                Some(a) => vec![a.id],
+                None => return Err("Unknown app.".to_string()),
+            }
+        };
+        let errors: Vec<String> = ids
+            .into_iter()
+            .filter_map(|id| apps::connect(id, &command, proactive).err())
+            .collect();
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join(" "))
         }
-        Err(_) => serde_json::json!({}),
-    };
-    if !config.is_object() {
-        return Err(
-            "Claude Desktop's settings file has an unexpected shape, so Plucky left it alone."
-                .into(),
-        );
-    }
-    if !config["mcpServers"].is_object() {
-        config["mcpServers"] = serde_json::json!({});
-    }
-    config["mcpServers"]["plucky"] = serde_json::json!({
-        "command": exe_path(),
-        "args": ["--mcp"],
-    });
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    let bytes = serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?;
-    std::fs::write(&path, bytes)
-        .map_err(|e| format!("Couldn't update Claude Desktop's settings: {e}"))?;
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    result.map(|_| status(&app))
+}
+
+#[tauri::command]
+pub async fn agents_disconnect(app: AppHandle, id: String) -> Result<Status, String> {
+    tauri::async_runtime::spawn_blocking(move || apps::disconnect(&id))
+        .await
+        .map_err(|e| e.to_string())??;
     Ok(status(&app))
+}
+
+/// Run `Pluck --mcp` the way an AI app does and send a test task through it.
+/// The app recognises the test and keeps nothing.
+#[tauri::command]
+pub async fn agents_test() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(self_test)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn self_test() -> Result<String, String> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+
+    let mut child = Command::new(exe_path())
+        .arg("--mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Couldn't start Plucky's MCP server: {e}"))?;
+    let messages = [
+        serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+            "protocolVersion":"2025-06-18","capabilities":{},
+            "clientInfo":{"name": mcp::SELF_TEST,"version":"1"}}}),
+        serde_json::json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+        serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
+        serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+            "name":"add_task","arguments":{"title":"Plucky connection test"}}}),
+    ];
+    if let Some(mut stdin) = child.stdin.take() {
+        for m in &messages {
+            writeln!(stdin, "{m}").map_err(|e| e.to_string())?;
+        }
+    }
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("No output from the MCP server.")?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let lines: Vec<String> = BufReader::new(stdout)
+            .lines()
+            .map_while(Result::ok)
+            .collect();
+        let _ = tx.send(lines);
+    });
+    let lines = rx.recv_timeout(Duration::from_secs(10));
+    let _ = child.kill();
+    let _ = child.wait();
+    let lines = lines.map_err(|_| "Plucky's MCP server didn't answer in time.".to_string())?;
+    let replies: Vec<serde_json::Value> = lines
+        .iter()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    let tools = replies
+        .iter()
+        .find(|r| r["id"] == 2)
+        .and_then(|r| r["result"]["tools"].as_array().map(Vec::len))
+        .unwrap_or(0);
+    if tools != 1 {
+        return Err("Plucky's MCP server didn't list its tool.".into());
+    }
+    let call = replies
+        .iter()
+        .find(|r| r["id"] == 3)
+        .ok_or("Plucky's MCP server didn't answer the test task.")?;
+    let text = call["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    if call["result"]["isError"] == false {
+        Ok("Working — AI apps can send tasks to Plucky.".into())
+    } else {
+        Err(text)
+    }
 }
 
 #[tauri::command]

@@ -45,7 +45,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 | **Quick add** | Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm #home` — Plucky shows how it reads the date as you type. |
 | **Reminders that respect you** | Notifications with **Done**, **Snooze** and **Tomorrow** buttons, or one morning summary instead. A **Due now** card keeps fired reminders one click away. |
 | **Check-ins in the menu bar** | When a task's time comes, the menu-bar dropdown opens on just that task — everything else blurred — with **Done** and **Snooze**. Once a day (4:00 PM by default) it asks you to plan tasks that have no date, one tap each. Neither takes your keyboard. |
-| **AI agents, write-only** | Let Claude Desktop, Claude Code and other MCP apps on your Mac add tasks — "add a Plucky task to send the deck Friday 3pm". They can never read your list, and you approve every task. |
+| **AI agents, write-only** | Let Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio add tasks — "add a Plucky task to send the deck Friday 3pm", or on their own when you mention a deadline. Plucky finds them and connects each in one click. They can never read your list, and you approve every task. |
 | **Light, dark or system** | Pick the look in **Preferences → Appearance**. |
 | **See what matters** | Due-time chips are red when overdue, amber when due soon, muted when done. **Today focus** (<kbd>F</kbd>) hides everything but today. |
 | **Menu-bar calendar** | Click the icon for a month view and today's agenda. Drag a task onto another day to move it. |
