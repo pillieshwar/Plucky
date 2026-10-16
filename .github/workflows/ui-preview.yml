@@ -36,8 +36,8 @@ jobs:
         # version. (Kept out of package.json: npm 10 can't resolve it next to
         # vitest's optional Playwright integration.)
         run: |
-          npm install --no-save playwright@1.48.2 # zizmor: ignore[adhoc-packages]
-          npx playwright install chromium # zizmor: ignore[adhoc-packages]
+          npm install --no-save playwright@1.48.2
+          npx playwright install chromium
       - name: Screenshots
         run: |
           npx vite preview --port 4173 --strictPort &
