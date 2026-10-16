@@ -13,25 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
-      - run: |
-          curl -sf -H "User-Agent: plucky-ci (github.com/pillieshwar/Plucky)" "https://crates.io/api/v1/crates/zip/versions" | python3 -c "import json,sys; [print('::notice::zip', v['num'], 'YANKED' if v['yanked'] else 'ok', v['created_at'][:10]) for v in json.load(sys.stdin)['versions'] if v['num'].split('.')[0] in ('4','5','6','7','8','9')][:0] or None" || true
-          curl -sf -H "User-Agent: plucky-ci (github.com/pillieshwar/Plucky)" "https://crates.io/api/v1/crates/zip/versions" | python3 -c "
-import json,sys
-vs=json.load(sys.stdin)['versions']
-for v in vs[:14]: print('::notice::zip', v['num'], 'YANKED' if v['yanked'] else 'ok', v['created_at'][:10])
-"
-          curl -sf -H "User-Agent: plucky-ci (github.com/pillieshwar/Plucky)" "https://crates.io/api/v1/crates/tauri-plugin-updater/versions" | python3 -c "
-import json,sys
-for v in json.load(sys.stdin)['versions'][:4]: print('::notice::updater', v['num'], 'YANKED' if v['yanked'] else 'ok', v['created_at'][:10])
-"
-          for v in $(curl -sf -H "User-Agent: plucky-ci" "https://crates.io/api/v1/crates/tauri-plugin-updater/versions" | python3 -c "import json,sys; print(' '.join(v['num'] for v in json.load(sys.stdin)['versions'][:3]))"); do
-            curl -sf -H "User-Agent: plucky-ci" "https://crates.io/api/v1/crates/tauri-plugin-updater/$v/dependencies" | python3 -c "
-import json,sys
-for d in json.load(sys.stdin)['dependencies']:
-    if d['crate_id']=='zip': print('::notice::updater $v needs zip', d['req'])
-"
-          done
-          exit 1
+      - run: python3 crates-query.py && exit 1
       - name: Commit
         env:
           GH_TOKEN: ${{ github.token }}
