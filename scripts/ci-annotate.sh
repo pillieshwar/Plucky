@@ -9,7 +9,7 @@ log="$(mktemp)"
 status=${PIPESTATUS[0]}
 
 if [ "$status" -ne 0 ]; then
-  grep -A4 -E '(^|[^a-z])(error|warning)(\[[A-Z0-9]+\])?:|error TS[0-9]+|FAILED|panicked at' "$log" \
+  grep -A4 -E '(^|[^a-z])(error|warning)(\[[A-Z0-9]+\])?:|error TS[0-9]+|FAILED|panicked at|error during build|\[vite\]|\[plugin|Error:' "$log" \
     | grep -v '^--$' \
     | grep -v 'warning: build failed, waiting' \
     | head -n 60 \
