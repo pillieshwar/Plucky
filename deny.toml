@@ -16,7 +16,15 @@ version = 2
 unmaintained = "workspace"
 yanked = "deny"
 # Each ignored advisory needs a reason and is reviewed when it changes.
-ignore = []
+ignore = [
+  # Every zip 4.x release was yanked by its maintainer (October 2026), but
+  # tauri-plugin-updater — including its 3.0 pre-releases — still requires
+  # zip ^4, so there is nothing newer to move to. Yanked is not vulnerable:
+  # no RustSec/OSV advisory exists for it (both checks run here). Pinned to
+  # this exact version so any change shows up again. Revisit when Tauri's
+  # updater moves to a newer zip.
+  { crate = "zip@4.6.1", reason = "All zip 4.x yanked upstream; tauri-plugin-updater requires zip ^4; no advisory" },
+]
 
 [sources]
 # Only crates.io; no git or other registries can sneak in.

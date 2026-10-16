@@ -35,6 +35,10 @@ pub struct AppSettings {
     /// Review captures in the dropdown under the menu-bar icon (true) or in
     /// the side panel.
     pub capture_in_menu_bar: bool,
+    /// Calendar connector: show events from the Mac's calendars.
+    pub calendar_enabled: bool,
+    /// Calendars to show (ids); `None` = all.
+    pub calendar_ids: Option<Vec<String>>,
 }
 
 impl Default for AppSettings {
@@ -52,6 +56,8 @@ impl Default for AppSettings {
             last_greeted: None,
             menubar_placed: false,
             capture_in_menu_bar: true,
+            calendar_enabled: false,
+            calendar_ids: None,
         }
     }
 }

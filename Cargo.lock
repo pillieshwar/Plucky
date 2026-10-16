@@ -2756,6 +2756,7 @@ dependencies = [
  "bitflags 2.13.2",
  "block2",
  "objc2",
+ "objc2-app-kit",
  "objc2-foundation",
 ]
 
@@ -3101,7 +3102,7 @@ dependencies = [
 
 [[package]]
 name = "pluck"
-version = "0.4.8"
+version = "0.4.9"
 dependencies = [
  "arboard",
  "block2",
@@ -3136,7 +3137,7 @@ dependencies = [
 
 [[package]]
 name = "pluck-core"
-version = "0.4.8"
+version = "0.4.9"
 dependencies = [
  "chrono",
  "log",

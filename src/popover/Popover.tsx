@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCapture, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCalendarChanged, onCapture, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
@@ -19,7 +19,7 @@ import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedu
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
-import type { NewTask, Task, UpdateStatus } from "../lib/types";
+import type { CalendarEvent, NewTask, Task, UpdateStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
@@ -69,6 +69,9 @@ export default function Popover() {
   // right here under the menu-bar icon.
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const captureSeq = useRef(0);
+  // Events from the Calendar connector for the selected day (empty if off).
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [eventsKey, setEventsKey] = useState(0);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
@@ -123,6 +126,22 @@ export default function Popover() {
     ];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [load, reset]);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .calendarEvents(selected, selected)
+      .then((e) => live && setEvents(e))
+      .catch(() => live && setEvents([]));
+    return () => {
+      live = false;
+    };
+  }, [selected, openKey, eventsKey]);
+
+  useEffect(() => {
+    const sub = onCalendarChanged(() => setEventsKey((k) => k + 1));
+    return () => void sub.then((u) => u());
+  }, []);
 
   // Keep the popover open while a capture is being reviewed.
   useEffect(() => {
@@ -433,6 +452,8 @@ export default function Popover() {
           <span>{heading.date}</span>
         </h2>
 
+        {events.length > 0 && <EventList events={events} day={selected} now={now} />}
+
         {selected === today && (
           <DueNowCard tasks={dueNow(tasks, new Date())} actions={actions} now={new Date()} locale={LOCALE} compact />
         )}
@@ -665,4 +686,40 @@ function snippet(source: string | null): string | null {
   if (!source) return null;
   const line = source.replace(/\s+/g, " ").trim();
   return line.length > 70 ? `${line.slice(0, 69)}…` : line || null;
+}
+
+/** The selected day's calendar events, above its tasks. */
+function EventList({ events, day, now }: { events: CalendarEvent[]; day: string; now: Date }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? events : events.slice(0, 4);
+  const hhmm = (t: string) => timeLabel(t.slice(11, 16), LOCALE);
+  const nowStr = `${toISODate(now)}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:00`;
+  return (
+    <ul className="pop-events" aria-label="Calendar">
+      {shown.map((e) => {
+        const when = e.all_day
+          ? "All day"
+          : e.start.slice(0, 10) < day
+            ? `Until ${hhmm(e.end)}`
+            : e.end.slice(0, 10) > day
+              ? `From ${hhmm(e.start)}`
+              : `${hhmm(e.start)} – ${hhmm(e.end)}`;
+        const past = !e.all_day && e.end <= nowStr;
+        return (
+          <li key={`${e.id}${e.start}`} className={past ? "pop-event past" : "pop-event"} title={e.calendar}>
+            <span className="pop-event-bar" style={{ background: e.color ?? "var(--faint)" }} aria-hidden />
+            <span className="pop-event-title">{e.title || "Busy"}</span>
+            <span className="pop-event-time">{when}</span>
+          </li>
+        );
+      })}
+      {events.length > 4 && (
+        <li>
+          <button type="button" className="pop-event-more" onClick={() => setAll((a) => !a)}>
+            {all ? "Show fewer" : `${events.length - 4} more event${events.length - 4 === 1 ? "" : "s"}`}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
 }

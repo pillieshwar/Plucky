@@ -5,6 +5,9 @@ import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts
 import type {
   AppSettings,
   BackupInfo,
+  CalendarEvent,
+  CalendarInfo,
+  CalendarStatus,
   CaptureResult,
   CustomModelInfo,
   DownloadEvent,
@@ -60,6 +63,14 @@ export const api = {
   remindersSyncNow: () => invoke<void>("reminders_sync_now"),
   remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
   remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
+  calendarStatus: () => invoke<CalendarStatus>("calendar_status"),
+  calendarRequestAccess: () => invoke<RemindersAccess>("calendar_request_access"),
+  calendarCalendars: () => invoke<CalendarInfo[]>("calendar_calendars"),
+  calendarSet: (enabled: boolean, calendars: string[] | null) =>
+    invoke<CalendarStatus>("calendar_set", { enabled, calendars }),
+  /** Events for the days `from..=to` (YYYY-MM-DD); empty when Calendar isn't connected. */
+  calendarEvents: (from: string, to: string) => invoke<CalendarEvent[]>("calendar_events", { from, to }),
+  calendarOpenPrivacySettings: () => invoke<void>("calendar_open_privacy_settings"),
   openSource: (id: number) => invoke<void>("open_source", { id }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   restoreTask: (task: Task) => invoke<Task>("restore_task", { task }),
@@ -132,4 +143,9 @@ export function onPopoverShown(handler: () => void): Promise<UnlistenFn> {
 /** Reminders sync status changed (a pass finished, settings changed…). */
 export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("reminders-changed", () => handler());
+}
+
+/** The Calendar connector was turned on or off, or its calendars changed. */
+export function onCalendarChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("calendar-changed", () => handler());
 }

@@ -50,7 +50,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 | **Descriptions** | Add links and details to a task with **+ Add description**; links become clickable. |
 | **Repeating tasks** | Completing "water plants every Monday" schedules the next one. |
 | **Search and tags** | <kbd>/</kbd> to search, `#tags` to filter, undo everything with <kbd>⌘Z</kbd>. |
-| **Apple Reminders sync** | Optional, two-way, off by default — with a clear warning if the list syncs through iCloud. |
+| **Connectors** | **Calendar** shows your meetings next to your tasks in the menu bar (read-only; includes Google, Outlook and iCloud calendars added to the Mac). **Apple Reminders** syncs tasks both ways — off by default, with a clear warning if the list syncs through iCloud. |
 | **Your data, your files** | Tasks live in one SQLite file on your Mac with daily backups, and export to CSV or JSON. |
 
 ## Install

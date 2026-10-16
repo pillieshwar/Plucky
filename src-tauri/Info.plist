@@ -7,6 +7,10 @@
 <dict>
   <key>NSRemindersFullAccessUsageDescription</key>
   <string>Plucky adds your tasks to Reminders and keeps them in sync, because you turned this on in Plucky's Settings.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Plucky shows your calendar events next to your tasks, because you connected Calendar in Plucky. It only reads them, on this Mac.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Plucky shows your calendar events next to your tasks, because you connected Calendar in Plucky. It only reads them, on this Mac.</string>
   <key>NSRemindersUsageDescription</key>
   <string>Plucky adds your tasks to Reminders and keeps them in sync, because you turned this on in Plucky's Settings.</string>
   <key>NSServices</key>

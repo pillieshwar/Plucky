@@ -198,6 +198,34 @@ export interface RemindersStatus {
   last_error: string | null;
 }
 
+/** Mirrors `calendar::CalendarInfo`. */
+export interface CalendarInfo {
+  id: string;
+  title: string;
+  source: string;
+  color: string | null;
+}
+
+/** Mirrors `calendar::EventInfo`. Times are local `YYYY-MM-DDTHH:MM:SS`. */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  all_day: boolean;
+  calendar: string;
+  color: string | null;
+}
+
+/** Mirrors `calendar::Status`. */
+export interface CalendarStatus {
+  supported: boolean;
+  access: RemindersAccess;
+  enabled: boolean;
+  /** null = all calendars. */
+  calendars: string[] | null;
+}
+
 export interface RemindersEnableRequest {
   /** null = create a list called "Plucky". */
   list_id: string | null;

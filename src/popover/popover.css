@@ -209,3 +209,16 @@ html[data-view="popover"] body {
 .pop-capture-title { font: 650 15px/1.2 var(--sans); color: var(--ink); }
 .pop-capture-body { min-height: 0; overflow-y: auto; }
 .pop-capture-body .capture { margin: 6px 12px 12px; }
+
+/* Calendar events (Calendar connector) */
+.pop-events { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pop-event {
+  display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 2px; border-radius: 6px; font-size: 12.5px;
+}
+.pop-event.past { opacity: 0.5; }
+.pop-event-bar { flex: none; width: 3px; align-self: stretch; min-height: 16px; border-radius: 2px; }
+.pop-event-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.pop-event-time { flex: none; font-size: 11.5px; color: var(--muted); }
+.pop-event-more {
+  border: 0; background: transparent; padding: 2px 0 0 13px; font-size: 11.5px; color: var(--teal); cursor: pointer;
+}

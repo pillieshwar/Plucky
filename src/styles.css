@@ -380,7 +380,7 @@ html[data-view="panel"] body {
 .found .ghost { border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .found .model-error { flex-basis: 100%; }
 
-/* Settings → Apple Reminders */
+/* Connectors → Apple Reminders */
 .rem-setup, .rem-on {
   padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 }
@@ -759,3 +759,43 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .add-desc:hover { color: var(--teal); }
 .onboard-body .card-stack + p { margin-top: 10px; }
 .local-chevron { font-size: 13px; }
+
+/* Connectors */
+.connectors { padding: 12px 12px 20px; }
+.connectors-intro { margin: 0 2px 12px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.connector {
+  margin: 0 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  overflow: hidden;
+}
+.connector.open { border-color: color-mix(in srgb, var(--teal) 45%, var(--line)); }
+.connector-head { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.connector-icon {
+  flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--paper);
+}
+.connector-icon.calendar { color: var(--accent); }
+.connector-icon.reminders { color: var(--amber); }
+.connector-text { flex: 1; min-width: 0; }
+.connector-text h3 { margin: 0 0 2px; font-size: 13.5px; font-weight: 650; }
+.connector-text p { margin: 0; font-size: 11.5px; line-height: 1.35; color: var(--muted); }
+.connector-action {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent;
+  padding: 6px 4px; font: 600 12.5px var(--sans); color: var(--ink); cursor: pointer; white-space: nowrap;
+}
+.connector-action:hover { color: var(--teal); }
+.connector-action.connected { color: var(--teal); }
+.connector-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+.connector-body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+.connector-body-inner { padding-top: 12px; }
+.connector-body .rem-actions { margin-top: 10px; }
+.connector-subhead {
+  margin: 14px 2px 6px; font: 600 10.5px var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint);
+}
+.calendar-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.calendar-list li + li { border-top: 1px solid var(--line); }
+.calendar-list label { display: flex; align-items: center; gap: 9px; padding: 8px 10px; font-size: 12.5px; cursor: pointer; }
+.calendar-list input { margin: 0; accent-color: var(--teal); }
+.calendar-swatch { flex: none; width: 9px; height: 9px; border-radius: 3px; }
+.calendar-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-source { flex: none; font-size: 11px; color: var(--faint); }
+.connectors-foot { margin: 14px 2px 0; font-size: 11.5px; color: var(--faint); text-align: center; }

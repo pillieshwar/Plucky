@@ -157,6 +157,13 @@ function mockTauri(s) {
       last_error: null,
     }),
     notification_permission: () => "granted",
+    calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, calendars: null },
+    calendar_calendars: () => [
+      { id: "c1", title: "Work", source: "Google", color: "#3b82f6" },
+      { id: "c2", title: "Home", source: "iCloud", color: "#16a34a" },
+      { id: "c3", title: "Birthdays", source: "Other", color: "#a855f7" },
+    ],
+    calendar_events: () => s.events ?? [],
     autostart_enabled: () => true,
     list_backups: () => s.backups,
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
@@ -312,12 +319,8 @@ await shot("panel-models-local-open", PANEL, scenario(), async (p) => {
   await p.locator(".local-toggle").click();
   await p.locator(".local-toggle").scrollIntoViewIfNeeded();
 });
-await shot("panel-settings-reminders-off", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Settings" }).click();
-  await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
-});
 await shot(
-  "panel-settings-reminders-on",
+  "panel-connectors-reminders-on",
   PANEL,
   scenario({
     reminders: {
@@ -332,8 +335,8 @@ await shot(
     },
   }),
   async (p) => {
-    await p.getByRole("tab", { name: "Settings" }).click();
-    await p.locator(".settings-h", { hasText: "Apple Reminders" }).scrollIntoViewIfNeeded();
+    await p.getByRole("tab", { name: "Connectors" }).click();
+    await p.locator(".connector-action").nth(1).click();
   },
 );
 await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));
@@ -373,6 +376,27 @@ await shot(
   },
   true,
 );
+const EV_DAY = day(0);
+const CAL_ON = { supported: true, access: "full", enabled: true, calendars: ["c1", "c2"] };
+const EVENTS = [
+  { id: "e0", title: "Office closed (half day)", start: `${EV_DAY}T00:00:00`, end: `${day(1)}T00:00:00`, all_day: true, calendar: "Work", color: "#3b82f6" },
+  { id: "e1", title: "Standup", start: `${EV_DAY}T09:30:00`, end: `${EV_DAY}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+  { id: "e2", title: "Design review with Priya", start: `${EV_DAY}T13:00:00`, end: `${EV_DAY}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+  { id: "e3", title: "Pick up groceries", start: `${EV_DAY}T18:00:00`, end: `${EV_DAY}T18:30:00`, all_day: false, calendar: "Home", color: "#16a34a" },
+];
+await shot("panel-connectors", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+});
+await shot("panel-connectors-calendar", PANEL, scenario({ calendar: CAL_ON }), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").first().click();
+});
+await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(1).click();
+});
+await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
+await shot("popover-events-dark", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }), async () => {}, true);
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
 await shot("panel-whats-new", PANEL, scenario({ settings: { ...SETTINGS, seen_version: "0.1.6" } }));
 await shot("popover", POP, scenario({ label: "popover" }));
