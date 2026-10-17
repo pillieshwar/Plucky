@@ -218,7 +218,10 @@ pub fn parse_actions(raw: &str) -> Result<Vec<Extraction>, ExtractionError> {
     let parsed: ActionsRaw = serde_json::from_str(raw.trim())
         .map_err(|err| ExtractionError::Malformed(err.to_string()))?;
     let mut out: Vec<Extraction> = Vec::new();
-    for e in parsed.tasks.into_iter().take(MAX_ACTIONS) {
+    for e in parsed.tasks {
+        if out.len() == MAX_ACTIONS {
+            break;
+        }
         let e = e.normalized();
         if e.validate().is_ok() && !out.iter().any(|o| o.task.eq_ignore_ascii_case(&e.task)) {
             out.push(e);
