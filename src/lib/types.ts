@@ -143,6 +143,8 @@ export interface WatchSettings {
 /** Mirrors `watch::Status`. */
 export interface WatchStatus {
   supported: boolean;
+  /** Id of the model in use. */
+  model: string | null;
   settings: WatchSettings;
   apps: { bundle: string; name: string; installed: boolean }[];
   live: {

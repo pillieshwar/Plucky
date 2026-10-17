@@ -110,6 +110,19 @@ export function WatchSection({ locale }: { locale: string }) {
         )}
       </div>
 
+      {s.enabled && status.model?.startsWith("llama-3.2") && (
+        <div className="setting-line">
+          <span className="dot warn" aria-hidden />
+          <span className="setting-line-text">
+            Your model suggests many false to-dos when watching. Qwen3.5 4B is quieter and faster — get it in the
+            Models tab.
+          </span>
+          <button type="button" className="ghost small" onClick={() => void api.openMain(null, "models")}>
+            Models
+          </button>
+        </div>
+      )}
+
       {s.enabled && (
         <>
           <h4 className="connector-subhead">Apps</h4>
