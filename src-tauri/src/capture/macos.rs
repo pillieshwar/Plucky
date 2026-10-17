@@ -320,6 +320,105 @@ fn post_cmd_c() -> Result<(), String> {
     }
 }
 
+/// Text on screen in the frontmost window, for watch mode.
+pub struct WindowText {
+    pub bundle: String,
+    pub app: String,
+    pub title: String,
+    /// Visible static text, one entry per line, in reading order.
+    pub lines: Vec<String>,
+}
+
+/// Roles whose text is the user's own input or not content: never read.
+const SKIP_ROLES: &[&str] = &[
+    "AXSecureTextField",
+    "AXTextField",
+    "AXTextArea",
+    "AXComboBox",
+    "AXSearchField",
+    "AXMenuBar",
+    "AXMenu",
+    "AXToolbar",
+];
+
+/// Read the static text of the frontmost window if its app is in `allowed`.
+/// Bounded by `max_nodes` and `budget`, and every AX call has a short
+/// timeout, so a busy app can't stall Plucky. Never reads text fields (what
+/// the user is typing) or password fields.
+#[allow(unused_unsafe)]
+pub fn front_window_text(
+    allowed: &[String],
+    max_nodes: usize,
+    budget: std::time::Duration,
+) -> Option<WindowText> {
+    let started = std::time::Instant::now();
+    let app = focused_app()?;
+    let el = as_element(&app);
+    let mut pid: i32 = 0;
+    if unsafe { AXUIElementGetPid(el, &mut pid) } != AX_ERROR_SUCCESS || pid <= 0 {
+        return None;
+    }
+    let running = unsafe {
+        objc2_app_kit::NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+    }?;
+    let bundle = unsafe { running.bundleIdentifier() }?.to_string();
+    if !allowed.iter().any(|a| a == &bundle) {
+        return None;
+    }
+    let name = unsafe { running.localizedName() }
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| bundle.clone());
+    if CHROMIUM_APPS.contains(&bundle.as_str()) {
+        // Electron apps (Slack) only expose their text once asked.
+        let attr = CFString::from_static_string("AXManualAccessibility");
+        unsafe {
+            AXUIElementSetAttributeValue(
+                el,
+                attr.as_concrete_TypeRef(),
+                CFBoolean::true_value().as_CFTypeRef(),
+            );
+        }
+    }
+    let window = unsafe { copy_attr(el, "AXFocusedWindow") }?;
+    let title = string_attr(as_element(&window), "AXTitle").unwrap_or_default();
+
+    let mut lines = Vec::new();
+    let mut stack = vec![window];
+    let mut seen = 0usize;
+    while let Some(node) = stack.pop() {
+        seen += 1;
+        if seen > max_nodes || started.elapsed() > budget {
+            break;
+        }
+        let n = as_element(&node);
+        let role = string_attr(n, "AXRole").unwrap_or_default();
+        if SKIP_ROLES.contains(&role.as_str()) {
+            continue;
+        }
+        if role == "AXStaticText" {
+            if let Some(v) = string_attr(n, "AXValue") {
+                for line in v.lines() {
+                    let line = line.trim();
+                    let len = line.chars().count();
+                    if (2..=1000).contains(&len) {
+                        lines.push(line.to_string());
+                    }
+                }
+            }
+            continue;
+        }
+        let mut kids = children(n);
+        kids.reverse();
+        stack.extend(kids);
+    }
+    Some(WindowText {
+        bundle,
+        app: name,
+        title,
+        lines,
+    })
+}
+
 /// Ask the frontmost app to copy its selection.
 pub fn trigger_copy() -> Result<(), String> {
     match press_copy_menu_item() {

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
@@ -19,7 +19,7 @@ import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedu
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
-import type { CalendarEvent, InboxItem, NewTask, Task, UpdateStatus } from "../lib/types";
+import type { CalendarEvent, InboxItem, NewTask, Task, UpdateStatus, WatchStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
@@ -81,6 +81,8 @@ export default function Popover() {
   const [focus, setFocus] = useState<Focus | null>(null);
   // Tasks AI agents sent, waiting for review.
   const [inbox, setInbox] = useState<InboxItem[]>([]);
+  // Watch mode, for the eye in the header (pause / resume).
+  const [watch, setWatch] = useState<WatchStatus | null>(null);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const labels = useMemo(() => weekdayLabels(LOCALE, weekStart), [weekStart]);
@@ -121,9 +123,14 @@ export default function Popover() {
       .updateStatus()
       .then(setUpdate)
       .catch(() => undefined);
+    api
+      .watchStatus()
+      .then(setWatch)
+      .catch(() => undefined);
     const subs = [
       onTasksChanged(() => void load()),
       onInboxChanged(() => void api.inboxList().then(setInbox, () => undefined)),
+      onWatchChanged(() => void api.watchStatus().then(setWatch, () => undefined)),
       onPopoverShown(reset),
       onPopoverFocus((f) => {
         setFocus(f);
@@ -445,6 +452,28 @@ export default function Popover() {
           <IconButton label={expanded ? "Next month" : "Next week"} onClick={() => step(1)}>
             <path d="M6 3.5 10.5 8 6 12.5" />
           </IconButton>
+          {watch?.settings.enabled && (
+            <IconButton
+              label={
+                watch.live.state === "paused"
+                  ? "Watching is paused — click to resume"
+                  : `Watching ${watch.live.current ?? "Slack and Outlook"} for to-dos — click to pause for an hour`
+              }
+              onClick={() => void api.watchPause(watch.live.state === "paused" ? 0 : 60).then(setWatch, () => undefined)}
+            >
+              {watch.live.state === "paused" ? (
+                <>
+                  <path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z" />
+                  <path d="M3 13 13 3" />
+                </>
+              ) : (
+                <>
+                  <path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z" />
+                  <circle cx="8" cy="8" r="1.8" />
+                </>
+              )}
+            </IconButton>
+          )}
           <IconButton label="Add a task (N)" onClick={() => setAdding((a) => !a)} active={adding}>
             <path d="M8 3v10M3 8h10" />
           </IconButton>
@@ -524,8 +553,7 @@ export default function Popover() {
           <button type="button" className="pop-inbox" onClick={() => setFocus({ kind: "inbox" })}>
             <span aria-hidden>✦</span>
             <span>
-              {inbox.length === 1 ? "1 task" : `${inbox.length} tasks`} from{" "}
-              {new Set(inbox.map((i) => i.agent)).size === 1 ? inbox[0].agent : "AI agents"}
+              {inboxLabel(inbox)}
             </span>
             <b>Review</b>
           </button>
@@ -677,6 +705,20 @@ export default function Popover() {
 }
 
 /** Repeat and source, for the line under a title (time is in the chip). */
+/** "2 tasks from Claude", "1 to-do noticed in Slack", "3 to review". */
+function inboxLabel(items: InboxItem[]): string {
+  const n = items.length;
+  const names = [...new Set(items.map((i) => i.agent))];
+  const who = names.length === 1 ? names[0] : null;
+  if (items.every((i) => i.source === "watch")) {
+    return `${n === 1 ? "1 to-do" : `${n} to-dos`} noticed${who ? ` in ${who}` : ""}`;
+  }
+  if (items.every((i) => i.source !== "watch")) {
+    return `${n === 1 ? "1 task" : `${n} tasks`} from ${who ?? "AI agents"}`;
+  }
+  return `${n} suggested tasks`;
+}
+
 function rowMeta(t: Task): string[] {
   const parts: string[] = [];
   const r = repeatShort(t.recurrence);

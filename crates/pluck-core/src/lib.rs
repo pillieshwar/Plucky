@@ -30,5 +30,7 @@ pub mod reminders_sync;
 pub mod store;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};
-pub use llm::{extract_task, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig};
+pub use llm::{
+    extract_task, find_actions, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig,
+};
 pub use store::{NewTask, ReminderLink, Store, StoreError, Task, TaskPatch, UpdateEffects};

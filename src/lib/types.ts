@@ -112,6 +112,7 @@ export interface AppSettings {
   agents_enabled: boolean;
   agents_proactive: boolean;
   email: EmailSchedule;
+  watch: WatchSettings;
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */
@@ -124,6 +125,31 @@ export interface InboxItem {
   /** Display name of the AI app, e.g. "Claude". */
   agent: string;
   received_at: string;
+  /** Deadline phrase to resolve ("by Friday") when there's no due_date. */
+  date_text: string | null;
+  /** "agent" (sent over MCP) or "watch" (noticed on screen). */
+  source: "agent" | "watch";
+}
+
+/** Mirrors `settings::WatchSettings`. */
+export interface WatchSettings {
+  enabled: boolean;
+  apps: string[];
+  plugged_in_only: boolean;
+  show_right_away: boolean;
+  paused_until: string | null;
+}
+
+/** Mirrors `watch::Status`. */
+export interface WatchStatus {
+  supported: boolean;
+  settings: WatchSettings;
+  apps: { bundle: string; name: string; installed: boolean }[];
+  live: {
+    state: "off" | "watching" | "paused" | "on_battery" | "no_model" | "no_access" | "unsupported";
+    current: string | null;
+    last_found: string | null;
+  };
 }
 
 /** Mirrors `agents::Status`. */

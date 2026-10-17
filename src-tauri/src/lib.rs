@@ -27,6 +27,7 @@ mod slack;
 mod spaces;
 mod tray;
 mod updates;
+mod watch;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -1280,6 +1281,7 @@ pub fn run() {
             }
             slack::Slack::start(app.handle());
             agents::start(app.handle());
+            watch::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -1336,6 +1338,9 @@ pub fn run() {
             agents::agents_connect,
             agents::agents_disconnect,
             agents::agents_test,
+            watch::watch_status,
+            watch::watch_set,
+            watch::watch_pause,
             agents::email::email_tasks_status,
             agents::email::email_tasks_set,
             agents::email::email_tasks_run_now,

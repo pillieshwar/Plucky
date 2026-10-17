@@ -104,6 +104,13 @@ const SETTINGS = {
     last_ok: null,
     last: null,
   },
+  watch: {
+    enabled: false,
+    apps: ["com.tinyspeck.slackmacgap", "com.microsoft.Outlook"],
+    plugged_in_only: false,
+    show_right_away: true,
+    paused_until: null,
+  },
 };
 
 const agentApp = (id, name, installed, connected = false) => ({
@@ -203,6 +210,16 @@ function mockTauri(s) {
     agents_status: () => s.agents,
     agents_test: () => "Working — AI apps can send tasks to Plucky.",
     inbox_list: () => s.inbox ?? [],
+    watch_status: () =>
+      s.watch ?? {
+        supported: true,
+        settings: s.settings.watch,
+        apps: [
+          { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
+          { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
+        ],
+        live: { state: "off", current: null, last_found: null },
+      },
     email_tasks_status: () =>
       s.emailTasks ?? { schedule: s.settings.email, servers: [], claude_code_connected: false, running: false },
     slack_status: () =>
@@ -514,9 +531,28 @@ await shot(
   focus({ kind: "undated" }),
 );
 const INBOX = [
-  { id: 1, title: "Send the Q3 deck to Priya", due_date: day(1), due_time: "15:00", notes: "She asked for the version with the regional breakdown.", agent: "Claude", received_at: localStamp(0) },
-  { id: 2, title: "Book flights for the Austin offsite", due_date: day(4), due_time: null, notes: null, agent: "Claude", received_at: localStamp(0) },
+  { id: 1, title: "Send the Q3 deck to Priya", due_date: day(1), due_time: "15:00", notes: "She asked for the version with the regional breakdown.", agent: "Claude", received_at: localStamp(0), date_text: null, source: "agent" },
+  { id: 2, title: "Book flights for the Austin offsite", due_date: day(4), due_time: null, notes: null, agent: "Claude", received_at: localStamp(0), date_text: null, source: "agent" },
 ];
+const NOTICED = [
+  { id: 7, title: "Send Dana the rollout checklist", due_date: null, due_time: null, notes: "Noticed in Slack · #launch", agent: "Slack", received_at: localStamp(0), date_text: "by Friday", source: "watch" },
+  { id: 8, title: "Review the pricing doc", due_date: null, due_time: null, notes: "Noticed in Slack · Priya Shah", agent: "Slack", received_at: localStamp(0), date_text: "tomorrow 3pm", source: "watch" },
+];
+await shot("popover-focus-noticed", POP, scenario({ label: "popover", inbox: NOTICED }), focus({ kind: "inbox" }));
+await shot("popover-noticed-banner", POP, scenario({ label: "popover", inbox: NOTICED }));
+const WATCH_ON = {
+  supported: true,
+  settings: { ...SETTINGS.watch, enabled: true },
+  apps: [
+    { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
+    { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
+  ],
+  live: { state: "watching", current: "Slack", last_found: null },
+};
+await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(3).click();
+});
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
 await shot("popover-inbox-banner", POP, scenario({ label: "popover", inbox: INBOX }));
@@ -527,7 +563,7 @@ const AGENTS_ON = {
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(4).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -550,13 +586,13 @@ await shot(
   }),
   async (p) => {
     await p.getByRole("tab", { name: "Connectors" }).click();
-    await p.locator(".connector-action").nth(3).click();
+    await p.locator(".connector-action").nth(4).click();
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(4).click();
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
