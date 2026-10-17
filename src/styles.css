@@ -884,3 +884,7 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 }
 .email-when { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .email-when .time-input { width: 92px; }
+.toggle-row.email-when-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.email-when-row .email-when { justify-content: flex-start; flex-wrap: nowrap; }
+.email-when .time-input { width: 112px; flex: none; }
+.email-when .email-select { flex: 1; max-width: none; }

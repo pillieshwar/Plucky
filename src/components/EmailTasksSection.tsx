@@ -114,7 +114,7 @@ export function EmailTasksSection({ locale }: { locale: string }) {
                 </button>
               )}
             </label>
-            <div className={s.enabled ? "toggle-row" : "toggle-row disabled"}>
+            <div className={s.enabled ? "toggle-row email-when-row" : "toggle-row email-when-row disabled"}>
               <span className="toggle-text">
                 <span className="toggle-label">When</span>
                 <span className="toggle-hint">Your local time, while Plucky is running.</span>
