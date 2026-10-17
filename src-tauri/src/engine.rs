@@ -96,6 +96,7 @@ impl Engine {
     }
 
     /// Watch mode: to-dos in new messages from `app` (usually none).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub async fn find_actions(
         &self,
         model_path: &Path,

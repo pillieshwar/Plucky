@@ -188,7 +188,7 @@ fn on_power() -> bool {
             return true;
         }
         let kind = IOPSGetProvidingPowerSourceType(blob);
-        let on_ac = kind.is_null() || CFString::wrap_under_get_rule(kind).to_string() == "AC Power";
+        let on_ac = kind.is_null() || CFString::wrap_under_get_rule(kind) == "AC Power";
         CFRelease(blob);
         on_ac
     }

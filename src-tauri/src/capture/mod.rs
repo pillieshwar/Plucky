@@ -32,7 +32,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 #[cfg(target_os = "macos")]
-pub use macos::{front_window_text, WindowText};
+pub use macos::front_window_text;
 
 /// Where a capture came from, so a task can link back to it.
 #[derive(Debug, Clone, Default, Serialize)]
