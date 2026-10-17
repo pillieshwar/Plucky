@@ -382,7 +382,11 @@ pub fn front_window_text(
     let window = unsafe { copy_attr(el, "AXFocusedWindow") }?;
     let title = string_attr(as_element(&window), "AXTitle").unwrap_or_default();
 
-    let mut lines = Vec::new();
+    // Walk the tree from the END: in chat apps the sidebar comes first and
+    // the latest messages last, so a time-limited walk should start with
+    // the messages. Text nodes are leaves, so visiting children last-first
+    // yields them in exact reverse reading order; flip at the end.
+    let mut chunks: Vec<Vec<String>> = Vec::new();
     let mut stack = vec![window];
     let mut seen = 0usize;
     while let Some(node) = stack.pop() {
@@ -397,20 +401,23 @@ pub fn front_window_text(
         }
         if role == "AXStaticText" {
             if let Some(v) = string_attr(n, "AXValue") {
-                for line in v.lines() {
-                    let line = line.trim();
-                    let len = line.chars().count();
-                    if (2..=1000).contains(&len) {
-                        lines.push(line.to_string());
-                    }
+                let chunk: Vec<String> = v
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| (2..=1000).contains(&l.chars().count()))
+                    .map(str::to_string)
+                    .collect();
+                if !chunk.is_empty() {
+                    chunks.push(chunk);
                 }
             }
             continue;
         }
-        let mut kids = children(n);
-        kids.reverse();
-        stack.extend(kids);
+        // Pushed in order, so the last child is visited first.
+        stack.extend(children(n));
     }
+    chunks.reverse();
+    let lines: Vec<String> = chunks.into_iter().flatten().collect();
     Some(WindowText {
         bundle,
         app: name,

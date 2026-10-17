@@ -454,6 +454,20 @@ export default function Popover() {
           </IconButton>
           {watch?.settings.enabled && (
             <IconButton
+              label="Check this conversation for to-dos"
+              onClick={() =>
+                void api
+                  .watchCheckNow()
+                  .then((m) => show(m))
+                  .catch((e) => show(String(e), undefined, "error"))
+              }
+            >
+              <path d="M7 12.5A5.5 5.5 0 1 1 7 1.5a5.5 5.5 0 0 1 0 11Z" />
+              <path d="m11 11 3.5 3.5M4.6 7l1.6 1.6L9.4 5.4" />
+            </IconButton>
+          )}
+          {watch?.settings.enabled && (
+            <IconButton
               label={
                 watch.live.state === "paused"
                   ? "Watching is paused — click to resume"

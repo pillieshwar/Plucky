@@ -37,8 +37,8 @@ const POLL: Duration = Duration::from_secs(3);
 /// The window must look the same this long before Plucky reads new lines,
 /// so half-loaded channels and scrolling don't count.
 const SETTLE: Duration = Duration::from_secs(4);
-const MAX_NODES: usize = 2500;
-const READ_BUDGET: Duration = Duration::from_millis(700);
+const MAX_NODES: usize = 4000;
+const READ_BUDGET: Duration = Duration::from_millis(1200);
 /// Lines remembered per window, so the same message is looked at once.
 const SEEN_PER_WINDOW: usize = 6000;
 const MAX_WINDOWS: usize = 40;
@@ -63,13 +63,66 @@ pub struct Live {
     pub current: Option<String>,
     /// When the last to-do was noticed, local time.
     pub last_found: Option<String>,
+    /// What the last look at a watched window found — counts only, never
+    /// the text — so the user can see where it stopped.
+    pub last_look: Option<Look>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Look {
+    pub app: String,
+    /// Local `HH:MM:SS`.
+    pub at: String,
+    /// Lines of text read from the window.
+    pub lines: usize,
+    /// Lines not seen before.
+    pub new: usize,
+    /// Whether the model was asked, and how many to-dos it returned.
+    pub asked: bool,
+    pub found: usize,
+    /// One short phrase: where it stopped.
+    pub step: String,
 }
 
 static LIVE: Mutex<Live> = Mutex::new(Live {
     state: State::Off,
     current: None,
     last_found: None,
+    last_look: None,
 });
+
+/// Record the last look; tell the windows only when something changed.
+fn set_look(app: &AppHandle, look: Look) {
+    let changed = match LIVE.lock() {
+        Ok(mut l) => {
+            let same = l.last_look.as_ref().is_some_and(|o| {
+                o.app == look.app
+                    && o.lines == look.lines
+                    && o.new == look.new
+                    && o.asked == look.asked
+                    && o.found == look.found
+                    && o.step == look.step
+            });
+            l.last_look = Some(look);
+            !same
+        }
+        Err(_) => false,
+    };
+    if changed {
+        let _ = app.emit("watch-changed", ());
+    }
+}
+
+/// The same conversation even when its title gains or loses unread marks
+/// ("* ", "(3) ", "! ") or counts.
+fn window_key(bundle: &str, title: &str) -> u64 {
+    let cleaned: String = title
+        .chars()
+        .filter(|c| !c.is_ascii_digit() && !"*!()[]•".contains(*c))
+        .collect();
+    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    hash(&(bundle, cleaned.as_str()))
+}
 
 fn set_live(app: &AppHandle, state: State, current: Option<String>) {
     let changed = match LIVE.lock() {
@@ -322,7 +375,21 @@ fn tick(
         return;
     };
     set_live(app, State::Watching, Some(read.app.clone()));
-    let key = hash(&(read.bundle.as_str(), read.title.as_str()));
+    let mut look = Look {
+        app: read.app.clone(),
+        at: Local::now().format("%H:%M:%S").to_string(),
+        lines: read.lines.len(),
+        new: 0,
+        asked: false,
+        found: 0,
+        step: String::new(),
+    };
+    if read.lines.is_empty() {
+        look.step = "no text readable in this window".into();
+        set_look(app, look);
+        return;
+    }
+    let key = window_key(&read.bundle, &read.title);
     let now = Instant::now();
     if windows.len() > MAX_WINDOWS && !windows.contains_key(&key) {
         // Forget the window used longest ago.
@@ -331,14 +398,27 @@ fn tick(
         }
     }
     let win = windows.entry(key).or_default();
+    let primed_before = win.primed;
     let Some(fresh) = new_lines(win, &read.lines, now) else {
+        look.step = if !primed_before && win.primed {
+            "first look: earlier messages skipped".into()
+        } else if !win.primed {
+            "waiting for the window to settle".into()
+        } else {
+            "no new messages".into()
+        };
+        set_look(app, look);
         return;
     };
+    look.new = fresh.len();
     let Some((earlier, new)) = conversation(&read.lines, &fresh) else {
+        look.step = "new messages didn't look like a to-do".into();
+        set_look(app, look);
         return;
     };
     let user = user_names(s, &read.bundle);
     let engine = app.state::<Engine>();
+    look.asked = true;
     let found = tauri::async_runtime::block_on(
         engine.find_actions(model, &read.app, &user, &earlier, &new),
     );
@@ -346,45 +426,83 @@ fn tick(
         Ok(a) => a,
         Err(e) => {
             log::warn!("watch: model failed: {e}");
+            look.step = "the model didn't answer".into();
+            set_look(app, look);
             return;
         }
     };
+    look.found = actions.len();
+    let added = deliver(app, s.show_right_away, &read.app, &read.title, actions);
+    look.step = match (look.found, added) {
+        (0, _) => "the model found no to-do".into(),
+        (_, 0) => "already suggested before".into(),
+        _ => "suggested".into(),
+    };
+    set_look(app, look);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn tick(_: &AppHandle, _: &WatchSettings, _: &std::path::Path, _: &mut HashMap<u64, Window>) {}
+
+/// Put found to-dos in the inbox; returns how many were new.
+fn deliver(
+    app: &AppHandle,
+    show: bool,
+    app_name: &str,
+    title: &str,
+    actions: Vec<pluck_core::Extraction>,
+) -> usize {
     let agents = app.state::<Agents>();
     let mut added = 0;
     for a in actions {
         let draft = TaskDraft {
             title: a.task,
             date_text: a.date_text,
-            notes: Some(if read.title.is_empty() {
-                format!("Noticed in {}", read.app)
+            notes: Some(if title.is_empty() {
+                format!("Noticed in {app_name}")
             } else {
-                format!("Noticed in {} · {}", read.app, read.title)
+                format!("Noticed in {app_name} · {title}")
             }),
             ..Default::default()
         };
-        match agents.receive_watch(&read.app, draft) {
+        match agents.receive_watch(app_name, draft) {
             Ok(true) => added += 1,
             Ok(false) => {}
             Err(e) => log::warn!("watch: {e}"),
         }
     }
     if added == 0 {
-        return;
+        return 0;
     }
-    log::info!("watch: noticed {added} to-do(s) in {}", read.app);
+    log::info!("watch: noticed {added} to-do(s) in {app_name}");
     if let Ok(mut l) = LIVE.lock() {
         l.last_found = Some(Local::now().format(LOCAL).to_string());
     }
     let _ = app.emit("inbox-changed", ());
     let _ = app.emit("watch-changed", ());
     crate::tray::refresh(app);
-    if s.show_right_away {
+    if show {
         crate::popover::show_focus(app, crate::popover::Focus::Inbox);
     }
+    added
 }
 
-#[cfg(not(target_os = "macos"))]
-fn tick(_: &AppHandle, _: &WatchSettings, _: &std::path::Path, _: &mut HashMap<u64, Window>) {}
+/// Messages used by "Check this conversation": the last few count as new.
+const CHECK_NEW: usize = 4;
+
+/// Split a whole window into earlier and "new" messages for a manual check.
+fn recent(lines: &[String]) -> Option<(Vec<String>, Vec<String>)> {
+    let msgs: Vec<String> = pluck_core::transcript::structure(lines)
+        .iter()
+        .map(|m| m.render())
+        .collect();
+    if msgs.is_empty() {
+        return None;
+    }
+    let split = msgs.len().saturating_sub(CHECK_NEW);
+    let earlier = msgs[split.saturating_sub(CONTEXT_MESSAGES)..split].to_vec();
+    Some((earlier, msgs[split..].to_vec()))
+}
 
 // ── Commands ───────────────────────────────────────────────────────────────
 
@@ -419,6 +537,7 @@ fn status(app: &AppHandle) -> Status {
         state: State::Off,
         current: None,
         last_found: None,
+        last_look: None,
     });
     Status {
         supported: cfg!(target_os = "macos"),
@@ -446,6 +565,63 @@ pub struct Change {
     /// Your name in each app, by bundle id.
     #[serde(default)]
     pub names: std::collections::BTreeMap<String, String>,
+}
+
+/// "Check this conversation": look at the last few messages of the watched
+/// app in front, even ones that were already there.
+#[tauri::command]
+pub async fn watch_check_now(app: AppHandle) -> Result<String, String> {
+    let s = app.state::<Settings>().get().watch;
+    let model = match app.state::<ModelManager>().active() {
+        Some(m) => m.path,
+        None if app.state::<Engine>().kind() == "ollama" => Default::default(),
+        None => return Err("Download a model in the Models tab first.".into()),
+    };
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (s, model);
+        Err("Watching is available on macOS.".into())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        check_now_mac(&app, &s, &model).await
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn check_now_mac(
+    app: &AppHandle,
+    s: &WatchSettings,
+    model: &std::path::Path,
+) -> Result<String, String> {
+    let apps = s.apps.clone();
+    let read = tauri::async_runtime::spawn_blocking(move || {
+        crate::capture::front_window_text(&apps, MAX_NODES, READ_BUDGET)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(read) = read else {
+        return Err("Bring Slack or Outlook to the front, then check again.".into());
+    };
+    let Some((earlier, new)) = recent(&read.lines) else {
+        return Err(format!(
+            "Plucky couldn't read any messages in {}.",
+            read.app
+        ));
+    };
+    let user = user_names(s, &read.bundle);
+    let actions = app
+        .state::<Engine>()
+        .find_actions(model, &read.app, &user, &earlier, &new)
+        .await?;
+    let found = actions.len();
+    let added = deliver(app, true, &read.app, &read.title, actions);
+    Ok(match (found, added) {
+        (0, _) => format!("No to-dos in the latest messages in {}.", read.app),
+        (_, 0) => "Already suggested — check the review list.".into(),
+        (_, 1) => "Found 1 to-do.".into(),
+        (_, n) => format!("Found {n} to-dos."),
+    })
 }
 
 #[tauri::command]
@@ -574,6 +750,55 @@ mod tests {
         // Not typed: the Mac's account name (none in tests off macOS).
         let fallback = user_names(&s, "com.tinyspeck.slackmacgap");
         assert!(fallback.len() <= 1);
+    }
+
+    #[test]
+    fn unread_marks_dont_change_the_conversation() {
+        let a = window_key(
+            "com.tinyspeck.slackmacgap",
+            "Sam Rivera (DM) - Acme - Slack",
+        );
+        assert_eq!(
+            a,
+            window_key(
+                "com.tinyspeck.slackmacgap",
+                "* Sam Rivera (DM) - Acme - Slack"
+            )
+        );
+        assert_eq!(
+            a,
+            window_key(
+                "com.tinyspeck.slackmacgap",
+                "(3) Sam Rivera (DM) - Acme - Slack"
+            )
+        );
+        assert_ne!(
+            a,
+            window_key("com.tinyspeck.slackmacgap", "#general - Acme - Slack")
+        );
+    }
+
+    #[test]
+    fn manual_check_takes_the_latest_messages() {
+        let window = lines(&[
+            "Maya Chen",
+            "1:49 PM",
+            "please loop in Lena",
+            "Sam Rivera",
+            "12:53 PM",
+            "i'll fix the bug on monday",
+            "Do this by tuesday 5 pm",
+            "Sam Rivera",
+            "3:53 PM",
+            "Sounds good, I'll schedule time with everyone next week",
+        ]);
+        let (earlier, new) = recent(&window).unwrap();
+        assert_eq!(earlier.len() + new.len(), 3);
+        assert_eq!(
+            new.last().unwrap(),
+            "Sam Rivera: Sounds good, I'll schedule time with everyone next week"
+        );
+        assert!(recent(&lines(&["1", "Today"])).is_none());
     }
 
     #[test]

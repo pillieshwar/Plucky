@@ -550,7 +550,12 @@ const WATCH_ON = {
     { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
     { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
   ],
-  live: { state: "watching", current: "Slack", last_found: null },
+  live: {
+    state: "watching",
+    current: "Slack",
+    last_found: null,
+    last_look: { app: "Slack", at: "15:58:12", lines: 214, new: 3, asked: true, found: 1, step: "suggested" },
+  },
 };
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();

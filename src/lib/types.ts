@@ -155,6 +155,16 @@ export interface WatchStatus {
     state: "off" | "watching" | "paused" | "on_battery" | "no_model" | "no_access" | "unsupported";
     current: string | null;
     last_found: string | null;
+    /** The last look at a watched window: counts only, never text. */
+    last_look: {
+      app: string;
+      at: string;
+      lines: number;
+      new: number;
+      asked: boolean;
+      found: number;
+      step: string;
+    } | null;
   };
 }
 
