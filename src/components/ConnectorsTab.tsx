@@ -85,6 +85,7 @@ export function ConnectorsTab() {
         name="Watch Slack & Outlook"
         description="Notice requests and deadlines in new messages, on this Mac."
         connected={!!watch?.settings.enabled}
+        connectedLabel="On"
         open={open === "watch"}
         onToggle={() => toggle("watch")}
       >
@@ -116,6 +117,7 @@ function ConnectorCard({
   name,
   description,
   connected,
+  connectedLabel = "Connected",
   open,
   onToggle,
   children,
@@ -125,6 +127,8 @@ function ConnectorCard({
   name: string;
   description: string;
   connected: boolean;
+  /** What "connected" means for this card, e.g. "On". */
+  connectedLabel?: string;
   open: boolean;
   onToggle: () => void;
   children: ReactNode;
@@ -147,7 +151,7 @@ function ConnectorCard({
         >
           {connected ? (
             <>
-              <span className="connector-dot" aria-hidden /> Connected
+              <span className="connector-dot" aria-hidden /> {connectedLabel}
             </>
           ) : open ? (
             "Close"
