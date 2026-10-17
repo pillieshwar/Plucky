@@ -300,12 +300,14 @@ pub async fn extract_task<B: LlmBackend>(
 pub async fn find_actions<B: LlmBackend>(
     backend: &B,
     app: &str,
-    text: &str,
+    user: &[String],
+    earlier: &[String],
+    new: &[String],
 ) -> Result<Vec<Extraction>, LlmError> {
     let schema = crate::extraction::actions_schema();
     let mut messages = vec![
         ChatMessage::new("system", prompt::WATCH_SYSTEM_PROMPT),
-        ChatMessage::new("user", prompt::watch_message(app, text)),
+        ChatMessage::new("user", prompt::watch_message(app, user, earlier, new)),
     ];
     let first = backend.chat(&messages, &schema).await?;
     let err = match crate::extraction::parse_actions(&first) {

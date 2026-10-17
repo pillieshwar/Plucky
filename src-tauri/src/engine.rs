@@ -101,18 +101,20 @@ impl Engine {
         &self,
         model_path: &Path,
         app: &str,
-        text: &str,
+        user: &[String],
+        earlier: &[String],
+        new: &[String],
     ) -> Result<Vec<Extraction>, String> {
         self.touch();
         if let Some(ollama) = &self.ollama {
-            return find_actions(ollama, app, text)
+            return find_actions(ollama, app, user, earlier, new)
                 .await
                 .map_err(|e| e.to_string());
         }
         let mut guard = self.running.lock().await;
         self.ensure_running(&mut guard, model_path).await?;
         let running = guard.as_ref().expect("server just started");
-        let result = find_actions(&running.client, app, text)
+        let result = find_actions(&running.client, app, user, earlier, new)
             .await
             .map_err(|e| e.to_string());
         self.touch();

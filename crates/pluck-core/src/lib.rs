@@ -28,6 +28,7 @@ pub mod prompt;
 pub mod recurrence;
 pub mod reminders_sync;
 pub mod store;
+pub mod transcript;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};
 pub use llm::{

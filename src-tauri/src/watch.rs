@@ -120,9 +120,9 @@ impl Window {
     }
 }
 
-/// Decide which lines are new once the window has settled. Pure, so the
-/// rules are tested without a screen.
-fn new_lines(win: &mut Window, lines: &[String], now: Instant) -> Option<Vec<String>> {
+/// Decide which lines are new once the window has settled (their indexes).
+/// Pure, so the rules are tested without a screen.
+fn new_lines(win: &mut Window, lines: &[String], now: Instant) -> Option<Vec<usize>> {
     win.used = Some(now);
     let shape = hash(lines);
     match win.shape {
@@ -143,27 +143,88 @@ fn new_lines(win: &mut Window, lines: &[String], now: Instant) -> Option<Vec<Str
         }
         return None;
     }
-    let fresh: Vec<String> = lines
+    let fresh: Vec<usize> = lines
         .iter()
-        .filter(|l| win.remember(hash(l.as_str())))
-        .cloned()
+        .enumerate()
+        .filter(|(_, l)| win.remember(hash(l.as_str())))
+        .map(|(i, _)| i)
         .collect();
     (!fresh.is_empty()).then_some(fresh)
 }
 
-/// The text to give the model: the new lines, latest last, capped — but
-/// only if one of them looks like a request, deadline or promise.
-fn worth_a_look(fresh: &[String]) -> Option<String> {
-    if !fresh.iter().any(|l| pluck_core::prompt::has_task_cue(l)) {
+/// How many earlier messages go with the new ones, for context.
+const CONTEXT_MESSAGES: usize = 8;
+
+/// Split the window into earlier and new messages, each as `Speaker: text`.
+/// `None` unless a new message looks like a request, deadline or promise.
+fn conversation(lines: &[String], fresh: &[usize]) -> Option<(Vec<String>, Vec<String>)> {
+    use pluck_core::transcript::structure;
+    let fresh: HashSet<usize> = fresh.iter().copied().collect();
+    let render = |speaker: &Option<String>, parts: &[&str]| -> String {
+        let text = parts.join("\n");
+        match speaker {
+            Some(s) => format!("{s}: {text}"),
+            None => text,
+        }
+    };
+    let mut earlier = Vec::new();
+    let mut new = Vec::new();
+    for m in structure(lines) {
+        // The text lines of the message (not the name line that starts it).
+        let text_lines: Vec<usize> = m
+            .lines
+            .iter()
+            .copied()
+            .filter(|&i| m.speaker.as_deref() != Some(lines[i].trim()))
+            .collect();
+        let (new_parts, old_parts): (Vec<usize>, Vec<usize>) =
+            text_lines.into_iter().partition(|i| fresh.contains(i));
+        let old: Vec<&str> = old_parts.iter().map(|&i| lines[i].trim()).collect();
+        let neu: Vec<&str> = new_parts.iter().map(|&i| lines[i].trim()).collect();
+        if !old.is_empty() {
+            earlier.push(render(&m.speaker, &old));
+        }
+        if !neu.is_empty() {
+            new.push(render(&m.speaker, &neu));
+        }
+    }
+    if !new.iter().any(|l| pluck_core::prompt::has_task_cue(l)) {
         return None;
     }
-    let mut text = fresh.join("\n");
-    let max = pluck_core::prompt::MAX_WATCH_CHARS;
-    let count = text.chars().count();
-    if count > max {
-        text = text.chars().skip(count - max).collect();
+    let skip = earlier.len().saturating_sub(CONTEXT_MESSAGES);
+    Some((earlier.split_off(skip), new))
+}
+
+/// The user's names in `bundle`'s app: what they typed in the connector,
+/// or their Mac account's full name.
+fn user_names(s: &WatchSettings, bundle: &str) -> Vec<String> {
+    let typed = s
+        .names
+        .get(bundle)
+        .map(|n| pluck_core::transcript::split_names(n.as_str()))
+        .unwrap_or_default();
+    if typed.is_empty() {
+        mac_full_name().into_iter().collect()
+    } else {
+        typed
     }
-    Some(text)
+}
+
+/// The Mac account's full name ("Sam Rivera"), looked up once.
+pub fn mac_full_name() -> Option<String> {
+    static NAME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| {
+        if !cfg!(target_os = "macos") {
+            return None;
+        }
+        let out = std::process::Command::new("/usr/bin/id")
+            .arg("-F")
+            .output()
+            .ok()?;
+        let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        (out.status.success() && !name.is_empty() && name.chars().count() <= 80).then_some(name)
+    })
+    .clone()
 }
 
 fn paused(s: &WatchSettings, now: NaiveDateTime) -> bool {
@@ -273,11 +334,14 @@ fn tick(
     let Some(fresh) = new_lines(win, &read.lines, now) else {
         return;
     };
-    let Some(text) = worth_a_look(&fresh) else {
+    let Some((earlier, new)) = conversation(&read.lines, &fresh) else {
         return;
     };
+    let user = user_names(s, &read.bundle);
     let engine = app.state::<Engine>();
-    let found = tauri::async_runtime::block_on(engine.find_actions(model, &read.app, &text));
+    let found = tauri::async_runtime::block_on(
+        engine.find_actions(model, &read.app, &user, &earlier, &new),
+    );
     let actions = match found {
         Ok(a) => a,
         Err(e) => {
@@ -334,6 +398,8 @@ pub struct WatchApp {
 #[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub supported: bool,
+    /// The Mac account's full name, the default for "your name".
+    pub default_name: Option<String>,
     /// The model in use, so the UI can suggest a better one for watching.
     pub model: Option<String>,
     pub settings: WatchSettings,
@@ -356,6 +422,7 @@ fn status(app: &AppHandle) -> Status {
     });
     Status {
         supported: cfg!(target_os = "macos"),
+        default_name: mac_full_name(),
         model: app.state::<ModelManager>().active().map(|m| m.id),
         settings: app.state::<Settings>().get().watch,
         apps: APPS
@@ -376,6 +443,9 @@ pub struct Change {
     pub apps: Vec<String>,
     pub plugged_in_only: bool,
     pub show_right_away: bool,
+    /// Your name in each app, by bundle id.
+    #[serde(default)]
+    pub names: std::collections::BTreeMap<String, String>,
 }
 
 #[tauri::command]
@@ -395,6 +465,13 @@ pub fn watch_set(app: AppHandle, change: Change) -> Status {
         s.watch.apps = apps;
         s.watch.plugged_in_only = change.plugged_in_only;
         s.watch.show_right_away = change.show_right_away;
+        s.watch.names = change
+            .names
+            .into_iter()
+            .filter(|(b, _)| APPS.iter().any(|(id, _, _)| id == b))
+            .map(|(b, n)| (b, n.trim().chars().take(200).collect::<String>()))
+            .filter(|(_, n)| !n.is_empty())
+            .collect();
         if !change.enabled {
             s.watch.paused_until = None;
         }
@@ -441,21 +518,62 @@ mod tests {
         ]);
         assert!(new_lines(&mut w, &b, t0 + SETTLE + POLL).is_none());
         // Settled: only the new line.
-        let fresh = new_lines(&mut w, &b, t0 + SETTLE * 3).unwrap();
-        assert_eq!(fresh, lines(&["Priya: can you send the deck by Friday?"]));
+        assert_eq!(new_lines(&mut w, &b, t0 + SETTLE * 3).unwrap(), vec![2]);
         // Same window again: nothing new.
         assert!(new_lines(&mut w, &b, t0 + SETTLE * 5).is_none());
     }
 
     #[test]
-    fn only_cues_reach_the_model() {
-        assert!(worth_a_look(&lines(&["lol", "nice work 🎉"])).is_none());
-        let t = worth_a_look(&lines(&["lol", "can you review my PR?"])).unwrap();
-        assert!(t.ends_with("can you review my PR?"));
-        let long = vec![format!("please {}", "x".repeat(5000))];
-        assert!(
-            worth_a_look(&long).unwrap().chars().count() <= pluck_core::prompt::MAX_WATCH_CHARS
+    fn new_messages_come_with_earlier_context() {
+        let window = lines(&[
+            "Thursday, October 15th",
+            "Maya Chen",
+            "1:49 PM",
+            "Hi Sam, we need a way to benchmark the agents.",
+            "Please also loop in Lena Ortiz.",
+            "Sam Rivera",
+            "1:53 PM",
+            "Sounds good, I'll set up time with everyone early next week",
+            "1",
+        ]);
+        let (earlier, new) = conversation(&window, &[5, 6, 7, 8]).unwrap();
+        assert_eq!(
+            earlier,
+            vec!["Maya Chen: Hi Sam, we need a way to benchmark the agents.\nPlease also loop in Lena Ortiz."]
         );
+        assert_eq!(
+            new,
+            vec!["Sam Rivera: Sounds good, I'll set up time with everyone early next week"]
+        );
+        // Nothing that looks like a task: the model isn't asked.
+        let chat = lines(&["Jordan Lee", "9:02 AM", "lol nice", "great demo 🎉"]);
+        assert!(conversation(&chat, &[3]).is_none());
+        // A follow-up in the same block: only the new line is new.
+        let block = lines(&[
+            "Jordan Lee",
+            "9:02 AM",
+            "morning!",
+            "can you send the notes?",
+        ]);
+        let (earlier, new) = conversation(&block, &[3]).unwrap();
+        assert_eq!(earlier, vec!["Jordan Lee: morning!"]);
+        assert_eq!(new, vec!["Jordan Lee: can you send the notes?"]);
+    }
+
+    #[test]
+    fn names_typed_or_from_the_mac() {
+        let mut s = WatchSettings::default();
+        s.names.insert(
+            "com.microsoft.Outlook".into(),
+            "Rivera, Sam; sam@example.com".into(),
+        );
+        assert_eq!(
+            user_names(&s, "com.microsoft.Outlook"),
+            vec!["Rivera, Sam", "sam@example.com"]
+        );
+        // Not typed: the Mac's account name (none in tests off macOS).
+        let fallback = user_names(&s, "com.tinyspeck.slackmacgap");
+        assert!(fallback.len() <= 1);
     }
 
     #[test]

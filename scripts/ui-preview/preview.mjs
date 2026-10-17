@@ -110,6 +110,7 @@ const SETTINGS = {
     plugged_in_only: false,
     show_right_away: true,
     paused_until: null,
+    names: {},
   },
 };
 
@@ -542,7 +543,9 @@ await shot("popover-focus-noticed", POP, scenario({ label: "popover", inbox: NOT
 await shot("popover-noticed-banner", POP, scenario({ label: "popover", inbox: NOTICED }));
 const WATCH_ON = {
   supported: true,
-  settings: { ...SETTINGS.watch, enabled: true },
+  default_name: "Sam Rivera",
+  model: "qwen3.5-4b",
+  settings: { ...SETTINGS.watch, enabled: true, names: { "com.microsoft.Outlook": "Rivera, Sam" } },
   apps: [
     { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
     { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
@@ -552,6 +555,11 @@ const WATCH_ON = {
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
   await p.locator(".connector-action").nth(3).click();
+});
+await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
+  await p.getByRole("tab", { name: "Connectors" }).click();
+  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-subhead", { hasText: "Your name" }).scrollIntoViewIfNeeded();
 });
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);

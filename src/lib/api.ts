@@ -107,7 +107,13 @@ export const api = {
   inboxAccept: (id: number, schedule?: { due_date: string | null; due_time: string | null }) =>
     invoke<Task>("inbox_accept", { id, schedule: schedule ?? null }),
   watchStatus: () => invoke<WatchStatus>("watch_status"),
-  watchSet: (change: { enabled: boolean; apps: string[]; plugged_in_only: boolean; show_right_away: boolean }) =>
+  watchSet: (change: {
+    enabled: boolean;
+    apps: string[];
+    plugged_in_only: boolean;
+    show_right_away: boolean;
+    names: Record<string, string>;
+  }) =>
     invoke<WatchStatus>("watch_set", { change }),
   /** Pause for `minutes`, or resume with 0. */
   watchPause: (minutes: number) => invoke<WatchStatus>("watch_pause", { minutes }),

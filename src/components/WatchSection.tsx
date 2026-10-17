@@ -66,6 +66,7 @@ export function WatchSection({ locale }: { locale: string }) {
           apps: next.apps,
           plugged_in_only: next.plugged_in_only,
           show_right_away: next.show_right_away,
+          names: next.names,
         }),
       );
     } catch (e) {
@@ -141,6 +142,29 @@ export function WatchSection({ locale }: { locale: string }) {
               </li>
             ))}
           </ul>
+          <h4 className="connector-subhead">Your name</h4>
+          <p className="setting-line muted">
+            So Plucky knows which messages are yours — your promises (“I'll send it Monday”) become to-dos, other
+            people's don't. Use the name each app shows on your messages.
+          </p>
+          <div className="card-stack">
+            {status.apps
+              .filter((a) => s.apps.includes(a.bundle))
+              .map((a) => (
+                <NameRow
+                  key={a.bundle}
+                  app={a.name}
+                  value={s.names[a.bundle] ?? ""}
+                  placeholder={status.default_name ?? "Your name"}
+                  hint={
+                    a.name === "Outlook"
+                      ? "Often “Last, First” or your email. Separate several with semicolons."
+                      : "Your display name. Separate several with commas."
+                  }
+                  onSave={(v) => void save({ names: { ...s.names, [a.bundle]: v } })}
+                />
+              ))}
+          </div>
           <div className="card-stack">
             <Toggle
               label="Show suggestions right away"
@@ -167,5 +191,48 @@ export function WatchSection({ locale }: { locale: string }) {
       </div>
       {error && <p className="rem-error">{error}</p>}
     </div>
+  );
+}
+
+/** "Your name in Slack": saved when the field loses focus or on Return. */
+function NameRow({
+  app,
+  value,
+  placeholder,
+  hint,
+  onSave,
+}: {
+  app: string;
+  value: string;
+  placeholder: string;
+  hint: string;
+  onSave: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft.trim() !== value.trim()) onSave(draft.trim());
+  };
+  return (
+    <label className="toggle-row name-row">
+      <span className="toggle-text">
+        <span className="toggle-label">Your name in {app}</span>
+        <span className="toggle-hint">{hint}</span>
+      </span>
+      <input
+        className="name-input"
+        value={draft}
+        placeholder={placeholder}
+        maxLength={200}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+    </label>
   );
 }

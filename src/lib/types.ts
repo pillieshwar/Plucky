@@ -138,11 +138,15 @@ export interface WatchSettings {
   plugged_in_only: boolean;
   show_right_away: boolean;
   paused_until: string | null;
+  /** Your name as each app shows it, by bundle id. */
+  names: Record<string, string>;
 }
 
 /** Mirrors `watch::Status`. */
 export interface WatchStatus {
   supported: boolean;
+  /** The Mac account's full name, the default for "your name". */
+  default_name: string | null;
   /** Id of the model in use. */
   model: string | null;
   settings: WatchSettings;

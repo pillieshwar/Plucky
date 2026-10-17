@@ -891,3 +891,9 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .email-when .email-select { flex: 1; max-width: none; }
 .email-when-row .email-when { flex-wrap: wrap; }
 .email-when-row .email-select { flex: 1 1 100%; }
+.toggle-row.name-row { flex-direction: column; align-items: stretch; gap: 6px; }
+.name-input {
+  font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--paper); color: var(--ink); user-select: text;
+}
+.name-input:focus { outline: none; border-color: var(--teal); }
