@@ -188,3 +188,71 @@ mod tests {
         assert_eq!(req, ["task", "date_text", "date_confidence"]);
     }
 }
+
+/// Most to-dos one watched snippet can produce.
+pub const MAX_ACTIONS: usize = 3;
+
+/// Schema for watch mode: zero to three to-dos found in new messages.
+pub fn actions_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "maxItems": MAX_ACTIONS,
+                "items": json_schema()
+            }
+        },
+        "required": ["tasks"],
+        "additionalProperties": false
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct ActionsRaw {
+    tasks: Vec<Extraction>,
+}
+
+/// Parse watch-mode output: invalid entries are dropped, not fatal.
+pub fn parse_actions(raw: &str) -> Result<Vec<Extraction>, ExtractionError> {
+    let parsed: ActionsRaw = serde_json::from_str(raw.trim())
+        .map_err(|err| ExtractionError::Malformed(err.to_string()))?;
+    let mut out: Vec<Extraction> = Vec::new();
+    for e in parsed.tasks.into_iter().take(MAX_ACTIONS) {
+        let e = e.normalized();
+        if e.validate().is_ok() && !out.iter().any(|o| o.task.eq_ignore_ascii_case(&e.task)) {
+            out.push(e);
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod action_tests {
+    use super::*;
+
+    #[test]
+    fn parses_zero_or_more_actions() {
+        assert!(parse_actions(r#"{"tasks":[]}"#).unwrap().is_empty());
+        let two = parse_actions(
+            r#"{"tasks":[
+                {"task":" Send the Q3 deck to Priya ","date_text":"by Friday","date_confidence":"high"},
+                {"task":"","date_text":null,"date_confidence":"none"},
+                {"task":"send the q3 deck to priya","date_text":null,"date_confidence":"none"},
+                {"task":"Book the room","date_text":null,"date_confidence":"none"}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(two.len(), 2);
+        assert_eq!(two[0].task, "Send the Q3 deck to Priya");
+        assert!(parse_actions("nope").is_err());
+    }
+
+    #[test]
+    fn schema_caps_the_list() {
+        assert_eq!(
+            actions_schema()["properties"]["tasks"]["maxItems"],
+            MAX_ACTIONS
+        );
+    }
+}

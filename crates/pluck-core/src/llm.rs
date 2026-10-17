@@ -161,7 +161,7 @@ impl LlmBackend for OllamaClient {
             "format": schema,
             "stream": false,
             "keep_alive": self.config.keep_alive,
-            "options": { "temperature": 0, "num_predict": 160 }
+            "options": { "temperature": 0, "num_predict": max_tokens(schema) }
         });
         let value = self.post(&body).await?;
         value["message"]["content"]
@@ -221,9 +221,18 @@ pub fn llama_server_body(messages: &[ChatMessage], schema: &Value) -> Value {
             "json_schema": { "name": "task", "schema": schema }
         },
         "temperature": 0,
-        "max_tokens": 160,
+        "max_tokens": max_tokens(schema),
         "stream": false
     })
+}
+
+/// Room for the answer: one task, or a short list of them.
+fn max_tokens(schema: &Value) -> u32 {
+    if schema["properties"].get("tasks").is_some() {
+        420
+    } else {
+        160
+    }
 }
 
 impl LlmBackend for LlamaServerClient {
@@ -282,6 +291,32 @@ pub async fn extract_task<B: LlmBackend>(
     ));
     let second = backend.chat(&messages, &schema).await?;
     Extraction::parse(&second).map_err(|e| LlmError::InvalidOutput(e.to_string()))
+}
+
+/// Watch mode: the to-dos (often none) in messages that just appeared in
+/// `app`. One repair retry, like `extract_task`.
+pub async fn find_actions<B: LlmBackend>(
+    backend: &B,
+    app: &str,
+    text: &str,
+) -> Result<Vec<Extraction>, LlmError> {
+    let schema = crate::extraction::actions_schema();
+    let mut messages = vec![
+        ChatMessage::new("system", prompt::WATCH_SYSTEM_PROMPT),
+        ChatMessage::new("user", prompt::watch_message(app, text)),
+    ];
+    let first = backend.chat(&messages, &schema).await?;
+    let err = match crate::extraction::parse_actions(&first) {
+        Ok(a) => return Ok(a),
+        Err(err) => err,
+    };
+    messages.push(ChatMessage::new("assistant", first));
+    messages.push(ChatMessage::new(
+        "user",
+        prompt::repair_message(&err.to_string()),
+    ));
+    let second = backend.chat(&messages, &schema).await?;
+    crate::extraction::parse_actions(&second).map_err(|e| LlmError::InvalidOutput(e.to_string()))
 }
 
 #[cfg(test)]

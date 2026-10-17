@@ -57,6 +57,38 @@ pub struct AppSettings {
     pub agents_proactive: bool,
     /// Check email for to-dos through Claude Code on a schedule.
     pub email: EmailSchedule,
+    /// Notice to-dos in Slack and Outlook as they appear on screen.
+    pub watch: WatchSettings,
+}
+
+/// Watch mode (see `watch.rs`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WatchSettings {
+    pub enabled: bool,
+    /// Bundle ids of the apps to watch.
+    pub apps: Vec<String>,
+    /// Only while the Mac is on power.
+    pub plugged_in_only: bool,
+    /// Open the menu-bar dropdown when something is found.
+    pub show_right_away: bool,
+    /// Paused until this local time, `YYYY-MM-DDTHH:MM:SS`.
+    pub paused_until: Option<String>,
+}
+
+impl Default for WatchSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            apps: vec![
+                "com.tinyspeck.slackmacgap".into(),
+                "com.microsoft.Outlook".into(),
+            ],
+            plugged_in_only: false,
+            show_right_away: true,
+            paused_until: None,
+        }
+    }
 }
 
 /// `/email-tasks` run by Plucky every `interval` minutes between `start`
@@ -128,6 +160,7 @@ impl Default for AppSettings {
             agents_enabled: false,
             agents_proactive: true,
             email: EmailSchedule::default(),
+            watch: WatchSettings::default(),
         }
     }
 }

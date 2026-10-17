@@ -1,0 +1,35 @@
+# Score candidate models on watch mode (finding to-dos in new Slack and
+# Outlook messages) with the same prompt, schema and runtime the app uses.
+# Run by hand; results go to the job summary.
+name: Model eval
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: model-eval
+  cancel-in-progress: true
+
+env:
+  LLAMA_CPP_REF: b11609
+
+jobs:
+  eval:
+    runs-on: macos-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Build llama-server
+        run: scripts/build-llama-server.sh
+      - name: Build the eval
+        run: cargo build --locked -p pluck-core --example watch_eval --release
+      - name: Evaluate models
+        run: scripts/eval/run-watch-eval.sh >> "$GITHUB_STEP_SUMMARY"

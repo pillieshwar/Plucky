@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onSlackChanged } from "../lib/api";
+import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onSlackChanged, onWatchChanged } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
 import { AgentsSection } from "./AgentsSection";
-import type { AgentsStatus, CalendarInfo, CalendarStatus, RemindersStatus, SlackStatus } from "../lib/types";
+import { WatchSection } from "./WatchSection";
+import { safeLocale } from "../lib/locale";
+import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus, SlackStatus } from "../lib/types";
 
 /**
  * Connectors: apps on this Mac that Plucky can work with. Each card shows
@@ -15,6 +17,7 @@ export function ConnectorsTab() {
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [slack, setSlack] = useState<SlackStatus | null>(null);
   const [agents, setAgents] = useState<AgentsStatus | null>(null);
+  const [watch, setWatch] = useState<WatchStatus | null>(null);
   const [open, setOpen] = useState<Id | null>(null);
 
   const refresh = useCallback(() => {
@@ -22,11 +25,12 @@ export function ConnectorsTab() {
     api.calendarStatus().then(setCalendar).catch(() => undefined);
     api.slackStatus().then(setSlack).catch(() => undefined);
     api.agentsStatus().then(setAgents).catch(() => undefined);
+    api.watchStatus().then(setWatch).catch(() => undefined);
   }, []);
 
   useEffect(() => {
     refresh();
-    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onSlackChanged(refresh), onInboxChanged(refresh)];
+    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onSlackChanged(refresh), onInboxChanged(refresh), onWatchChanged(refresh)];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [refresh]);
 
@@ -76,6 +80,18 @@ export function ConnectorsTab() {
       </ConnectorCard>
 
       <ConnectorCard
+        icon={<EyeGlyph />}
+        tone="watch"
+        name="Watch Slack & Outlook"
+        description="Notice requests and deadlines in new messages, on this Mac."
+        connected={!!watch?.settings.enabled}
+        open={open === "watch"}
+        onToggle={() => toggle("watch")}
+      >
+        <WatchSection locale={safeLocale()} />
+      </ConnectorCard>
+
+      <ConnectorCard
         icon={<SparkGlyph />}
         tone="agents"
         name="AI agents"
@@ -92,7 +108,7 @@ export function ConnectorsTab() {
   );
 }
 
-type Id = "reminders" | "calendar" | "slack" | "agents";
+type Id = "reminders" | "calendar" | "slack" | "agents" | "watch";
 
 function ConnectorCard({
   icon,
@@ -341,6 +357,15 @@ function SlackSection({ status }: { status: SlackStatus | null }) {
       )}
       {shownError && <p className="rem-error">{shownError}</p>}
     </div>
+  );
+}
+
+function EyeGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5Z" strokeLinejoin="round" />
+      <circle cx="10" cy="10" r="2.2" />
+    </svg>
   );
 }
 

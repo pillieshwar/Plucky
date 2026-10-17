@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use pluck_core::{extract_task, Extraction, LlamaServerClient, OllamaClient, OllamaConfig};
+use pluck_core::{
+    extract_task, find_actions, Extraction, LlamaServerClient, OllamaClient, OllamaConfig,
+};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
@@ -87,6 +89,29 @@ impl Engine {
         self.ensure_running(&mut guard, model_path).await?;
         let running = guard.as_ref().expect("server just started");
         let result = extract_task(&running.client, selection)
+            .await
+            .map_err(|e| e.to_string());
+        self.touch();
+        result
+    }
+
+    /// Watch mode: to-dos in new messages from `app` (usually none).
+    pub async fn find_actions(
+        &self,
+        model_path: &Path,
+        app: &str,
+        text: &str,
+    ) -> Result<Vec<Extraction>, String> {
+        self.touch();
+        if let Some(ollama) = &self.ollama {
+            return find_actions(ollama, app, text)
+                .await
+                .map_err(|e| e.to_string());
+        }
+        let mut guard = self.running.lock().await;
+        self.ensure_running(&mut guard, model_path).await?;
+        let running = guard.as_ref().expect("server just started");
+        let result = find_actions(&running.client, app, text)
             .await
             .map_err(|e| e.to_string());
         self.touch();

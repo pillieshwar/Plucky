@@ -44,6 +44,11 @@ upstream project.
   size-limited. Plucky only edits another app's MCP settings when the user
   clicks Connect, changes only its own `plucky` entry, and keeps a
   `.plucky-backup` of the original file.
+- **Watch mode** (off by default) reads the static text of the frontmost
+  window, only for apps the user picks (Slack, Outlook), through
+  Accessibility. It never reads text fields or password fields, keeps only
+  hashes of lines it has seen (in memory), and sends nothing off the Mac;
+  the on-device model's suggestions go to the review inbox.
 - **Scheduled email checks** (off by default) run Claude Code with only two
   kinds of tools allowed: the user's chosen mail server and Plucky's
   `add_task`. The `/email-tasks` prompt treats email as untrusted and never

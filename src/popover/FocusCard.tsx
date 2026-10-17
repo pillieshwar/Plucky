@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SnoozeBar } from "../components/SnoozeBar";
-import { addDays, relativeLabel, toISODate } from "../lib/dates";
-import { timeLabel } from "../lib/schedule";
+import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
+import { findSchedule, timeLabel } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import { sourceLabel } from "../lib/taskText";
 import { api } from "../lib/api";
@@ -42,11 +42,23 @@ export function FocusCard({
   return <UndatedFocus tasks={tasks} actions={actions} locale={locale} onFinish={onFinish} onOpen={onOpen} />;
 }
 
+/**
+ * The item's date: as sent, or worked out from its deadline phrase ("by
+ * Friday") relative to when it was noticed.
+ */
+export function itemSchedule(item: InboxItem, locale: string): { due_date: string | null; due_time: string | null } {
+  if (item.due_date || !item.date_text) return { due_date: item.due_date, due_time: item.due_time };
+  const received = new Date(item.received_at);
+  const found = findSchedule(item.date_text, Number.isNaN(received.getTime()) ? new Date() : received, dayOrderForLocale(locale));
+  return { due_date: found.date, due_time: found.date ? found.time : null };
+}
+
 /** "Fri, Oct 23 · 3:00 PM", or null without a date. */
 function whenLabel(item: InboxItem, locale: string): string | null {
-  if (!item.due_date) return null;
-  const day = relativeLabel(item.due_date, new Date(), locale);
-  return item.due_time ? `${day} · ${timeLabel(item.due_time, locale)}` : day;
+  const { due_date, due_time } = itemSchedule(item, locale);
+  if (!due_date) return item.date_text ? `“${item.date_text}”` : null;
+  const day = relativeLabel(due_date, new Date(), locale);
+  return due_time ? `${day} · ${timeLabel(due_time, locale)}` : day;
 }
 
 /**
@@ -71,10 +83,15 @@ function InboxFocus({
 
   const agents = [...new Set(items.map((i) => i.agent))];
   const n = items.length;
-  const heading =
-    agents.length === 1
+  const noticed = items.every((i) => i.source === "watch");
+  const sent = items.every((i) => i.source !== "watch");
+  const heading = noticed
+    ? agents.length === 1
+      ? `${n === 1 ? "A to-do" : `${n} to-dos`} in ${agents[0]}`
+      : `${n} to-dos noticed on screen`
+    : sent && agents.length === 1
       ? `${agents[0]} sent ${n === 1 ? "a task" : `${n} tasks`}`
-      : `${n} tasks from AI agents`;
+      : `${n} tasks to review`;
 
   async function review(list: InboxItem[], accept: boolean) {
     setBusy((b) => [...b, ...list.map((i) => i.id)]);
@@ -82,7 +99,7 @@ function InboxFocus({
     for (const item of list) {
       try {
         if (accept) {
-          await api.inboxAccept(item.id);
+          await api.inboxAccept(item.id, itemSchedule(item, locale));
           count++;
         } else {
           await api.inboxDiscard(item.id);
@@ -104,12 +121,16 @@ function InboxFocus({
         <span className="focus-glyph" aria-hidden>
           ✦
         </span>
-        <span>From AI agents</span>
+        <span>{noticed ? "Noticed on screen" : sent ? "From AI agents" : "Suggested tasks"}</span>
       </div>
       <h2 className="focus-title" id="focus-title">
         {heading}
       </h2>
-      <p className="focus-meta">Add the ones you want. Agents can add tasks, but never see your list.</p>
+      <p className="focus-meta">
+        {noticed
+          ? "Plucky spotted these in new messages, on this Mac. Add the ones you want."
+          : "Add the ones you want. Agents can add tasks, but never see your list."}
+      </p>
       <ul className="focus-list">
         {open.map((item) => {
           const when = whenLabel(item, locale);

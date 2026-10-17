@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
   AgentsStatus,
+  WatchStatus,
   EmailTasksStatus,
   InboxItem,
   PopoverFocus,
@@ -102,7 +103,14 @@ export const api = {
   }) => invoke<EmailTasksStatus>("email_tasks_set", { change }),
   emailTasksRunNow: () => invoke<EmailTasksStatus>("email_tasks_run_now"),
   inboxList: () => invoke<InboxItem[]>("inbox_list"),
-  inboxAccept: (id: number) => invoke<Task>("inbox_accept", { id }),
+  /** `schedule`: a date worked out from the item's date_text. */
+  inboxAccept: (id: number, schedule?: { due_date: string | null; due_time: string | null }) =>
+    invoke<Task>("inbox_accept", { id, schedule: schedule ?? null }),
+  watchStatus: () => invoke<WatchStatus>("watch_status"),
+  watchSet: (change: { enabled: boolean; apps: string[]; plugged_in_only: boolean; show_right_away: boolean }) =>
+    invoke<WatchStatus>("watch_set", { change }),
+  /** Pause for `minutes`, or resume with 0. */
+  watchPause: (minutes: number) => invoke<WatchStatus>("watch_pause", { minutes }),
   inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),
   getSettings: () => invoke<AppSettings>("get_settings"),
   setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),
@@ -203,4 +211,9 @@ export function onInboxChanged(handler: () => void): Promise<UnlistenFn> {
 /** A scheduled email check started or finished. */
 export function onEmailTasksChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("email-tasks-changed", () => handler());
+}
+
+/** Watch mode turned on/off, paused, or noticed something. */
+export function onWatchChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("watch-changed", () => handler());
 }

@@ -59,6 +59,10 @@ pub struct TaskDraft {
     pub due_time: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// A deadline phrase to resolve later ("by Friday"), when there's no
+    /// due_date. Used by watch mode.
+    #[serde(default)]
+    pub date_text: Option<String>,
 }
 
 /// The app's one-line answer. The same for every accepted task.
@@ -116,11 +120,20 @@ pub fn validate(draft: &TaskDraft) -> Result<TaskDraft, String> {
         }
         Some(n) => Some(n),
     };
+    // Only meaningful without a due_date; short, single line.
+    let date_text = match (
+        &due_date,
+        draft.date_text.as_deref().map(|d| clean(d, false)),
+    ) {
+        (None, Some(d)) if !d.is_empty() && d.chars().count() <= 60 => Some(d),
+        _ => None,
+    };
     Ok(TaskDraft {
         title,
         due_date,
         due_time,
         notes,
+        date_text,
     })
 }
 
@@ -168,10 +181,20 @@ pub struct InboxItem {
     pub due_date: Option<String>,
     pub due_time: Option<String>,
     pub notes: Option<String>,
-    /// Display name of the AI app that sent it.
+    /// Display name of the AI app that sent it (or the watched app).
     pub agent: String,
     /// Local time, `YYYY-MM-DDTHH:MM:SS`.
     pub received_at: String,
+    /// Deadline phrase to resolve when shown ("by Friday"), if no due_date.
+    #[serde(default)]
+    pub date_text: Option<String>,
+    /// "agent" (sent over MCP) or "watch" (noticed on screen).
+    #[serde(default = "agent_source")]
+    pub source: String,
+}
+
+fn agent_source() -> String {
+    "agent".into()
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -217,7 +240,7 @@ impl InboxItem {
     fn fingerprint(&self) -> String {
         fingerprint(
             &self.title,
-            self.due_date.as_deref(),
+            self.due_date.as_deref().or(self.date_text.as_deref()),
             self.due_time.as_deref(),
         )
     }
@@ -268,10 +291,20 @@ impl Agents {
     /// task is already waiting or was reviewed recently, so it's dropped (the
     /// agent gets the usual reply either way).
     fn receive(&self, agent: &str, draft: TaskDraft) -> Result<bool, String> {
+        self.receive_from(agent_label(agent), "agent", draft)
+    }
+
+    /// A to-do noticed in a watched app (`app` is its display name).
+    pub fn receive_watch(&self, app: &str, draft: TaskDraft) -> Result<bool, String> {
+        let draft = validate(&draft)?;
+        self.receive_from(app.to_string(), "watch", draft)
+    }
+
+    fn receive_from(&self, label: String, source: &str, draft: TaskDraft) -> Result<bool, String> {
         let busy = "Plucky can't take more tasks right now. Try again later.";
         let fp = fingerprint(
             &draft.title,
-            draft.due_date.as_deref(),
+            draft.due_date.as_deref().or(draft.date_text.as_deref()),
             draft.due_time.as_deref(),
         );
         {
@@ -303,8 +336,10 @@ impl Agents {
             due_date: draft.due_date,
             due_time: draft.due_time,
             notes: draft.notes,
-            agent: agent_label(agent),
+            agent: label,
             received_at: chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+            date_text: draft.date_text,
+            source: source.into(),
         };
         inbox.items.push(item);
         self.save(&inbox);
@@ -676,6 +711,13 @@ fn self_test() -> Result<String, String> {
     }
 }
 
+/// A date the window resolved from an item's `date_text`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Schedule {
+    pub due_date: Option<String>,
+    pub due_time: Option<String>,
+}
+
 #[tauri::command]
 pub fn inbox_list(agents: State<'_, Agents>) -> Vec<InboxItem> {
     agents.items()
@@ -683,7 +725,11 @@ pub fn inbox_list(agents: State<'_, Agents>) -> Vec<InboxItem> {
 
 /// Approve a task: it joins the task list, labelled with the agent.
 #[tauri::command]
-pub fn inbox_accept(app: AppHandle, id: u64) -> Result<pluck_core::Task, String> {
+pub fn inbox_accept(
+    app: AppHandle,
+    id: u64,
+    schedule: Option<Schedule>,
+) -> Result<pluck_core::Task, String> {
     let item = app
         .state::<Agents>()
         .take(id)
@@ -694,8 +740,13 @@ pub fn inbox_accept(app: AppHandle, id: u64) -> Result<pluck_core::Task, String>
         &app,
         NewTask {
             title: item.title,
-            due_date: item.due_date,
-            due_time: item.due_time,
+            // A date the app worked out from `date_text`, if any.
+            due_date: item
+                .due_date
+                .or_else(|| schedule.as_ref().and_then(|s| s.due_date.clone())),
+            due_time: item
+                .due_time
+                .or_else(|| schedule.as_ref().and_then(|s| s.due_time.clone())),
             notes: item.notes,
             source_app: Some(item.agent),
             ..Default::default()
@@ -729,6 +780,7 @@ mod tests {
             due_date: Some("2026-10-23".into()),
             due_time: Some("9:05".into()),
             notes: Some(" line one\nline two \u{1b}[31m ".into()),
+            date_text: None,
         })
         .unwrap();
         assert_eq!(d.title, "Send the deck");
