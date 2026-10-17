@@ -15,10 +15,17 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct Case {
     app: String,
-    text: String,
+    /// The user's name in the app.
+    #[serde(default)]
+    user: Option<String>,
+    /// Messages already on screen, for context.
+    #[serde(default)]
+    earlier: Vec<String>,
+    /// Messages that just appeared.
+    new: Vec<String>,
     /// How many to-dos a careful person would add (0 = none).
     expect: usize,
-    /// A word the main to-do should mention.
+    /// A word the main to-do should mention ("a|b": any of them).
     #[serde(default)]
     keyword: Option<String>,
 }
@@ -40,7 +47,8 @@ async fn main() {
     let mut total_ms = 0u128;
     for (i, c) in cases.iter().enumerate() {
         let start = Instant::now();
-        let result = find_actions(&client, &c.app, &c.text).await;
+        let user: Vec<String> = c.user.iter().cloned().collect();
+        let result = find_actions(&client, &c.app, &user, &c.earlier, &c.new).await;
         let ms = start.elapsed().as_millis();
         total_ms += ms;
         let verdict = match &result {
@@ -62,9 +70,11 @@ async fn main() {
             }
             Ok(found) => {
                 let hit = c.keyword.as_deref().map_or(true, |k| {
-                    found
-                        .iter()
-                        .any(|f| f.task.to_lowercase().contains(&k.to_lowercase()))
+                    k.split('|').any(|k| {
+                        found
+                            .iter()
+                            .any(|f| f.task.to_lowercase().contains(&k.to_lowercase()))
+                    })
                 });
                 if hit {
                     right += 1;

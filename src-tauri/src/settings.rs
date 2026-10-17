@@ -74,6 +74,10 @@ pub struct WatchSettings {
     pub show_right_away: bool,
     /// Paused until this local time, `YYYY-MM-DDTHH:MM:SS`.
     pub paused_until: Option<String>,
+    /// The user's name as each app shows it, by bundle id ("Sam Rivera"
+    /// in Slack, "Rivera, Sam" in Outlook). Alternatives separated by
+    /// commas, or semicolons when a name has a comma.
+    pub names: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for WatchSettings {
@@ -87,6 +91,7 @@ impl Default for WatchSettings {
             plugged_in_only: false,
             show_right_away: true,
             paused_until: None,
+            names: Default::default(),
         }
     }
 }
