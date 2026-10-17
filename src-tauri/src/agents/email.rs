@@ -56,7 +56,7 @@ pub fn due(now: NaiveDateTime, s: &EmailSchedule) -> bool {
         .last
         .as_ref()
         .and_then(|r| NaiveDateTime::parse_from_str(&r.at, LOCAL).ok());
-    last.is_none_or(|l| l < slot)
+    !last.is_some_and(|l| l >= slot)
 }
 
 /// The argument for `/email-tasks`: mail since the last successful run, but
