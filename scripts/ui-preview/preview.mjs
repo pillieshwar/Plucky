@@ -94,6 +94,16 @@ const SETTINGS = {
   due_spotlight: true,
   agents_enabled: false,
   agents_proactive: true,
+  email: {
+    enabled: false,
+    start: "09:00",
+    end: "17:00",
+    interval: 30,
+    weekdays_only: false,
+    server: null,
+    last_ok: null,
+    last: null,
+  },
 };
 
 const agentApp = (id, name, installed, connected = false) => ({
@@ -193,6 +203,8 @@ function mockTauri(s) {
     agents_status: () => s.agents,
     agents_test: () => "Working — AI apps can send tasks to Plucky.",
     inbox_list: () => s.inbox ?? [],
+    email_tasks_status: () =>
+      s.emailTasks ?? { schedule: s.settings.email, servers: [], claude_code_connected: false, running: false },
     slack_status: () =>
       s.slack ?? { supported: true, connected: false, connecting: false, needs_reconnect: false, team: null, user_id: null, error: null },
     calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
@@ -202,7 +214,8 @@ function mockTauri(s) {
       { id: "c3", key: "Other / Birthdays", title: "Birthdays", source: "Other", color: "#a855f7" },
       { id: "c4", key: "Other / US Holidays", title: "US Holidays", source: "Other", color: "#ef4444" },
     ],
-    calendar_events: () => s.events ?? [],
+    calendar_events: (a) =>
+      (s.events ?? []).filter((e) => e.start.slice(0, 10) <= a.to && (e.end.slice(0, 10) > a.from || e.start.slice(0, 10) >= a.from)),
     autostart_enabled: () => true,
     list_backups: () => s.backups,
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
@@ -428,6 +441,7 @@ const EVENTS = [
   { id: "e0", title: "Office closed (half day)", start: `${EV_DAY}T00:00:00`, end: `${day(1)}T00:00:00`, all_day: true, calendar: "Work", color: "#3b82f6" },
   { id: "e1", title: "Standup", start: `${EV_DAY}T09:30:00`, end: `${EV_DAY}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
   { id: "e2", title: "Design review with Priya", start: `${EV_DAY}T13:00:00`, end: `${EV_DAY}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+  { id: "h1", title: "Veterans Day", start: `${day(2)}T00:00:00`, end: `${day(3)}T00:00:00`, all_day: true, calendar: "US Holidays", color: "#7c3aed" },
   { id: "e3", title: "Pick up groceries", start: `${EV_DAY}T18:00:00`, end: `${EV_DAY}T18:30:00`, all_day: false, calendar: "Home", color: "#16a34a" },
 ];
 await shot("panel-connectors", PANEL, scenario(), async (p) => {
@@ -516,6 +530,30 @@ await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), as
   await p.locator(".connector-action").nth(3).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
+await shot(
+  "panel-connectors-email",
+  PANEL,
+  scenario({
+    agents: AGENTS_ON,
+    emailTasks: {
+      schedule: {
+        ...SETTINGS.email,
+        enabled: true,
+        server: "outlook",
+        last_ok: localStamp(-12),
+        last: { at: localStamp(-12), ok: true, message: "Sent 2 tasks to Plucky." },
+      },
+      servers: ["outlook", "github"],
+      claude_code_connected: true,
+      running: false,
+    },
+  }),
+  async (p) => {
+    await p.getByRole("tab", { name: "Connectors" }).click();
+    await p.locator(".connector-action").nth(3).click();
+    await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
+  },
+);
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
   await p.locator(".connector-action").nth(3).click();

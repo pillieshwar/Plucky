@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
   AgentsStatus,
+  EmailTasksStatus,
   InboxItem,
   PopoverFocus,
   AppSettings,
@@ -90,6 +91,16 @@ export const api = {
   agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),
   /** Send a test task through `Pluck --mcp`; resolves with a message. */
   agentsTest: () => invoke<string>("agents_test"),
+  emailTasksStatus: () => invoke<EmailTasksStatus>("email_tasks_status"),
+  emailTasksSet: (change: {
+    enabled: boolean;
+    start: string;
+    end: string;
+    interval: number;
+    weekdays_only: boolean;
+    server: string | null;
+  }) => invoke<EmailTasksStatus>("email_tasks_set", { change }),
+  emailTasksRunNow: () => invoke<EmailTasksStatus>("email_tasks_run_now"),
   inboxList: () => invoke<InboxItem[]>("inbox_list"),
   inboxAccept: (id: number) => invoke<Task>("inbox_accept", { id }),
   inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),
@@ -187,4 +198,9 @@ export function onSettingsChanged(handler: (s: AppSettings) => void): Promise<Un
 /** Tasks from AI agents arrived or were reviewed. */
 export function onInboxChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("inbox-changed", () => handler());
+}
+
+/** A scheduled email check started or finished. */
+export function onEmailTasksChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("email-tasks-changed", () => handler());
 }

@@ -55,6 +55,51 @@ pub struct AppSettings {
     pub agents_enabled: bool,
     /// Agents may add to-dos they notice without being asked (still reviewed).
     pub agents_proactive: bool,
+    /// Check email for to-dos through Claude Code on a schedule.
+    pub email: EmailSchedule,
+}
+
+/// `/email-tasks` run by Plucky every `interval` minutes between `start`
+/// and `end`, local time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EmailSchedule {
+    pub enabled: bool,
+    /// `HH:MM`.
+    pub start: String,
+    pub end: String,
+    /// Minutes between runs: 15, 30 or 60.
+    pub interval: u32,
+    pub weekdays_only: bool,
+    /// The mail MCP server in Claude Code whose tools the run may use.
+    pub server: Option<String>,
+    /// When the last run that reached the mail finished, local
+    /// `YYYY-MM-DDTHH:MM:SS`; the next run reads mail from here on.
+    pub last_ok: Option<String>,
+    pub last: Option<EmailRun>,
+}
+
+impl Default for EmailSchedule {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            start: "09:00".into(),
+            end: "17:00".into(),
+            interval: 30,
+            weekdays_only: false,
+            server: None,
+            last_ok: None,
+            last: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailRun {
+    /// Local `YYYY-MM-DDTHH:MM:SS`.
+    pub at: String,
+    pub ok: bool,
+    pub message: String,
 }
 
 impl Default for AppSettings {
@@ -82,6 +127,7 @@ impl Default for AppSettings {
             due_spotlight: true,
             agents_enabled: false,
             agents_proactive: true,
+            email: EmailSchedule::default(),
         }
     }
 }

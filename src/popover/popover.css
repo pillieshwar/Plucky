@@ -321,3 +321,13 @@ html[data-view="popover"] body {
 }
 .pop-inbox:hover { border-color: var(--teal); }
 .pop-inbox b { color: var(--teal); font-weight: 650; margin-left: auto; }
+
+/* Holidays from the Calendar connector: a purple dot next to the task dot. */
+.pop { --holiday: #7c3aed; }
+:root[data-theme="dark"] .pop { --holiday: #a78bfa; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pop { --holiday: #a78bfa; }
+}
+.pop-dots { display: flex; gap: 3px; height: 4px; align-items: center; }
+.pop-dot.holiday { background: var(--holiday); }
+.pop-day.on .pop-dot.holiday { background: var(--holiday); box-shadow: 0 0 0 1px var(--pop-bg); }
