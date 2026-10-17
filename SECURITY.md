@@ -41,7 +41,9 @@ upstream project.
   only the user can open (mode 0600, no network). Every accepted task gets the
   same reply — no ids, counts or duplicate checks — and lands in an inbox the
   user reviews before anything joins the task list. Off by default; rate- and
-  size-limited.
+  size-limited. Plucky only edits another app's MCP settings when the user
+  clicks Connect, changes only its own `plucky` entry, and keeps a
+  `.plucky-backup` of the original file.
 - **Local model.** The model runtime
   listens on `127.0.0.1` only, on a random port with a random key.
 - **Signed updates.** Every in-app update is verified against the project's

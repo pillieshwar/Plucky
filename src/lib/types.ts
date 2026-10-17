@@ -110,6 +110,7 @@ export interface AppSettings {
   /** When a task's time comes, also open the dropdown on it. */
   due_spotlight: boolean;
   agents_enabled: boolean;
+  agents_proactive: boolean;
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */
@@ -128,11 +129,23 @@ export interface InboxItem {
 export interface AgentsStatus {
   supported: boolean;
   enabled: boolean;
+  /** Agents may add to-dos they notice on their own (still reviewed). */
+  proactive: boolean;
   command: string;
   temporary_location: boolean;
-  claude_desktop: boolean;
-  claude_desktop_connected: boolean;
+  apps: AgentApp[];
   pending: number;
+}
+
+/** Mirrors `agents::apps::AppStatus`. */
+export interface AgentApp {
+  id: string;
+  name: string;
+  installed: boolean;
+  connected: boolean;
+  /** Connected to a copy of Plucky that has moved. */
+  stale: boolean;
+  restart_hint: string;
 }
 
 export type Theme = "system" | "light" | "dark";

@@ -53,6 +53,8 @@ pub struct AppSettings {
     pub due_spotlight: bool,
     /// Let AI agents on this Mac add tasks (to the review inbox) over MCP.
     pub agents_enabled: bool,
+    /// Agents may add to-dos they notice without being asked (still reviewed).
+    pub agents_proactive: bool,
 }
 
 impl Default for AppSettings {
@@ -79,6 +81,7 @@ impl Default for AppSettings {
             last_undated_nudge: None,
             due_spotlight: true,
             agents_enabled: false,
+            agents_proactive: true,
         }
     }
 }

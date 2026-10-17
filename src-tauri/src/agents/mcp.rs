@@ -19,17 +19,27 @@ use super::{Submission, TaskDraft};
 /// Protocol versions this server speaks, newest first.
 const VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 
+/// `clientInfo.name` of Plucky's own "Send test task".
+pub const SELF_TEST: &str = "plucky-self-test";
+
 pub const NOT_REACHABLE: &str = "Plucky isn't accepting tasks: it isn't running, or \"Let AI agents add tasks\" is off in Plucky → Connectors → AI agents.";
 const RECEIVED: &str =
     "Sent to Plucky. The user will review it there before it's added to their tasks.";
 
 const INSTRUCTIONS: &str = "Plucky is the user's private to-do list on their Mac. You can add tasks to it with add_task; the user reviews each one before it's added. You can't read, search, change or delete tasks, and the reply never says what else is on the list.";
 
-fn tool() -> Value {
+/// Added when the user lets agents suggest tasks on their own.
+const PROACTIVE: &str = " Use this proactively: whenever the user mentions something they need to do later — a deadline, an appointment, a follow-up, \"remind me\" — send it to Plucky without being asked, one call per task. Skip things that are already done or have nothing to do.";
+
+fn tool(proactive: bool) -> Value {
+    let mut description = String::from("Send a to-do to the user's Plucky task list on their Mac. The user reviews it before it's added. Write-only: you can't see existing tasks, and the reply is the same every time. Use the user's local date and time.");
+    if proactive {
+        description.push_str(PROACTIVE);
+    }
     json!({
         "name": "add_task",
         "title": "Add a task to Plucky",
-        "description": "Send a to-do to the user's Plucky task list on their Mac. The user reviews it before it's added. Write-only: you can't see existing tasks, and the reply is the same every time. Use the user's local date and time.",
+        "description": description,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -88,6 +98,7 @@ pub trait Deliver {
 pub struct Server<D: Deliver> {
     deliver: D,
     client: String,
+    proactive: bool,
 }
 
 impl<D: Deliver> Server<D> {
@@ -95,7 +106,14 @@ impl<D: Deliver> Server<D> {
         Self {
             deliver,
             client: String::new(),
+            proactive: false,
         }
+    }
+
+    /// Encourage agents to add to-dos they notice on their own.
+    pub fn proactive(mut self, on: bool) -> Self {
+        self.proactive = on;
+        self
     }
 
     /// Answer one message; `None` for notifications.
@@ -127,12 +145,16 @@ impl<D: Deliver> Server<D> {
                             "title": "Plucky",
                             "version": env!("CARGO_PKG_VERSION")
                         },
-                        "instructions": INSTRUCTIONS
+                        "instructions": if self.proactive {
+                            format!("{INSTRUCTIONS}{PROACTIVE}")
+                        } else {
+                            INSTRUCTIONS.to_string()
+                        }
                     }),
                 )
             }
             Some("ping") => result(&id, json!({})),
-            Some("tools/list") => result(&id, json!({ "tools": [tool()] })),
+            Some("tools/list") => result(&id, json!({ "tools": [tool(self.proactive)] })),
             Some("tools/call") => {
                 if params["name"].as_str() != Some("add_task") {
                     return Some(error(
@@ -178,8 +200,8 @@ impl<D: Deliver> Server<D> {
 /// Delivers over the app's Unix socket.
 struct Socket;
 
-#[cfg(unix)]
-fn socket_path() -> Option<std::path::PathBuf> {
+/// Plucky's data folder (Tauri's app data dir for `app.pluck.desktop`).
+fn data_dir() -> Option<std::path::PathBuf> {
     let home = std::path::PathBuf::from(std::env::var_os("HOME")?);
     let data = if cfg!(target_os = "macos") {
         home.join("Library/Application Support")
@@ -188,7 +210,16 @@ fn socket_path() -> Option<std::path::PathBuf> {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| home.join(".local/share"))
     };
-    Some(data.join("app.pluck.desktop").join(super::SOCKET_NAME))
+    Some(data.join("app.pluck.desktop"))
+}
+
+/// Whether the user lets agents add to-dos on their own (default yes).
+fn proactive_setting() -> bool {
+    data_dir()
+        .and_then(|d| std::fs::read(d.join("settings.json")).ok())
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|v| v["agents_proactive"].as_bool())
+        .unwrap_or(true)
 }
 
 impl Deliver for Socket {
@@ -198,7 +229,7 @@ impl Deliver for Socket {
         use std::os::unix::net::UnixStream;
         use std::time::Duration;
 
-        let path = socket_path().ok_or(NOT_REACHABLE)?;
+        let path = data_dir().ok_or(NOT_REACHABLE)?.join(super::SOCKET_NAME);
         let mut stream = UnixStream::connect(&path).map_err(|_| NOT_REACHABLE.to_string())?;
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
@@ -228,7 +259,7 @@ impl Deliver for Socket {
 
 /// Serve stdin/stdout until the AI app closes the pipe.
 pub fn run() -> i32 {
-    let mut server = Server::new(Socket);
+    let mut server = Server::new(Socket).proactive(proactive_setting());
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
     for line in stdin.lock().lines() {
@@ -302,6 +333,28 @@ mod tests {
             .handle(&json!({"jsonrpc":"2.0","id":4,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}))
             .unwrap();
         assert_eq!(v["result"]["protocolVersion"], VERSIONS[0]);
+    }
+
+    #[test]
+    fn proactive_wording_only_when_allowed() {
+        let mut fake = Fake::default();
+        let mut quiet = Server::new(&mut fake);
+        let list = quiet
+            .handle(&json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}))
+            .unwrap();
+        assert!(!list["result"]["tools"][0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("proactively"));
+        let mut fake = Fake::default();
+        let mut eager = Server::new(&mut fake).proactive(true);
+        let list = eager
+            .handle(&json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}))
+            .unwrap();
+        assert!(list["result"]["tools"][0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("proactively"));
     }
 
     #[test]
