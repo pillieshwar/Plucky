@@ -888,3 +888,5 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .email-when-row .email-when { justify-content: flex-start; flex-wrap: nowrap; }
 .email-when .time-input { width: 112px; flex: none; }
 .email-when .email-select { flex: 1; max-width: none; }
+.email-when-row .email-when { flex-wrap: wrap; }
+.email-when-row .email-select { flex: 1 1 100%; }
