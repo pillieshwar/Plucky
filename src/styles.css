@@ -897,3 +897,4 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
   background: var(--paper); color: var(--ink); user-select: text;
 }
 .name-input:focus { outline: none; border-color: var(--teal); }
+.watch-look { margin: 2px 0 10px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }

@@ -117,6 +117,8 @@ export const api = {
     invoke<WatchStatus>("watch_set", { change }),
   /** Pause for `minutes`, or resume with 0. */
   watchPause: (minutes: number) => invoke<WatchStatus>("watch_pause", { minutes }),
+  /** Look at the latest messages in the watched app in front; resolves with a message. */
+  watchCheckNow: () => invoke<string>("watch_check_now"),
   inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),
   getSettings: () => invoke<AppSettings>("get_settings"),
   setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),

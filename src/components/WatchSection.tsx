@@ -111,6 +111,15 @@ export function WatchSection({ locale }: { locale: string }) {
         )}
       </div>
 
+      {s.enabled && status.live.last_look && (
+        <p className="watch-look" aria-live="polite">
+          Last look at {status.live.last_look.app}, {timeLabel(status.live.last_look.at.slice(0, 5), locale)}:{" "}
+          {status.live.last_look.lines} lines read · {status.live.last_look.new} new
+          {status.live.last_look.asked ? ` · model found ${status.live.last_look.found}` : ""} —{" "}
+          {status.live.last_look.step}.
+        </p>
+      )}
+
       {s.enabled && status.model?.startsWith("llama-3.2") && (
         <div className="setting-line">
           <span className="dot warn" aria-hidden />

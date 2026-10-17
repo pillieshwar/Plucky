@@ -1341,6 +1341,7 @@ pub fn run() {
             watch::watch_status,
             watch::watch_set,
             watch::watch_pause,
+            watch::watch_check_now,
             agents::email::email_tasks_status,
             agents::email::email_tasks_set,
             agents::email::email_tasks_run_now,
