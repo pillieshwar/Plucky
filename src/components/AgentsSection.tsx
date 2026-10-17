@@ -197,7 +197,7 @@ function AppRow({
             {working ? "Removing…" : "Disconnect"}
           </button>
         ) : (
-          <button type="button" className="primary small" disabled={busy} onClick={onConnect}>
+          <button type="button" className="ghost small agent-connect" disabled={busy} onClick={onConnect}>
             {working ? "Connecting…" : app.stale ? "Update" : "Connect"}
           </button>
         )}

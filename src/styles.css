@@ -874,3 +874,6 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .agent-manual { margin: 0 0 10px; font-size: 12.5px; }
 .agent-manual summary { cursor: pointer; color: var(--muted); font-weight: 600; }
 .agent-manual-actions { display: flex; gap: 6px; margin-top: 6px; }
+.agent-connect { border: 1px solid var(--teal); color: var(--teal); background: transparent; font-weight: 600; }
+.agent-connect:hover:not(:disabled) { background: var(--teal-soft); }
+.agent-test .ghost { white-space: nowrap; flex: none; }
