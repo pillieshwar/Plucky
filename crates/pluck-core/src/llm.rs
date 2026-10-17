@@ -222,6 +222,8 @@ pub fn llama_server_body(messages: &[ChatMessage], schema: &Value) -> Value {
         },
         "temperature": 0,
         "max_tokens": max_tokens(schema),
+        // Answer directly, without a thinking phase, for models that have one.
+        "chat_template_kwargs": { "enable_thinking": false },
         "stream": false
     })
 }

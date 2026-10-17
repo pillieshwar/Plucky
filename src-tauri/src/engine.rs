@@ -201,6 +201,9 @@ impl Engine {
             .args(["--api-key", &api_key])
             .args(["--ctx-size", CONTEXT_TOKENS, "--parallel", "1"])
             .args(["--n-gpu-layers", "99", "--jinja", "--no-webui"])
+            // Models with a "thinking" mode (Gemma 4, Qwen3.5) would spend the
+            // answer budget reasoning; Plucky only wants the JSON.
+            .args(["--reasoning-budget", "0"])
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(log_err))

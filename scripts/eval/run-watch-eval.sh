@@ -19,7 +19,7 @@ curl -fsSL --retry 3 -o "$path" "https://huggingface.co/$MODEL_REPO/resolve/main
 PORT=18080
 KEY="eval-$RANDOM$RANDOM"
 THREADS="$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
-"$SERVER" -m "$path" --host 127.0.0.1 --port "$PORT" --api-key "$KEY" -c 2048 -t "$THREADS" \
+"$SERVER" -m "$path" --host 127.0.0.1 --port "$PORT" --api-key "$KEY" -c 2048 -t "$THREADS" --jinja --reasoning-budget 0 \
   >"$DIR/server.log" 2>&1 &
 pid=$!
 trap 'kill "$pid" 2>/dev/null || true' EXIT
