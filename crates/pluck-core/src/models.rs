@@ -27,17 +27,32 @@ pub struct CatalogModel {
 }
 
 pub const CATALOG: &[CatalogModel] = &[
+    // Picked by scripts/eval (watch mode): as accurate as models twice its
+    // size, no false to-dos, and the fastest of the 4B class.
+    CatalogModel {
+        id: "qwen3.5-4b",
+        name: "Qwen3.5 4B",
+        publisher: "Alibaba Qwen",
+        description:
+            "The best all-rounder: fast, accurate, and quiet — it rarely suggests a to-do that isn't one. Great for watching Slack and Outlook.",
+        license: "Apache 2.0",
+        repo: "bartowski/Qwen_Qwen3.5-4B-GGUF",
+        file: "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        approx_size_mb: 3_010,
+        min_ram_gb: 8,
+        recommended: true,
+    },
     CatalogModel {
         id: "llama-3.2-3b",
         name: "Llama 3.2 3B Instruct",
         publisher: "Meta",
-        description: "Balanced speed and accuracy. The best starting point for most Macs.",
+        description: "Small and quick for captures, but suggests many false to-dos when watching apps.",
         license: "Llama 3.2 Community License",
         repo: "bartowski/Llama-3.2-3B-Instruct-GGUF",
         file: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         approx_size_mb: 2_020,
         min_ram_gb: 8,
-        recommended: true,
+        recommended: false,
     },
     CatalogModel {
         id: "qwen3-4b-2507",
@@ -57,7 +72,7 @@ pub const CATALOG: &[CatalogModel] = &[
         name: "Gemma 4 E4B",
         publisher: "Google",
         description:
-            "Newest and most careful at spotting real to-dos — best for watching Slack and Outlook. Needs more memory.",
+            "The most accurate in our tests, a bit slower. For Macs with 16 GB or more.",
         license: "Apache 2.0",
         repo: "unsloth/gemma-4-E4B-it-GGUF",
         file: "gemma-4-E4B-it-Q4_K_M.gguf",
@@ -164,7 +179,7 @@ mod tests {
             assert!(m.download_url().starts_with("https://huggingface.co/"));
             assert!(find(m.id).is_some());
         }
-        assert_eq!(default_model().id, "llama-3.2-3b");
+        assert_eq!(default_model().id, "qwen3.5-4b");
     }
 
     #[test]

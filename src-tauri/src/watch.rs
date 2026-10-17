@@ -334,6 +334,8 @@ pub struct WatchApp {
 #[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub supported: bool,
+    /// The model in use, so the UI can suggest a better one for watching.
+    pub model: Option<String>,
     pub settings: WatchSettings,
     pub apps: Vec<WatchApp>,
     pub live: Live,
@@ -354,6 +356,7 @@ fn status(app: &AppHandle) -> Status {
     });
     Status {
         supported: cfg!(target_os = "macos"),
+        model: app.state::<ModelManager>().active().map(|m| m.id),
         settings: app.state::<Settings>().get().watch,
         apps: APPS
             .iter()

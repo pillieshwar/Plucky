@@ -63,7 +63,7 @@ Most to-dos start as text someone sent you — "can you send the deck by Friday 
 1. **Download** [`Plucky-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg).
 2. **Open it** and drag **Plucky** into **Applications**.
 3. **Launch Plucky.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
-4. **Follow the short setup.** Plucky asks for **Accessibility** access (how macOS lets an app read selected text), downloads the recommended model (*Llama 3.2 3B Instruct*, about 2 GB, once), turns on reminders and lets you try a capture.
+4. **Follow the short setup.** Plucky asks for **Accessibility** access (how macOS lets an app read selected text), downloads the recommended model (*Qwen3.5 4B*, about 3 GB, once — chosen by Plucky's model tests), turns on reminders and lets you try a capture.
 
 There's nothing else to install. Plucky opens at login and updates itself — look for **Restart to update** when a new version is ready.
 
