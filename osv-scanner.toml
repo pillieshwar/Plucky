@@ -26,3 +26,23 @@ reason = "proc-macro-error is unmaintained; only used by glib/gtk3 macros (Linux
 id = "RUSTSEC-2026-0186"
 ignoreUntil = 2027-04-15
 reason = "memmap2 0.8 via xkbcommon (Linux keyboard handling in tao); not compiled for macOS or Windows."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0367"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0368"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0369"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "GHSA-4684-h2q9-2vcp"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
