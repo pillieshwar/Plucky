@@ -1,6 +1,7 @@
 # Score candidate models on watch mode (finding to-dos in new Slack and
 # Outlook messages) with the same prompt, schema and runtime the app uses.
-# Run by hand; results go to the job summary.
+# One job per model, in parallel. Results appear as notices on the run and
+# in each job's summary. Run by hand.
 name: Model eval
 
 on:
@@ -17,19 +18,48 @@ env:
 
 jobs:
   eval:
+    name: ${{ matrix.name }}
     runs-on: macos-latest
-    timeout-minutes: 150
+    timeout-minutes: 120
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Llama 3.2 3B (current)
+            repo: bartowski/Llama-3.2-3B-Instruct-GGUF
+            file: Llama-3.2-3B-Instruct-Q4_K_M.gguf
+          - name: Gemma 4 E4B
+            repo: unsloth/gemma-4-E4B-it-GGUF
+            file: gemma-4-E4B-it-Q4_K_M.gguf
+          - name: Gemma 4 E2B
+            repo: unsloth/gemma-4-E2B-it-GGUF
+            file: gemma-4-E2B-it-Q4_K_M.gguf
+          - name: Qwen3.5 4B
+            repo: bartowski/Qwen_Qwen3.5-4B-GGUF
+            file: Qwen_Qwen3.5-4B-Q4_K_M.gguf
+          - name: Qwen3 4B Instruct
+            repo: unsloth/Qwen3-4B-Instruct-2507-GGUF
+            file: Qwen3-4B-Instruct-2507-Q4_K_M.gguf
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Cache llama-server build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .llama-build
+          key: llama-eval-${{ runner.os }}-${{ runner.arch }}-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
       - name: Build llama-server
         run: scripts/build-llama-server.sh
       - name: Build the eval
         run: cargo build --locked -p pluck-core --example watch_eval --release
-      - name: Evaluate models
-        run: scripts/eval/run-watch-eval.sh >> "$GITHUB_STEP_SUMMARY"
+      - name: Evaluate
+        env:
+          MODEL_NAME: ${{ matrix.name }}
+          MODEL_REPO: ${{ matrix.repo }}
+          MODEL_FILE: ${{ matrix.file }}
+        run: scripts/eval/run-watch-eval.sh
