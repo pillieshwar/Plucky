@@ -44,6 +44,10 @@ upstream project.
   size-limited. Plucky only edits another app's MCP settings when the user
   clicks Connect, changes only its own `plucky` entry, and keeps a
   `.plucky-backup` of the original file.
+- **Scheduled email checks** (off by default) run Claude Code with only two
+  kinds of tools allowed: the user's chosen mail server and Plucky's
+  `add_task`. The `/email-tasks` prompt treats email as untrusted and never
+  sends, moves or deletes mail. Plucky never reads the mail itself.
 - **Local model.** The model runtime
   listens on `127.0.0.1` only, on a random port with a random key.
 - **Signed updates.** Every in-app update is verified against the project's

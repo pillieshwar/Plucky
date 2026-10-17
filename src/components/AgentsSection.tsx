@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { AgentApp, AgentsStatus } from "../lib/types";
+import { EmailTasksSection } from "./EmailTasksSection";
 import { Toggle } from "./GeneralSettings";
+import { safeLocale } from "../lib/locale";
 
 type Run = (action: () => Promise<AgentsStatus>, connected?: string[]) => Promise<void>;
 
@@ -73,6 +75,8 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
               : "Turn on agent access to test it."}
         </span>
       </div>
+
+      {status.enabled && <EmailTasksSection locale={safeLocale()} />}
 
       <ManualSetup command={status.command} onError={setError} />
 

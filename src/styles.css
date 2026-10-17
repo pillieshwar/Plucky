@@ -877,3 +877,10 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .agent-connect { border: 1px solid var(--teal); color: var(--teal); background: transparent; font-weight: 600; }
 .agent-connect:hover:not(:disabled) { background: var(--teal-soft); }
 .agent-test .ghost { white-space: nowrap; flex: none; }
+.email-tasks { margin-bottom: 4px; }
+.email-select {
+  font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--paper); color: var(--ink); max-width: 150px;
+}
+.email-when { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.email-when .time-input { width: 92px; }

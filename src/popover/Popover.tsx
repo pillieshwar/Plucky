@@ -25,6 +25,7 @@ import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
 import { dueChip, dueNow, type DueChip } from "../lib/due";
 import { FocusCard, type Focus } from "./FocusCard";
+import { holidaysByDay } from "../lib/holidays";
 
 const LOCALE = safeLocale();
 const ORDER = dayOrderForLocale(LOCALE);
@@ -73,6 +74,8 @@ export default function Popover() {
   // Events from the Calendar connector for the selected day (empty if off).
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventsKey, setEventsKey] = useState(0);
+  // All events in the visible weeks, for the holiday dots.
+  const [rangeEvents, setRangeEvents] = useState<CalendarEvent[]>([]);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
   // Opened by Plucky itself: a task's time came, or the undated check-in.
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -195,6 +198,20 @@ export default function Popover() {
 
   const stripDays = weekRows(stripAnchor, weekStart, 2);
   const cells: DayCell[] = expanded ? monthGrid(view.year, view.month, weekStart) : stripDays;
+  const rangeFrom = cells[0]?.iso ?? today;
+  const rangeTo = cells[cells.length - 1]?.iso ?? today;
+  const holidays = useMemo(() => holidaysByDay(rangeEvents, rangeFrom, rangeTo), [rangeEvents, rangeFrom, rangeTo]);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .calendarEvents(rangeFrom, rangeTo)
+      .then((e) => live && setRangeEvents(e))
+      .catch(() => live && setRangeEvents([]));
+    return () => {
+      live = false;
+    };
+  }, [rangeFrom, rangeTo, openKey, eventsKey]);
   const shownMonth = expanded
     ? view
     : { year: parseISODate(selected).getFullYear(), month: parseISODate(selected).getMonth() };
@@ -447,6 +464,7 @@ export default function Popover() {
           ))}
           {cells.map((c) => {
             const m = marks.get(c.iso);
+            const holiday = holidays.get(c.iso);
             const cls = [
               "pop-day",
               c.inMonth ? "" : "out",
@@ -469,10 +487,15 @@ export default function Popover() {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
-                })}${m ? `, ${m.open} open` : ""}`}
+                })}${holiday ? `, ${holiday.join(", ")}` : ""}${m ? `, ${m.open} open` : ""}`}
+                title={holiday?.join(", ")}
               >
                 <span className="pop-num">{c.day}</span>
-                <span className={m ? (m.overdue ? "pop-dot late" : "pop-dot") : "pop-dot none"} aria-hidden />
+                <span className="pop-dots" aria-hidden>
+                  {m && <span className={m.overdue ? "pop-dot late" : "pop-dot"} />}
+                  {holiday && <span className="pop-dot holiday" />}
+                  {!m && !holiday && <span className="pop-dot none" />}
+                </span>
               </button>
             );
           })}

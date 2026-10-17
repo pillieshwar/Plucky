@@ -15,6 +15,7 @@
 #![cfg_attr(not(unix), allow(dead_code))]
 
 pub mod apps;
+pub mod email;
 pub mod mcp;
 
 use std::collections::VecDeque;
@@ -177,6 +178,49 @@ pub struct InboxItem {
 struct InboxFile {
     next_id: u64,
     items: Vec<InboxItem>,
+    /// Tasks reviewed recently, as fingerprints only, so an agent that
+    /// sends the same thing again (e.g. re-reading the same email) is
+    /// quietly ignored. Never shown to agents.
+    #[serde(default)]
+    seen: Vec<Seen>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct Seen {
+    fp: String,
+    /// Day it was reviewed, `YYYY-MM-DD`.
+    day: String,
+}
+
+/// How long a reviewed task keeps blocking an identical one.
+const SEEN_DAYS: i64 = 30;
+const SEEN_MAX: usize = 2000;
+
+/// Same task, ignoring case, spacing and trailing punctuation.
+fn fingerprint(title: &str, due_date: Option<&str>, due_time: Option<&str>) -> String {
+    use sha2::{Digest, Sha256};
+    let title = title
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_end_matches(['.', '!', '?', ',', ';', ':'])
+        .to_lowercase();
+    let digest = Sha256::digest(format!(
+        "{title}|{}|{}",
+        due_date.unwrap_or(""),
+        due_time.unwrap_or("")
+    ));
+    digest.iter().take(12).map(|b| format!("{b:02x}")).collect()
+}
+
+impl InboxItem {
+    fn fingerprint(&self) -> String {
+        fingerprint(
+            &self.title,
+            self.due_date.as_deref(),
+            self.due_time.as_deref(),
+        )
+    }
 }
 
 pub struct Agents {
@@ -220,9 +264,24 @@ impl Agents {
         }
     }
 
-    /// Take a task into the inbox, within the limits.
-    fn receive(&self, agent: &str, draft: TaskDraft) -> Result<(), String> {
+    /// Take a task into the inbox, within the limits. `Ok(false)`: the same
+    /// task is already waiting or was reviewed recently, so it's dropped (the
+    /// agent gets the usual reply either way).
+    fn receive(&self, agent: &str, draft: TaskDraft) -> Result<bool, String> {
         let busy = "Plucky can't take more tasks right now. Try again later.";
+        let fp = fingerprint(
+            &draft.title,
+            draft.due_date.as_deref(),
+            draft.due_time.as_deref(),
+        );
+        {
+            let inbox = self.inbox.lock().map_err(|e| e.to_string())?;
+            if inbox.items.iter().any(|i| i.fingerprint() == fp)
+                || inbox.seen.iter().any(|s| s.fp == fp)
+            {
+                return Ok(false);
+            }
+        }
         {
             let mut recent = self.recent.lock().map_err(|e| e.to_string())?;
             while recent.front().is_some_and(|t| t.elapsed() > RATE_WINDOW) {
@@ -249,13 +308,24 @@ impl Agents {
         };
         inbox.items.push(item);
         self.save(&inbox);
-        Ok(())
+        Ok(true)
     }
 
     fn take(&self, id: u64) -> Option<InboxItem> {
         let mut inbox = self.inbox.lock().ok()?;
         let pos = inbox.items.iter().position(|i| i.id == id)?;
         let item = inbox.items.remove(pos);
+        let today = chrono::Local::now().date_naive();
+        let cutoff = (today - chrono::Duration::days(SEEN_DAYS))
+            .format("%Y-%m-%d")
+            .to_string();
+        inbox.seen.retain(|s| s.day >= cutoff);
+        inbox.seen.push(Seen {
+            fp: item.fingerprint(),
+            day: today.format("%Y-%m-%d").to_string(),
+        });
+        let extra = inbox.seen.len().saturating_sub(SEEN_MAX);
+        inbox.seen.drain(..extra);
         self.save(&inbox);
         Some(item)
     }
@@ -298,11 +368,21 @@ fn on_submission(app: &AppHandle, sub: Submission) -> Reply {
         };
     }
     let agents = app.state::<Agents>();
-    if let Err(e) = agents.receive(&sub.agent, draft) {
-        return Reply {
-            ok: false,
-            error: Some(e),
-        };
+    match agents.receive(&sub.agent, draft) {
+        Err(e) => {
+            return Reply {
+                ok: false,
+                error: Some(e),
+            }
+        }
+        // A repeat: same reply, nothing to show.
+        Ok(false) => {
+            return Reply {
+                ok: true,
+                error: None,
+            }
+        }
+        Ok(true) => {}
     }
     let _ = app.emit("inbox-changed", ());
     crate::tray::refresh(app);
@@ -336,6 +416,7 @@ pub fn start(app: &AppHandle) {
             .name("agents-repair".into())
             .spawn(move || apps::repair(&command));
     }
+    email::start(app);
     #[cfg(unix)]
     {
         let socket = app.state::<Agents>().socket.clone();
@@ -680,11 +761,31 @@ mod tests {
     }
 
     #[test]
+    fn repeats_are_dropped_quietly() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Agents::new(dir.path());
+        assert!(a.receive("claude-code", draft("Send the deck")).unwrap());
+        // Waiting already: same task with different spacing/case/punctuation.
+        assert!(!a.receive("claude-code", draft("send  the DECK.")).unwrap());
+        // A different date is a different task.
+        let mut dated = draft("Send the deck");
+        dated.due_date = Some("2026-10-23".into());
+        assert!(a.receive("claude-code", dated).unwrap());
+        // Reviewed (added or discarded): still blocked afterwards.
+        let id = a.items()[0].id;
+        a.take(id).unwrap();
+        assert!(!a.receive("claude-code", draft("Send the deck")).unwrap());
+        assert!(!Agents::new(dir.path())
+            .receive("claude-code", draft("Send the deck"))
+            .unwrap());
+    }
+
+    #[test]
     fn inbox_limits_and_persists() {
         let dir = tempfile::tempdir().unwrap();
         let a = Agents::new(dir.path());
         for i in 0..RATE_MAX {
-            a.receive("claude-ai", draft(&format!("t{i}"))).unwrap();
+            assert!(a.receive("claude-ai", draft(&format!("t{i}"))).unwrap());
         }
         assert!(a.receive("claude-ai", draft("one too many")).is_err());
         let b = Agents::new(dir.path());
