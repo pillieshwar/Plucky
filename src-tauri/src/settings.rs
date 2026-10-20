@@ -66,8 +66,11 @@ pub struct AppSettings {
 #[serde(default)]
 pub struct WatchSettings {
     pub enabled: bool,
-    /// Bundle ids of the apps to watch.
+    /// 0.4.16–0.4.19 only: apps to watch. Every app is watched now, except
+    /// `watch::ALWAYS_SKIP` and `excluded`.
     pub apps: Vec<String>,
+    /// Bundle ids the user doesn't want read.
+    pub excluded: Vec<String>,
     /// Only while the Mac is on power.
     pub plugged_in_only: bool,
     /// Open the menu-bar dropdown when something is found.
@@ -84,10 +87,8 @@ impl Default for WatchSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            apps: vec![
-                "com.tinyspeck.slackmacgap".into(),
-                "com.microsoft.Outlook".into(),
-            ],
+            apps: Vec::new(),
+            excluded: Vec::new(),
             plugged_in_only: false,
             show_right_away: true,
             paused_until: None,

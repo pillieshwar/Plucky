@@ -78,10 +78,31 @@ pub struct Progress {
     pub total: u64,
 }
 
+/// This Mac's memory in GB (16 when it can't be read), looked up once.
+pub fn ram_gb() -> u32 {
+    static RAM: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *RAM.get_or_init(|| {
+        if !cfg!(target_os = "macos") {
+            return 16;
+        }
+        std::process::Command::new("/usr/sbin/sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|t| t.trim().parse::<u64>().ok())
+            .map(|bytes| (bytes / (1 << 30)) as u32)
+            .filter(|gb| *gb > 0)
+            .unwrap_or(16)
+    })
+}
+
 #[derive(Serialize)]
 pub struct ModelView {
     #[serde(flatten)]
     pub model: &'static CatalogModel,
+    /// The best model for this Mac's memory.
+    pub recommended: bool,
     pub installed: bool,
     pub active: bool,
     /// Bytes on disk from an interrupted download, if any.
@@ -147,10 +168,25 @@ impl ModelManager {
         }
     }
 
-    /// The chosen model if its file is present; otherwise the first
-    /// downloaded catalog model, then the first added file that exists.
+    /// The best downloaded model this Mac has the memory for — so a better
+    /// model is used as soon as it's downloaded. A file the user added by
+    /// path is used when they chose it. Otherwise the first model present.
     pub fn active(&self) -> Option<ActiveModel> {
         let s = self.settings.lock().ok()?;
+        let ram = ram_gb();
+        let chose_file = s
+            .active_model
+            .as_deref()
+            .is_some_and(|id| id.starts_with("file:"));
+        if !chose_file {
+            let best = CATALOG
+                .iter()
+                .filter(|m| m.min_ram_gb <= ram && self.is_installed(m))
+                .min_by_key(|m| m.rank);
+            if let Some(m) = best {
+                return Some(self.catalog_active(m));
+            }
+        }
         if let Some(id) = s.active_model.as_deref() {
             if let Some(m) = models::find(id).filter(|m| self.is_installed(m)) {
                 return Some(self.catalog_active(m));
@@ -282,6 +318,7 @@ impl ModelManager {
             .iter()
             .map(|m| ModelView {
                 model: m,
+                recommended: m.id == models::best_for(ram_gb()).id,
                 installed: self.is_installed(m),
                 active: active == Some(m.id),
                 partial_bytes: std::fs::metadata(part_path(&self.path_for(m)))

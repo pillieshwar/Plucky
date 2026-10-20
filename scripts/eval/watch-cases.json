@@ -396,5 +396,79 @@
   ],
   "expect": 1,
   "keyword": "one-pager"
+ },
+ {
+  "app": "Google Chrome",
+  "user": "Sam Rivera",
+  "earlier": [
+   "Acme Store — Summer Sale"
+  ],
+  "new": [
+   "Sign up today and get 20% off. Offer ends Friday!",
+   "Click here to learn more"
+  ],
+  "expect": 0
+ },
+ {
+  "app": "Google Chrome",
+  "user": "Sam Rivera",
+  "earlier": [
+   "PROJ-142 · Login times out on slow networks"
+  ],
+  "new": [
+   "Assignee: Sam Rivera",
+   "Due date: Oct 30",
+   "Priority: High"
+  ],
+  "expect": 1,
+  "keyword": "login"
+ },
+ {
+  "app": "Google Chrome",
+  "user": "Sam Rivera",
+  "earlier": [
+   "Q4 plan (draft)"
+  ],
+  "new": [
+   "Maya Chen: @Sam Rivera can you fill in the hiring numbers in section 3 by Thursday?"
+  ],
+  "expect": 1,
+  "keyword": "hiring"
+ },
+ {
+  "app": "Safari",
+  "user": "Sam Rivera",
+  "earlier": [
+   "How to write better tests"
+  ],
+  "new": [
+   "Please remember to keep your tests small and focused. You should review them regularly."
+  ],
+  "expect": 0
+ },
+ {
+  "app": "Notion",
+  "user": "Sam Rivera",
+  "earlier": [
+   "Launch checklist"
+  ],
+  "new": [
+   "Action items",
+   "Sam Rivera — book the venue for the launch party (by Nov 2)",
+   "Jordan Lee — send invites"
+  ],
+  "expect": 1,
+  "keyword": "venue"
+ },
+ {
+  "app": "Calendar",
+  "user": "Sam Rivera",
+  "earlier": [],
+  "new": [
+   "Design review",
+   "Thursday 2:00–3:00 PM",
+   "Organizer: Maya Chen"
+  ],
+  "expect": 0
  }
 ]

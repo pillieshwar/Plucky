@@ -25,7 +25,6 @@ import type {
   RemindersEnableRequest,
   RemindersList,
   RemindersStatus,
-  SlackStatus,
   Status,
   Task,
   TaskPatch,
@@ -69,11 +68,6 @@ export const api = {
   remindersSyncNow: () => invoke<void>("reminders_sync_now"),
   remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
   remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
-  slackStatus: () => invoke<SlackStatus>("slack_status"),
-  /** Opens Slack's sign-in page in the browser; listen for onSlackChanged. */
-  slackConnect: () => invoke<void>("slack_connect"),
-  slackCancel: () => invoke<void>("slack_cancel"),
-  slackDisconnect: () => invoke<void>("slack_disconnect"),
   calendarStatus: () => invoke<CalendarStatus>("calendar_status"),
   calendarRequestAccess: () => invoke<RemindersAccess>("calendar_request_access"),
   calendarCalendars: () => invoke<CalendarInfo[]>("calendar_calendars"),
@@ -109,7 +103,7 @@ export const api = {
   watchStatus: () => invoke<WatchStatus>("watch_status"),
   watchSet: (change: {
     enabled: boolean;
-    apps: string[];
+    excluded: string[];
     plugged_in_only: boolean;
     show_right_away: boolean;
     names: Record<string, string>;
@@ -191,10 +185,6 @@ export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("reminders-changed", () => handler());
 }
 
-/** Slack was connected, disconnected, or its sign-in state changed. */
-export function onSlackChanged(handler: () => void): Promise<UnlistenFn> {
-  return listen("slack-changed", () => handler());
-}
 
 /** The Calendar connector was turned on or off, or its calendars changed. */
 export function onCalendarChanged(handler: () => void): Promise<UnlistenFn> {

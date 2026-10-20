@@ -8,14 +8,14 @@ function hhmm(at: string, locale: string): string {
   return timeLabel(at.slice(11, 16), locale);
 }
 
-/** What watch mode is doing right now, in words. */
+/** What watching is doing right now, in words. */
 function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "muted"; text: string } {
   const { state, current } = s.live;
   switch (state) {
     case "watching":
       return current
         ? { tone: "ok", text: `Watching ${current} for new to-dos.` }
-        : { tone: "ok", text: "On — watching whenever Slack or Outlook is in front." };
+        : { tone: "ok", text: "On — watching whichever app is in front." };
     case "paused":
       return {
         tone: "muted",
@@ -24,7 +24,7 @@ function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "mute
     case "on_battery":
       return { tone: "muted", text: "Waiting for power — you chose to watch only when plugged in." };
     case "no_model":
-      return { tone: "warn", text: "Download a model in the Models tab first; it reads the messages on this Mac." };
+      return { tone: "warn", text: "Download a model in the Models tab first; it reads your screen on this Mac." };
     case "no_access":
       return { tone: "warn", text: "Plucky needs Accessibility access (the same as the capture shortcut)." };
     case "unsupported":
@@ -35,8 +35,8 @@ function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "mute
 }
 
 /**
- * Connectors → Watch for to-dos: notice requests and deadlines in Slack and
- * Outlook as they appear, read through Accessibility on this Mac.
+ * Connectors → Watch my screen: notice requests, assignments and deadlines
+ * in whatever app is in front, read through Accessibility on this Mac.
  */
 export function WatchSection({ locale }: { locale: string }) {
   const [status, setStatus] = useState<WatchStatus | null>(null);
@@ -55,6 +55,7 @@ export function WatchSection({ locale }: { locale: string }) {
   if (!status) return null;
   if (!status.supported) return <p className="setting-line muted">Watching is available on macOS.</p>;
   const s = status.settings;
+  const always = new Set(status.always_skipped.map(([b]) => b));
 
   async function save(change: Partial<typeof s>) {
     setError(null);
@@ -63,7 +64,7 @@ export function WatchSection({ locale }: { locale: string }) {
       setStatus(
         await api.watchSet({
           enabled: next.enabled,
-          apps: next.apps,
+          excluded: next.excluded,
           plugged_in_only: next.plugged_in_only,
           show_right_away: next.show_right_away,
           names: next.names,
@@ -74,18 +75,22 @@ export function WatchSection({ locale }: { locale: string }) {
     }
   }
 
-  function toggleApp(bundle: string, on: boolean) {
-    void save({ apps: on ? [...s.apps.filter((a) => a !== bundle), bundle] : s.apps.filter((a) => a !== bundle) });
+  function setSkipped(bundle: string, skip: boolean) {
+    void save({ excluded: skip ? [...s.excluded.filter((b) => b !== bundle), bundle] : s.excluded.filter((b) => b !== bundle) });
   }
 
   const live = liveLine(status, locale);
+  const look = status.live.last_look;
+  const recent = status.live.recent.filter((r) => !always.has(r.bundle));
+  // Excluded apps not in the recent list still need a way back.
+  const otherExcluded = s.excluded.filter((b) => !recent.some((r) => r.bundle === b));
 
   return (
     <div className="connector-body-inner">
       <div className="card-stack">
         <Toggle
-          label="Watch for to-dos"
-          hint="When Slack or Outlook is in front, Plucky reads new messages on this Mac and suggests the ones that ask something of you. You approve each one."
+          label="Watch my screen for to-dos"
+          hint="Whatever app is in front, Plucky reads new text on this Mac and suggests what asks something of you — requests, assignments, deadlines, your own promises. You approve each one."
           checked={s.enabled}
           onChange={(v) => void save({ enabled: v })}
         />
@@ -93,7 +98,7 @@ export function WatchSection({ locale }: { locale: string }) {
           <div className="setting-line">
             <span className={`dot ${live.tone === "ok" ? "ok" : live.tone === "warn" ? "warn" : ""}`} aria-hidden />
             <span className={live.tone === "muted" ? "setting-line-text muted" : "setting-line-text"}>{live.text}</span>
-            {live.tone === "warn" && status.live.state === "no_access" && (
+            {status.live.state === "no_access" && (
               <button type="button" className="ghost small" onClick={() => void api.requestAccessibility()}>
                 Allow
               </button>
@@ -111,69 +116,55 @@ export function WatchSection({ locale }: { locale: string }) {
         )}
       </div>
 
-      {s.enabled && status.live.last_look && (
+      {s.enabled && look && (
         <p className="watch-look" aria-live="polite">
-          Last look at {status.live.last_look.app}, {timeLabel(status.live.last_look.at.slice(0, 5), locale)}:{" "}
-          {status.live.last_look.lines} lines read · {status.live.last_look.new} new
-          {status.live.last_look.asked ? ` · model found ${status.live.last_look.found}` : ""} —{" "}
-          {status.live.last_look.step}.
+          Last look at {look.app}, {timeLabel(look.at.slice(0, 5), locale)}: {look.lines} lines read · {look.new} new
+          {look.asked ? ` · model found ${look.found}` : ""} — {look.step}.
         </p>
-      )}
-
-      {s.enabled && status.model?.startsWith("llama-3.2") && (
-        <div className="setting-line">
-          <span className="dot warn" aria-hidden />
-          <span className="setting-line-text">
-            Your model suggests many false to-dos when watching. Qwen3.5 4B is quieter and faster — get it in the
-            Models tab.
-          </span>
-          <button type="button" className="ghost small" onClick={() => void api.openMain(null, "models")}>
-            Models
-          </button>
-        </div>
       )}
 
       {s.enabled && (
         <>
-          <h4 className="connector-subhead">Apps</h4>
-          <ul className="calendar-list">
-            {status.apps.map((a) => (
-              <li key={a.bundle}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={s.apps.includes(a.bundle)}
-                    onChange={(e) => toggleApp(a.bundle, e.target.checked)}
-                  />
-                  <span className="calendar-name">{a.name}</span>
-                  <span className="calendar-source">{a.installed ? "" : "not installed"}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
           <h4 className="connector-subhead">Your name</h4>
-          <p className="setting-line muted">
-            So Plucky knows which messages are yours — your promises (“I'll send it Monday”) become to-dos, other
-            people's don't. Use the name each app shows on your messages.
-          </p>
           <div className="card-stack">
-            {status.apps
-              .filter((a) => s.apps.includes(a.bundle))
-              .map((a) => (
-                <NameRow
-                  key={a.bundle}
-                  app={a.name}
-                  value={s.names[a.bundle] ?? ""}
-                  placeholder={status.default_name ?? "Your name"}
-                  hint={
-                    a.name === "Outlook"
-                      ? "Often “Last, First” or your email. Separate several with semicolons."
-                      : "Your display name. Separate several with commas."
-                  }
-                  onSave={(v) => void save({ names: { ...s.names, [a.bundle]: v } })}
-                />
-              ))}
+            <NameRow
+              value={s.names["*"] ?? ""}
+              placeholder={status.default_name ?? "Your name"}
+              onSave={(v) => void save({ names: { ...s.names, "*": v } })}
+            />
           </div>
+
+          <h4 className="connector-subhead">Apps</h4>
+          <p className="setting-line muted">
+            Every app is watched except these, which are never read: password managers, Keychain, System Settings,
+            terminals and Plucky. Skip any other app below.
+          </p>
+          {recent.length > 0 || otherExcluded.length > 0 ? (
+            <ul className="watch-apps">
+              {recent.map((r) => {
+                const off = s.excluded.includes(r.bundle);
+                return (
+                  <li key={r.bundle}>
+                    <span className={off ? "watch-app off" : "watch-app"}>{r.name}</span>
+                    <button type="button" className="link-btn quiet" onClick={() => setSkipped(r.bundle, !off)}>
+                      {off ? "Watch again" : "Skip this app"}
+                    </button>
+                  </li>
+                );
+              })}
+              {otherExcluded.map((b) => (
+                <li key={b}>
+                  <span className="watch-app off">{b}</span>
+                  <button type="button" className="link-btn quiet" onClick={() => setSkipped(b, false)}>
+                    Watch again
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="setting-line muted">Apps you use will show up here, so you can skip any of them.</p>
+          )}
+
           <div className="card-stack">
             <Toggle
               label="Show suggestions right away"
@@ -203,20 +194,8 @@ export function WatchSection({ locale }: { locale: string }) {
   );
 }
 
-/** "Your name in Slack": saved when the field loses focus or on Return. */
-function NameRow({
-  app,
-  value,
-  placeholder,
-  hint,
-  onSave,
-}: {
-  app: string;
-  value: string;
-  placeholder: string;
-  hint: string;
-  onSave: (value: string) => void;
-}) {
+/** "Your name": saved when the field loses focus or on Return. */
+function NameRow({ value, placeholder, onSave }: { value: string; placeholder: string; onSave: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
@@ -225,8 +204,11 @@ function NameRow({
   return (
     <label className="toggle-row name-row">
       <span className="toggle-text">
-        <span className="toggle-label">Your name in {app}</span>
-        <span className="toggle-hint">{hint}</span>
+        <span className="toggle-label">How apps show your name</span>
+        <span className="toggle-hint">
+          So your own promises (“I'll send it Monday”) count and other people's don't. Add other forms with
+          semicolons, e.g. “Rivera, Sam; sam@company.com”.
+        </span>
       </span>
       <input
         className="name-input"

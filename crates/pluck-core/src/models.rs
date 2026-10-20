@@ -23,10 +23,25 @@ pub struct CatalogModel {
     pub approx_size_mb: u64,
     /// Smallest Mac memory size we recommend for this model.
     pub min_ram_gb: u32,
-    pub recommended: bool,
+    /// Quality for Plucky, from `scripts/eval` (1 = best). The best model a
+    /// Mac has enough memory for is recommended and used.
+    pub rank: u8,
 }
 
 pub const CATALOG: &[CatalogModel] = &[
+    CatalogModel {
+        id: "qwen3.5-9b",
+        name: "Qwen3.5 9B",
+        publisher: "Alibaba Qwen",
+        description:
+            "The biggest and smartest: best at understanding whole conversations and pages. For Macs with 16 GB or more.",
+        license: "Apache 2.0",
+        repo: "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        file: "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
+        approx_size_mb: 6_170,
+        min_ram_gb: 16,
+        rank: 1,
+    },
     // Picked by scripts/eval (watch mode): as accurate as models twice its
     // size, no false to-dos, and the fastest of the 4B class.
     CatalogModel {
@@ -40,7 +55,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
         approx_size_mb: 3_010,
         min_ram_gb: 8,
-        recommended: true,
+        rank: 3,
     },
     CatalogModel {
         id: "llama-3.2-3b",
@@ -52,7 +67,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         approx_size_mb: 2_020,
         min_ram_gb: 8,
-        recommended: false,
+        rank: 6,
     },
     CatalogModel {
         id: "qwen3-4b-2507",
@@ -65,7 +80,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
         approx_size_mb: 2_500,
         min_ram_gb: 8,
-        recommended: false,
+        rank: 4,
     },
     CatalogModel {
         id: "gemma-4-e4b",
@@ -78,7 +93,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "gemma-4-E4B-it-Q4_K_M.gguf",
         approx_size_mb: 4_980,
         min_ram_gb: 16,
-        recommended: false,
+        rank: 2,
     },
     CatalogModel {
         id: "gemma-4-e2b",
@@ -90,7 +105,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "gemma-4-E2B-it-Q4_K_M.gguf",
         approx_size_mb: 3_110,
         min_ram_gb: 8,
-        recommended: false,
+        rank: 5,
     },
     CatalogModel {
         id: "llama-3.2-1b",
@@ -102,7 +117,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
         approx_size_mb: 810,
         min_ram_gb: 4,
-        recommended: false,
+        rank: 7,
     },
 ];
 
@@ -110,11 +125,18 @@ pub fn find(id: &str) -> Option<&'static CatalogModel> {
     CATALOG.iter().find(|m| m.id == id)
 }
 
-pub fn default_model() -> &'static CatalogModel {
+/// The best model for a Mac with `ram_gb` of memory.
+pub fn best_for(ram_gb: u32) -> &'static CatalogModel {
     CATALOG
         .iter()
-        .find(|m| m.recommended)
-        .unwrap_or(&CATALOG[0])
+        .filter(|m| m.min_ram_gb <= ram_gb)
+        .min_by_key(|m| m.rank)
+        .unwrap_or(&CATALOG[CATALOG.len() - 1])
+}
+
+/// The best model for an 8 GB Mac.
+pub fn default_model() -> &'static CatalogModel {
+    best_for(8)
 }
 
 impl CatalogModel {
@@ -173,13 +195,19 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), CATALOG.len(), "duplicate ids");
-        assert_eq!(CATALOG.iter().filter(|m| m.recommended).count(), 1);
+        let mut ranks: Vec<_> = CATALOG.iter().map(|m| m.rank).collect();
+        ranks.sort_unstable();
+        ranks.dedup();
+        assert_eq!(ranks.len(), CATALOG.len(), "duplicate ranks");
         for m in CATALOG {
             assert!(m.file.ends_with(".gguf"));
             assert!(m.download_url().starts_with("https://huggingface.co/"));
             assert!(find(m.id).is_some());
         }
         assert_eq!(default_model().id, "qwen3.5-4b");
+        assert_eq!(best_for(16).id, "qwen3.5-9b");
+        assert_eq!(best_for(64).id, "qwen3.5-9b");
+        assert_eq!(best_for(4).id, "llama-3.2-1b");
     }
 
     #[test]

@@ -134,7 +134,8 @@ export interface InboxItem {
 /** Mirrors `settings::WatchSettings`. */
 export interface WatchSettings {
   enabled: boolean;
-  apps: string[];
+  /** Bundle ids the user doesn't want read. */
+  excluded: string[];
   plugged_in_only: boolean;
   show_right_away: boolean;
   paused_until: string | null;
@@ -150,7 +151,8 @@ export interface WatchStatus {
   /** Id of the model in use. */
   model: string | null;
   settings: WatchSettings;
-  apps: { bundle: string; name: string; installed: boolean }[];
+  /** [bundle id, name] of apps never read. */
+  always_skipped: [string, string][];
   live: {
     state: "off" | "watching" | "paused" | "on_battery" | "no_model" | "no_access" | "unsupported";
     current: string | null;
@@ -165,6 +167,8 @@ export interface WatchStatus {
       found: number;
       step: string;
     } | null;
+    /** Apps recently in front, most recent first. */
+    recent: { bundle: string; name: string; skipped: boolean }[];
   };
 }
 
@@ -246,6 +250,8 @@ export interface ModelInfo {
   approx_size_mb: number;
   min_ram_gb: number;
   recommended: boolean;
+  /** Quality for Plucky (1 = best). */
+  rank: number;
   installed: boolean;
   active: boolean;
   partial_bytes: number;
@@ -311,17 +317,6 @@ export interface RemindersStatus {
   last_error: string | null;
 }
 
-/** Mirrors `slack::Status`. */
-export interface SlackStatus {
-  supported: boolean;
-  connected: boolean;
-  /** Waiting for the user to finish signing in in the browser. */
-  connecting: boolean;
-  needs_reconnect: boolean;
-  team: string | null;
-  user_id: string | null;
-  error: string | null;
-}
 
 /** Mirrors `calendar::CalendarInfo`. */
 export interface CalendarInfo {

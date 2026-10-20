@@ -23,7 +23,7 @@ mod reminders;
 mod services;
 mod settings;
 mod shortcuts;
-mod slack;
+mod slack_cleanup;
 mod spaces;
 mod tray;
 mod updates;
@@ -356,43 +356,18 @@ fn reminders_open_privacy_settings() -> CmdResult<()> {
         .map_err(err)
 }
 
-// ── Slack connector ─────────────────────────────────────────────────────────
+// ── plucky:// links ─────────────────────────────────────────────────────────
 
-/// A `plucky://…` link opened by macOS.
-fn on_deep_link(app: &AppHandle, url: &url::Url) {
-    if url.scheme() != "plucky" {
-        return;
-    }
-    match (url.host_str(), url.path()) {
-        (Some("slack"), "/callback") => app.state::<slack::Slack>().handle_callback(app, url),
-        _ => log::info!(
+/// A `plucky://…` link opened by macOS. None are handled today (the Slack
+/// sign-in that used them is gone); the scheme stays registered.
+fn on_deep_link(_app: &AppHandle, url: &url::Url) {
+    if url.scheme() == "plucky" {
+        log::info!(
             "ignored plucky:// link ({:?}{})",
             url.host_str(),
             url.path()
-        ),
+        );
     }
-}
-
-#[tauri::command]
-fn slack_status(slack: State<'_, slack::Slack>) -> slack::Status {
-    slack.status()
-}
-
-/// Open Slack's sign-in page; the result arrives through plucky://.
-#[tauri::command]
-fn slack_connect(app: AppHandle, slack: State<'_, slack::Slack>) -> CmdResult<()> {
-    slack.connect(&app)
-}
-
-#[tauri::command]
-fn slack_cancel(app: AppHandle, slack: State<'_, slack::Slack>) {
-    slack.cancel(&app);
-}
-
-#[tauri::command]
-async fn slack_disconnect(app: AppHandle) -> CmdResult<()> {
-    let slack = app.state::<slack::Slack>();
-    slack.disconnect(&app).await
 }
 
 // ── Calendar connector ──────────────────────────────────────────────────────
@@ -1146,7 +1121,7 @@ pub fn run_mcp() -> i32 {
 pub fn run() {
     init_logging();
     let builder = tauri::Builder::default()
-        // plucky:// links (Slack sign-in callback).
+        // plucky:// links.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -1196,7 +1171,6 @@ pub fn run() {
                 data_dir: data_dir.clone(),
             });
             app.manage(Settings::new(&data_dir));
-            app.manage(slack::Slack::default());
             app.manage(agents::Agents::new(&data_dir));
             app.manage(Updates::default());
             app.manage(ModelManager::new(&data_dir));
@@ -1279,7 +1253,7 @@ pub fn run() {
                     }
                 }
             }
-            slack::Slack::start(app.handle());
+            slack_cleanup::start(app.handle());
             agents::start(app.handle());
             watch::start(app.handle());
             Ok(())
@@ -1348,10 +1322,6 @@ pub fn run() {
             agents::inbox_list,
             agents::inbox_accept,
             agents::inbox_discard,
-            slack_status,
-            slack_connect,
-            slack_cancel,
-            slack_disconnect,
             calendar_status,
             calendar_request_access,
             calendar_calendars,

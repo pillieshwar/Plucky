@@ -454,7 +454,7 @@ export default function Popover() {
           </IconButton>
           {watch?.settings.enabled && (
             <IconButton
-              label="Check this conversation for to-dos"
+              label="Check what's on screen for to-dos"
               onClick={() =>
                 void api
                   .watchCheckNow()
@@ -471,7 +471,7 @@ export default function Popover() {
               label={
                 watch.live.state === "paused"
                   ? "Watching is paused — click to resume"
-                  : `Watching ${watch.live.current ?? "Slack and Outlook"} for to-dos — click to pause for an hour`
+                  : `Watching ${watch.live.current ?? "your screen"} for to-dos — click to pause for an hour`
               }
               onClick={() => void api.watchPause(watch.live.state === "paused" ? 0 : 60).then(setWatch, () => undefined)}
             >

@@ -27,11 +27,40 @@ use crate::engine::Engine;
 use crate::models::ModelManager;
 use crate::settings::{Settings, WatchSettings};
 
-/// Apps watch mode supports: bundle id, name, where it's usually installed.
-pub const APPS: &[(&str, &str, &str)] = &[
-    ("com.tinyspeck.slackmacgap", "Slack", "Slack.app"),
-    ("com.microsoft.Outlook", "Outlook", "Microsoft Outlook.app"),
+/// Never read, whatever the settings: password managers, the Keychain,
+/// System Settings, terminals (tokens and secrets) and Plucky itself.
+pub const ALWAYS_SKIP: &[(&str, &str)] = &[
+    ("com.1password.1password", "1Password"),
+    ("com.agilebits.onepassword7", "1Password 7"),
+    ("com.agilebits.onepassword-osx", "1Password"),
+    ("com.bitwarden.desktop", "Bitwarden"),
+    ("com.lastpass.LastPass", "LastPass"),
+    ("com.dashlane.Dashlane", "Dashlane"),
+    ("in.sinew.Enpass-Desktop", "Enpass"),
+    ("com.apple.Passwords", "Passwords"),
+    ("com.apple.keychainaccess", "Keychain Access"),
+    ("com.apple.systempreferences", "System Settings"),
+    ("com.apple.SecurityAgent", "Security dialogs"),
+    ("com.apple.loginwindow", "Login window"),
+    ("com.apple.Terminal", "Terminal"),
+    ("com.googlecode.iterm2", "iTerm"),
+    ("dev.warp.Warp-Stable", "Warp"),
+    ("com.mitchellh.ghostty", "Ghostty"),
+    ("app.pluck.desktop", "Plucky"),
 ];
+
+/// Should this app's windows be left alone?
+pub fn skipped(s: &WatchSettings, bundle: &str) -> bool {
+    ALWAYS_SKIP.iter().any(|(b, _)| *b == bundle) || s.excluded.iter().any(|b| b == bundle)
+}
+
+/// A lot of new text at once means a different page or document, not new
+/// messages: remember it without asking the model.
+const PAGE_CHANGE_LINES: usize = 80;
+/// At most one model run this often, so busy screens don't keep it busy.
+const MODEL_COOLDOWN: Duration = Duration::from_secs(12);
+/// Apps recently in front, shown in Connectors so they can be excluded.
+const RECENT_APPS: usize = 10;
 
 const POLL: Duration = Duration::from_secs(3);
 /// The window must look the same this long before Plucky reads new lines,
@@ -66,6 +95,41 @@ pub struct Live {
     /// What the last look at a watched window found — counts only, never
     /// the text — so the user can see where it stopped.
     pub last_look: Option<Look>,
+    /// Apps recently in front, most recent first.
+    pub recent: Vec<RecentApp>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct RecentApp {
+    pub bundle: String,
+    pub name: String,
+    /// Not read (always skipped, or excluded by the user).
+    pub skipped: bool,
+}
+
+/// Remember the app in front for the Connectors list.
+fn note_app(app: &AppHandle, bundle: &str, name: &str, skipped: bool) {
+    let changed = match LIVE.lock() {
+        Ok(mut l) => {
+            let entry = RecentApp {
+                bundle: bundle.to_string(),
+                name: name.to_string(),
+                skipped,
+            };
+            if l.recent.first() == Some(&entry) {
+                false
+            } else {
+                l.recent.retain(|r| r.bundle != bundle);
+                l.recent.insert(0, entry);
+                l.recent.truncate(RECENT_APPS);
+                true
+            }
+        }
+        Err(_) => false,
+    };
+    if changed {
+        let _ = app.emit("watch-changed", ());
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -84,11 +148,15 @@ pub struct Look {
     pub step: String,
 }
 
+/// When the model last ran for watch mode.
+static LAST_MODEL: Mutex<Option<Instant>> = Mutex::new(None);
+
 static LIVE: Mutex<Live> = Mutex::new(Live {
     state: State::Off,
     current: None,
     last_found: None,
     last_look: None,
+    recent: Vec::new(),
 });
 
 /// Record the last look; tell the windows only when something changed.
@@ -254,6 +322,7 @@ fn user_names(s: &WatchSettings, bundle: &str) -> Vec<String> {
     let typed = s
         .names
         .get(bundle)
+        .or_else(|| s.names.get("*"))
         .map(|n| pluck_core::transcript::split_names(n.as_str()))
         .unwrap_or_default();
     if typed.is_empty() {
@@ -369,11 +438,29 @@ fn tick(
     model: &std::path::Path,
     windows: &mut HashMap<u64, Window>,
 ) {
-    let read = crate::capture::front_window_text(&s.apps, MAX_NODES, READ_BUDGET);
-    let Some(read) = read else {
-        set_live(app, State::Watching, None);
+    // Give the model a breather between runs on busy screens.
+    let cooling = LAST_MODEL
+        .lock()
+        .ok()
+        .and_then(|t| *t)
+        .is_some_and(|t| t.elapsed() < MODEL_COOLDOWN);
+    if cooling {
         return;
+    }
+    let read = crate::capture::front_window_text(&|b: &str| !skipped(s, b), MAX_NODES, READ_BUDGET);
+    let read = match read {
+        Ok(r) => r,
+        Err(Some((bundle, name))) => {
+            note_app(app, &bundle, &name, true);
+            set_live(app, State::Watching, None);
+            return;
+        }
+        Err(None) => {
+            set_live(app, State::Watching, None);
+            return;
+        }
     };
+    note_app(app, &read.bundle, &read.app, false);
     set_live(app, State::Watching, Some(read.app.clone()));
     let mut look = Look {
         app: read.app.clone(),
@@ -411,6 +498,12 @@ fn tick(
         return;
     };
     look.new = fresh.len();
+    if fresh.len() > PAGE_CHANGE_LINES {
+        // A new page or document rather than new messages.
+        look.step = "new page: earlier content skipped".into();
+        set_look(app, look);
+        return;
+    }
     let Some((earlier, new)) = conversation(&read.lines, &fresh) else {
         look.step = "new messages didn't look like a to-do".into();
         set_look(app, look);
@@ -419,6 +512,9 @@ fn tick(
     let user = user_names(s, &read.bundle);
     let engine = app.state::<Engine>();
     look.asked = true;
+    if let Ok(mut t) = LAST_MODEL.lock() {
+        *t = Some(Instant::now());
+    }
     let found = tauri::async_runtime::block_on(
         engine.find_actions(model, &read.app, &user, &earlier, &new),
     );
@@ -507,13 +603,6 @@ fn recent(lines: &[String]) -> Option<(Vec<String>, Vec<String>)> {
 // ── Commands ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
-pub struct WatchApp {
-    pub bundle: &'static str,
-    pub name: &'static str,
-    pub installed: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub supported: bool,
     /// The Mac account's full name, the default for "your name".
@@ -521,15 +610,9 @@ pub struct Status {
     /// The model in use, so the UI can suggest a better one for watching.
     pub model: Option<String>,
     pub settings: WatchSettings,
-    pub apps: Vec<WatchApp>,
+    /// Apps that are never read, whatever the settings.
+    pub always_skipped: Vec<(&'static str, &'static str)>,
     pub live: Live,
-}
-
-fn installed(file: &str) -> bool {
-    std::path::Path::new("/Applications").join(file).exists()
-        || std::env::var_os("HOME")
-            .map(std::path::PathBuf::from)
-            .is_some_and(|h| h.join("Applications").join(file).exists())
 }
 
 fn status(app: &AppHandle) -> Status {
@@ -538,20 +621,14 @@ fn status(app: &AppHandle) -> Status {
         current: None,
         last_found: None,
         last_look: None,
+        recent: Vec::new(),
     });
     Status {
         supported: cfg!(target_os = "macos"),
         default_name: mac_full_name(),
         model: app.state::<ModelManager>().active().map(|m| m.id),
         settings: app.state::<Settings>().get().watch,
-        apps: APPS
-            .iter()
-            .map(|(bundle, name, file)| WatchApp {
-                bundle,
-                name,
-                installed: installed(file),
-            })
-            .collect(),
+        always_skipped: ALWAYS_SKIP.to_vec(),
         live,
     }
 }
@@ -559,10 +636,12 @@ fn status(app: &AppHandle) -> Status {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Change {
     pub enabled: bool,
-    pub apps: Vec<String>,
+    /// Bundle ids the user doesn't want read.
+    #[serde(default)]
+    pub excluded: Vec<String>,
     pub plugged_in_only: bool,
     pub show_right_away: bool,
-    /// Your name in each app, by bundle id.
+    /// Your name: "*" for every app, or by bundle id.
     #[serde(default)]
     pub names: std::collections::BTreeMap<String, String>,
 }
@@ -594,14 +673,20 @@ async fn check_now_mac(
     s: &WatchSettings,
     model: &std::path::Path,
 ) -> Result<String, String> {
-    let apps = s.apps.clone();
+    let settings = s.clone();
     let read = tauri::async_runtime::spawn_blocking(move || {
-        crate::capture::front_window_text(&apps, MAX_NODES, READ_BUDGET)
+        crate::capture::front_window_text(&|b: &str| !skipped(&settings, b), MAX_NODES, READ_BUDGET)
     })
     .await
     .map_err(|e| e.to_string())?;
-    let Some(read) = read else {
-        return Err("Bring Slack or Outlook to the front, then check again.".into());
+    let read = match read {
+        Ok(r) => r,
+        Err(Some((_, name))) => {
+            return Err(format!(
+                "Plucky doesn't read {name}. Remove it from the skipped apps to check it."
+            ))
+        }
+        Err(None) => return Err("Plucky couldn't read the window in front.".into()),
     };
     let Some((earlier, new)) = recent(&read.lines) else {
         return Err(format!(
@@ -617,7 +702,7 @@ async fn check_now_mac(
     let found = actions.len();
     let added = deliver(app, true, &read.app, &read.title, actions);
     Ok(match (found, added) {
-        (0, _) => format!("No to-dos in the latest messages in {}.", read.app),
+        (0, _) => format!("No to-dos in what's on screen in {}.", read.app),
         (_, 0) => "Already suggested — check the review list.".into(),
         (_, 1) => "Found 1 to-do.".into(),
         (_, n) => format!("Found {n} to-dos."),
@@ -631,20 +716,23 @@ pub fn watch_status(app: AppHandle) -> Status {
 
 #[tauri::command]
 pub fn watch_set(app: AppHandle, change: Change) -> Status {
-    let apps: Vec<String> = change
-        .apps
+    let mut excluded: Vec<String> = change
+        .excluded
         .into_iter()
-        .filter(|a| APPS.iter().any(|(b, _, _)| b == a))
+        .map(|b| b.trim().to_string())
+        .filter(|b| !b.is_empty() && b.len() <= 200)
         .collect();
+    excluded.sort();
+    excluded.dedup();
     app.state::<Settings>().update(|s| {
         s.watch.enabled = change.enabled;
-        s.watch.apps = apps;
+        s.watch.excluded = excluded;
         s.watch.plugged_in_only = change.plugged_in_only;
         s.watch.show_right_away = change.show_right_away;
         s.watch.names = change
             .names
             .into_iter()
-            .filter(|(b, _)| APPS.iter().any(|(id, _, _)| id == b))
+            .filter(|(b, _)| b.len() <= 200)
             .map(|(b, n)| (b, n.trim().chars().take(200).collect::<String>()))
             .filter(|(_, n)| !n.is_empty())
             .collect();
