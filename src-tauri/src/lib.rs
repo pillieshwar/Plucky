@@ -196,11 +196,6 @@ fn source_target(task: &Task) -> Option<OpenTarget> {
     ok.then(|| OpenTarget::App(bundle.to_string()))
 }
 
-/// Open a web page in the default browser.
-pub(crate) fn open_in_browser(url: &str) -> CmdResult<()> {
-    open_target(&OpenTarget::Url(url.to_string()))
-}
-
 fn open_target(target: &OpenTarget) -> CmdResult<()> {
     let mut cmd = if cfg!(target_os = "macos") {
         let mut c = std::process::Command::new("open");
