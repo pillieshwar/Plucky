@@ -106,7 +106,8 @@ const SETTINGS = {
   },
   watch: {
     enabled: false,
-    apps: ["com.tinyspeck.slackmacgap", "com.microsoft.Outlook"],
+    apps: [],
+    excluded: [],
     plugged_in_only: false,
     show_right_away: true,
     paused_until: null,
@@ -214,17 +215,14 @@ function mockTauri(s) {
     watch_status: () =>
       s.watch ?? {
         supported: true,
+        default_name: "Sam Rivera",
+        model: "qwen3.5-4b",
         settings: s.settings.watch,
-        apps: [
-          { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
-          { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
-        ],
-        live: { state: "off", current: null, last_found: null },
+        always_skipped: [["com.1password.1password", "1Password"]],
+        live: { state: "off", current: null, last_found: null, last_look: null, recent: [] },
       },
     email_tasks_status: () =>
       s.emailTasks ?? { schedule: s.settings.email, servers: [], claude_code_connected: false, running: false },
-    slack_status: () =>
-      s.slack ?? { supported: true, connected: false, connecting: false, needs_reconnect: false, team: null, user_id: null, error: null },
     calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
     calendar_calendars: () => [
       { id: "c1", key: "Google / Work", title: "Work", source: "Google", color: "#3b82f6" },
@@ -473,19 +471,6 @@ await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
   await p.locator(".connector-action").nth(1).click();
 });
-await shot("panel-connectors-slack", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(2).click();
-});
-await shot(
-  "panel-connectors-slack-on",
-  PANEL,
-  scenario({ slack: { supported: true, connected: true, connecting: false, needs_reconnect: false, team: "Acme Inc", user_id: "U123", error: null } }),
-  async (p) => {
-    await p.getByRole("tab", { name: "Connectors" }).click();
-    await p.locator(".connector-action").nth(2).click();
-  },
-);
 await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
 await shot("popover-events-dark", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }), async () => {}, true);
 await shot("panel-empty", PANEL, scenario({ tasks: [] }));
@@ -545,26 +530,29 @@ const WATCH_ON = {
   supported: true,
   default_name: "Sam Rivera",
   model: "qwen3.5-4b",
-  settings: { ...SETTINGS.watch, enabled: true, names: { "com.microsoft.Outlook": "Rivera, Sam" } },
-  apps: [
-    { bundle: "com.tinyspeck.slackmacgap", name: "Slack", installed: true },
-    { bundle: "com.microsoft.Outlook", name: "Outlook", installed: true },
-  ],
+  settings: { ...SETTINGS.watch, enabled: true, excluded: ["com.spotify.client"], names: { "*": "Sam Rivera; Rivera, Sam" } },
+  always_skipped: [["com.1password.1password", "1Password"]],
   live: {
     state: "watching",
     current: "Slack",
     last_found: null,
     last_look: { app: "Slack", at: "15:58:12", lines: 214, new: 3, asked: true, found: 1, step: "suggested" },
+    recent: [
+      { bundle: "com.tinyspeck.slackmacgap", name: "Slack", skipped: false },
+      { bundle: "com.google.Chrome", name: "Google Chrome", skipped: false },
+      { bundle: "com.microsoft.Outlook", name: "Microsoft Outlook", skipped: false },
+      { bundle: "com.spotify.client", name: "Spotify", skipped: true },
+    ],
   },
 };
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(2).click();
 });
 await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(3).click();
-  await p.locator(".connector-subhead", { hasText: "Your name" }).scrollIntoViewIfNeeded();
+  await p.locator(".connector-action").nth(2).click();
+  await p.locator(".connector-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
@@ -576,7 +564,7 @@ const AGENTS_ON = {
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(4).click();
+  await p.locator(".connector-action").nth(3).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -599,13 +587,13 @@ await shot(
   }),
   async (p) => {
     await p.getByRole("tab", { name: "Connectors" }).click();
-    await p.locator(".connector-action").nth(4).click();
+    await p.locator(".connector-action").nth(3).click();
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await p.getByRole("tab", { name: "Connectors" }).click();
-  await p.locator(".connector-action").nth(4).click();
+  await p.locator(".connector-action").nth(3).click();
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();

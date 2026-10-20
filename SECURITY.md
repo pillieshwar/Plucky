@@ -33,9 +33,9 @@ upstream project.
 
 ## How Plucky protects you
 
-- **Local only.** Selections and tasks never leave the Mac. The optional Slack
-  connector talks to slack.com directly (OAuth with PKCE, no client secret),
-  and keeps its token in the macOS Keychain.
+- **Local only.** Selections and tasks never leave the Mac. (The Slack
+  connector was removed in 0.4.20; on first launch Plucky revokes any old
+  Slack sign-in and deletes it from the Keychain.)
 - **Write-only AI agents.** `Pluck --mcp` offers AI apps one tool,
   `add_task`, and nothing to read. It reaches the app over a Unix socket that
   only the user can open (mode 0600, no network). Every accepted task gets the
@@ -45,8 +45,9 @@ upstream project.
   clicks Connect, changes only its own `plucky` entry, and keeps a
   `.plucky-backup` of the original file.
 - **Watch mode** (off by default) reads the static text of the frontmost
-  window, only for apps the user picks (Slack, Outlook), through
-  Accessibility. It never reads text fields or password fields, keeps only
+  window of any app through Accessibility — except password managers,
+  Keychain Access, System Settings, security dialogs, terminals and Plucky,
+  which are never read, and any app the user skips. It never reads text fields or password fields, keeps only
   hashes of lines it has seen (in memory), and sends nothing off the Mac;
   the on-device model's suggestions go to the review inbox.
 - **Scheduled email checks** (off by default) run Claude Code with only two

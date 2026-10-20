@@ -341,35 +341,41 @@ const SKIP_ROLES: &[&str] = &[
     "AXToolbar",
 ];
 
-/// Read the static text of the frontmost window if its app is in `allowed`.
+/// Read the static text of the frontmost window if `accept(bundle id)`.
+/// `Err(Some((bundle, name)))` when the app in front was turned away, so
+/// the caller can show it without its text ever being read.
 /// Bounded by `max_nodes` and `budget`, and every AX call has a short
 /// timeout, so a busy app can't stall Plucky. Never reads text fields (what
 /// the user is typing) or password fields.
 #[allow(unused_unsafe)]
 pub fn front_window_text(
-    allowed: &[String],
+    accept: &dyn Fn(&str) -> bool,
     max_nodes: usize,
     budget: std::time::Duration,
-) -> Option<WindowText> {
+) -> Result<WindowText, Option<(String, String)>> {
     let started = std::time::Instant::now();
-    let app = focused_app()?;
+    let app = focused_app().ok_or(None)?;
     let el = as_element(&app);
     let mut pid: i32 = 0;
     if unsafe { AXUIElementGetPid(el, &mut pid) } != AX_ERROR_SUCCESS || pid <= 0 {
-        return None;
+        return Err(None);
     }
     let running = unsafe {
         objc2_app_kit::NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
-    }?;
-    let bundle = unsafe { running.bundleIdentifier() }?.to_string();
-    if !allowed.iter().any(|a| a == &bundle) {
-        return None;
     }
+    .ok_or(None)?;
+    let bundle = unsafe { running.bundleIdentifier() }
+        .ok_or(None)?
+        .to_string();
     let name = unsafe { running.localizedName() }
         .map(|s| s.to_string())
         .unwrap_or_else(|| bundle.clone());
-    if CHROMIUM_APPS.contains(&bundle.as_str()) {
-        // Electron apps (Slack) only expose their text once asked.
+    if !accept(&bundle) {
+        return Err(Some((bundle, name)));
+    }
+    {
+        // Electron and Chromium apps only expose their text once asked;
+        // other apps ignore this.
         let attr = CFString::from_static_string("AXManualAccessibility");
         unsafe {
             AXUIElementSetAttributeValue(
@@ -379,7 +385,7 @@ pub fn front_window_text(
             );
         }
     }
-    let window = unsafe { copy_attr(el, "AXFocusedWindow") }?;
+    let window = unsafe { copy_attr(el, "AXFocusedWindow") }.ok_or(None)?;
     let title = string_attr(as_element(&window), "AXTitle").unwrap_or_default();
 
     // Walk the tree from the END: in chat apps the sidebar comes first and
@@ -418,7 +424,7 @@ pub fn front_window_text(
     }
     chunks.reverse();
     let lines: Vec<String> = chunks.into_iter().flatten().collect();
-    Some(WindowText {
+    Ok(WindowText {
         bundle,
         app: name,
         title,

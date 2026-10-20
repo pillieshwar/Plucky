@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onSlackChanged, onWatchChanged } from "../lib/api";
+import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onWatchChanged } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
 import { AgentsSection } from "./AgentsSection";
 import { WatchSection } from "./WatchSection";
 import { safeLocale } from "../lib/locale";
-import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus, SlackStatus } from "../lib/types";
+import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
 /**
  * Connectors: apps on this Mac that Plucky can work with. Each card shows
@@ -15,7 +15,6 @@ import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, Reminders
 export function ConnectorsTab() {
   const [reminders, setReminders] = useState<RemindersStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
-  const [slack, setSlack] = useState<SlackStatus | null>(null);
   const [agents, setAgents] = useState<AgentsStatus | null>(null);
   const [watch, setWatch] = useState<WatchStatus | null>(null);
   const [open, setOpen] = useState<Id | null>(null);
@@ -23,14 +22,13 @@ export function ConnectorsTab() {
   const refresh = useCallback(() => {
     api.remindersStatus().then(setReminders).catch(() => undefined);
     api.calendarStatus().then(setCalendar).catch(() => undefined);
-    api.slackStatus().then(setSlack).catch(() => undefined);
     api.agentsStatus().then(setAgents).catch(() => undefined);
     api.watchStatus().then(setWatch).catch(() => undefined);
   }, []);
 
   useEffect(() => {
     refresh();
-    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onSlackChanged(refresh), onInboxChanged(refresh), onWatchChanged(refresh)];
+    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onInboxChanged(refresh), onWatchChanged(refresh)];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [refresh]);
 
@@ -68,22 +66,10 @@ export function ConnectorsTab() {
       </ConnectorCard>
 
       <ConnectorCard
-        icon={<ChatGlyph />}
-        tone="slack"
-        name="Slack"
-        description="Find to-dos in your direct messages."
-        connected={!!slack?.connected}
-        open={open === "slack"}
-        onToggle={() => toggle("slack")}
-      >
-        <SlackSection status={slack} />
-      </ConnectorCard>
-
-      <ConnectorCard
         icon={<EyeGlyph />}
         tone="watch"
-        name="Watch Slack & Outlook"
-        description="Notice requests and deadlines in new messages, on this Mac."
+        name="Watch my screen"
+        description="Notice requests and deadlines in any app, on this Mac."
         connected={!!watch?.settings.enabled}
         connectedLabel="On"
         open={open === "watch"}
@@ -109,7 +95,7 @@ export function ConnectorsTab() {
   );
 }
 
-type Id = "reminders" | "calendar" | "slack" | "agents" | "watch";
+type Id = "reminders" | "calendar" | "agents" | "watch";
 
 function ConnectorCard({
   icon,
@@ -283,87 +269,6 @@ function CalendarSection({
   );
 }
 
-/** Settings for the Slack connector: sign in, status, disconnect. */
-function SlackSection({ status }: { status: SlackStatus | null }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  if (!status) return null;
-  if (!status.supported) return <p className="setting-line muted">Slack is available on macOS.</p>;
-
-  async function run(action: () => Promise<void>) {
-    setError(null);
-    setBusy(true);
-    try {
-      await action();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const shownError = error ?? status.error;
-
-  return (
-    <div className="connector-body-inner">
-      {status.connected || status.needs_reconnect ? (
-        <div className="card-stack">
-          <div className="setting-line">
-            <span className={status.needs_reconnect ? "dot warn" : "dot ok"} aria-hidden />
-            <span className="setting-line-text">
-              {status.needs_reconnect ? (
-                <>Slack sign-in expired for <b>{status.team}</b>. Reconnect to keep going.</>
-              ) : (
-                <>
-                  Connected to <b>{status.team}</b>
-                </>
-              )}
-            </span>
-          </div>
-          <p className="setting-line muted">
-            Turning your DMs into suggested tasks arrives in the next update. Plucky keeps the sign-in fresh until then.
-          </p>
-          <div className="setting-line">
-            <span className="setting-line-text muted">Sign-in is stored in your Mac's Keychain.</span>
-            {status.needs_reconnect && (
-              <button type="button" className="primary small" disabled={busy} onClick={() => void run(api.slackConnect)}>
-                Reconnect
-              </button>
-            )}
-            <button type="button" className="ghost small" disabled={busy} onClick={() => void run(api.slackDisconnect)}>
-              Disconnect
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="card-stack">
-          <p className="setting-line muted">
-            Plucky asks Slack to read your direct and group messages and see member names — nothing in channels, and it
-            can't post. It talks to Slack directly from this Mac; there's no Plucky server.
-          </p>
-          {status.connecting ? (
-            <div className="setting-line">
-              <span className="onboard-pulse" aria-hidden />
-              <span className="setting-line-text">Finish signing in in your browser…</span>
-              <button type="button" className="ghost small" onClick={() => void run(api.slackCancel)}>
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div className="setting-line">
-              <span className="setting-line-text muted">Opens Slack's sign-in page in your browser.</span>
-              <button type="button" className="primary small" disabled={busy} onClick={() => void run(api.slackConnect)}>
-                Sign in with Slack
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {shownError && <p className="rem-error">{shownError}</p>}
-    </div>
-  );
-}
-
 function EyeGlyph() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -378,15 +283,6 @@ function SparkGlyph() {
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
       <path d="M10 2.5 11.6 8.4 17.5 10l-5.9 1.6L10 17.5l-1.6-5.9L2.5 10l5.9-1.6Z" />
       <path d="M15.5 2.5v3M14 4h3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChatGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5Z" strokeLinejoin="round" />
-      <path d="M6 8.5h8M6 11h5" strokeLinecap="round" />
     </svg>
   );
 }

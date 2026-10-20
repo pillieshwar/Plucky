@@ -56,15 +56,32 @@ export function ModelsTab({ onChanged }: Props) {
   }
 
   const anyInstalled = models.some((m) => m.installed) || local.added.some((m) => m.available);
+  // Plucky picks the best downloaded model by itself, unless a file you
+  // added is in use.
+  const catalogInUse = models.some((m) => m.active);
+  const best = models.find((m) => m.recommended);
 
   return (
     <div className="models">
       <p className="models-intro">
         {anyInstalled
-          ? "Runs entirely on this Mac. Switch any time."
+          ? "Runs entirely on this Mac. Plucky always uses the best model you've downloaded."
           : "Plucky needs one model. It downloads once, then runs entirely on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
+      {best && !best.installed && (
+        <div className="model-best">
+          <p>
+            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). Plucky switches to it by
+            itself once it's downloaded.
+          </p>
+          {best.progress === null && (
+            <button className="primary small" onClick={() => void run(best.id, () => api.downloadModel(best.id))}>
+              {best.partial_bytes > 0 ? "Resume download" : "Download"}
+            </button>
+          )}
+        </div>
+      )}
 
       <h2 className="models-h">Download a model</h2>
       <ul className="model-list">
@@ -78,7 +95,7 @@ export function ModelsTab({ onChanged }: Props) {
                 <div>
                   <h3>
                     {m.name}
-                    {m.recommended && <span className="badge">Recommended</span>}
+                    {m.recommended && <span className="badge">Best for your Mac</span>}
                     {m.active && <span className="badge on">In use</span>}
                   </h3>
                   <p className="model-meta">
@@ -119,9 +136,9 @@ export function ModelsTab({ onChanged }: Props) {
                     Pause
                   </button>
                 )}
-                {m.installed && !m.active && (
+                {m.installed && !m.active && !catalogInUse && (
                   <button className="primary" onClick={() => void run(m.id, () => api.setActiveModel(m.id))}>
-                    Use this model
+                    Use Plucky's models
                   </button>
                 )}
                 {m.installed &&
