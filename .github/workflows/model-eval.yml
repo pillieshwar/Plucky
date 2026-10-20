@@ -27,21 +27,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Llama 3.2 3B (current)
-            repo: bartowski/Llama-3.2-3B-Instruct-GGUF
-            file: Llama-3.2-3B-Instruct-Q4_K_M.gguf
-          - name: Gemma 4 E4B
-            repo: unsloth/gemma-4-E4B-it-GGUF
-            file: gemma-4-E4B-it-Q4_K_M.gguf
-          - name: Gemma 4 E2B
-            repo: unsloth/gemma-4-E2B-it-GGUF
-            file: gemma-4-E2B-it-Q4_K_M.gguf
-          - name: Qwen3.5 4B
+          - name: Qwen3.5 4B (Q4_K_M)
             repo: bartowski/Qwen_Qwen3.5-4B-GGUF
             file: Qwen_Qwen3.5-4B-Q4_K_M.gguf
-          - name: Qwen3 4B Instruct
-            repo: unsloth/Qwen3-4B-Instruct-2507-GGUF
-            file: Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+          - name: Gemma 4 E4B (Q4_K_M)
+            repo: unsloth/gemma-4-E4B-it-GGUF
+            file: gemma-4-E4B-it-Q4_K_M.gguf
+          - name: Gemma 4 E4B (Q8_0)
+            repo: unsloth/gemma-4-E4B-it-GGUF
+            file: gemma-4-E4B-it-Q8_0.gguf
+          - name: Qwen3.5 9B (Q4_K_M)
+            repo: bartowski/Qwen_Qwen3.5-9B-GGUF
+            file: Qwen_Qwen3.5-9B-Q4_K_M.gguf
+          - name: Qwen3.5 9B (Q6_K)
+            repo: bartowski/Qwen_Qwen3.5-9B-GGUF
+            file: Qwen_Qwen3.5-9B-Q6_K.gguf
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
