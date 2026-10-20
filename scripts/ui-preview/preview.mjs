@@ -490,6 +490,18 @@ await shot("popover-add", POP, scenario({ label: "popover" }), async (p) => {
   await p.keyboard.press("n");
   await p.keyboard.type("dentist fri 3pm");
 });
+await shot("popover-add-description", POP, scenario({ label: "popover" }), async (p) => {
+  await p.keyboard.press("n");
+  await p.keyboard.type("Send the Q3 deck to Priya fri 3pm");
+  await p.getByRole("button", { name: "+ Description" }).click();
+  await p.keyboard.type("Latest numbers: https://docs.example.com/q3-deck");
+});
+await shot("panel-add-task", PANEL, scenario(), async (p) => {
+  await p.getByRole("button", { name: "Add task" }).click();
+  await p.keyboard.type("Book flights for the offsite next tue");
+  await p.getByRole("button", { name: "+ Description" }).click();
+  await p.keyboard.type("Team of 6, window seats if possible");
+});
 const focus = (f) => async (p) => {
   await p.waitForTimeout(200);
   await p.evaluate((x) => window.__emit("popover-focus", x), f);

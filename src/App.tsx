@@ -25,6 +25,8 @@ import { groupTasks } from "./lib/grouping";
 import { taskActions } from "./lib/taskActions";
 import { dueNow } from "./lib/due";
 import { DueNowCard } from "./components/DueNowCard";
+import { AddTaskForm } from "./components/AddTaskForm";
+import { relativeLabel } from "./lib/dates";
 import { matchesQuery, topTags } from "./lib/taskText";
 import type { AppSettings, CaptureResult, NewTask, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
@@ -51,6 +53,7 @@ const KEYS: [string, string][] = [
   ["⌘Z", "Undo"],
   ["S", "Snooze"],
   ["N", "Description"],
+  ["A", "Add a task"],
   ["F", "Today only (focus)"],
   ["/ or ⌘F", "Search"],
 ];
@@ -97,6 +100,8 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const today = toISODate(now);
   const { toasts, show, dismiss, undoLast } = useToasts();
+  // The add-task form at the top of the list.
+  const [adding, setAdding] = useState(false);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
   const refresh = useCallback(async () => {
@@ -265,6 +270,7 @@ export default function App() {
       else if (key === "ArrowUp" || lower === "k") move(-1);
       else if (key === "?") setShowKeys((v) => !v);
       else if (lower === "f") setFocusToday((v) => !v);
+      else if (lower === "a") setAdding(true);
       else if (!current) handled = false;
       else if (key === " " || lower === "x") void actions.setDone(current, !current.done);
       else if (key === "Enter" || lower === "e") setCommand({ id: current.id, kind: "edit", n });
@@ -477,6 +483,15 @@ export default function App() {
             <span className="focus-dot" aria-hidden />
             Today
           </button>
+          <button
+            type="button"
+            className={adding ? "add-task-btn on" : "add-task-btn"}
+            onClick={() => setAdding((a) => !a)}
+            aria-expanded={adding}
+            title="Add a task (A)"
+          >
+            <span aria-hidden>+</span> Add task
+          </button>
           </div>
           {tags.length > 0 && (
             <div className="tag-row" aria-label="Tags">
@@ -494,6 +509,23 @@ export default function App() {
       )}
 
       <main className="panel-body">
+        {tab === "tasks" && !onboarding && adding && (
+          <AddTaskForm
+            locale={LOCALE}
+            defaultDay={null}
+            placeholder="What needs doing? Try “send deck fri 3pm”"
+            onAdd={async (task) => {
+              try {
+                await api.addTask(task);
+                show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : "Task added");
+              } catch (e) {
+                setError(String(e));
+                throw e;
+              }
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        )}
         {tab === "tasks" && !onboarding && (
           <TaskList
             groups={groups}
