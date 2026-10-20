@@ -34,13 +34,13 @@ pub const CATALOG: &[CatalogModel] = &[
         name: "Qwen3.5 9B",
         publisher: "Alibaba Qwen",
         description:
-            "The biggest and smartest: best at understanding whole conversations and pages. For Macs with 16 GB or more.",
+            "The largest model: strong on long conversations and pages, but slower. For Macs with 16 GB or more.",
         license: "Apache 2.0",
         repo: "bartowski/Qwen_Qwen3.5-9B-GGUF",
         file: "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
         approx_size_mb: 6_170,
         min_ram_gb: 16,
-        rank: 1,
+        rank: 2,
     },
     // Picked by scripts/eval (watch mode): as accurate as models twice its
     // size, no false to-dos, and the fastest of the 4B class.
@@ -87,13 +87,13 @@ pub const CATALOG: &[CatalogModel] = &[
         name: "Gemma 4 E4B",
         publisher: "Google",
         description:
-            "The most accurate in our tests, a bit slower. For Macs with 16 GB or more.",
+            "The most accurate in our tests: catches the most real to-dos with almost no false ones. For Macs with 16 GB or more.",
         license: "Apache 2.0",
         repo: "unsloth/gemma-4-E4B-it-GGUF",
         file: "gemma-4-E4B-it-Q4_K_M.gguf",
         approx_size_mb: 4_980,
         min_ram_gb: 16,
-        rank: 2,
+        rank: 1,
     },
     CatalogModel {
         id: "gemma-4-e2b",
@@ -205,8 +205,8 @@ mod tests {
             assert!(find(m.id).is_some());
         }
         assert_eq!(default_model().id, "qwen3.5-4b");
-        assert_eq!(best_for(16).id, "qwen3.5-9b");
-        assert_eq!(best_for(64).id, "qwen3.5-9b");
+        assert_eq!(best_for(16).id, "gemma-4-e4b");
+        assert_eq!(best_for(64).id, "gemma-4-e4b");
         assert_eq!(best_for(4).id, "llama-3.2-1b");
     }
 

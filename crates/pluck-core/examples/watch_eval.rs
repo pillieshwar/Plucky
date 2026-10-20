@@ -37,7 +37,7 @@ async fn main() {
         eprintln!("usage: watch_eval <url> <api-key> <cases.json> <model name>");
         std::process::exit(2);
     }
-    let client = LlamaServerClient::new(&args[1], args[2].clone(), Duration::from_secs(180))
+    let client = LlamaServerClient::new(&args[1], args[2].clone(), Duration::from_secs(900))
         .expect("loopback URL");
     let cases: Vec<Case> =
         serde_json::from_slice(&std::fs::read(&args[3]).expect("read cases")).expect("parse cases");
