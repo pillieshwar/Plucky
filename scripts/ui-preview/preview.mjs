@@ -307,7 +307,8 @@ await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");
 });
 await shot("panel-date-editor", PANEL, scenario(), async (p) => {
-  await p.locator(".task-date").nth(1).click({ force: true });
+  await p.locator(".task").nth(0).hover();
+  await p.locator(".task").nth(0).locator('[aria-label="Change date, time or repeat"]').click({ force: true });
   await p.keyboard.type("fri 3pm every week");
 });
 await shot("panel-search", PANEL, scenario(), async (p) => {

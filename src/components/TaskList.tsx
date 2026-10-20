@@ -304,8 +304,9 @@ function TaskRow({
                 setPicking(false);
                 setSnoozing(false);
               }}
+              aria-label={picking ? "Close the date editor" : "Close snooze options"}
             >
-              Done
+              Close
             </button>
           </div>
         ) : (
@@ -397,7 +398,7 @@ function TaskRow({
                 setSnoozing(false);
               }}
             >
-              Done
+              Close
             </button>
           </div>
         </div>
