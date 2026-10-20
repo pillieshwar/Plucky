@@ -295,6 +295,9 @@ await shot("panel-snooze", PANEL, scenario(), async (p) => {
   await p.locator(".task").nth(2).hover();
   await p.locator(".task").nth(2).locator(".task-date").first().click({ force: true });
 });
+await shot("panel-row-tools", PANEL, scenario(), async (p) => {
+  await p.locator(".task").nth(1).hover();
+});
 await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
   await p.locator(".task").nth(3).hover();
   await p.locator(".task").nth(3).locator('[aria-label="Add a description"]').click({ force: true });

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
-import { CalendarIcon, ClockIcon, NoteIcon, RepeatIcon } from "./icons";
+import { CalendarIcon, ClockIcon, NoteIcon, RepeatIcon, TrashIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
@@ -145,6 +145,20 @@ function TaskRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
 
+  // While the date or snooze editor is open: a click anywhere outside this
+  // row closes it (nothing is lost — every choice applies as it's made).
+  useEffect(() => {
+    if (!picking && !snoozing) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setPicking(false);
+        setSnoozing(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [picking, snoozing]);
+
   function commit() {
     setEditing(false);
     const title = draft.trim();
@@ -281,69 +295,112 @@ function TaskRow({
           )}
           {meta.length > 0 && <div className="task-meta">{meta}</div>}
         </div>
-        <div className="task-tools">
-          {!task.done && (
+        {picking || snoozing ? (
+          <div className="task-tools open">
             <button
               type="button"
-              className={snoozing ? "task-date on" : "task-date"}
-              title="Snooze (S)"
-              aria-label="Snooze"
-              aria-expanded={snoozing}
-              onClick={() => setSnoozing((v) => !v)}
+              className="task-done-editing"
+              onClick={() => {
+                setPicking(false);
+                setSnoozing(false);
+              }}
             >
-              <ClockIcon />
+              Done
             </button>
-          )}
-          {!task.notes && !notesOpen && (
+          </div>
+        ) : (
+          <div className="task-tools">
+            {!task.done && (
+              <button
+                type="button"
+                className="task-date"
+                title="Snooze (S)"
+                aria-label="Snooze"
+                onClick={() => setSnoozing(true)}
+              >
+                <ClockIcon />
+              </button>
+            )}
+            {!task.notes && !notesOpen && (
+              <button
+                type="button"
+                className="task-date"
+                title="Add a description (N)"
+                aria-label="Add a description"
+                onClick={() => setNotesOpen(true)}
+              >
+                <NoteIcon />
+              </button>
+            )}
             <button
               type="button"
               className="task-date"
-              title="Add a description (N)"
-              aria-label="Add a description"
-              onClick={() => setNotesOpen(true)}
+              title="Change date (D)"
+              aria-label="Change date, time or repeat"
+              onClick={() => setPicking(true)}
             >
-              <NoteIcon />
+              <CalendarIcon />
             </button>
-          )}
-          <button
-            type="button"
-            className="task-date"
-            title="Change date (D)"
-            aria-label="Change date, time or repeat"
-            aria-expanded={picking}
-            onClick={() => setPicking((p) => !p)}
-          >
-            <CalendarIcon />
-          </button>
-          <button
-            type="button"
-            className="task-delete"
-            title="Delete (⌫)"
-            aria-label={`Delete “${task.title}”`}
-            onClick={() => void actions.remove(task)}
-          >
-            ×
-          </button>
-        </div>
+            <span className="task-tools-gap" aria-hidden />
+            <button
+              type="button"
+              className="task-delete"
+              title="Delete (⌫) — you can undo"
+              aria-label={`Delete “${task.title}”`}
+              onClick={() => void actions.remove(task)}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        )}
       </div>
-      {snoozing && !task.done && (
-        <SnoozeBar
-          onSnooze={(kind) => {
-            setSnoozing(false);
-            void actions.snooze(task, kind);
+      {(snoozing || picking) && (
+        <div
+          className="task-editing"
+          // Keys pressed in here belong to the editor — never to the list
+          // (so Backspace or X can't delete or finish the task by accident).
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setPicking(false);
+              setSnoozing(false);
+            }
           }}
-        />
-      )}
-      {picking && (
-        <DateEditor
-          date={task.due_date}
-          time={task.due_time}
-          repeat={task.recurrence}
-          now={now}
-          locale={locale}
-          onApply={applyDate}
-          onClose={() => setPicking(false)}
-        />
+        >
+          {snoozing && !task.done && (
+            <SnoozeBar
+              onSnooze={(kind) => {
+                setSnoozing(false);
+                void actions.snooze(task, kind);
+              }}
+            />
+          )}
+          {picking && (
+            <DateEditor
+              date={task.due_date}
+              time={task.due_time}
+              repeat={task.recurrence}
+              now={now}
+              locale={locale}
+              onApply={applyDate}
+              onClose={() => setPicking(false)}
+            />
+          )}
+          <div className="task-editing-foot">
+            <span>{picking ? "Changes save as you pick" : "Pick when to be reminded"}</span>
+            <button
+              type="button"
+              className="task-editing-done"
+              onClick={() => {
+                setPicking(false);
+                setSnoozing(false);
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
       )}
     </li>
   );
