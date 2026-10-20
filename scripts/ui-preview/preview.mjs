@@ -295,6 +295,9 @@ await shot("panel-snooze", PANEL, scenario(), async (p) => {
   await p.locator(".task").nth(2).hover();
   await p.locator(".task").nth(2).locator(".task-date").first().click({ force: true });
 });
+await shot("panel-row-tools", PANEL, scenario(), async (p) => {
+  await p.locator(".task").nth(1).hover();
+});
 await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
   await p.locator(".task").nth(3).hover();
   await p.locator(".task").nth(3).locator('[aria-label="Add a description"]').click({ force: true });
@@ -304,7 +307,8 @@ await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");
 });
 await shot("panel-date-editor", PANEL, scenario(), async (p) => {
-  await p.locator(".task-date").nth(1).click({ force: true });
+  await p.locator(".task").nth(0).hover();
+  await p.locator(".task").nth(0).locator('[aria-label="Change date, time or repeat"]').click({ force: true });
   await p.keyboard.type("fri 3pm every week");
 });
 await shot("panel-search", PANEL, scenario(), async (p) => {
@@ -489,6 +493,18 @@ await shot("popover-drag", POP, scenario({ label: "popover" }), async (p) => {
 await shot("popover-add", POP, scenario({ label: "popover" }), async (p) => {
   await p.keyboard.press("n");
   await p.keyboard.type("dentist fri 3pm");
+});
+await shot("popover-add-description", POP, scenario({ label: "popover" }), async (p) => {
+  await p.keyboard.press("n");
+  await p.keyboard.type("Send the Q3 deck to Priya fri 3pm");
+  await p.getByRole("button", { name: "+ Description" }).click();
+  await p.keyboard.type("Latest numbers: https://docs.example.com/q3-deck");
+});
+await shot("panel-add-task", PANEL, scenario(), async (p) => {
+  await p.getByRole("button", { name: "Add task" }).click();
+  await p.keyboard.type("Book flights for the offsite next tue");
+  await p.getByRole("button", { name: "+ Description" }).click();
+  await p.keyboard.type("Team of 6, window seats if possible");
 });
 const focus = (f) => async (p) => {
   await p.waitForTimeout(200);

@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -14,21 +13,21 @@ import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWa
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
-import { addDays, dayOrderForLocale, parseISODate, relativeLabel, toISODate } from "../lib/dates";
-import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
+import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
+import { repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
-import { sourceLabel } from "../lib/taskText";
+import { linkParts, sourceLabel } from "../lib/taskText";
 import type { CalendarEvent, InboxItem, NewTask, Task, UpdateStatus, WatchStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
 import { dueChip, dueNow, type DueChip } from "../lib/due";
 import { FocusCard, type Focus } from "./FocusCard";
+import { AddTaskForm } from "../components/AddTaskForm";
 import { holidaysByDay } from "../lib/holidays";
 
 const LOCALE = safeLocale();
-const ORDER = dayOrderForLocale(LOCALE);
 
 interface Drag {
   task: Task;
@@ -54,7 +53,6 @@ export default function Popover() {
   const [view, setView] = useState(() => ({ year: now.getFullYear(), month: now.getMonth() }));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [shortcut, setShortcut] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +62,6 @@ export default function Popover() {
   const pressed = useRef<{ task: Task; x: number; y: number } | null>(null);
   const dragged = useRef(false);
   const dragRef = useRef<Drag | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { toasts, show, dismiss, undoLast } = useToasts();
   // A selection captured with the shortcut (or Add to Plucky), reviewed
@@ -106,7 +103,6 @@ export default function Popover() {
     setView({ year: n.getFullYear(), month: n.getMonth() });
     setExpanded(false);
     setAdding(false);
-    setDraft("");
     setShowDone(false);
     setFocus(null);
     setOpenKey((k) => k + 1);
@@ -189,10 +185,6 @@ export default function Popover() {
     }
   }
 
-  useEffect(() => {
-    if (adding) inputRef.current?.focus();
-  }, [adding]);
-
   // Keyboard shortcuts work as soon as the popover opens.
   useEffect(() => {
     rootRef.current?.focus();
@@ -264,27 +256,16 @@ export default function Popover() {
     await actions.setDone(t, done);
   }
 
-  // Typed dates win ("dentist fri 3pm"); otherwise the selected day.
-  const typed = useMemo(() => (draft.trim() ? findSchedule(draft, now, ORDER) : null), [draft, now]);
-
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    const title = (typed?.title || draft).trim();
-    if (!title) return;
-    const day = typed?.date ?? selected;
+  async function add(task: NewTask) {
     try {
-      await api.addTask({
-        title,
-        due_date: day,
-        due_time: typed?.date ? typed.time : null,
-        recurrence: typed?.repeat ?? null,
-        source_text: null,
-      });
-      setDraft("");
+      await api.addTask(task);
       setAdding(false);
-      if (day !== selected) show(`Added for ${relativeLabel(day, new Date(), LOCALE).toLowerCase()}`);
+      if (task.due_date !== selected && task.due_date) {
+        show(`Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`);
+      }
     } catch (err) {
       setError(String(err));
+      throw err;
     }
   }
 
@@ -580,30 +561,17 @@ export default function Popover() {
         )}
 
         {adding && (
-          <form className="pop-add" onSubmit={add}>
-            <input
-              ref={inputRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={`New task for ${heading.lead ?? heading.date.split(",")[0]}…`}
-              maxLength={200}
-              aria-label="New task title"
-            />
-            <button type="submit" disabled={!draft.trim()}>
-              Add
-            </button>
-          </form>
-        )}
-        {adding && typed?.date && (
-          <p className="pop-typed">
-            {[
-              relativeLabel(typed.date, now, LOCALE),
-              typed.time && timeLabel(typed.time, LOCALE),
-              typed.repeat && repeatLabel(typed.repeat)?.toLowerCase(),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          <AddTaskForm
+            compact
+            locale={LOCALE}
+            defaultDay={selected}
+            placeholder={`New task for ${heading.lead ?? heading.date.split(",")[0]}…`}
+            onAdd={add}
+            onCancel={() => {
+              setAdding(false);
+              rootRef.current?.focus();
+            }}
+          />
         )}
         {agenda.overdue.length > 1 && selected === today && (
           <button type="button" className="pop-move" onClick={() => void actions.moveAll(agenda.overdue, today)}>
@@ -632,7 +600,7 @@ export default function Popover() {
               key={t.id}
               task={t}
               chip={dueChip(t, new Date(), LOCALE)}
-              meta={rowMeta(t).join(" · ") || snippet(t.notes) || snippet(t.source_text)}
+              meta={rowMeta(t).join(" · ") || (t.notes ? null : snippet(t.source_text))}
               tone={dueChip(t, new Date(), LOCALE)?.tone === "overdue" ? "late" : "due"}
               onToggle={toggleDone}
               onOpen={openTask}
@@ -777,21 +745,50 @@ function Row({
           <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      <button
-        type="button"
-        className="pop-body"
-        onClick={() => onOpen(task)}
-        title="Open in Plucky · drag onto a day to move it"
-      >
-        <span className="pop-title">{task.title}</span>
-        {(chip || meta) && (
-          <span className="pop-meta">
-            {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
-            {meta && <span className="pop-meta-text">{meta}</span>}
-          </span>
-        )}
-      </button>
+      <div className="pop-main">
+        <button
+          type="button"
+          className="pop-body"
+          onClick={() => onOpen(task)}
+          title="Open in Plucky · drag onto a day to move it"
+        >
+          <span className="pop-title">{task.title}</span>
+          {(chip || meta) && (
+            <span className="pop-meta">
+              {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
+              {meta && <span className="pop-meta-text">{meta}</span>}
+            </span>
+          )}
+        </button>
+        {task.notes?.trim() && !task.done && <RowNotes text={task.notes} />}
+      </div>
     </li>
+  );
+}
+
+/** A task's description under its title; links open in the browser. */
+function RowNotes({ text }: { text: string }) {
+  return (
+    <p className="pop-notes" title={text}>
+      {linkParts(text.trim()).map((p, i) =>
+        p.url ? (
+          <a
+            key={i}
+            href={p.url}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void api.openUrl(p.url!).then(() => api.hidePopover()).catch(() => undefined);
+            }}
+          >
+            {p.url.replace(/^(https?:\/\/(www\.)?|mailto:)/i, "").replace(/\/$/, "")}
+          </a>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </p>
   );
 }
 

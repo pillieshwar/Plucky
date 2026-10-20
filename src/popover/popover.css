@@ -331,3 +331,12 @@ html[data-view="popover"] body {
 .pop-dots { display: flex; gap: 3px; height: 4px; align-items: center; }
 .pop-dot.holiday { background: var(--holiday); }
 .pop-day.on .pop-dot.holiday { background: var(--holiday); box-shadow: 0 0 0 1px var(--pop-bg); }
+
+/* Descriptions in the list */
+.pop-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pop-notes {
+  margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--muted); white-space: pre-line;
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pop-notes a { color: var(--teal); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.pop-notes a:hover { color: var(--ink); }

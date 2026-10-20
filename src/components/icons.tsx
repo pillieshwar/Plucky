@@ -44,3 +44,12 @@ export function NoteIcon() {
     </svg>
   );
 }
+
+export function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 4.5 4.7 13a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4.5M6.8 7v4.2M9.2 7v4.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
