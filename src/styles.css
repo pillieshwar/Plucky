@@ -962,7 +962,7 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 
 .add-task-btn {
   display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 5px 10px; border-radius: 999px;
-  border: 1px solid var(--teal); background: var(--teal); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--teal); background: var(--teal); color: var(--accent-ink); font-size: 12px; font-weight: 600; cursor: pointer;
 }
 .add-task-btn:hover { filter: brightness(1.06); }
 .add-task-btn.on { background: transparent; color: var(--teal); }
