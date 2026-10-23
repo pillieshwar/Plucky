@@ -265,17 +265,28 @@ function mockTauri(s) {
 
 const browser = await chromium.launch();
 
+const failed = [];
 async function shot(name, size, s, steps = async () => {}, dark = false) {
   const page = await browser.newPage({ viewport: size, deviceScaleFactor: 2 });
-  await page.emulateMedia({ colorScheme: dark ? "dark" : "light", reducedMotion: "reduce" });
-  await page.addInitScript(mockTauri, { ...s, shortcuts: SHORTCUTS });
-  await page.goto(`${base}/?view=${s.label}`);
-  await page.waitForTimeout(400);
-  await steps(page);
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `${out}/${name}.png` });
-  await page.close();
-  console.log("saved", name);
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  try {
+    await page.emulateMedia({ colorScheme: dark ? "dark" : "light", reducedMotion: "reduce" });
+    await page.addInitScript(mockTauri, { ...s, shortcuts: SHORTCUTS });
+    await page.goto(`${base}/?view=${s.label}`);
+    await page.waitForTimeout(400);
+    await steps(page);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${out}/${name}.png` });
+    console.log("saved", name);
+  } catch (e) {
+    const msg = `${name}: ${String(e).split("\n")[0]}${errors.length ? ` | page: ${errors[0]}` : ""}`;
+    failed.push(msg);
+    console.log(`::error::${msg.replace(/[\r\n]+/g, " ")}`);
+    await page.screenshot({ path: `${out}/${name}-FAILED.png` }).catch(() => {});
+  } finally {
+    await page.close();
+  }
 }
 
 const PANEL = { width: 360, height: 720 };
@@ -681,3 +692,8 @@ await shot("quick-typed-dark", QUICK, scenario({ label: "quick" }), async (p) =>
 }, true);
 
 await browser.close();
+
+if (failed.length) {
+  console.log(`::error::${failed.length} preview(s) failed`);
+  process.exitCode = 1;
+}

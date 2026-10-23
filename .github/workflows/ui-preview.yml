@@ -44,6 +44,8 @@ jobs:
           sleep 3
           TZ=America/Los_Angeles node scripts/ui-preview/preview.mjs http://localhost:4173 shots
       - name: Push to ui-previews
+        # Also when a shot failed: its "-FAILED" image shows what went wrong.
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
