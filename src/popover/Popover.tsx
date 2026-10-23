@@ -478,7 +478,7 @@ export default function Popover() {
               c.iso === today ? "today" : "",
               c.iso === selected ? "on" : "",
               c.iso < today ? "past" : "",
-              drag?.over === c.iso ? "drop" : "",
+              drag?.over?.iso === c.iso && drag.over.hour === undefined ? "drop" : "",
             ]
               .filter(Boolean)
               .join(" ");
