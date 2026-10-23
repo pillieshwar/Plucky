@@ -1,0 +1,30 @@
+name: Refresh Cargo.lock (temporary)
+on:
+  push:
+    branches: ["lockfiles/**"]
+permissions: {}
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: cargo update -p clipboard-win
+      - run: |
+          for c in clipboard-win; do
+            v=$(grep -A1 "^name = \"$c\"$" Cargo.lock | sed -n 's/version = "\(.*\)"/\1/p' | tr '\n' ' ')
+            echo "::notice::$c $v"
+          done
+      - name: Commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "Cargo.lock: clipboard-win (yanked version replaced)"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" "HEAD:${GITHUB_REF_NAME}"
