@@ -25,9 +25,9 @@ export function effectiveDay(t: Task, today: string): string | null {
 export function tasksForList(tasks: Task[], list: ListId, today: string): Task[] {
   const project = projectOf(list);
   if (project !== null) return tasks.filter((t) => t.project === project);
-  if (list === "someday") return tasks.filter((t) => !t.done && t.someday);
-  // Someday tasks stay out of the way everywhere else.
-  const active = tasks.filter((t) => !t.someday || t.done);
+  if (list === "someday") return tasks.filter((t) => !t.done && (t.someday || t.paused));
+  // Someday and paused tasks stay out of the way everywhere else.
+  const active = tasks.filter((t) => (!t.someday && !t.paused) || t.done);
   if (list === "today") {
     return active.filter((t) => {
       const d = effectiveDay(t, today);

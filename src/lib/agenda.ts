@@ -29,7 +29,7 @@ export interface DayMark {
 export function dayMarks(tasks: Task[], today: string): Map<string, DayMark> {
   const marks = new Map<string, DayMark>();
   for (const t of tasks) {
-    if (t.done || !t.due_date) continue;
+    if (t.done || !t.due_date || t.paused) continue;
     const m = marks.get(t.due_date) ?? { open: 0, overdue: false };
     m.open += 1;
     m.overdue = t.due_date < today;
@@ -51,7 +51,7 @@ const byCreated = (a: Task, b: Task) => a.created_at.localeCompare(b.created_at)
 
 export function agendaFor(tasks: Task[], selected: string, today: string): Agenda {
   // A deadline that has come pulls a later-planned task to today.
-  const day = (t: Task) => effectiveDay(t, today);
+  const day = (t: Task) => (t.paused ? null : effectiveDay(t, today));
   const overdue =
     selected === today
       ? tasks

@@ -48,6 +48,9 @@ interface Props {
   onOpenProject: (name: string) => void;
   /** Shown when there are no groups (instead of the general empty state). */
   emptyNote?: ReactNode;
+  /** Selected for batch actions (⌘-click / Shift-click). */
+  selected: Set<number>;
+  onSelect: (id: number, mode: "toggle" | "range") => void;
 }
 
 export function TaskList(props: Props) {
@@ -129,6 +132,8 @@ function TaskRow({
   projects,
   inProject,
   onOpenProject,
+  selected,
+  onSelect,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
@@ -210,7 +215,8 @@ function TaskRow({
   }
 
   function applyDate(patch: TaskPatch) {
-    const dayOnly = Object.keys(patch).length === 1 && "due_date" in patch;
+    const keys = Object.keys(patch).filter((k) => k !== "only_this");
+    const dayOnly = keys.length === 1 && "due_date" in patch;
     if (dayOnly) void actions.reschedule(task, patch);
     else void actions.update(task, patch);
   }
@@ -233,6 +239,13 @@ function TaskRow({
       <span key="dl" className={`due-chip deadline ${dl.tone}`} title={`Deadline: ${task.deadline}`}>
         <FlagIcon />
         {dl.label}
+      </span>,
+    );
+  }
+  if (task.paused && !task.done) {
+    meta.push(
+      <span key="paused" className="meta-paused" title="Paused: no reminders until you resume it (date menu)">
+        ❚❚ Paused
       </span>,
     );
   }
@@ -296,10 +309,26 @@ function TaskRow({
         highlighted ? "flash" : "",
         focused ? "focused" : "",
         completing ? "completing" : "",
+        selected.has(task.id) ? "selected" : "",
       ]
         .filter(Boolean)
         .join(" ")}
+      aria-selected={selected.size ? selected.has(task.id) : undefined}
       onMouseDown={() => onFocus(task.id)}
+      // ⌘-click toggles a task in the selection, Shift-click selects a range.
+      onMouseDownCapture={(e) => {
+        if (!(e.metaKey || e.ctrlKey || e.shiftKey) || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onFocus(task.id);
+        onSelect(task.id, e.shiftKey ? "range" : "toggle");
+      }}
+      onClickCapture={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
     >
       <div className="task-row" title={task.source_text ?? undefined}>
         <button
@@ -476,6 +505,9 @@ function TaskRow({
               evening={task.evening}
               someday={task.someday}
               deadline={task.deadline}
+              paused={task.paused}
+              onSkip={task.recurrence ? () => void actions.skip(task) : undefined}
+              onPause={task.recurrence ? (p) => void actions.pause(task, p) : undefined}
               now={now}
               locale={locale}
               onApply={applyDate}

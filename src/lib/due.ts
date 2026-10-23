@@ -81,7 +81,7 @@ export function dueChip(t: Task, now: Date, locale?: string): DueChip | null {
 export function dueNow(tasks: Task[], now: Date): Task[] {
   const stale = 12 * 60 * 60 * 1000;
   return tasks.filter((t) => {
-    if (t.done || !t.notified_at) return false;
+    if (t.done || t.paused || !t.notified_at) return false;
     const notified = parseLocal(t.notified_at);
     if (!notified || now.getTime() - notified.getTime() > stale) return false;
     const snooze = t.snoozed_until ? parseLocal(t.snoozed_until) : null;

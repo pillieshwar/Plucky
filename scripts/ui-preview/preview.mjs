@@ -379,6 +379,19 @@ await shot("panel-when-editor", PANEL, rich(), async (p) => {
   await row.locator('[aria-label="Change date, time or repeat"]').click({ force: true });
 });
 await shot("popover-rich", POP, rich({ label: "popover" }));
+await shot("panel-multi-select", PANEL, rich(), async (p) => {
+  await p.locator(".task").nth(1).click({ modifiers: ["Meta"] });
+  await p.locator(".task").nth(2).click({ modifiers: ["Meta"] });
+  await p.locator(".task").nth(3).click({ modifiers: ["Meta"] });
+});
+await shot("panel-repeat-editor", PANEL, rich(), async (p) => {
+  const row = p.locator(".task", { hasText: "Water the plants" }).first();
+  await row.scrollIntoViewIfNeeded();
+  await row.hover();
+  await row.locator('[aria-label="Change date, time or repeat"]').click({ force: true });
+  await row.locator(".de-series").scrollIntoViewIfNeeded();
+});
+
 const PLAN_EVENTS = [
   { id: "e1", title: "Standup", start: `${day(0)}T09:30:00`, end: `${day(0)}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
   { id: "e2", title: "Design review", start: `${day(0)}T13:00:00`, end: `${day(0)}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },

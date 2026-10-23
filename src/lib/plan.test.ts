@@ -113,6 +113,12 @@ describe("dropPatch", () => {
     expect(dropPatch(task("Idea", null), { iso: TODAY, hour: 9 })).toEqual({ due_date: TODAY, due_time: "09:00" });
   });
 
+  it("moves just one day of a repeating task", () => {
+    const r = task("Standup", TODAY, { due_time: "09:00", recurrence: "daily" });
+    expect(dropPatch(r, { iso: "2026-10-24" })).toEqual({ due_date: "2026-10-24", only_this: true });
+    expect(dropPatch(r, { iso: TODAY, hour: 10 })).toEqual({ due_time: "10:00" });
+  });
+
   it("is a no-op when nothing changes", () => {
     expect(dropPatch(t, { iso: TODAY, hour: 12 })).toBeNull();
     expect(dropPatch(task("Loose", TODAY), { iso: TODAY, hour: null })).toBeNull();
