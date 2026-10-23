@@ -59,6 +59,8 @@ pub fn due_at(task: &Task, all_day: Option<NaiveTime>) -> Option<NaiveDateTime> 
     let day = NaiveDate::parse_from_str(task.due_date.as_deref()?, "%Y-%m-%d").ok()?;
     let time = match task.due_time.as_deref() {
         Some(t) => parse_time(t)?,
+        // "This Evening" tasks without a time: not before 6 PM.
+        None if task.evening => all_day?.max(NaiveTime::from_hms_opt(18, 0, 0)?),
         None => all_day?,
     };
     Some(day.and_time(time))
@@ -66,7 +68,8 @@ pub fn due_at(task: &Task, all_day: Option<NaiveTime>) -> Option<NaiveDateTime> 
 
 /// When this task should next notify, taking a snooze into account.
 pub fn fire_at(task: &Task, all_day: Option<NaiveTime>) -> Option<NaiveDateTime> {
-    if task.done {
+    // Paused repeats stay quiet until resumed.
+    if task.done || task.paused {
         return None;
     }
     if let Some(s) = task.snoozed_until.as_deref().and_then(parse_local) {
@@ -183,6 +186,7 @@ mod tests {
             notified_at: None,
             next_id: None,
             notes: None,
+            ..Default::default()
         }
     }
 

@@ -2,18 +2,21 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
 import { CalendarIcon, ClockIcon, NoteIcon, RepeatIcon, TrashIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
+import { Checklist, stepsLabel } from "./Checklist";
+import { FlagIcon, FolderIcon, MoonIcon, ProjectPicker, StepsIcon, type ProjectInfo } from "./ProjectPicker";
+import { deadlineChip } from "../lib/lists";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
 import type { DayGroup } from "../lib/grouping";
 import { repeatLabel, repeatShort } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import { linkParts, sourceLabel, titleParts } from "../lib/taskText";
-import type { Task, TaskPatch } from "../lib/types";
+import type { ChecklistItem, Task, TaskPatch } from "../lib/types";
 
 /** A keyboard command for one row (from the panel's shortcuts). */
 export interface RowCommand {
   id: number;
-  kind: "edit" | "date" | "snooze" | "notes";
+  kind: "edit" | "date" | "snooze" | "notes" | "steps" | "project";
   /** Changes every time, so repeating the same command re-triggers it. */
   n: number;
 }
@@ -38,10 +41,18 @@ interface Props {
   /** Today-only focus is on. */
   focusToday: boolean;
   today: string;
+  /** Projects to move tasks into. */
+  projects: ProjectInfo[];
+  /** The project being viewed (its name isn't repeated on each row). */
+  inProject: string | null;
+  onOpenProject: (name: string) => void;
+  /** Shown when there are no groups (instead of the general empty state). */
+  emptyNote?: ReactNode;
 }
 
 export function TaskList(props: Props) {
-  const { groups, shortcut, quickShortcut, filtered, focusToday, actions, today } = props;
+  const { groups, shortcut, quickShortcut, filtered, focusToday, actions, today, emptyNote } = props;
+  if (!groups.length && emptyNote) return <div className="empty">{emptyNote}</div>;
   if (!groups.length && focusToday && !filtered) {
     return (
       <div className="empty">
@@ -115,6 +126,9 @@ function TaskRow({
   onFocus,
   command,
   onTag,
+  projects,
+  inProject,
+  onOpenProject,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
@@ -125,6 +139,16 @@ function TaskRow({
   const [notesOpen, setNotesOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [draft, setDraft] = useState(task.title);
+  const [moving, setMoving] = useState(false);
+  // Steps: shown when opened; edited optimistically so quick ticks don't race.
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
+  const stepsKey = JSON.stringify(task.checklist ?? []);
+  useEffect(() => setSteps(task.checklist ?? []), [stepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  function saveSteps(next: ChecklistItem[]) {
+    setSteps(next);
+    void actions.update(task, { checklist: next });
+  }
 
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -141,6 +165,8 @@ function TaskRow({
     if (command.kind === "date") setPicking((p) => !p);
     if (command.kind === "snooze" && !task.done) setSnoozing((v) => !v);
     if (command.kind === "notes") setNotesOpen(true);
+    if (command.kind === "steps") setStepsOpen((v) => !v);
+    if (command.kind === "project" && !task.done) setMoving((v) => !v);
     // Only react to new commands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
@@ -148,16 +174,22 @@ function TaskRow({
   // While the date or snooze editor is open: a click anywhere outside this
   // row closes it (nothing is lost — every choice applies as it's made).
   useEffect(() => {
-    if (!picking && !snoozing) return;
+    if (!picking && !snoozing && !moving) return;
     const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setPicking(false);
         setSnoozing(false);
+        setMoving(false);
       }
     };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [picking, snoozing]);
+  }, [picking, snoozing, moving]);
+  const closeEditors = () => {
+    setPicking(false);
+    setSnoozing(false);
+    setMoving(false);
+  };
 
   function commit() {
     setEditing(false);
@@ -195,6 +227,44 @@ function TaskRow({
       </span>,
     );
   }
+  const dl = deadlineChip(task, now, locale);
+  if (dl) {
+    meta.push(
+      <span key="dl" className={`due-chip deadline ${dl.tone}`} title={`Deadline: ${task.deadline}`}>
+        <FlagIcon />
+        {dl.label}
+      </span>,
+    );
+  }
+  if (task.evening && !task.done) {
+    meta.push(
+      <span key="eve" className="meta-evening" title="Planned for the evening">
+        <MoonIcon /> Evening
+      </span>,
+    );
+  }
+  if (steps.length > 0) {
+    meta.push(
+      <button
+        key="steps"
+        type="button"
+        className={stepsOpen ? "meta-steps on" : "meta-steps"}
+        onClick={() => setStepsOpen((v) => !v)}
+        aria-expanded={stepsOpen}
+        title={stepsOpen ? "Hide steps (C)" : "Show steps (C)"}
+      >
+        <StepsIcon /> {stepsLabel(steps)}
+      </button>,
+    );
+  }
+  if (task.project && task.project !== inProject) {
+    meta.push(
+      <button key="proj" type="button" className="meta-project" onClick={() => onOpenProject(task.project!)} title={`Open ${task.project}`}>
+        <FolderIcon /> {task.project}
+        {task.heading ? ` · ${task.heading}` : ""}
+      </button>,
+    );
+  }
   if (repeat) {
     meta.push(
       <span key="r" className="meta-repeat" title={repeat}>
@@ -222,7 +292,7 @@ function TaskRow({
       className={[
         "task",
         task.done ? "done" : "",
-        picking || snoozing ? "picking" : "",
+        picking || snoozing || moving ? "picking" : "",
         highlighted ? "flash" : "",
         focused ? "focused" : "",
         completing ? "completing" : "",
@@ -294,17 +364,17 @@ function TaskRow({
             task.notes && <Notes text={task.notes} onEdit={() => setNotesOpen(true)} onError={actions.fail} />
           )}
           {meta.length > 0 && <div className="task-meta">{meta}</div>}
+          {stepsOpen && (
+            <Checklist items={steps} onChange={saveSteps} autoFocusAdd={steps.length === 0} readOnly={task.done} />
+          )}
         </div>
-        {picking || snoozing ? (
+        {picking || snoozing || moving ? (
           <div className="task-tools open">
             <button
               type="button"
               className="task-done-editing"
-              onClick={() => {
-                setPicking(false);
-                setSnoozing(false);
-              }}
-              aria-label={picking ? "Close the date editor" : "Close snooze options"}
+              onClick={closeEditors}
+              aria-label={picking ? "Close the date editor" : moving ? "Close project options" : "Close snooze options"}
             >
               Close
             </button>
@@ -320,6 +390,28 @@ function TaskRow({
                 onClick={() => setSnoozing(true)}
               >
                 <ClockIcon />
+              </button>
+            )}
+            {steps.length === 0 && !stepsOpen && !task.done && (
+              <button
+                type="button"
+                className="task-date"
+                title="Add steps (C)"
+                aria-label="Add a checklist"
+                onClick={() => setStepsOpen(true)}
+              >
+                <StepsIcon />
+              </button>
+            )}
+            {!task.done && (
+              <button
+                type="button"
+                className="task-date"
+                title="Move to a project (P)"
+                aria-label="Move to a project"
+                onClick={() => setMoving(true)}
+              >
+                <FolderIcon />
               </button>
             )}
             {!task.notes && !notesOpen && (
@@ -355,7 +447,7 @@ function TaskRow({
           </div>
         )}
       </div>
-      {(snoozing || picking) && (
+      {(snoozing || picking || moving) && (
         <div
           className="task-editing"
           // Keys pressed in here belong to the editor — never to the list
@@ -364,8 +456,7 @@ function TaskRow({
             e.stopPropagation();
             if (e.key === "Escape") {
               e.preventDefault();
-              setPicking(false);
-              setSnoozing(false);
+              closeEditors();
             }
           }}
         >
@@ -382,22 +473,29 @@ function TaskRow({
               date={task.due_date}
               time={task.due_time}
               repeat={task.recurrence}
+              evening={task.evening}
+              someday={task.someday}
+              deadline={task.deadline}
               now={now}
               locale={locale}
               onApply={applyDate}
               onClose={() => setPicking(false)}
             />
           )}
-          <div className="task-editing-foot">
-            <span>{picking ? "Changes save as you pick" : "Pick when to be reminded"}</span>
-            <button
-              type="button"
-              className="task-editing-done"
-              onClick={() => {
-                setPicking(false);
-                setSnoozing(false);
+          {moving && (
+            <ProjectPicker
+              projects={projects}
+              project={task.project}
+              heading={task.heading}
+              onPick={(project, heading) => {
+                void actions.update(task, { project, heading });
+                setMoving(false);
               }}
-            >
+            />
+          )}
+          <div className="task-editing-foot">
+            <span>{picking || moving ? "Changes save as you pick" : "Pick when to be reminded"}</span>
+            <button type="button" className="task-editing-done" onClick={closeEditors}>
               Close
             </button>
           </div>

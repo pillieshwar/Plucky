@@ -22,6 +22,14 @@ const task = (title: string, due: string | null, extra: Partial<Task> = {}): Tas
   notified_at: null,
   next_id: null,
   notes: null,
+  deadline: null,
+  evening: false,
+  someday: false,
+  project: null,
+  heading: null,
+  checklist: [],
+  series_date: null,
+  paused: false,
   ...extra,
 });
 

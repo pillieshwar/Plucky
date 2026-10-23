@@ -34,4 +34,7 @@ pub use extraction::{DateConfidence, Extraction, ExtractionError};
 pub use llm::{
     extract_task, find_actions, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig,
 };
-pub use store::{NewTask, ReminderLink, Store, StoreError, Task, TaskPatch, UpdateEffects};
+pub use store::{
+    ChecklistItem, NewTask, ProjectSummary, ReminderLink, Store, StoreError, Task, TaskPatch,
+    UpdateEffects,
+};

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { dayOrderForLocale, relativeLabel } from "../lib/dates";
 import { findSchedule, repeatLabel, timeLabel } from "../lib/schedule";
+import { isDeadlinePhrase, linesToSteps } from "../lib/lists";
 import type { NewTask } from "../lib/types";
 
 /**
@@ -14,6 +15,8 @@ export function AddTaskForm({
   defaultDay,
   placeholder,
   compact,
+  extra,
+  context,
   onAdd,
   onCancel,
 }: {
@@ -23,6 +26,10 @@ export function AddTaskForm({
   placeholder: string;
   /** Smaller, for the dropdown. */
   compact?: boolean;
+  /** Set on every task added here (e.g. the project being viewed). */
+  extra?: Partial<NewTask>;
+  /** Where it goes, shown under the field ("In Offsite · Travel"). */
+  context?: string;
   /** Save the task. */
   onAdd: (task: NewTask) => Promise<void>;
   onCancel: () => void;
@@ -30,6 +37,8 @@ export function AddTaskForm({
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
+  const [stepsText, setStepsText] = useState("");
+  const [showSteps, setShowSteps] = useState(false);
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
@@ -52,16 +61,22 @@ export function AddTaskForm({
     setBusy(true);
     try {
       await onAdd({
-        title: clean,
         due_date: typed?.date ?? defaultDay,
-        due_time: typed?.date ? typed.time : null,
+        ...extra,
+        title: clean,
+        ...(typed?.date ? { due_date: typed.date, due_time: typed.time, someday: false } : {}),
+        // "by Friday": Friday is the deadline too.
+        deadline: typed?.date && isDeadlinePhrase(typed.matched) ? typed.date : (extra?.deadline ?? null),
         recurrence: typed?.repeat ?? null,
         source_text: null,
         notes: notes.trim() || null,
+        checklist: linesToSteps(stepsText).map((text) => ({ text, done: false })),
       });
       setTitle("");
       setNotes("");
       setShowNotes(false);
+      setStepsText("");
+      setShowSteps(false);
       titleRef.current?.focus();
     } catch {
       // The caller showed the error; keep what was typed.
@@ -86,12 +101,15 @@ export function AddTaskForm({
         relativeLabel(typed.date, now, locale),
         typed.time && timeLabel(typed.time, locale),
         typed.repeat && repeatLabel(typed.repeat)?.toLowerCase(),
+        isDeadlinePhrase(typed.matched) && "deadline",
       ]
         .filter(Boolean)
         .join(" · ")
     : defaultDay
       ? relativeLabel(defaultDay, now, locale)
-      : "No date — type one, like “fri 3pm”";
+      : extra?.someday
+        ? "Someday"
+        : "No date — type one, like “fri 3pm”";
 
   return (
     <form className={compact ? "add-task compact" : "add-task"} onSubmit={(e) => void submit(e)} onKeyDown={onKey}>
@@ -119,11 +137,30 @@ export function AddTaskForm({
           aria-label="Description"
         />
       ) : null}
+      {showSteps && (
+        <textarea
+          value={stepsText}
+          autoFocus
+          onChange={(e) => setStepsText(e.target.value)}
+          placeholder={"Steps, one per line\n- or paste a list"}
+          rows={compact ? 2 : 3}
+          maxLength={4000}
+          aria-label="Checklist steps"
+        />
+      )}
       <div className="add-task-foot">
-        <span className={typed?.date ? "add-task-when on" : "add-task-when"}>{when}</span>
+        <span className={typed?.date ? "add-task-when on" : "add-task-when"}>
+          {when}
+          {context && <span className="add-task-context"> · {context}</span>}
+        </span>
         {!showNotes && (
           <button type="button" className="add-task-link" onClick={() => setShowNotes(true)}>
             + Description
+          </button>
+        )}
+        {!showSteps && (
+          <button type="button" className="add-task-link" onClick={() => setShowSteps(true)}>
+            + Steps
           </button>
         )}
         <button type="button" className="add-task-link quiet" onClick={onCancel}>

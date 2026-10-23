@@ -101,6 +101,52 @@ pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
     Ok(t)
 }
 
+/// Completed tasks, newest first, a page at a time.
+#[tauri::command]
+fn logbook(
+    state: State<'_, AppState>,
+    before: Option<String>,
+    limit: Option<u32>,
+) -> CmdResult<Vec<Task>> {
+    state
+        .store
+        .lock()
+        .map_err(err)?
+        .logbook(before.as_deref(), limit.unwrap_or(100))
+        .map_err(err)
+}
+
+#[tauri::command]
+fn list_projects(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::ProjectSummary>> {
+    state.store.lock().map_err(err)?.projects().map_err(err)
+}
+
+#[tauri::command]
+fn rename_project(app: AppHandle, from: String, to: String) -> CmdResult<usize> {
+    let n = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.rename_project(&from, &to).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(n)
+}
+
+/// Skip one occurrence of a repeating task.
+#[tauri::command]
+fn skip_occurrence(app: AppHandle, id: i64) -> CmdResult<Task> {
+    let task = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.skip(id).map_err(err)?
+    };
+    notifications::clear_task(id);
+    let _ = app.emit("tasks-changed", ());
+    tray::refresh(&app);
+    nudge_reminders(&app);
+    Ok(task)
+}
+
 #[tauri::command]
 fn update_task(app: AppHandle, id: i64, patch: TaskPatch) -> CmdResult<Task> {
     apply_patch(&app, id, patch)
@@ -257,6 +303,12 @@ fn restore_task(app: AppHandle, state: State<'_, AppState>, task: Task) -> CmdRe
                 source_url: task.source_url.clone(),
                 notes: task.notes.clone(),
                 created_tz: task.created_tz.clone(),
+                deadline: task.deadline.clone(),
+                evening: task.evening,
+                someday: task.someday,
+                project: task.project.clone(),
+                heading: task.heading.clone(),
+                checklist: task.checklist.clone(),
             })
             .map_err(err)?;
         if task.done {
@@ -1269,6 +1321,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             extract,
             list_tasks,
+            logbook,
+            list_projects,
+            skip_occurrence,
+            rename_project,
             add_task,
             update_task,
             delete_task,
@@ -1384,6 +1440,7 @@ mod tests {
             notified_at: None,
             next_id: None,
             notes: None,
+            ..Default::default()
         }
     }
 

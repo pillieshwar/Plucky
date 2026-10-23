@@ -44,6 +44,14 @@ const task = (title, extra = {}) => ({
   notified_at: null,
   next_id: null,
   notes: null,
+  deadline: null,
+  evening: false,
+  someday: false,
+  project: null,
+  heading: null,
+  checklist: [],
+  series_date: null,
+  paused: false,
   ...extra,
 });
 
@@ -236,6 +244,18 @@ function mockTauri(s) {
     list_backups: () => s.backups,
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
     update_task: (a) => ({ ...s.tasks.find((t) => t.id === a.id), ...a.patch }),
+    logbook: () => s.logbook ?? [],
+    list_projects: () => {
+      const m = new Map();
+      for (const t of [...s.tasks, ...(s.logbook ?? [])]) {
+        if (!t.project) continue;
+        const p = m.get(t.project) ?? { name: t.project, open: 0, done: 0 };
+        if (t.done) p.done += 1;
+        else p.open += 1;
+        m.set(t.project, p);
+      }
+      return [...m.values()];
+    },
   };
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label: s.label }, currentWebview: { label: s.label, windowLabel: s.label } },
@@ -299,6 +319,66 @@ await shot("panel-focus-keys", PANEL, scenario(), async (p) => {
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("ArrowDown");
 });
+const doneAt = (daysAgo, h) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  d.setHours(h, 15, 0, 0);
+  return d.toISOString();
+};
+const RICH_TASKS = [
+  ...TASKS,
+  task("Pack for the offsite", {
+    due_date: day(1),
+    deadline: day(2),
+    project: "Offsite 2026",
+    heading: "Travel",
+    checklist: [
+      { text: "Charger and adapters", done: true },
+      { text: "Passport", done: false },
+      { text: "Printed agenda", done: false },
+    ],
+  }),
+  task("Book flights", { due_date: day(4), deadline: day(0), project: "Offsite 2026", heading: "Travel" }),
+  task("Draft the welcome talk", { project: "Offsite 2026", heading: "Program" }),
+  task("Call mom", { due_date: day(0), evening: true }),
+  task("Learn to make sourdough", { someday: true }),
+  task("Plan a trip to Japan", { someday: true }),
+];
+const LOGBOOK = [
+  task("Send the Q2 report", { done: true, completed_at: doneAt(0, 9), project: "Offsite 2026" }),
+  task("Renew car registration", { done: true, completed_at: doneAt(1, 16) }),
+  task("Order team t-shirts", { done: true, completed_at: doneAt(1, 11), project: "Offsite 2026" }),
+  task("Fix the leaking tap", { done: true, completed_at: doneAt(3, 18) }),
+];
+const rich = (o = {}) => scenario({ tasks: RICH_TASKS, logbook: LOGBOOK, ...o });
+const pickList = (name) => async (p) => {
+  await p.locator(".list-picker .focus-toggle").click();
+  await p.locator(".lp-menu").getByRole("menuitemradio", { name }).click();
+  await p.waitForTimeout(200);
+};
+await shot("panel-rich", PANEL, rich());
+await shot("panel-lists-menu", PANEL, rich(), async (p) => {
+  await p.locator(".list-picker .focus-toggle").click();
+});
+await shot("panel-project", PANEL, rich(), pickList(/Offsite 2026/));
+await shot("panel-project-dark", PANEL, rich(), pickList(/Offsite 2026/), true);
+await shot("panel-someday", PANEL, rich(), pickList(/Someday/));
+await shot("panel-logbook", PANEL, rich(), pickList(/Logbook/));
+await shot("panel-steps-open", PANEL, rich(), async (p) => {
+  await pickList(/Offsite 2026/)(p);
+  await p.locator(".meta-steps").first().click();
+});
+await shot("panel-project-picker", PANEL, rich(), async (p) => {
+  const row = p.locator(".task").nth(1);
+  await row.hover();
+  await row.locator('[aria-label="Move to a project"]').click({ force: true });
+});
+await shot("panel-when-editor", PANEL, rich(), async (p) => {
+  const row = p.locator(".task").nth(1);
+  await row.hover();
+  await row.locator('[aria-label="Change date, time or repeat"]').click({ force: true });
+});
+await shot("popover-rich", POP, rich({ label: "popover" }));
 const PLAN_EVENTS = [
   { id: "e1", title: "Standup", start: `${day(0)}T09:30:00`, end: `${day(0)}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
   { id: "e2", title: "Design review", start: `${day(0)}T13:00:00`, end: `${day(0)}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
