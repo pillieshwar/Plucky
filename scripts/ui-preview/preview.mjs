@@ -299,7 +299,7 @@ await shot("panel-focus-keys", PANEL, scenario(), async (p) => {
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("ArrowDown");
 });
-const EVENTS = [
+const PLAN_EVENTS = [
   { id: "e1", title: "Standup", start: `${day(0)}T09:30:00`, end: `${day(0)}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
   { id: "e2", title: "Design review", start: `${day(0)}T13:00:00`, end: `${day(0)}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
   { id: "e3", title: "Halloween", start: `${day(2)}T00:00:00`, end: `${day(3)}T00:00:00`, all_day: true, calendar: "US Holidays", color: "#ef4444" },
@@ -310,7 +310,7 @@ const PLAN_TASKS = [
   task("Gym", { due_date: day(0), due_time: "18:30" }),
   task("Draft the offsite agenda", { due_date: day(0), due_time: "10:00" }),
 ];
-const planScenario = (o = {}) => scenario({ tasks: PLAN_TASKS, events: EVENTS, ...o });
+const planScenario = (o = {}) => scenario({ tasks: PLAN_TASKS, events: PLAN_EVENTS, ...o });
 const week = async (p) => {
   await p.getByRole("radio", { name: "Week" }).click();
   await p.waitForTimeout(250);
