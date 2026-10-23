@@ -32,12 +32,14 @@ export function ProjectHeader({
     <div className="project-head">
       <div className="ph-title">
         <Pie done={stats?.done ?? 0} total={total} size={18} />
-        <h2 title={name}>{name}</h2>
-        {stats && (
-          <span className="ph-count">
-            {stats.open} open · {stats.done} done
-          </span>
-        )}
+        <div className="ph-text">
+          <h2 title={name}>{name}</h2>
+          {stats && (
+            <span className="ph-count">
+              {stats.open} open · {stats.done} done
+            </span>
+          )}
+        </div>
       </div>
       {mode ? (
         <input
