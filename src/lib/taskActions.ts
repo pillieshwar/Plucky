@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { addDays, relativeLabel, toISODate } from "./dates";
 import { formatLocal } from "./due";
+import { timeLabel } from "./schedule";
 import type { Task, TaskPatch } from "./types";
 import type { Toast } from "../components/Toasts";
 
@@ -56,8 +57,12 @@ export function taskActions(show: Show, locale: string) {
     };
     try {
       const t = await api.updateTask(task.id, patch);
-      const where = t.due_date ? `Moved to ${relativeLabel(t.due_date, new Date(), locale).toLowerCase()}` : "Date removed";
-      const text = patch.due_date !== undefined && patch.due_date !== task.due_date ? where : "Updated";
+      const dayMoved = patch.due_date !== undefined && patch.due_date !== task.due_date;
+      const timeMoved = patch.due_time !== undefined && patch.due_time !== task.due_time;
+      const parts: string[] = [];
+      if (dayMoved && t.due_date) parts.push(relativeLabel(t.due_date, new Date(), locale).toLowerCase());
+      if (timeMoved) parts.push(t.due_time ? timeLabel(t.due_time, locale) : "any time");
+      const text = !t.due_date ? "Date removed" : parts.length ? `Moved to ${parts.join(", ")}` : "Updated";
       show(`${text} · “${short(task.title)}”`, {
         label: "Undo",
         run: () => api.updateTask(task.id, before).then(() => undefined, fail),

@@ -288,6 +288,64 @@ await shot("panel-focus-keys", PANEL, scenario(), async (p) => {
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("ArrowDown");
 });
+const EVENTS = [
+  { id: "e1", title: "Standup", start: `${day(0)}T09:30:00`, end: `${day(0)}T09:45:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+  { id: "e2", title: "Design review", start: `${day(0)}T13:00:00`, end: `${day(0)}T14:00:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+  { id: "e3", title: "Halloween", start: `${day(2)}T00:00:00`, end: `${day(3)}T00:00:00`, all_day: true, calendar: "US Holidays", color: "#ef4444" },
+];
+const PLAN_TASKS = [
+  ...TASKS,
+  task("Wrap up the launch notes #work", { due_date: day(0), due_time: "12:00" }),
+  task("Gym", { due_date: day(0), due_time: "18:30" }),
+  task("Draft the offsite agenda", { due_date: day(0), due_time: "10:00" }),
+];
+const planScenario = (o = {}) => scenario({ tasks: PLAN_TASKS, events: EVENTS, ...o });
+const week = async (p) => {
+  await p.getByRole("radio", { name: "Week" }).click();
+  await p.waitForTimeout(250);
+};
+await shot("panel-week", PANEL, planScenario(), week);
+await shot("panel-week-dark", PANEL, planScenario(), week, true);
+await shot("panel-week-add-at-hour", PANEL, planScenario(), async (p) => {
+  await week(p);
+  const slot = p.locator('.plan-slot[data-hour="11"]');
+  await slot.scrollIntoViewIfNeeded();
+  await slot.hover();
+  await slot.locator(".plan-add").click();
+  await p.keyboard.type("Prep questions for the 1:1");
+});
+const dragTo = (from, to) => async (p) => {
+  const a = p.locator(from).first();
+  const b = p.locator(to).first();
+  await b.scrollIntoViewIfNeeded();
+  const ra = await a.boundingBox();
+  const rb = await b.boundingBox();
+  await p.mouse.move(ra.x + 30, ra.y + ra.height / 2);
+  await p.mouse.down();
+  for (let i = 1; i <= 8; i++) {
+    await p.mouse.move(ra.x + 30 + ((rb.x + 60 - ra.x - 30) * i) / 8, ra.y + ra.height / 2 + ((rb.y + rb.height / 2 - ra.y - ra.height / 2) * i) / 8);
+  }
+  await p.waitForTimeout(150);
+};
+await shot("panel-week-drag-hour", PANEL, planScenario(), async (p) => {
+  await week(p);
+  await dragTo(".plan-any .plan-task", '.plan-slot[data-hour="15"] .plan-cell')(p);
+});
+await shot("panel-week-drag-day", PANEL, planScenario(), async (p) => {
+  await week(p);
+  await dragTo(".plan-any .plan-task", `.wk-day[data-iso="${day(1)}"]`)(p);
+});
+await shot("popover-hours", POP, planScenario({ label: "popover" }), async (p) => {
+  await p.getByRole("radio", { name: "Hours" }).click();
+});
+await shot("popover-hours-dark", POP, planScenario({ label: "popover" }), async (p) => {
+  await p.getByRole("radio", { name: "Hours" }).click();
+}, true);
+await shot("popover-hours-drag", POP, planScenario({ label: "popover" }), async (p) => {
+  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.waitForTimeout(200);
+  await dragTo(".plan-any .plan-task", '.plan-slot[data-hour="16"] .plan-cell')(p);
+});
 await shot("panel-focus-today", PANEL, scenario(), async (p) => {
   await p.keyboard.press("f");
 });
