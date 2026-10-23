@@ -340,3 +340,8 @@ html[data-view="popover"] body {
 }
 .pop-notes a { color: var(--teal); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .pop-notes a:hover { color: var(--ink); }
+
+/* ── Day as List · Hours ── */
+.pop-ah-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.pop-ah-row .pop-ah { margin: 0 0 0 4px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pop-ah-row .view-switch button { padding: 2px 9px; font-size: 11px; }

@@ -9,6 +9,9 @@ import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskList } from "./components/TaskList";
 import { Toasts, useToasts } from "./components/Toasts";
 import { SearchIcon } from "./components/icons";
+import { ViewSwitch } from "./components/ViewSwitch";
+import { WeekView } from "./components/WeekView";
+import { weekStartForLocale } from "./lib/calendar";
 import {
   api,
   onCapture,
@@ -20,13 +23,14 @@ import {
   onUpdateStatus,
 } from "./lib/api";
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
-import { addDays, toISODate } from "./lib/dates";
+import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import { taskActions } from "./lib/taskActions";
 import { dueNow } from "./lib/due";
 import { DueNowCard } from "./components/DueNowCard";
 import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
+import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
 import type { AppSettings, CaptureResult, NewTask, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
@@ -42,6 +46,15 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
+type View = "list" | "week";
+function savedView(): View {
+  try {
+    return localStorage.getItem("pluck.view") === "week" ? "week" : "list";
+  } catch {
+    return "list";
+  }
+}
+
 const KEYS: [string, string][] = [
   ["↑ ↓", "Move between tasks"],
   ["Space", "Complete"],
@@ -55,6 +68,8 @@ const KEYS: [string, string][] = [
   ["N", "Description"],
   ["A", "Add a task"],
   ["F", "Today only (focus)"],
+  ["V", "List or week view"],
+  ["← →", "Day before / after (week view)"],
   ["/ or ⌘F", "Search"],
 ];
 
@@ -95,6 +110,17 @@ export default function App() {
       // Storage unavailable: the toggle still works for this session.
     }
   }, [focusToday]);
+  // Tasks as a list, or the week in hour blocks. Remembered per Mac.
+  const [view, setView] = useState<View>(savedView);
+  useEffect(() => {
+    try {
+      localStorage.setItem("pluck.view", view);
+    } catch {
+      // Storage unavailable: the choice lasts this session.
+    }
+  }, [view]);
+  const [planDay, setPlanDay] = useState(() => toISODate(new Date()));
+  const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -196,6 +222,7 @@ export default function App() {
       onShortcutsChanged(setShortcuts),
       onHighlightTask((id) => {
         setTab("tasks");
+        setView("list");
         setQuery("");
         setHighlight(id);
         setFocusId(id);
@@ -223,8 +250,8 @@ export default function App() {
   const tags = useMemo(() => topTags(tasks), [tasks]);
 
   // Keyboard: Esc, undo, search and list navigation.
-  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys });
-  keyState.current = { flat, focusId, capture, tab, query, showKeys };
+  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, view });
+  keyState.current = { flat, focusId, capture, tab, query, showKeys, view };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = keyState.current;
@@ -245,6 +272,20 @@ export default function App() {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
+        return;
+      }
+      if (s.view === "week" && !typingIn(e.target) && !mod && !e.altKey && !s.capture) {
+        // The week has no list to move through; its own few keys.
+        const k = e.key.toLowerCase();
+        let used = true;
+        if (k === "v") setView("list");
+        else if (k === "a") setAdding(true);
+        else if (e.key === "?") setShowKeys((v) => !v);
+        else if (k === "t") setPlanDay(toISODate(new Date()));
+        else if (e.key === "ArrowLeft") setPlanDay((d) => toISODate(addDays(parseISODate(d), -1)));
+        else if (e.key === "ArrowRight") setPlanDay((d) => toISODate(addDays(parseISODate(d), 1)));
+        else used = false;
+        if (used) e.preventDefault();
         return;
       }
       if (typingIn(e.target) || mod || e.altKey || s.capture) {
@@ -271,6 +312,7 @@ export default function App() {
       else if (key === "?") setShowKeys((v) => !v);
       else if (lower === "f") setFocusToday((v) => !v);
       else if (lower === "a") setAdding(true);
+      else if (lower === "v") setView("week");
       else if (!current) handled = false;
       else if (key === " " || lower === "x") void actions.setDone(current, !current.done);
       else if (key === "Enter" || lower === "e") setCommand({ id: current.id, kind: "edit", n });
@@ -375,7 +417,7 @@ export default function App() {
           <h1 data-tauri-drag-region>{TABS.find((t) => t.id === tab)?.label}</h1>
           <p className="sub" data-tauri-drag-region>
             {tab === "tasks"
-              ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
+              ? `${now.toLocaleDateString(LOCALE, { weekday: "short", month: "short", day: "numeric" })} · ${open} open`
               : tab === "connectors"
                 ? "Work with apps on this Mac"
                 : tab === "models"
@@ -385,6 +427,20 @@ export default function App() {
                 : `Plucky ${status?.version ?? ""}`}
           </p>
         </div>
+        {tab === "tasks" && !onboarding && (
+          <ViewSwitch
+            value={view}
+            options={[
+              ["list", "List"],
+              ["week", "Week"],
+            ]}
+            onChange={(v) => {
+              setView(v);
+              setAdding(false);
+            }}
+            label="Show tasks as (V)"
+          />
+        )}
         {controls}
       </header>
 
@@ -438,7 +494,7 @@ export default function App() {
         />
       )}
 
-      {tab === "tasks" && !onboarding && !capture && (
+      {tab === "tasks" && !onboarding && !capture && view === "list" && (
         <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
       )}
 
@@ -452,7 +508,7 @@ export default function App() {
         />
       )}
 
-      {tab === "tasks" && !onboarding && tasks.length > 0 && (
+      {tab === "tasks" && !onboarding && view === "list" && tasks.length > 0 && (
         <div className="search">
           <div className="search-line">
           <label className="search-box">
@@ -508,8 +564,44 @@ export default function App() {
         </div>
       )}
 
-      <main className="panel-body">
-        {tab === "tasks" && !onboarding && adding && (
+      <main className={tab === "tasks" && !onboarding && view === "week" ? "panel-body week" : "panel-body"}>
+        {tab === "tasks" && !onboarding && view === "week" && (
+          <WeekView
+            tasks={tasks}
+            day={planDay}
+            onDay={setPlanDay}
+            now={now}
+            locale={LOCALE}
+            weekStart={weekStart}
+            actions={actions}
+            adding={adding}
+            onAdding={setAdding}
+            onAdd={async (task) => {
+              try {
+                await api.addTask(task);
+                show(
+                  task.due_time && task.due_date === planDay
+                    ? `Added at ${timeLabel(task.due_time, LOCALE)}`
+                    : task.due_date
+                      ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
+                      : "Task added",
+                );
+              } catch (e) {
+                setError(String(e));
+                throw e;
+              }
+            }}
+            onOpen={(t) => {
+              setView("list");
+              setAdding(false);
+              setQuery("");
+              if (focusToday && !(t.due_date && t.due_date <= today)) setFocusToday(false);
+              setHighlight(t.id);
+              setFocusId(t.id);
+            }}
+          />
+        )}
+        {tab === "tasks" && !onboarding && view === "list" && adding && (
           <AddTaskForm
             locale={LOCALE}
             defaultDay={null}
@@ -526,7 +618,7 @@ export default function App() {
             onCancel={() => setAdding(false)}
           />
         )}
-        {tab === "tasks" && !onboarding && (
+        {tab === "tasks" && !onboarding && view === "list" && (
           <TaskList
             groups={groups}
             actions={actions}

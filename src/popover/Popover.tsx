@@ -8,6 +8,11 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { DayPlan } from "../components/DayPlan";
+import { DragGhost } from "../components/DragGhost";
+import { ViewSwitch } from "../components/ViewSwitch";
+import { dropPatch } from "../lib/plan";
+import { useTaskDrag } from "../lib/useTaskDrag";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
 import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { processCapture } from "../lib/capture";
@@ -29,12 +34,14 @@ import { holidaysByDay } from "../lib/holidays";
 
 const LOCALE = safeLocale();
 
-interface Drag {
-  task: Task;
-  x: number;
-  y: number;
-  /** Day under the pointer. */
-  over: string | null;
+type Mode = "list" | "hours";
+
+function savedMode(): Mode {
+  try {
+    return localStorage.getItem("pluck.popMode") === "hours" ? "hours" : "list";
+  } catch {
+    return "list";
+  }
 }
 
 /**
@@ -58,10 +65,8 @@ export default function Popover() {
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState(0);
   const [update, setUpdate] = useState<UpdateStatus>({ state: "idle" });
-  const [drag, setDrag] = useState<Drag | null>(null);
-  const pressed = useRef<{ task: Task; x: number; y: number } | null>(null);
-  const dragged = useRef(false);
-  const dragRef = useRef<Drag | null>(null);
+  // The selected day as a list, or in hour blocks. Remembered.
+  const [mode, setMode] = useState<Mode>(savedMode);
   const rootRef = useRef<HTMLDivElement>(null);
   const { toasts, show, dismiss, undoLast } = useToasts();
   // A selection captured with the shortcut (or Add to Plucky), reviewed
@@ -74,12 +79,26 @@ export default function Popover() {
   // All events in the visible weeks, for the holiday dots.
   const [rangeEvents, setRangeEvents] = useState<CalendarEvent[]>([]);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
+  // Drag a task onto a day (keeps its time) or, in hours, onto a block.
+  const taskDrag = useTaskDrag((task, to) => {
+    const patch = dropPatch(task, to);
+    if (patch) void actions.reschedule(task, patch);
+  });
+  const drag = taskDrag.drag;
   // Opened by Plucky itself: a task's time came, or the undated check-in.
   const [focus, setFocus] = useState<Focus | null>(null);
   // Tasks AI agents sent, waiting for review.
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   // Watch mode, for the eye in the header (pause / resume).
   const [watch, setWatch] = useState<WatchStatus | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("pluck.popMode", mode);
+    } catch {
+      // Storage unavailable: the choice lasts this session.
+    }
+  }, [mode]);
 
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const labels = useMemo(() => weekdayLabels(LOCALE, weekStart), [weekStart]);
@@ -269,48 +288,9 @@ export default function Popover() {
     }
   }
 
-  // ── Drag a task onto a day to reschedule it ──
-  function onRowPointerDown(e: ReactPointerEvent, task: Task) {
-    if (e.button !== 0 || task.done) return;
-    if ((e.target as HTMLElement).closest(".pop-check")) return;
-    pressed.current = { task, x: e.clientX, y: e.clientY };
-    dragged.current = false;
-  }
-
-  useEffect(() => {
-    const move = (e: PointerEvent) => {
-      const p = pressed.current;
-      if (!p) return;
-      if (!dragged.current && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6) return;
-      dragged.current = true;
-      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-      const over = el?.closest<HTMLElement>("[data-iso]")?.dataset.iso ?? null;
-      dragRef.current = { task: p.task, x: e.clientX, y: e.clientY, over };
-      setDrag(dragRef.current);
-    };
-    const up = () => {
-      const d = dragRef.current;
-      pressed.current = null;
-      dragRef.current = null;
-      setDrag(null);
-      if (d?.over && d.over !== d.task.due_date) void actions.reschedule(d.task, { due_date: d.over });
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-    };
-  }, [actions]);
-
   function openTask(task: Task) {
     // A drag ends with a click on the row; don't treat it as one.
-    if (dragged.current) {
-      dragged.current = false;
-      return;
-    }
+    if (taskDrag.wasDrag()) return;
     void api.openMain(task.id, "tasks");
   }
 
@@ -366,6 +346,9 @@ export default function Popover() {
     } else if (e.key === "t") {
       e.preventDefault();
       select(today);
+    } else if (e.key === "h") {
+      e.preventDefault();
+      setMode((m) => (m === "hours" ? "list" : "hours"));
     }
   }
 
@@ -495,7 +478,7 @@ export default function Popover() {
               c.iso === today ? "today" : "",
               c.iso === selected ? "on" : "",
               c.iso < today ? "past" : "",
-              drag?.over === c.iso ? "drop" : "",
+              drag?.over?.iso === c.iso && drag.over.hour === undefined ? "drop" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -537,12 +520,23 @@ export default function Popover() {
         </button>
       </div>
 
-      <section className="pop-agenda" aria-label="Agenda">
-        <h2 className="pop-ah">
-          {heading.lead && <span className="lead">{heading.lead}</span>}
-          {heading.lead && <span className="sep"> · </span>}
-          <span>{heading.date}</span>
-        </h2>
+      <section className={mode === "hours" ? "pop-agenda hours" : "pop-agenda"} aria-label="Agenda">
+        <div className="pop-ah-row">
+          <h2 className="pop-ah">
+            {heading.lead && <span className="lead">{heading.lead}</span>}
+            {heading.lead && <span className="sep"> · </span>}
+            <span>{heading.date}</span>
+          </h2>
+          <ViewSwitch
+            value={mode}
+            options={[
+              ["list", "List"],
+              ["hours", "Hours"],
+            ]}
+            onChange={setMode}
+            label="Show the day as (H)"
+          />
+        </div>
 
         {inbox.length > 0 && (
           <button type="button" className="pop-inbox" onClick={() => setFocus({ kind: "inbox" })}>
@@ -554,9 +548,9 @@ export default function Popover() {
           </button>
         )}
 
-        {events.length > 0 && <EventList events={events} day={selected} now={now} />}
+        {mode === "list" && events.length > 0 && <EventList events={events} day={selected} now={now} />}
 
-        {selected === today && (
+        {selected === today && mode === "list" && (
           <DueNowCard tasks={dueNow(tasks, new Date())} actions={actions} now={new Date()} locale={LOCALE} compact />
         )}
 
@@ -573,7 +567,23 @@ export default function Popover() {
             }}
           />
         )}
-        {agenda.overdue.length > 1 && selected === today && (
+        {mode === "hours" && (
+          <DayPlan
+            compact
+            tasks={tasks}
+            day={selected}
+            today={today}
+            now={new Date()}
+            locale={LOCALE}
+            events={events}
+            actions={actions}
+            drag={taskDrag}
+            onAdd={add}
+            onOpen={openTask}
+          />
+        )}
+
+        {mode === "list" && agenda.overdue.length > 1 && selected === today && (
           <button type="button" className="pop-move" onClick={() => void actions.moveAll(agenda.overdue, today)}>
             Move {agenda.overdue.length} overdue to today
           </button>
@@ -581,6 +591,7 @@ export default function Popover() {
 
         {error && <p className="pop-error">{error}</p>}
 
+        {mode === "list" && (
         <ul className="pop-list">
           {agenda.overdue.map((t) => (
             <Row
@@ -591,7 +602,7 @@ export default function Popover() {
               tone="late"
               onToggle={toggleDone}
               onOpen={openTask}
-              onPointerDown={onRowPointerDown}
+              onPointerDown={taskDrag.start}
               dragging={drag?.task.id === t.id}
             />
           ))}
@@ -604,13 +615,14 @@ export default function Popover() {
               tone={dueChip(t, new Date(), LOCALE)?.tone === "overdue" ? "late" : "due"}
               onToggle={toggleDone}
               onOpen={openTask}
-              onPointerDown={onRowPointerDown}
+              onPointerDown={taskDrag.start}
               dragging={drag?.task.id === t.id}
             />
           ))}
         </ul>
+        )}
 
-        {empty && !adding && (
+        {mode === "list" && empty && !adding && (
           <div className="pop-empty">
             <p className="big">{selected === today ? "You're all clear today." : "Nothing due this day."}</p>
             <p>
@@ -627,7 +639,7 @@ export default function Popover() {
           </div>
         )}
 
-        {agenda.done.length > 0 && (
+        {mode === "list" && agenda.done.length > 0 && (
           <div className="pop-done">
             <button type="button" className="pop-done-toggle" onClick={() => setShowDone((s) => !s)}>
               {showDone ? "Hide" : "Show"} completed · {agenda.done.length}
@@ -653,7 +665,11 @@ export default function Popover() {
         )}
         {shortcut && (
           <span className="pop-hint">
-            {agenda.due.length + agenda.overdue.length > 0 ? "Drag a task onto a day to move it" : <><kbd>{shortcut}</kbd> capture</>}
+            {mode === "hours"
+              ? "Drag tasks between hours or onto a day"
+              : agenda.due.length + agenda.overdue.length > 0
+                ? "Drag a task onto a day to move it"
+                : <><kbd>{shortcut}</kbd> capture</>}
           </span>
         )}
       </footer>
@@ -672,16 +688,7 @@ export default function Popover() {
         </div>
       )}
       <Toasts toasts={toasts} onDismiss={dismiss} />
-      {drag && (
-        <div
-          className="pop-ghost"
-          style={{ left: Math.max(8, Math.min(drag.x - 40, window.innerWidth - 236)), top: drag.y + 14 }}
-          aria-hidden
-        >
-          {drag.task.title}
-          {drag.over && <span> → {relativeLabel(drag.over, now, LOCALE)}</span>}
-        </div>
-      )}
+      {drag && <DragGhost drag={drag} now={now} locale={LOCALE} />}
     </div>
   );
 }
@@ -737,6 +744,7 @@ function Row({
       <button
         type="button"
         className="pop-check"
+        data-nodrag
         onClick={() => onToggle(task)}
         aria-label={task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`}
         aria-pressed={task.done}
@@ -869,3 +877,4 @@ function EventList({ events, day, now }: { events: CalendarEvent[]; day: string;
     </ul>
   );
 }
+
