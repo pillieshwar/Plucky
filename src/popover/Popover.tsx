@@ -520,7 +520,7 @@ export default function Popover() {
         </button>
       </div>
 
-      <section className="pop-agenda" aria-label="Agenda">
+      <section className={mode === "hours" ? "pop-agenda hours" : "pop-agenda"} aria-label="Agenda">
         <div className="pop-ah-row">
           <h2 className="pop-ah">
             {heading.lead && <span className="lead">{heading.lead}</span>}
@@ -550,7 +550,7 @@ export default function Popover() {
 
         {mode === "list" && events.length > 0 && <EventList events={events} day={selected} now={now} />}
 
-        {selected === today && (
+        {selected === today && mode === "list" && (
           <DueNowCard tasks={dueNow(tasks, new Date())} actions={actions} now={new Date()} locale={LOCALE} compact />
         )}
 

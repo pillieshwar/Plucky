@@ -128,7 +128,7 @@ export function WeekView({ tasks, day, onDay, now, locale, weekStart, actions, a
       <div className="week-day-head">
         <h2>
           {heading.lead && <span className="lead">{heading.lead} · </span>}
-          {heading.date}
+          {parseISODate(day).toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" })}
         </h2>
         {day !== today && (
           <button type="button" className="week-today" onClick={() => onDay(today)}>

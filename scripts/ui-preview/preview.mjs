@@ -334,7 +334,8 @@ const dragTo = (from, to) => async (p) => {
   await p.mouse.move(ra.x + 30, ra.y + ra.height / 2);
   await p.mouse.down();
   for (let i = 1; i <= 8; i++) {
-    await p.mouse.move(ra.x + 30 + ((rb.x + 60 - ra.x - 30) * i) / 8, ra.y + ra.height / 2 + ((rb.y + rb.height / 2 - ra.y - ra.height / 2) * i) / 8);
+    const tx = rb.width < 120 ? rb.x + rb.width / 2 : rb.x + 60;
+    await p.mouse.move(ra.x + 30 + ((tx - ra.x - 30) * i) / 8, ra.y + ra.height / 2 + ((rb.y + rb.height / 2 - ra.y - ra.height / 2) * i) / 8);
   }
   await p.waitForTimeout(150);
 };

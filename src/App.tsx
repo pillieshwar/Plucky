@@ -417,7 +417,7 @@ export default function App() {
           <h1 data-tauri-drag-region>{TABS.find((t) => t.id === tab)?.label}</h1>
           <p className="sub" data-tauri-drag-region>
             {tab === "tasks"
-              ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "long", day: "numeric" })} · ${open} open`
+              ? `${now.toLocaleDateString(LOCALE, { weekday: "short", month: "short", day: "numeric" })} · ${open} open`
               : tab === "connectors"
                 ? "Work with apps on this Mac"
                 : tab === "models"
@@ -494,7 +494,7 @@ export default function App() {
         />
       )}
 
-      {tab === "tasks" && !onboarding && !capture && (
+      {tab === "tasks" && !onboarding && !capture && view === "list" && (
         <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
       )}
 

@@ -108,7 +108,7 @@ html[data-view="panel"] body {
 .panel-head:active { cursor: grabbing; }
 .head-text { flex: 1; min-width: 0; }
 .panel-head h1 { font: 650 26px/1 var(--sans); letter-spacing: -0.02em; margin: 0 0 6px; }
-.sub { margin: 0; font-size: 12px; color: var(--muted); }
+.sub { margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .win-controls { display: flex; gap: 2px; flex: none; }
 .icon {
   display: grid; place-items: center; width: 26px; height: 26px; border: 0; background: transparent;
@@ -1083,8 +1083,11 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .plan-add:hover { background: var(--teal); color: #fff; }
 .week-view.dragging .plan-add, .pop.dragging .plan-add { display: none; }
 .plan-now {
-  position: absolute; left: 44px; right: 0; height: 0; border-top: 2px solid var(--accent); pointer-events: none; z-index: 2;
+  position: absolute; left: 44px; right: 0; height: 0; border-top: 2px solid var(--accent); pointer-events: none; z-index: 0;
 }
+/* Tasks and events sit above the now line, so it never runs through text. */
+.plan-cell > * { position: relative; z-index: 1; }
+.plan-cell > .plan-add { position: absolute; z-index: 2; }
 .plan-now::before {
   content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
 }
@@ -1129,8 +1132,10 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 }
 .plan-any .plan-input { width: 100%; }
 
-/* The same plan, smaller, in the dropdown */
-.plan.compact .plan-hours { flex: none; max-height: 252px; }
+/* The same plan, smaller, in the dropdown: the hours fill what's left of it. */
+.pop-agenda.hours { display: flex; flex-direction: column; }
+.pop-agenda.hours > * { flex: none; }
+.pop-agenda.hours > .plan { flex: 1 1 auto; min-height: 200px; }
 .plan.compact .plan-slot { min-height: 34px; grid-template-columns: 40px 1fr; }
 .plan.compact .plan-now { left: 40px; }
 .plan.compact .plan-task { padding: 3px 7px 3px 4px; }
