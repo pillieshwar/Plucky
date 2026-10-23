@@ -1140,3 +1140,109 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .plan.compact .plan-now { left: 40px; }
 .plan.compact .plan-task { padding: 3px 7px 3px 4px; }
 .plan.compact .plan-any { max-height: 120px; }
+
+/* ── Steps, deadlines, evening, projects, lists, Logbook ── */
+.due-chip.deadline svg { margin-right: 1px; }
+.meta-evening { display: inline-flex; align-items: center; gap: 3px; color: #6d5bd0; font-weight: 600; }
+:root[data-theme="dark"] .meta-evening { color: #a99bf0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .meta-evening { color: #a99bf0; } }
+.meta-steps, .meta-project {
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0;
+  font: inherit; color: var(--muted); cursor: pointer;
+}
+.meta-steps:hover, .meta-steps.on, .meta-project:hover { color: var(--teal); }
+.meta-project { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.checklist { margin: 4px 0 2px; }
+.checklist ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.step { display: flex; align-items: center; gap: 7px; min-height: 22px; padding: 1px 2px; border-radius: 5px; }
+.step:hover { background: color-mix(in srgb, var(--line) 40%, transparent); }
+.step-check {
+  display: grid; place-items: center; flex: none; width: 14px; height: 14px; padding: 0; border-radius: 4px;
+  border: 1.5px solid var(--faint); background: transparent; color: transparent; cursor: pointer;
+}
+.step-check:hover { border-color: var(--teal); color: var(--teal); }
+.step.done .step-check { background: var(--teal); border-color: var(--teal); color: #fff; }
+.step-text { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); cursor: text; overflow-wrap: anywhere; }
+.step.done .step-text { color: var(--faint); text-decoration: line-through; }
+.step-remove {
+  border: 0; background: transparent; color: var(--faint); font-size: 14px; line-height: 1; padding: 0 3px; cursor: pointer; opacity: 0;
+}
+.step:hover .step-remove, .step-remove:focus-visible { opacity: 1; }
+.step-remove:hover { color: var(--accent); }
+.step-edit, .step-add {
+  flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; outline: none;
+  font-size: 12.5px; color: var(--ink); padding: 2px 0; user-select: text;
+}
+.step-add { width: 100%; margin-top: 3px; padding-left: 21px; }
+.step-edit:focus, .step-add:focus { border-bottom-color: var(--teal); }
+
+.project-picker { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.pp-chips, .pp-headings { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.pp-label { font-size: 11px; color: var(--faint); margin-right: 2px; }
+.pp-chip {
+  display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; max-width: 100%;
+}
+.pp-chip.small { padding: 2px 8px; font-size: 11.5px; }
+.pp-chip:hover { border-color: var(--teal); color: var(--teal); }
+.pp-chip.on { background: var(--teal); border-color: var(--teal); color: var(--accent-ink); }
+.pp-chip.in { border-color: var(--teal); color: var(--teal); }
+.pp-chip.new { border-style: dashed; color: var(--muted); }
+.pp-chip.clear { border-color: transparent; color: var(--faint); }
+.pp-input {
+  border: 1px solid var(--teal); border-radius: 999px; padding: 3px 10px; font-size: 12px; outline: none;
+  background: var(--panel); color: var(--ink); width: 150px; user-select: text;
+}
+
+.list-picker { position: relative; flex: none; display: flex; }
+.list-picker .focus-toggle { max-width: 132px; }
+.lp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-caret { font-size: 9px; opacity: 0.7; }
+.lp-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: 220px; max-height: 360px; overflow-y: auto;
+  padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); animation: rise 120ms ease-out;
+}
+.lp-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; color: var(--ink);
+  padding: 6px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; text-align: left;
+}
+.lp-item:hover { background: color-mix(in srgb, var(--line) 55%, transparent); }
+.lp-item.on { background: var(--teal-soft); color: var(--teal); font-weight: 600; }
+.lp-icon { width: 14px; text-align: center; color: var(--faint); font-size: 12px; }
+.lp-item.on .lp-icon { color: var(--teal); }
+.lp-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.lp-sep { margin: 6px 8px 3px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.lp-empty { margin: 2px 8px 6px; font-size: 11.5px; color: var(--faint); }
+.pie { flex: none; color: var(--teal); }
+
+.project-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px 4px 18px; }
+.ph-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ph-title h2 { margin: 0; font-size: 16px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-count { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.ph-actions { display: flex; gap: 4px; flex: none; }
+.ph-btn {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; padding: 3px 9px; cursor: pointer;
+}
+.ph-btn:hover { border-color: var(--teal); color: var(--teal); }
+.ph-btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+.ph-input {
+  flex: 1; min-width: 0; max-width: 180px; border: 1px solid var(--teal); border-radius: 8px; padding: 4px 8px;
+  font-size: 12.5px; outline: none; background: var(--panel); color: var(--ink); user-select: text;
+}
+
+.someday-link, .log-more {
+  display: block; margin: 4px auto 0; border: 0; background: transparent; color: var(--muted);
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 6px 10px;
+}
+.someday-link:hover, .log-more:hover { color: var(--teal); }
+.logbook .log-row .task-title { text-decoration: none; color: var(--muted); }
+
+.capture-steps { display: flex; align-items: center; gap: 7px; margin: 6px 0 2px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.capture-steps input { accent-color: var(--teal); }
+.add-task-context { color: var(--teal); font-weight: 600; }
+.de-clear { border: 0; background: transparent; color: var(--faint); font-size: 14px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.de-clear:hover { color: var(--accent); }

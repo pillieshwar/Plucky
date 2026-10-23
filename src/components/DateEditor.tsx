@@ -9,6 +9,12 @@ interface Props {
   date: string | null;
   time: string | null;
   repeat: string | null;
+  /** Planned for this evening / parked in Someday / hard deadline. */
+  evening?: boolean;
+  someday?: boolean;
+  deadline?: string | null;
+  /** Only day, time and repeat (for a task not saved yet). */
+  basic?: boolean;
   now: Date;
   locale: string;
   onApply: (patch: TaskPatch) => void;
@@ -20,7 +26,7 @@ interface Props {
  * monday"), tap a quick day, pick from the calendar, or set a time and a
  * repeat. Renders inline, so it can't be cut off.
  */
-export function DateEditor({ date, time, repeat, now, locale, onApply, onClose }: Props) {
+export function DateEditor({ date, time, repeat, evening, someday, deadline, basic, now, locale, onApply, onClose }: Props) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const order = useMemo(() => dayOrderForLocale(locale), [locale]);
@@ -44,11 +50,13 @@ export function DateEditor({ date, time, repeat, now, locale, onApply, onClose }
     apply(patch);
   }
 
-  const quick = [
-    { label: "Today", iso: today },
-    { label: "Tomorrow", iso: toISODate(addDays(now, 1)) },
-    { label: "Next week", iso: toISODate(addDays(now, 7)) },
-  ];
+  const quick: { label: string; patch: TaskPatch; on: boolean }[] = [
+    { label: "Today", patch: { due_date: today, evening: false }, on: date === today && !evening },
+    { label: "This evening", patch: { due_date: today, evening: true }, on: date === today && !!evening },
+    { label: "Tomorrow", patch: { due_date: toISODate(addDays(now, 1)) }, on: date === toISODate(addDays(now, 1)) },
+    { label: "Next week", patch: { due_date: toISODate(addDays(now, 7)) }, on: date === toISODate(addDays(now, 7)) },
+    { label: "Someday", patch: { someday: true }, on: !!someday },
+  ].filter((q) => !basic || (q.label !== "This evening" && q.label !== "Someday"));
 
   return (
     <div
@@ -98,12 +106,7 @@ export function DateEditor({ date, time, repeat, now, locale, onApply, onClose }
 
       <div className="de-quick">
         {quick.map((q) => (
-          <button
-            key={q.label}
-            type="button"
-            className={date === q.iso ? "cal-quick on" : "cal-quick"}
-            onClick={() => apply({ due_date: q.iso })}
-          >
+          <button key={q.label} type="button" className={q.on ? "cal-quick on" : "cal-quick"} onClick={() => apply(q.patch)}>
             {q.label}
           </button>
         ))}
@@ -118,6 +121,25 @@ export function DateEditor({ date, time, repeat, now, locale, onApply, onClose }
         now={!date || date === today ? now : undefined}
         onChange={(t) => apply({ due_date: date ?? today, due_time: t }, false)}
       />
+
+      {!basic && (
+      <div className="de-row">
+        <label className="de-field" title="The day it must be done by. It shows up in Today when the day comes, even if it's planned later.">
+          <span>Deadline</span>
+          <input
+            type="date"
+            value={deadline ?? ""}
+            onChange={(e) => apply({ deadline: e.target.value || null }, false)}
+            aria-label="Deadline"
+          />
+          {deadline && (
+            <button type="button" className="de-clear" onClick={() => apply({ deadline: null }, false)} aria-label="Remove deadline">
+              ×
+            </button>
+          )}
+        </label>
+      </div>
+      )}
 
       <div className="de-row">
         <label className="de-field">

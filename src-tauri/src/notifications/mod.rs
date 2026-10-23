@@ -328,9 +328,24 @@ fn on_response(app: &AppHandle, id: &str, action: &str) {
         },
         "snooze15" | "snooze60" => {
             let mins = if action == "snooze15" { 15 } else { 60 };
-            TaskPatch {
-                snoozed_until: Some(Some(format_local(now + chrono::Duration::minutes(mins)))),
-                ..Default::default()
+            let at = now + chrono::Duration::minutes(mins);
+            let repeats = app
+                .try_state::<AppState>()
+                .and_then(|st| st.store.lock().ok().and_then(|s| s.get(task_id).ok()))
+                .is_some_and(|t| t.recurrence.is_some());
+            if repeats {
+                // A repeating task keeps its time; only the reminder waits.
+                TaskPatch {
+                    snoozed_until: Some(Some(format_local(at))),
+                    ..Default::default()
+                }
+            } else {
+                // Otherwise the task itself moves to the later time.
+                TaskPatch {
+                    due_date: Some(Some(at.date().format("%Y-%m-%d").to_string())),
+                    due_time: Some(Some(at.format("%H:%M").to_string())),
+                    ..Default::default()
+                }
             }
         }
         "tomorrow" => TaskPatch {
@@ -378,6 +393,7 @@ mod tests {
             notified_at: None,
             next_id: None,
             notes: None,
+            ..Default::default()
         };
         assert_eq!(body_for(&t), "Due 3:00 PM · from Slack · repeats");
         t.snoozed_until = Some("2026-10-14T15:15:00".into());

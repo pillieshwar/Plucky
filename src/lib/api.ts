@@ -27,6 +27,7 @@ import type {
   RemindersStatus,
   Status,
   Task,
+  ProjectSummary,
   TaskPatch,
   UpdateStatus,
 } from "./types";
@@ -36,6 +37,10 @@ export const api = {
   listTasks: (doneSince: string | null) => invoke<Task[]>("list_tasks", { doneSince }),
   addTask: (task: NewTask) => invoke<Task>("add_task", { task }),
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
+  logbook: (before: string | null, limit = 80) => invoke<Task[]>("logbook", { before, limit }),
+  listProjects: () => invoke<ProjectSummary[]>("list_projects"),
+  skipOccurrence: (id: number) => invoke<Task>("skip_occurrence", { id }),
+  renameProject: (from: string, to: string) => invoke<number>("rename_project", { from, to }),
   deleteTask: (id: number) => invoke<void>("delete_task", { id }),
   status: () => invoke<Status>("status"),
   requestAccessibility: () => invoke<boolean>("request_accessibility"),

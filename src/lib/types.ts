@@ -20,6 +20,32 @@ export interface Task {
   next_id: number | null;
   /** The user's description: links, details. */
   notes: string | null;
+  /** Hard deadline, `YYYY-MM-DD` — separate from the day it's planned for. */
+  deadline: string | null;
+  /** Planned for the evening of its day. */
+  evening: boolean;
+  /** Parked: no date, out of the way. */
+  someday: boolean;
+  project: string | null;
+  /** Section within the project. */
+  heading: string | null;
+  checklist: ChecklistItem[];
+  /** A repeating task moved on its own: the day the series had it on. */
+  series_date: string | null;
+  /** A paused repeating task (no reminders). */
+  paused: boolean;
+}
+
+export interface ChecklistItem {
+  text: string;
+  done: boolean;
+}
+
+/** Mirrors `pluck_core::ProjectSummary`. */
+export interface ProjectSummary {
+  name: string;
+  open: number;
+  done: number;
 }
 
 /** Mirrors `pluck_core::NewTask` (created_tz is filled in by Rust). */
@@ -33,6 +59,12 @@ export interface NewTask {
   source_bundle?: string | null;
   source_url?: string | null;
   notes?: string | null;
+  deadline?: string | null;
+  evening?: boolean;
+  someday?: boolean;
+  project?: string | null;
+  heading?: string | null;
+  checklist?: ChecklistItem[];
 }
 
 /** Mirrors `pluck_core::TaskPatch`. Omit a key to leave it unchanged. */
@@ -44,6 +76,15 @@ export interface TaskPatch {
   snoozed_until?: string | null;
   notes?: string | null;
   done?: boolean;
+  deadline?: string | null;
+  evening?: boolean;
+  someday?: boolean;
+  project?: string | null;
+  heading?: string | null;
+  checklist?: ChecklistItem[];
+  paused?: boolean;
+  /** Moving a repeating task: just this one (the series keeps its days). */
+  only_this?: boolean;
 }
 
 /** Mirrors `pluck_core::Extraction`. */

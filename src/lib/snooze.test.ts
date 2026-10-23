@@ -20,6 +20,14 @@ const task = (extra: Partial<Task> = {}): Task => ({
   notified_at: "2026-10-23T14:00:00",
   next_id: null,
   notes: null,
+  deadline: null,
+  evening: false,
+  someday: false,
+  project: null,
+  heading: null,
+  checklist: [],
+  series_date: null,
+  paused: false,
   ...extra,
 });
 

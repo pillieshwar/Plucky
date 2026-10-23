@@ -26,7 +26,15 @@ pub enum StoreError {
     BadRecurrence(String),
 }
 
+/// One step of a task's checklist.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChecklistItem {
+    pub text: String,
+    #[serde(default)]
+    pub done: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Task {
     pub id: i64,
     pub title: String,
@@ -58,6 +66,30 @@ pub struct Task {
     pub next_id: Option<i64>,
     /// The user's own description: links, details, anything useful later.
     pub notes: Option<String>,
+    /// A hard deadline (`YYYY-MM-DD`), separate from the day it's planned for.
+    #[serde(default)]
+    pub deadline: Option<String>,
+    /// Planned for the evening of its day ("This Evening").
+    #[serde(default)]
+    pub evening: bool,
+    /// Parked for some day: no date, out of the way.
+    #[serde(default)]
+    pub someday: bool,
+    /// The project this task belongs to, and its section in that project.
+    #[serde(default)]
+    pub project: Option<String>,
+    #[serde(default)]
+    pub heading: Option<String>,
+    /// Steps within the task.
+    #[serde(default)]
+    pub checklist: Vec<ChecklistItem>,
+    /// For a repeating task moved on its own: the day the series had it on,
+    /// so the next one keeps the series' rhythm.
+    #[serde(default)]
+    pub series_date: Option<String>,
+    /// A paused repeating task: no reminders until it's resumed.
+    #[serde(default)]
+    pub paused: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -73,6 +105,12 @@ pub struct NewTask {
     pub source_url: Option<String>,
     pub notes: Option<String>,
     pub created_tz: Option<String>,
+    pub deadline: Option<String>,
+    pub evening: bool,
+    pub someday: bool,
+    pub project: Option<String>,
+    pub heading: Option<String>,
+    pub checklist: Vec<ChecklistItem>,
 }
 
 /// Partial update. `due_date: Some(None)` clears the date (and the time).
@@ -92,6 +130,20 @@ pub struct TaskPatch {
     #[serde(default, with = "double_option")]
     pub snoozed_until: Option<Option<String>>,
     pub done: Option<bool>,
+    #[serde(default, with = "double_option")]
+    pub deadline: Option<Option<String>>,
+    pub evening: Option<bool>,
+    pub someday: Option<bool>,
+    /// `Some(None)` takes the task out of its project (and heading).
+    #[serde(default, with = "double_option")]
+    pub project: Option<Option<String>>,
+    #[serde(default, with = "double_option")]
+    pub heading: Option<Option<String>>,
+    pub checklist: Option<Vec<ChecklistItem>>,
+    pub paused: Option<bool>,
+    /// Moving a repeating task: `true` moves just this one (the series keeps
+    /// its days), otherwise the series moves with it.
+    pub only_this: Option<bool>,
 }
 
 /// What `Store::update` did besides changing the task itself.
@@ -153,6 +205,17 @@ ALTER TABLE tasks ADD COLUMN next_id INTEGER;
     r#"
 ALTER TABLE tasks ADD COLUMN notes TEXT;
 "#,
+    r#"
+ALTER TABLE tasks ADD COLUMN deadline TEXT CHECK (deadline IS NULL OR deadline GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]');
+ALTER TABLE tasks ADD COLUMN evening INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN someday INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN project TEXT;
+ALTER TABLE tasks ADD COLUMN heading TEXT;
+ALTER TABLE tasks ADD COLUMN checklist TEXT;
+ALTER TABLE tasks ADD COLUMN series_date TEXT;
+ALTER TABLE tasks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX tasks_completed ON tasks (done, completed_at);
+"#,
 ];
 
 /// A Plucky task linked to an external reminder, with the state both sides
@@ -165,6 +228,14 @@ pub struct ReminderLink {
     /// The reminder was deleted outside Plucky; the task no longer syncs.
     #[serde(default)]
     pub detached: bool,
+}
+
+/// A project and how far along it is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProjectSummary {
+    pub name: String,
+    pub open: i64,
+    pub done: i64,
 }
 
 pub struct Store {
@@ -220,12 +291,23 @@ impl Store {
             ],
         )?;
         let id = self.conn.last_insert_rowid();
-        if let Some(notes) = clean_notes(t.notes.as_deref()) {
-            self.conn.execute(
-                "UPDATE tasks SET notes = ?1 WHERE id = ?2",
-                params![notes, id],
-            )?;
-        }
+        let deadline = t.deadline.as_deref().map(check_date).transpose()?;
+        let project = clean_name(t.project);
+        let heading = project.as_ref().and(clean_name(t.heading));
+        self.conn.execute(
+            "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, someday = ?4, project = ?5,
+                 heading = ?6, checklist = ?7 WHERE id = ?8",
+            params![
+                clean_notes(t.notes.as_deref()),
+                deadline,
+                t.evening && due.is_some(),
+                t.someday && due.is_none(),
+                project,
+                heading,
+                checklist_json(&t.checklist),
+                id
+            ],
+        )?;
         self.get(id)
     }
 
@@ -301,12 +383,31 @@ impl Store {
         if let Some(due) = patch.due_date {
             let due = due.as_deref().map(check_date).transpose()?;
             if due.is_none() {
-                tx.execute("UPDATE tasks SET due_time = NULL WHERE id = ?1", [id])?;
+                tx.execute(
+                    "UPDATE tasks SET due_time = NULL, evening = 0 WHERE id = ?1",
+                    [id],
+                )?;
+            } else {
+                // A day takes it off Someday.
+                tx.execute("UPDATE tasks SET someday = 0 WHERE id = ?1", [id])?;
             }
             tx.execute(
                 "UPDATE tasks SET due_date = ?1 WHERE id = ?2",
                 params![due, id],
             )?;
+            if due != before.due_date && before.recurrence.is_some() {
+                // Just this one: remember where the series had it. Otherwise
+                // the series follows the new day.
+                let series = if patch.only_this == Some(true) {
+                    before.series_date.clone().or(before.due_date.clone())
+                } else {
+                    None
+                };
+                tx.execute(
+                    "UPDATE tasks SET series_date = ?1 WHERE id = ?2",
+                    params![series, id],
+                )?;
+            }
             reschedule |= due != before.due_date;
         }
         if let Some(time) = patch.due_time {
@@ -326,9 +427,67 @@ impl Store {
         }
         if let Some(rule) = patch.recurrence {
             let rule = rule.as_deref().map(check_rule).transpose()?;
+            if rule.is_none() {
+                tx.execute(
+                    "UPDATE tasks SET series_date = NULL, paused = 0 WHERE id = ?1",
+                    [id],
+                )?;
+            }
             tx.execute(
                 "UPDATE tasks SET recurrence = ?1 WHERE id = ?2",
                 params![rule, id],
+            )?;
+        }
+        if let Some(deadline) = patch.deadline {
+            let deadline = deadline.as_deref().map(check_date).transpose()?;
+            tx.execute(
+                "UPDATE tasks SET deadline = ?1 WHERE id = ?2",
+                params![deadline, id],
+            )?;
+        }
+        if let Some(evening) = patch.evening {
+            // Only a task with a day can be in that day's evening.
+            tx.execute(
+                "UPDATE tasks SET evening = (?1 AND due_date IS NOT NULL) WHERE id = ?2",
+                params![evening, id],
+            )?;
+        }
+        if let Some(someday) = patch.someday {
+            if someday {
+                tx.execute(
+                    "UPDATE tasks SET someday = 1, due_date = NULL, due_time = NULL, evening = 0,
+                         snoozed_until = NULL WHERE id = ?1",
+                    [id],
+                )?;
+            } else {
+                tx.execute("UPDATE tasks SET someday = 0 WHERE id = ?1", [id])?;
+            }
+        }
+        if let Some(project) = patch.project {
+            let project = clean_name(project);
+            if project != before.project {
+                tx.execute(
+                    "UPDATE tasks SET project = ?1, heading = NULL WHERE id = ?2",
+                    params![project, id],
+                )?;
+            }
+        }
+        if let Some(heading) = patch.heading {
+            tx.execute(
+                "UPDATE tasks SET heading = CASE WHEN project IS NULL THEN NULL ELSE ?1 END WHERE id = ?2",
+                params![clean_name(heading), id],
+            )?;
+        }
+        if let Some(list) = patch.checklist {
+            tx.execute(
+                "UPDATE tasks SET checklist = ?1 WHERE id = ?2",
+                params![checklist_json(&list), id],
+            )?;
+        }
+        if let Some(paused) = patch.paused {
+            tx.execute(
+                "UPDATE tasks SET paused = (?1 AND recurrence IS NOT NULL) WHERE id = ?2",
+                params![paused, id],
             )?;
         }
         if reschedule {
@@ -412,6 +571,82 @@ impl Store {
         Ok(())
     }
 
+    /// Completed tasks, newest first: up to `limit` finished before
+    /// `before` (an RFC 3339 completion time; `None` = from the newest).
+    pub fn logbook(&self, before: Option<&str>, limit: u32) -> Result<Vec<Task>, StoreError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "{SELECT} WHERE done = 1 AND completed_at IS NOT NULL AND (?1 IS NULL OR completed_at < ?1)
+             ORDER BY completed_at DESC, id DESC LIMIT ?2"
+        ))?;
+        let rows = stmt.query_map(params![before, limit.min(500)], map_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Every project with its open and completed task counts, by name.
+    pub fn projects(&self) -> Result<Vec<ProjectSummary>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT project, SUM(done = 0), SUM(done = 1) FROM tasks WHERE project IS NOT NULL
+             GROUP BY project ORDER BY project COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(ProjectSummary {
+                name: r.get(0)?,
+                open: r.get(1)?,
+                done: r.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Rename a project on every task in it (done ones too).
+    pub fn rename_project(&self, from: &str, to: &str) -> Result<usize, StoreError> {
+        let Some(to) = clean_name(Some(to.to_string())) else {
+            return Ok(0);
+        };
+        Ok(self.conn.execute(
+            "UPDATE tasks SET project = ?2 WHERE project = ?1",
+            params![from, to],
+        )?)
+    }
+
+    /// Skip one occurrence of a repeating task: it moves to the series' next
+    /// day, as if this one had been done.
+    pub fn skip(&self, id: i64) -> Result<Task, StoreError> {
+        let t = self.get(id)?;
+        let parse = |d: &str| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+        let Some(rule) = t
+            .recurrence
+            .as_deref()
+            .and_then(crate::recurrence::Rule::parse)
+        else {
+            return Ok(t);
+        };
+        let base = t
+            .series_date
+            .as_deref()
+            .or(t.due_date.as_deref())
+            .and_then(parse);
+        let today = chrono::Local::now().date_naive();
+        let after = t
+            .due_date
+            .as_deref()
+            .and_then(parse)
+            .map_or(today, |d| d.max(today));
+        let next = crate::recurrence::next_due(rule, base, after);
+        let shift = |d: Option<&str>| -> Option<String> {
+            let (d, b) = (d.and_then(parse)?, base?);
+            Some((next + (d - b)).format("%Y-%m-%d").to_string())
+        };
+        let deadline = shift(t.deadline.as_deref());
+        let next = next.format("%Y-%m-%d").to_string();
+        self.conn.execute(
+            "UPDATE tasks SET due_date = ?1, series_date = NULL, deadline = ?2, snoozed_until = NULL,
+                 notified_at = NULL, someday = 0 WHERE id = ?3",
+            params![next, deadline, id],
+        )?;
+        self.get(id)
+    }
+
     pub fn delete(&self, id: i64) -> Result<(), StoreError> {
         match self.conn.execute("DELETE FROM tasks WHERE id = ?1", [id])? {
             0 => Err(StoreError::NotFound(id)),
@@ -421,7 +656,8 @@ impl Store {
 }
 
 const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
-    due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes FROM tasks";
+    due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes,
+    deadline, evening, someday, project, heading, checklist, series_date, paused FROM tasks";
 
 /// By day, all-day tasks before timed ones, then by time.
 const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
@@ -445,6 +681,17 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
         notified_at: r.get(14)?,
         next_id: r.get(15)?,
         notes: r.get(16)?,
+        deadline: r.get(17)?,
+        evening: r.get(18)?,
+        someday: r.get(19)?,
+        project: r.get(20)?,
+        heading: r.get(21)?,
+        checklist: r
+            .get::<_, Option<String>>(22)?
+            .and_then(|j| serde_json::from_str::<Vec<ChecklistItem>>(&j).ok())
+            .unwrap_or_default(),
+        series_date: r.get(23)?,
+        paused: r.get(24)?,
     })
 }
 
@@ -458,14 +705,36 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     else {
         return Ok(None);
     };
-    let due = t
+    let parse = |d: &str| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+    // The series' own day for this one (it may have been moved on its own).
+    let base = t
+        .series_date
+        .as_deref()
+        .or(t.due_date.as_deref())
+        .and_then(parse);
+    let today = chrono::Local::now().date_naive();
+    // Done early (or moved later on its own): the next one still comes after
+    // the day this one actually had.
+    let after = t
         .due_date
         .as_deref()
-        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-    let today = chrono::Local::now().date_naive();
-    let next = crate::recurrence::next_due(rule, due, today)
-        .format("%Y-%m-%d")
-        .to_string();
+        .and_then(parse)
+        .map_or(today, |d| d.max(today));
+    let next_day = crate::recurrence::next_due(rule, base, after);
+    let next = next_day.format("%Y-%m-%d").to_string();
+    // A deadline keeps its distance from the day.
+    let deadline = match (t.deadline.as_deref().and_then(parse), base) {
+        (Some(dl), Some(b)) => Some((next_day + (dl - b)).format("%Y-%m-%d").to_string()),
+        _ => None,
+    };
+    let fresh: Vec<ChecklistItem> = t
+        .checklist
+        .iter()
+        .map(|c| ChecklistItem {
+            text: c.text.clone(),
+            done: false,
+        })
+        .collect();
     tx.execute(
         "INSERT INTO tasks (title, due_date, due_time, recurrence, source_text, source_app,
                             source_bundle, source_url, created_at, created_tz)
@@ -485,8 +754,17 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     )?;
     let next_id = tx.last_insert_rowid();
     tx.execute(
-        "UPDATE tasks SET notes = ?1 WHERE id = ?2",
-        params![t.notes, next_id],
+        "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, project = ?4, heading = ?5,
+             checklist = ?6 WHERE id = ?7",
+        params![
+            t.notes,
+            deadline,
+            t.evening,
+            t.project,
+            t.heading,
+            checklist_json(&fresh),
+            next_id
+        ],
     )?;
     tx.execute(
         "UPDATE tasks SET next_id = ?1 WHERE id = ?2",
@@ -512,6 +790,34 @@ pub const MAX_NOTES_CHARS: usize = 2000;
 fn clean_notes(s: Option<&str>) -> Option<String> {
     let s = s?.trim();
     (!s.is_empty()).then(|| s.chars().take(MAX_NOTES_CHARS).collect())
+}
+
+/// Longest project or heading name, in characters.
+const MAX_NAME_CHARS: usize = 60;
+/// Most checklist steps kept, and the longest step.
+const MAX_CHECKLIST: usize = 50;
+const MAX_STEP_CHARS: usize = 200;
+
+/// A project or heading name: single-spaced, capped, `None` when empty.
+fn clean_name(s: Option<String>) -> Option<String> {
+    let s = s?.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!s.is_empty()).then(|| s.chars().take(MAX_NAME_CHARS).collect())
+}
+
+/// The checklist as stored: JSON, empty steps dropped, `None` when empty.
+fn checklist_json(items: &[ChecklistItem]) -> Option<String> {
+    let clean: Vec<ChecklistItem> = items
+        .iter()
+        .filter_map(|c| {
+            let text = c.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            (!text.is_empty()).then(|| ChecklistItem {
+                text: text.chars().take(MAX_STEP_CHARS).collect(),
+                done: c.done,
+            })
+        })
+        .take(MAX_CHECKLIST)
+        .collect();
+    (!clean.is_empty()).then(|| serde_json::to_string(&clean).unwrap_or_default())
 }
 
 fn clean_opt(s: Option<String>) -> Option<String> {
@@ -926,6 +1232,273 @@ mod tests {
         s.backup_to(&path).unwrap();
         let copy = Store::open(&path).unwrap();
         assert_eq!(copy.all().unwrap()[0].title, "keep me");
+    }
+
+    fn day(offset: i64) -> String {
+        (chrono::Local::now().date_naive() + chrono::Duration::days(offset))
+            .format("%Y-%m-%d")
+            .to_string()
+    }
+
+    fn patch(f: impl FnOnce(&mut TaskPatch)) -> TaskPatch {
+        let mut p = TaskPatch::default();
+        f(&mut p);
+        p
+    }
+
+    #[test]
+    fn checklists_deadlines_and_projects_round_trip() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Pack for the offsite".into(),
+                due_date: Some(day(1)),
+                deadline: Some(day(3)),
+                project: Some("  Offsite   2026 ".into()),
+                heading: Some("Travel".into()),
+                checklist: vec![
+                    ChecklistItem {
+                        text: " Charger ".into(),
+                        done: false,
+                    },
+                    ChecklistItem {
+                        text: "   ".into(),
+                        done: false,
+                    },
+                    ChecklistItem {
+                        text: "Passport".into(),
+                        done: true,
+                    },
+                ],
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(t.deadline.as_deref(), Some(day(3).as_str()));
+        assert_eq!(t.project.as_deref(), Some("Offsite 2026"));
+        assert_eq!(t.heading.as_deref(), Some("Travel"));
+        assert_eq!(
+            t.checklist,
+            vec![
+                ChecklistItem {
+                    text: "Charger".into(),
+                    done: false
+                },
+                ChecklistItem {
+                    text: "Passport".into(),
+                    done: true
+                },
+            ]
+        );
+
+        // Changing project drops the heading; clearing the deadline works.
+        let t = s
+            .update(
+                t.id,
+                patch(|p| {
+                    p.project = Some(Some("Home".into()));
+                    p.deadline = Some(None);
+                    p.checklist = Some(vec![]);
+                }),
+            )
+            .unwrap();
+        assert_eq!(
+            (t.project.as_deref(), t.heading.as_deref()),
+            (Some("Home"), None)
+        );
+        assert_eq!(t.deadline, None);
+        assert!(t.checklist.is_empty());
+
+        // A heading needs a project.
+        let t = s
+            .update(
+                t.id,
+                patch(|p| {
+                    p.project = Some(None);
+                    p.heading = Some(Some("Later".into()));
+                }),
+            )
+            .unwrap();
+        assert_eq!((t.project, t.heading), (None, None));
+        assert!(matches!(
+            s.insert(NewTask {
+                title: "x".into(),
+                deadline: Some("friday".into()),
+                ..Default::default()
+            }),
+            Err(StoreError::BadDate(_))
+        ));
+    }
+
+    #[test]
+    fn someday_and_evening_follow_the_date() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s.insert(task("Learn piano", Some(&day(0)))).unwrap();
+        let t = s.update(t.id, patch(|p| p.evening = Some(true))).unwrap();
+        assert!(t.evening);
+        // Someday clears the day (and the evening).
+        let t = s.update(t.id, patch(|p| p.someday = Some(true))).unwrap();
+        assert!(t.someday && !t.evening);
+        assert_eq!(t.due_date, None);
+        // No evening without a day.
+        let t = s.update(t.id, patch(|p| p.evening = Some(true))).unwrap();
+        assert!(!t.evening);
+        // A day brings it back from Someday.
+        let t = s
+            .update(t.id, patch(|p| p.due_date = Some(Some(day(2)))))
+            .unwrap();
+        assert!(!t.someday);
+        // Inserting with someday and a date keeps the date.
+        let t = s
+            .insert(NewTask {
+                title: "y".into(),
+                due_date: Some(day(0)),
+                someday: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(!t.someday);
+    }
+
+    #[test]
+    fn repeats_carry_steps_and_deadline_and_keep_their_rhythm() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Weekly report".into(),
+                due_date: Some(day(0)),
+                deadline: Some(day(2)),
+                recurrence: Some("weekly".into()),
+                project: Some("Work".into()),
+                checklist: vec![ChecklistItem {
+                    text: "Numbers".into(),
+                    done: true,
+                }],
+                ..Default::default()
+            })
+            .unwrap();
+        // Just this one moves to tomorrow; the series stays on today's weekday.
+        let t = s
+            .update(
+                t.id,
+                patch(|p| {
+                    p.due_date = Some(Some(day(1)));
+                    p.only_this = Some(true);
+                }),
+            )
+            .unwrap();
+        assert_eq!(t.series_date.as_deref(), Some(day(0).as_str()));
+        let (_, fx) = s
+            .update_with_effects(t.id, patch(|p| p.done = Some(true)))
+            .unwrap();
+        let next = s.get(fx.spawned.unwrap()).unwrap();
+        assert_eq!(next.due_date.as_deref(), Some(day(7).as_str()));
+        assert_eq!(next.deadline.as_deref(), Some(day(9).as_str()));
+        assert_eq!(next.project.as_deref(), Some("Work"));
+        assert_eq!(
+            next.checklist,
+            vec![ChecklistItem {
+                text: "Numbers".into(),
+                done: false
+            }]
+        );
+        assert_eq!(next.series_date, None);
+
+        // Moving the whole series: the next follows the new day.
+        let t2 = s
+            .insert(NewTask {
+                title: "Gym".into(),
+                due_date: Some(day(0)),
+                recurrence: Some("weekly".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let t2 = s
+            .update(t2.id, patch(|p| p.due_date = Some(Some(day(2)))))
+            .unwrap();
+        assert_eq!(t2.series_date, None);
+        let (_, fx) = s
+            .update_with_effects(t2.id, patch(|p| p.done = Some(true)))
+            .unwrap();
+        assert_eq!(
+            s.get(fx.spawned.unwrap()).unwrap().due_date.as_deref(),
+            Some(day(9).as_str())
+        );
+    }
+
+    #[test]
+    fn skip_pause_and_stop_a_repeat() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Standup notes".into(),
+                due_date: Some(day(0)),
+                recurrence: Some("daily".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let t = s.skip(t.id).unwrap();
+        assert_eq!(t.due_date.as_deref(), Some(day(1).as_str()));
+        assert!(!t.done);
+        let t = s.update(t.id, patch(|p| p.paused = Some(true))).unwrap();
+        assert!(t.paused);
+        // Stopping the repeat also un-pauses.
+        let t = s
+            .update(t.id, patch(|p| p.recurrence = Some(None)))
+            .unwrap();
+        assert!(!t.paused && t.recurrence.is_none());
+        // Only repeating tasks pause; skipping a one-off changes nothing.
+        let t = s.update(t.id, patch(|p| p.paused = Some(true))).unwrap();
+        assert!(!t.paused);
+        assert_eq!(
+            s.skip(t.id).unwrap().due_date.as_deref(),
+            Some(day(1).as_str())
+        );
+    }
+
+    #[test]
+    fn logbook_pages_newest_first_and_projects_count() {
+        let s = Store::open_in_memory().unwrap();
+        let mut ids = vec![];
+        for (i, title) in ["a", "b", "c"].iter().enumerate() {
+            let t = s
+                .insert(NewTask {
+                    title: (*title).into(),
+                    project: Some("P".into()),
+                    ..Default::default()
+                })
+                .unwrap();
+            s.conn
+                .execute(
+                    "UPDATE tasks SET done = 1, completed_at = ?1 WHERE id = ?2",
+                    params![format!("2026-10-2{i}T10:00:00Z"), t.id],
+                )
+                .unwrap();
+            ids.push(t.id);
+        }
+        s.insert(NewTask {
+            title: "open".into(),
+            project: Some("P".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        let page = s.logbook(None, 2).unwrap();
+        assert_eq!(
+            page.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
+            ["c", "b"]
+        );
+        let rest = s.logbook(page[1].completed_at.as_deref(), 2).unwrap();
+        assert_eq!(
+            rest.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
+            ["a"]
+        );
+        assert_eq!(
+            s.projects().unwrap(),
+            vec![ProjectSummary {
+                name: "P".into(),
+                open: 1,
+                done: 3
+            }]
+        );
     }
 
     #[test]

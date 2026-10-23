@@ -31,6 +31,7 @@ import { dueChip, dueNow, type DueChip } from "../lib/due";
 import { FocusCard, type Focus } from "./FocusCard";
 import { AddTaskForm } from "../components/AddTaskForm";
 import { holidaysByDay } from "../lib/holidays";
+import { deadlineChip } from "../lib/lists";
 
 const LOCALE = safeLocale();
 
@@ -710,6 +711,9 @@ function inboxLabel(items: InboxItem[]): string {
 
 function rowMeta(t: Task): string[] {
   const parts: string[] = [];
+  if (t.evening) parts.push("Evening");
+  if (t.checklist?.length) parts.push(`${t.checklist.filter((c) => c.done).length}/${t.checklist.length} steps`);
+  if (t.project) parts.push(t.project);
   const r = repeatShort(t.recurrence);
   if (r) parts.push(r);
   const src = sourceLabel(t);
@@ -736,6 +740,7 @@ function Row({
   onPointerDown?: (e: ReactPointerEvent, t: Task) => void;
   dragging?: boolean;
 }) {
+  const deadline = task.done ? null : deadlineChip(task, new Date(), LOCALE);
   return (
     <li
       className={`pop-row ${tone}${task.done ? " checked" : ""}${dragging ? " lifted" : ""}`}
@@ -761,9 +766,10 @@ function Row({
           title="Open in Plucky · drag onto a day to move it"
         >
           <span className="pop-title">{task.title}</span>
-          {(chip || meta) && (
+          {(chip || meta || deadline) && (
             <span className="pop-meta">
               {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
+              {deadline && <span className={`due-chip deadline ${deadline.tone}`}>⚑ {deadline.label}</span>}
               {meta && <span className="pop-meta-text">{meta}</span>}
             </span>
           )}

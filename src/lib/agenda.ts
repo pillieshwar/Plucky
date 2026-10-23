@@ -1,5 +1,6 @@
 import type { DayCell } from "./calendar";
 import { addDays, parseISODate, toISODate } from "./dates";
+import { effectiveDay } from "./lists";
 import type { Task } from "./types";
 
 /**
@@ -49,13 +50,21 @@ export interface Agenda {
 const byCreated = (a: Task, b: Task) => a.created_at.localeCompare(b.created_at);
 
 export function agendaFor(tasks: Task[], selected: string, today: string): Agenda {
+  // A deadline that has come pulls a later-planned task to today.
+  const day = (t: Task) => effectiveDay(t, today);
   const overdue =
     selected === today
       ? tasks
-          .filter((t) => !t.done && t.due_date !== null && t.due_date < today)
-          .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? "") || byCreated(a, b))
+          .filter((t) => {
+            const d = day(t);
+            return !t.done && d !== null && d < today;
+          })
+          .sort((a, b) => (day(a) ?? "").localeCompare(day(b) ?? "") || byCreated(a, b))
       : [];
-  const due = tasks.filter((t) => !t.done && t.due_date === selected).sort(byCreated);
+  // Evening tasks after the rest of the day.
+  const due = tasks
+    .filter((t) => !t.done && day(t) === selected)
+    .sort((a, b) => Number(!!a.evening) - Number(!!b.evening) || byCreated(a, b));
   const done = tasks
     .filter((t) => t.done && t.due_date === selected)
     .sort((a, b) => (a.completed_at ?? "").localeCompare(b.completed_at ?? ""));

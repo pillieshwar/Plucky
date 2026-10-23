@@ -25,6 +25,11 @@ import {
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
+import { groupByHeading, headingsOf, projectList, projectOf, tasksForList, type ListId } from "./lib/lists";
+import { ListPicker } from "./components/ListPicker";
+import { Logbook } from "./components/Logbook";
+import type { ProjectInfo } from "./components/ProjectPicker";
+import { ProjectHeader } from "./components/ProjectHeader";
 import { taskActions } from "./lib/taskActions";
 import { dueNow } from "./lib/due";
 import { DueNowCard } from "./components/DueNowCard";
@@ -32,7 +37,7 @@ import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
 import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
-import type { AppSettings, CaptureResult, NewTask, Status, Task, UpdateStatus } from "./lib/types";
+import type { AppSettings, CaptureResult, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
@@ -68,6 +73,8 @@ const KEYS: [string, string][] = [
   ["N", "Description"],
   ["A", "Add a task"],
   ["F", "Today only (focus)"],
+  ["C", "Steps (checklist)"],
+  ["P", "Move to a project"],
   ["V", "List or week view"],
   ["← →", "Day before / after (week view)"],
   ["/ or ⌘F", "Search"],
@@ -95,21 +102,27 @@ export default function App() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [command, setCommand] = useState<RowCommand | null>(null);
   const [showKeys, setShowKeys] = useState(false);
-  // Today-only focus: just overdue and today's tasks. Remembered per Mac.
-  const [focusToday, setFocusToday] = useState(() => {
+  // Which list: All, Today, Someday, Logbook or a project. Remembered per Mac.
+  const [list, setList] = useState<ListId>(() => {
     try {
-      return localStorage.getItem("pluck.focusToday") === "1";
+      const saved = localStorage.getItem("pluck.list");
+      if (saved) return saved as ListId;
+      return localStorage.getItem("pluck.focusToday") === "1" ? "today" : "all";
     } catch {
-      return false;
+      return "all";
     }
   });
   useEffect(() => {
     try {
-      localStorage.setItem("pluck.focusToday", focusToday ? "1" : "0");
+      localStorage.setItem("pluck.list", list);
     } catch {
-      // Storage unavailable: the toggle still works for this session.
+      // Storage unavailable: the choice lasts this session.
     }
-  }, [focusToday]);
+  }, [list]);
+  const focusToday = list === "today";
+  const setFocusToday = (f: boolean | ((v: boolean) => boolean)) =>
+    setList((l) => ((typeof f === "function" ? f(l === "today") : f) ? "today" : "all"));
+  const [projectStats, setProjectStats] = useState<ProjectSummary[]>([]);
   // Tasks as a list, or the week in hour blocks. Remembered per Mac.
   const [view, setView] = useState<View>(savedView);
   useEffect(() => {
@@ -128,10 +141,13 @@ export default function App() {
   const { toasts, show, dismiss, undoLast } = useToasts();
   // The add-task form at the top of the list.
   const [adding, setAdding] = useState(false);
+  // The heading new tasks go under, when adding from a project's heading.
+  const [addHeading, setAddHeading] = useState<string | null>(null);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
 
   const refresh = useCallback(async () => {
     try {
+      api.listProjects().then(setProjectStats, () => undefined);
       setTasks(await api.listTasks(today));
     } catch (e) {
       setError(String(e));
@@ -223,6 +239,7 @@ export default function App() {
       onHighlightTask((id) => {
         setTab("tasks");
         setView("list");
+        setList("all");
         setQuery("");
         setHighlight(id);
         setFocusId(id);
@@ -236,16 +253,33 @@ export default function App() {
   }, [handleCapture, refresh]);
 
   const visible = useMemo(
-    () =>
-      tasks.filter(
-        (t) =>
-          (!query.trim() || matchesQuery(t, query)) &&
-          (!focusToday || (t.due_date !== null && t.due_date <= today)),
-      ),
-    [tasks, query, focusToday, today],
+    () => tasksForList(tasks, list, today).filter((t) => !query.trim() || matchesQuery(t, query)),
+    [tasks, query, list, today],
   );
   const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
-  const groups = useMemo(() => groupTasks(visible, now, LOCALE), [visible, now]);
+  const viewedProject = projectOf(list);
+  const groups = useMemo(
+    () => (list === "logbook" ? [] : viewedProject !== null ? groupByHeading(visible) : groupTasks(visible, now, LOCALE)),
+    [visible, now, list, viewedProject],
+  );
+  const listCounts = useMemo(
+    () => ({
+      all: tasksForList(tasks, "all", today).filter((t) => !t.done).length,
+      today: tasksForList(tasks, "today", today).filter((t) => !t.done).length,
+      someday: tasks.filter((t) => !t.done && t.someday).length,
+    }),
+    [tasks, today],
+  );
+  const projectInfos: ProjectInfo[] = useMemo(() => {
+    const names = new Set([...projectStats.map((p) => p.name), ...tasks.flatMap((t) => (t.project ? [t.project] : []))]);
+    return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, headings: headingsOf(tasks, name) }));
+  }, [projectStats, tasks]);
+  const openProject = (name: string) => {
+    setView("list");
+    setTab("tasks");
+    setQuery("");
+    setList(projectList(name));
+  };
   const flat = useMemo(() => groups.flatMap((g) => g.tasks), [groups]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
 
@@ -319,6 +353,8 @@ export default function App() {
       else if (lower === "d") setCommand({ id: current.id, kind: "date", n });
       else if (lower === "s") setCommand({ id: current.id, kind: "snooze", n });
       else if (lower === "n") setCommand({ id: current.id, kind: "notes", n });
+      else if (lower === "c") setCommand({ id: current.id, kind: "steps", n });
+      else if (lower === "p") setCommand({ id: current.id, kind: "project", n });
       else if (lower === "t") void actions.reschedule(current, { due_date: toISODate(new Date()) });
       else if (lower === "m") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 1)) });
       else if (lower === "w") void actions.reschedule(current, { due_date: toISODate(addDays(new Date(), 7)) });
@@ -529,16 +565,15 @@ export default function App() {
               <kbd>/</kbd>
             )}
           </label>
-          <button
-            type="button"
-            className={focusToday ? "focus-toggle on" : "focus-toggle"}
-            aria-pressed={focusToday}
-            onClick={() => setFocusToday((v) => !v)}
-            title="Show only today's and overdue tasks (F)"
-          >
-            <span className="focus-dot" aria-hidden />
-            Today
-          </button>
+          <ListPicker
+            value={list}
+            onChange={(l) => {
+              setList(l);
+              setAdding(false);
+            }}
+            counts={listCounts}
+            projects={projectStats}
+          />
           <button
             type="button"
             className={adding ? "add-task-btn on" : "add-task-btn"}
@@ -595,16 +630,42 @@ export default function App() {
               setView("list");
               setAdding(false);
               setQuery("");
-              if (focusToday && !(t.due_date && t.due_date <= today)) setFocusToday(false);
+              if (!tasksForList(tasks, list, today).some((x) => x.id === t.id)) setList("all");
               setHighlight(t.id);
               setFocusId(t.id);
             }}
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && adding && (
+        {tab === "tasks" && !onboarding && view === "list" && viewedProject !== null && (
+          <ProjectHeader
+            name={viewedProject}
+            stats={projectStats.find((p) => p.name === viewedProject) ?? null}
+            onAddUnder={(heading) => {
+              setAddHeading(heading);
+              setAdding(true);
+            }}
+            onRename={async (to) => {
+              try {
+                await api.renameProject(viewedProject, to);
+                setList(projectList(to));
+              } catch (e) {
+                setError(String(e));
+              }
+            }}
+          />
+        )}
+        {tab === "tasks" && !onboarding && view === "list" && adding && list !== "logbook" && (
           <AddTaskForm
             locale={LOCALE}
-            defaultDay={null}
+            defaultDay={list === "today" ? today : null}
+            extra={
+              viewedProject !== null
+                ? { project: viewedProject, heading: addHeading }
+                : list === "someday"
+                  ? { someday: true, due_date: null }
+                  : undefined
+            }
+            context={viewedProject !== null ? `in ${viewedProject}${addHeading ? ` · ${addHeading}` : ""}` : undefined}
             placeholder="What needs doing? Try “send deck fri 3pm”"
             onAdd={async (task) => {
               try {
@@ -615,10 +676,16 @@ export default function App() {
                 throw e;
               }
             }}
-            onCancel={() => setAdding(false)}
+            onCancel={() => {
+              setAdding(false);
+              setAddHeading(null);
+            }}
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && (
+        {tab === "tasks" && !onboarding && view === "list" && list === "logbook" && (
+          <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />
+        )}
+        {tab === "tasks" && !onboarding && view === "list" && list !== "logbook" && (
           <TaskList
             groups={groups}
             actions={actions}
@@ -634,7 +701,28 @@ export default function App() {
             filtered={!!query.trim()}
             focusToday={focusToday}
             today={today}
+            projects={projectInfos}
+            inProject={viewedProject}
+            onOpenProject={openProject}
+            emptyNote={
+              list === "someday" && !query.trim() ? (
+                <>
+                  <p className="empty-big">Nothing in Someday</p>
+                  <p>Park ideas here from a task's date menu — they stay out of Today and the calendar.</p>
+                </>
+              ) : viewedProject !== null && !query.trim() ? (
+                <>
+                  <p className="empty-big">No tasks in {viewedProject}</p>
+                  <p>Add one above, or move tasks here with the folder button.</p>
+                </>
+              ) : undefined
+            }
           />
+        )}
+        {tab === "tasks" && !onboarding && view === "list" && list === "all" && listCounts.someday > 0 && !query.trim() && (
+          <button type="button" className="someday-link" onClick={() => setList("someday")}>
+            {listCounts.someday} in Someday →
+          </button>
         )}
         {tab === "connectors" && <ConnectorsTab />}
         {tab === "models" && <ModelsTab onChanged={checkStatus} />}

@@ -4,6 +4,7 @@ import { TimePicker } from "./TimePicker";
 import { CalendarIcon, RepeatIcon } from "./icons";
 import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import { repeatLabel, resolveCaptured, timeLabel } from "../lib/schedule";
+import { bulletSteps, isDeadlinePhrase } from "../lib/lists";
 import { sourceLabel } from "../lib/taskText";
 import type { CaptureResult, Extraction, NewTask, SourceInfo, TaskPatch } from "../lib/types";
 import { safeLocale } from "../lib/locale";
@@ -36,6 +37,9 @@ interface Draft {
   dateText: string | null;
   alternatives: string[];
   mustAsk: boolean;
+  /** Bulleted lines in the selection, offered as a checklist. */
+  steps: string[];
+  useSteps: boolean;
 }
 
 function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, now: Date): Draft {
@@ -49,6 +53,8 @@ function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, 
       dateText: null,
       alternatives: [],
       mustAsk: true,
+      steps: bulletSteps(state.selection),
+      useSteps: true,
     };
   }
   const x = state.extraction;
@@ -62,6 +68,8 @@ function draftFor(state: Extract<CaptureState, { phase: "review" | "manual" }>, 
     dateText: x.date_text,
     alternatives: r.alternatives,
     mustAsk: r.mustAsk,
+    steps: bulletSteps(state.selection),
+    useSteps: true,
   };
 }
 
@@ -125,6 +133,9 @@ function Review({
         due_time: draft.date ? draft.time : null,
         recurrence: draft.repeat,
         notes: draft.notes.trim() || null,
+        // "by Friday" is a deadline as well as the day.
+        deadline: draft.date && isDeadlinePhrase(draft.dateText) ? draft.date : null,
+        checklist: draft.useSteps ? draft.steps.map((text) => ({ text, done: false })) : [],
         source_text: state.selection,
         source_app: state.source?.app ?? null,
         source_bundle: state.source?.bundle ?? null,
@@ -238,6 +249,12 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
         aria-label="Task title"
       />
       <DescriptionField value={draft.notes} onChange={(notes) => onChange({ notes })} />
+      {draft.steps.length > 0 && (
+        <label className="capture-steps">
+          <input type="checkbox" checked={draft.useSteps} onChange={(e) => onChange({ useSteps: e.target.checked })} />
+          Add {draft.steps.length} steps from the selection as a checklist
+        </label>
+      )}
       <p className={draft.mustAsk ? "capture-question ask" : "capture-question"}>{question}</p>
       <div className="chips" role="radiogroup" aria-label="Due date">
         {choices.map((d) => (
@@ -298,6 +315,7 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
           date={draft.date}
           time={draft.time}
           repeat={draft.repeat}
+          basic
           now={now}
           locale={LOCALE}
           onApply={(p) => onChange(applyPatch(draft, p))}
