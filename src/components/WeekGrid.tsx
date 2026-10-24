@@ -1,7 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { weekRows } from "../lib/agenda";
 import { api, onCalendarChanged } from "../lib/api";
-import { parseISODate, relativeLabel } from "../lib/dates";
+import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { holidaysByDay } from "../lib/holidays";
 import { eventsForDay, hourLabel, planFor } from "../lib/plan";
 import { timeLabel } from "../lib/schedule";
@@ -12,12 +11,11 @@ import { NewTaskField } from "./DayPlan";
 
 interface Props {
   tasks: Task[];
-  /** Any day in the week to show. */
+  /** The first of the seven days shown. */
   day: string;
   today: string;
   now: Date;
   locale: string;
-  weekStart: number;
   actions: TaskActions;
   drag: TaskDrag;
   onAdd: (task: NewTask) => Promise<void>;
@@ -25,9 +23,10 @@ interface Props {
   openId: number | null;
 }
 
-/** The days of the week shown, first to last. */
-export function weekOf(day: string, weekStart: number): string[] {
-  return weekRows(day, weekStart, 1).map((c) => c.iso);
+/** Seven days from `day` on: Upcoming looks ahead from today, not back to the week's start. */
+export function sevenDays(day: string): string[] {
+  const d = parseISODate(day);
+  return Array.from({ length: 7 }, (_, i) => toISODate(addDays(d, i)));
 }
 
 /** Where the inline new-task field is: a day and an hour, or the day's Any time. */
@@ -38,8 +37,8 @@ type AddAt = { iso: string; hour: number | "any" } | null;
  * hour of their time beside calendar events; untimed ones in Any time. Drag
  * a task to another day or hour, click an empty hour to add one there.
  */
-export function WeekGrid({ tasks, day, today, now, locale, weekStart, actions, drag, onAdd, onOpen, openId }: Props) {
-  const days = weekOf(day, weekStart);
+export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd, onOpen, openId }: Props) {
+  const days = sevenDays(day);
   const from = days[0];
   const to = days[6];
   const [events, setEvents] = useState<CalendarEvent[]>([]);

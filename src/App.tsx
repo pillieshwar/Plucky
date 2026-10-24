@@ -8,7 +8,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
-import { WeekGrid, WeekSide, weekOf } from "./components/WeekGrid";
+import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { Toasts, useToasts } from "./components/Toasts";
 import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
@@ -645,7 +645,7 @@ export default function App() {
   }
 
   const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
-  const weekDays = weekOf(planDay, weekStart);
+  const weekDays = sevenDays(planDay);
   const rangeText = (() => {
     const a = parseISODate(weekDays[0]);
     const b = parseISODate(weekDays[6]);
@@ -1014,8 +1014,8 @@ export default function App() {
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), -7)))} aria-label="Previous week" title="Previous week (←)">
                   ‹
                 </button>
-                <button type="button" className="fh-btn" onClick={() => setPlanDay(today)} title="This week (T)">
-                  This week
+                <button type="button" className="fh-btn" onClick={() => setPlanDay(today)} title="From today (T)">
+                  Today
                 </button>
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), 7)))} aria-label="Next week" title="Next week (→)">
                   ›
@@ -1100,7 +1100,6 @@ export default function App() {
                     today={today}
                     now={now}
                     locale={LOCALE}
-                    weekStart={weekStart}
                     actions={actions}
                     drag={drag}
                     onAdd={addFromPlan}

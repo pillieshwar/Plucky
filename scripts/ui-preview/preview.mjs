@@ -867,7 +867,7 @@ await shot("full-upcoming-light", FULL, full({ settings: LIGHT }), side(/Upcomin
 await shot("full-upcoming-drag", FULL, full({ settings: DARK }), async (p) => {
   await side(/Upcoming/)(p);
   const from = await p.locator(".wg-task").first().boundingBox();
-  const to = await p.locator(`.wg-cell[data-iso="${day(1)}"][data-hour="16"]`).boundingBox();
+  const to = await p.locator(`.wg-cell[data-iso="${day(2)}"][data-hour="16"]`).boundingBox();
   await p.mouse.move(from.x + 30, from.y + 8);
   await p.mouse.down();
   await p.mouse.move(from.x + 60, from.y + 30, { steps: 4 });
