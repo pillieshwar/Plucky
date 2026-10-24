@@ -362,7 +362,7 @@ function RowMeta({
     <div className="task-meta">
       {parts.map((p, i) => (
         <span key={i} className="meta-part">
-          {i > 0 && <span className="meta-sep" aria-hidden> · </span>}
+          {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
           {p}
         </span>
       ))}
