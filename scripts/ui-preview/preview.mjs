@@ -921,7 +921,7 @@ await shot("full-city-light", FULL, full({ settings: LIGHT }), async (p) => {
 });
 await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
   await p.mouse.down();
   await p.mouse.move(c.x + c.width / 2 - 260, c.y + c.height / 2 + 90, { steps: 10 });
@@ -931,12 +931,12 @@ await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
 });
 await shot("full-city-hover", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
 });
 await shot("full-city-clicked-building", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
   await p.mouse.down();
   await p.mouse.up();
