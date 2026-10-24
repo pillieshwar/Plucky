@@ -204,7 +204,7 @@ export interface CityCamera {
   /** 1 = fits the view. */
   zoom: number;
 }
-export const DEFAULT_CAMERA: CityCamera = { yaw: 0.72, pitch: 0.58, zoom: 1.15 };
+export const DEFAULT_CAMERA: CityCamera = { yaw: 0.72, pitch: 0.58, zoom: 1 };
 
 export interface CityPalette {
   skyTop: string;

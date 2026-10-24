@@ -79,7 +79,7 @@ function CityCanvas({
   const ref = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<[number, number]>([0, 0]);
   // The corner card is wide and short: come in closer there.
-  const [cam, setCam] = useState<CityCamera>(still ? { ...DEFAULT_CAMERA, zoom: 1.5 } : DEFAULT_CAMERA);
+  const [cam, setCam] = useState<CityCamera>(still ? { ...DEFAULT_CAMERA, zoom: 1.25 } : DEFAULT_CAMERA);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const hits = useRef<CityHit[]>([]);
   const drag = useRef<{ x: number; y: number; cam: CityCamera; moved: boolean } | null>(null);

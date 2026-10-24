@@ -1891,3 +1891,5 @@ html[data-full="1"] body { background: var(--paper); }
 
 /* Toasts in full screen: a compact stack at the bottom centre, above the city. */
 .app-full .toasts { left: 50%; right: auto; width: 440px; max-width: calc(100% - 40px); transform: translateX(-50%); bottom: 20px; z-index: 70; }
+/* Room to scroll the list clear of the city card. */
+.app-full:has(.city-corner) .full-content { padding-bottom: 210px; }
