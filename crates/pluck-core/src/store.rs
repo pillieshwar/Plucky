@@ -230,6 +230,15 @@ pub struct ReminderLink {
     pub detached: bool,
 }
 
+/// A finished task, as one lit window of the city: just what the city shows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CityWindow {
+    pub id: i64,
+    pub title: String,
+    pub project: Option<String>,
+    pub completed_at: String,
+}
+
 /// A project and how far along it is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProjectSummary {
@@ -579,6 +588,27 @@ impl Store {
              ORDER BY completed_at DESC, id DESC LIMIT ?2"
         ))?;
         let rows = stmt.query_map(params![before, limit.min(500)], map_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Every completed task, oldest first (up to `limit`, the newest kept):
+    /// the windows of the city.
+    pub fn city_windows(&self, limit: u32) -> Result<Vec<CityWindow>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, project, completed_at FROM (
+                 SELECT id, title, project, completed_at FROM tasks
+                 WHERE done = 1 AND completed_at IS NOT NULL
+                 ORDER BY completed_at DESC, id DESC LIMIT ?1
+             ) ORDER BY completed_at, id",
+        )?;
+        let rows = stmt.query_map(params![limit.min(20_000)], |r| {
+            Ok(CityWindow {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                project: r.get(2)?,
+                completed_at: r.get(3)?,
+            })
+        })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -1481,6 +1511,17 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
+        let city = s.city_windows(10).unwrap();
+        assert_eq!(
+            city.iter().map(|w| w.title.as_str()).collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
+        assert_eq!(city[0].project.as_deref(), Some("P"));
+        let newest = s.city_windows(2).unwrap();
+        assert_eq!(
+            newest.iter().map(|w| w.title.as_str()).collect::<Vec<_>>(),
+            ["b", "c"]
+        );
         let page = s.logbook(None, 2).unwrap();
         assert_eq!(
             page.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),

@@ -13,6 +13,7 @@ import type {
   CalendarEvent,
   CalendarInfo,
   CalendarStatus,
+  CityWindow,
   CaptureResult,
   CustomModelInfo,
   DownloadEvent,
@@ -38,6 +39,9 @@ export const api = {
   addTask: (task: NewTask) => invoke<Task>("add_task", { task }),
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
   logbook: (before: string | null, limit = 80) => invoke<Task[]>("logbook", { before, limit }),
+  cityWindows: () => invoke<CityWindow[]>("city_windows"),
+  /** Save a PNG of the city to Downloads and show it; returns the path. */
+  saveCityImage: (name: string, png: Uint8Array) => invoke<string>("save_city_image", { name, png: Array.from(png) }),
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
   skipOccurrence: (id: number) => invoke<Task>("skip_occurrence", { id }),
   renameProject: (from: string, to: string) => invoke<number>("rename_project", { from, to }),

@@ -119,6 +119,13 @@ export function GeneralSection(
           onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
         />
         <Toggle
+          label="Show my city in full screen"
+          hint="Every task you finish lights a window. The city sits in the corner of full screen; click it to explore."
+          checked={settings?.city_corner ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, city_corner: v }))}
+        />
+        <Toggle
           label="Review captures under the menu-bar icon"
           hint="A card drops down from the Plucky icon. Off: captures open in this panel."
           checked={settings?.capture_in_menu_bar ?? true}

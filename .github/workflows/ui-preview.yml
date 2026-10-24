@@ -43,6 +43,8 @@ jobs:
           npx vite preview --port 4173 --strictPort &
           sleep 3
           TZ=America/Los_Angeles node scripts/ui-preview/preview.mjs http://localhost:4173 shots
+          # The built app too, so the screens can be checked by hand.
+          cp -R dist shots/app
       - name: Push to ui-previews
         # Also when a shot failed: its "-FAILED" image shows what went wrong.
         if: ${{ !cancelled() }}
