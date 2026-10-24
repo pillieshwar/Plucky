@@ -295,7 +295,8 @@ function mockTauri(s) {
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
 }
 
-const browser = await chromium.launch();
+// Software WebGL, so the 3D city renders too.
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 
 const failed = [];
 async function shot(name, size, s, steps = async () => {}, dark = false) {

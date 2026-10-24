@@ -417,7 +417,7 @@ export function CityScene({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: !!still });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = dark ? 1.05 : 1.15;
     renderer.domElement.className = still ? "city3d-canvas" : "city3d-canvas live";
@@ -429,7 +429,7 @@ export function CityScene({
     }
 
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 500);
-    homeCamera(camera, built, still ? 1.25 : 1);
+    homeCamera(camera, built, still ? 1.6 : 1);
     const composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(built.scene, camera);
     composer.addPass(renderPass);
@@ -659,7 +659,7 @@ export function renderCityPicture(city: City, name: string, opts: { count: numbe
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 500);
   homeCamera(camera, built, 1.15);
