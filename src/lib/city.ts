@@ -90,9 +90,12 @@ export function buildCity(windows: CityWindow[], tasks: Task[]): City {
   const sorted = [...byKey.entries()].sort(([ka, a], [kb, b]) => {
     if (ka === "") return -1;
     if (kb === "") return 1;
-    const fa = a.windows[0]?.completed_at ?? "~";
-    const fb = b.windows[0]?.completed_at ?? "~";
-    return fa.localeCompare(fb) || ka.localeCompare(kb);
+    // Founded first, first; lots still being planned go last.
+    const fa = a.windows[0]?.completed_at;
+    const fb = b.windows[0]?.completed_at;
+    if (fa && fb && fa !== fb) return fa < fb ? -1 : 1;
+    if (!fa !== !fb) return fa ? -1 : 1;
+    return ka.localeCompare(kb);
   });
   const places = lots(sorted.length);
   const buildings: Building[] = sorted.map(([key, b], i) => {
