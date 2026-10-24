@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   CITY_NAMES,
   DEFAULT_CAMERA,
@@ -15,6 +15,44 @@ import {
 } from "../lib/city";
 import { api } from "../lib/api";
 import type { CityWindow } from "../lib/types";
+
+// three.js loads only when the city is first shown (full screen).
+const CityScene = lazy(() => import("./CityScene").then((m) => ({ default: m.CityScene })));
+
+const hasWebGL = (() => {
+  let ok: boolean | null = null;
+  return () => {
+    if (ok === null) {
+      try {
+        const c = document.createElement("canvas");
+        ok = !!(c.getContext("webgl2") || c.getContext("webgl"));
+      } catch {
+        ok = false;
+      }
+    }
+    return ok;
+  };
+})();
+
+/** The city in 3D (three.js), or drawn flat where WebGL isn't available. */
+function City3D(props: {
+  city: City;
+  range: CityRange;
+  now: Date;
+  still?: boolean;
+  labels?: boolean;
+  onPick?: (key: string) => void;
+  onHover?: (h: Hover | null) => void;
+  onInteract?: () => void;
+}) {
+  const dark = useDark();
+  if (!hasWebGL()) return <CityCanvas {...props} padTop={props.labels ? 64 : 0} padBottom={props.labels ? 110 : 0} />;
+  return (
+    <Suspense fallback={<div className="city3d" />}>
+      <CityScene {...props} dark={dark} />
+    </Suspense>
+  );
+}
 
 const isDark = () => {
   const t = document.documentElement.dataset.theme;
@@ -270,7 +308,7 @@ export function CityCard({
   return (
     <div className={pulse ? "city-card lit-up" : "city-card"}>
       <button type="button" className="city-card-art" onClick={onOpen} aria-label={`Open ${title}`} title="Open your city">
-        <CityCanvas city={city} range="week" now={now} still />
+        <City3D city={city} range="week" now={now} still />
       </button>
       <div className="city-card-tools">
         <button type="button" onClick={onShare} aria-label="Share a picture of your city" title="Share">
@@ -359,13 +397,11 @@ export function CityView({
   return (
     <div className={dark ? "city-view" : "city-view light"} role="dialog" aria-label={`${name}: your city`}>
       <div className="cv-stage">
-        <CityCanvas
+        <City3D
           city={city}
           range={range}
           now={now}
           labels
-          padTop={64}
-          padBottom={110}
           onPick={(key) => onOpenProject(byKey.get(key)?.project ?? null)}
           onHover={setHover}
           onInteract={() => setHint(false)}
@@ -533,7 +569,7 @@ function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onNam
   return (
     <div className={dark ? "city-view naming" : "city-view naming light"} role="dialog" aria-label="Name your city">
       <div className="cv-stage low">
-        <CityCanvas city={city} range="week" now={now} still />
+        <City3D city={city} range="week" now={now} still />
       </div>
       <div className="nc-card">
         <p className="nc-kicker">{city.total ? "Your windows are lit" : "Your city starts here"}</p>
@@ -635,12 +671,25 @@ function ShareSheet({
   const [showCount, setShowCount] = useState(true);
   const [names, setNames] = useState(false);
   const [copied, setCopied] = useState(false);
-  const canvas = useMemo(
-    () => renderShareImage(city, name, { count: showCount ? count : null, names, now, dark }),
-    [city, name, showCount, count, names, now, dark],
-  );
-  const preview = useMemo(() => canvas.toDataURL("image/png"), [canvas]);
-  const blob = () => new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't make the picture."))), "image/png"));
+  // The picture is drawn in 3D like the city (flat where WebGL isn't available).
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    let live = true;
+    const opts = { count: showCount ? count : null, names, now, dark };
+    if (!hasWebGL()) setCanvas(renderShareImage(city, name, opts));
+    else
+      import("./CityScene")
+        .then((m) => live && setCanvas(m.renderCityPicture(city, name, opts)))
+        .catch(() => live && setCanvas(renderShareImage(city, name, opts)));
+    return () => {
+      live = false;
+    };
+  }, [city, name, showCount, count, names, now, dark]);
+  const preview = useMemo(() => canvas?.toDataURL("image/png") ?? null, [canvas]);
+  const blob = () =>
+    new Promise<Blob>((res, rej) =>
+      canvas ? canvas.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't make the picture."))), "image/png") : rej(new Error("The picture isn't ready yet.")),
+    );
 
   async function copy() {
     try {
@@ -672,7 +721,7 @@ function ShareSheet({
             </svg>
           </button>
         </div>
-        <img className="ss-preview" src={preview} alt={`A picture of ${name}`} />
+        {preview ? <img className="ss-preview" src={preview} alt={`A picture of ${name}`} /> : <div className="ss-preview ss-wait" />}
         <label className="ss-opt">
           <input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} /> Show this week's count
         </label>

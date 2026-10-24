@@ -597,6 +597,9 @@ fn set_settings(app: AppHandle, settings: State<'_, Settings>, value: AppSetting
         v.undated_nudge = value.undated_nudge;
         v.undated_time = undated_time;
         v.due_spotlight = value.due_spotlight;
+        v.double_copy = value.double_copy;
+        v.city_name = clean_city_name(value.city_name.as_deref());
+        v.city_corner = value.city_corner;
     });
     // Every window follows the theme (and other preferences) right away.
     let _ = app.emit("settings-changed", &next);
@@ -749,6 +752,18 @@ fn save_city_image(name: String, png: Vec<u8>) -> CmdResult<String> {
     std::fs::write(&path, png).map_err(err)?;
     reveal(&path, true)?;
     Ok(path.display().to_string())
+}
+
+/// The city's name as saved: trimmed, at most 40 characters, none if blank.
+fn clean_city_name(name: Option<&str>) -> Option<String> {
+    let n: String = name?
+        .trim()
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(40)
+        .collect();
+    let n = n.trim().to_string();
+    (!n.is_empty()).then_some(n)
 }
 
 /// A safe file name from the city's name ("Lumen Bay" → "Lumen Bay").
@@ -1492,6 +1507,17 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn city_names_are_tidied() {
+        assert_eq!(
+            clean_city_name(Some("  Lumen Bay ")),
+            Some("Lumen Bay".into())
+        );
+        assert_eq!(clean_city_name(Some("   ")), None);
+        assert_eq!(clean_city_name(None), None);
+        assert_eq!(clean_city_name(Some(&"x".repeat(80))).unwrap().len(), 40);
+    }
 
     #[test]
     fn city_file_names_are_safe() {

@@ -950,6 +950,13 @@ await shot("full-city-name", FULL, full({ settings: { ...DARK, city_name: null }
   await p.locator(".city-card-art").click();
   await p.waitForTimeout(300);
 });
+await shot("full-city-named", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.getByRole("button", { name: "Harbor Lights" }).click();
+  await p.getByRole("button", { name: "Found the city" }).click();
+  await p.waitForTimeout(1200);
+  if (!(await p.locator(".cv-name", { hasText: "Harbor Lights" }).count())) throw new Error("the city didn't open after naming it");
+});
 await shot("full-city-empty", FULL, full({ settings: DARK, cityWindows: [] }));
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
