@@ -387,3 +387,4 @@ html[data-view="popover"] body {
 .pop-quick input::placeholder { color: var(--faint); }
 .pop-foot .pop-link { flex: none; color: var(--muted); font-weight: 600; }
 .pop-hint kbd { font-size: 10.5px; }
+.pop-notes { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
