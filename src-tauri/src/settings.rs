@@ -44,6 +44,8 @@ pub struct AppSettings {
     /// "system", "light" or "dark".
     pub theme: String,
     /// 0.4.27 made dark the default; settings from before were moved over once.
+    /// (Missing in older files, so it reads as false there.)
+    #[serde(default)]
     pub theme_v2: bool,
     /// Press ⌘C twice quickly to capture what was just copied.
     pub double_copy: bool,

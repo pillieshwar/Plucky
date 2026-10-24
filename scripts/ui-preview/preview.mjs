@@ -314,10 +314,9 @@ async function shot(name, size, s, steps = async () => {}, dark = false) {
 const PANEL = { width: 360, height: 720 };
 /** Settings live behind the gear; open it, then the tab. */
 const tab = async (p, name) => {
-  if (!(await p.getByRole("tab", { name, exact: true }).count())) {
-    await p.getByRole("button", { name: "Settings", exact: true }).click();
-  }
-  await p.getByRole("tab", { name, exact: true }).click();
+  const t = p.getByRole("tab", { name: new RegExp(`^${name}`) });
+  if (!(await t.count())) await p.getByRole("button", { name: "Settings", exact: true }).click();
+  await t.click();
 };
 /** Open a task as a card. */
 const openTask = async (p, n) => {
@@ -449,7 +448,7 @@ await shot("panel-week-drag-hour", PANEL, planScenario(), async (p) => {
 });
 await shot("panel-week-drag-day", PANEL, planScenario(), async (p) => {
   await week(p);
-  await dragTo(".plan-any .plan-task", `.wk-day[data-iso="${day(1)}"]`)(p);
+  await dragTo(".plan-any .plan-task", ".wk-day:not(.on):not(.past)")(p);
 });
 await shot("popover-hours", POP, planScenario({ label: "popover" }), async (p) => {
   await p.getByRole("radio", { name: "Day" }).click();
@@ -566,7 +565,7 @@ const FRESH = scenario({
   settings: { ...SETTINGS, onboarding_done: false },
   status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.1", platform: "macos" },
 });
-for (let step = 1; step <= 8; step++) {
+for (let step = 1; step <= 3; step++) {
   await shot(`panel-tour-${step}`, PANEL, FRESH, async (p) => {
     for (let i = 1; i < step; i++) {
       await p.locator(".onboard-actions .primary").click();
