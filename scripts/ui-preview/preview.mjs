@@ -448,7 +448,7 @@ await shot("panel-week-drag-hour", PANEL, planScenario(), async (p) => {
 });
 await shot("panel-week-drag-day", PANEL, planScenario(), async (p) => {
   await week(p);
-  await dragTo(".plan-any .plan-task", ".wk-day:not(.on):not(.past)")(p);
+  await dragTo(".plan-any .plan-task", ".wk-day:not(.on)")(p);
 });
 await shot("popover-hours", POP, planScenario({ label: "popover" }), async (p) => {
   await p.getByRole("radio", { name: "Day" }).click();
