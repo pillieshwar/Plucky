@@ -1,14 +1,16 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
-import { CalendarIcon, ClockIcon, NoteIcon, RepeatIcon, TrashIcon } from "./icons";
+import { CalendarIcon, ClockIcon, RepeatIcon, TrashIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
-import { FlagIcon, FolderIcon, MoonIcon, ProjectPicker, StepsIcon, type ProjectInfo } from "./ProjectPicker";
+import { FlagIcon, FolderIcon, ProjectPicker, type ProjectInfo } from "./ProjectPicker";
 import { deadlineChip } from "../lib/lists";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
 import type { DayGroup } from "../lib/grouping";
-import { repeatLabel, repeatShort } from "../lib/schedule";
+import { repeatShort, timeLabel } from "../lib/schedule";
+import { relativeLabel, toISODate } from "../lib/dates";
+import type { TaskDrag } from "../lib/useTaskDrag";
 import type { TaskActions } from "../lib/taskActions";
 import { linkParts, sourceLabel, titleParts } from "../lib/taskText";
 import type { ChecklistItem, Task, TaskPatch } from "../lib/types";
@@ -51,6 +53,11 @@ interface Props {
   /** Selected for batch actions (⌘-click / Shift-click). */
   selected: Set<number>;
   onSelect: (id: number, mode: "toggle" | "range") => void;
+  /** Drag rows onto a day (the week strip). */
+  drag?: TaskDrag;
+  /** The task opened as a card, if any. */
+  openId: number | null;
+  onOpenTask: (id: number | null) => void;
 }
 
 export function TaskList(props: Props) {
@@ -61,7 +68,7 @@ export function TaskList(props: Props) {
       <div className="empty">
         <EmptyArt />
         <p className="empty-big">Nothing left for today</p>
-        <p>Turn off Today focus to see what’s coming up.</p>
+        <p>Open Upcoming in the list menu to see what’s next.</p>
       </div>
     );
   }
@@ -91,7 +98,7 @@ export function TaskList(props: Props) {
     );
   }
   return (
-    <div className="groups">
+    <div className={props.openId !== null ? "groups has-open" : "groups"}>
       {groups.map((g) => (
         <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label}>
           <h2 className="day">
@@ -134,26 +141,18 @@ function TaskRow({
   onOpenProject,
   selected,
   onSelect,
+  drag,
+  openId,
+  onOpenTask,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
   const focused = focusId === task.id;
-  const [editing, setEditing] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const [snoozing, setSnoozing] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const open = openId === task.id;
   const [completing, setCompleting] = useState(false);
-  const [draft, setDraft] = useState(task.title);
-  const [moving, setMoving] = useState(false);
-  // Steps: shown when opened; edited optimistically so quick ticks don't race.
-  const [stepsOpen, setStepsOpen] = useState(false);
-  const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
-  const stepsKey = JSON.stringify(task.checklist ?? []);
-  useEffect(() => setSteps(task.checklist ?? []), [stepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  function saveSteps(next: ChecklistItem[]) {
-    setSteps(next);
-    void actions.update(task, { checklist: next });
-  }
+  // Which part of the open card is expanded: when (date, deadline, repeat), project or snooze.
+  const [panel, setPanel] = useState<Panel>(null);
+  const [focusPart, setFocusPart] = useState<"title" | "notes" | "steps" | null>(null);
 
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -162,217 +161,133 @@ function TaskRow({
     if (focused) ref.current?.scrollIntoView({ block: "nearest" });
   }, [focused]);
   useEffect(() => {
+    if (!open) {
+      setPanel(null);
+      setFocusPart(null);
+    } else ref.current?.scrollIntoView({ block: "nearest" });
+  }, [open]);
+  useEffect(() => {
     if (!command || command.id !== task.id) return;
-    if (command.kind === "edit" && !task.done) {
-      setDraft(task.title);
-      setEditing(true);
-    }
-    if (command.kind === "date") setPicking((p) => !p);
-    if (command.kind === "snooze" && !task.done) setSnoozing((v) => !v);
-    if (command.kind === "notes") setNotesOpen(true);
-    if (command.kind === "steps") setStepsOpen((v) => !v);
-    if (command.kind === "project" && !task.done) setMoving((v) => !v);
+    // Every row command opens the task with the right part ready.
+    onOpenTask(task.id);
+    if (command.kind === "date") setPanel("when");
+    if (command.kind === "project" && !task.done) setPanel("project");
+    if (command.kind === "snooze" && !task.done) setPanel("snooze");
+    if (command.kind === "edit") setFocusPart("title");
+    if (command.kind === "notes") setFocusPart("notes");
+    if (command.kind === "steps") setFocusPart("steps");
     // Only react to new commands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
 
-  // While the date or snooze editor is open: a click anywhere outside this
-  // row closes it (nothing is lost — every choice applies as it's made).
+  // An open card closes on a click anywhere outside it (edits are already saved).
   useEffect(() => {
-    if (!picking && !snoozing && !moving) return;
+    if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setPicking(false);
-        setSnoozing(false);
-        setMoving(false);
-      }
+      const t = e.target as HTMLElement;
+      if (ref.current && !ref.current.contains(t) && !t.closest(".toasts, .batch, .keys-sheet")) onOpenTask(null);
     };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [picking, snoozing, moving]);
-  const closeEditors = () => {
-    setPicking(false);
-    setSnoozing(false);
-    setMoving(false);
-  };
-
-  function commit() {
-    setEditing(false);
-    const title = draft.trim();
-    if (title && title !== task.title) void actions.update(task, { title });
-    else setDraft(task.title);
-  }
+  }, [open, onOpenTask]);
 
   function toggle() {
     if (task.done) {
       void actions.setDone(task, false);
       return;
     }
-    // Let the check animation play before the row moves to "Done".
+    // Let the check animation play before the row leaves.
     setCompleting(true);
+    if (open) onOpenTask(null);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => void actions.setDone(task, true), reduce ? 0 : 420);
   }
 
-  function applyDate(patch: TaskPatch) {
-    const keys = Object.keys(patch).filter((k) => k !== "only_this");
-    const dayOnly = keys.length === 1 && "due_date" in patch;
-    if (dayOnly) void actions.reschedule(task, patch);
-    else void actions.update(task, patch);
-  }
-
-  const source = sourceLabel(task);
-  const repeat = repeatLabel(task.recurrence);
-  const meta: ReactNode[] = [];
-  const chip = dueChip(task, now, locale);
-  if (chip) {
-    meta.push(
-      <span key="due" className={`due-chip ${chip.tone}`}>
-        {chip.tone !== "overdue" && <ClockIcon />}
-        {chip.label}
-      </span>,
-    );
-  }
-  const dl = deadlineChip(task, now, locale);
-  if (dl) {
-    meta.push(
-      <span key="dl" className={`due-chip deadline ${dl.tone}`} title={`Deadline: ${task.deadline}`}>
-        <FlagIcon />
-        {dl.label}
-      </span>,
-    );
-  }
-  if (task.paused && !task.done) {
-    meta.push(
-      <span key="paused" className="meta-paused" title="Paused: no reminders until you resume it (date menu)">
-        ❚❚ Paused
-      </span>,
-    );
-  }
-  if (task.evening && !task.done) {
-    meta.push(
-      <span key="eve" className="meta-evening" title="Planned for the evening">
-        <MoonIcon /> Evening
-      </span>,
-    );
-  }
-  if (steps.length > 0) {
-    meta.push(
-      <button
-        key="steps"
-        type="button"
-        className={stepsOpen ? "meta-steps on" : "meta-steps"}
-        onClick={() => setStepsOpen((v) => !v)}
-        aria-expanded={stepsOpen}
-        title={stepsOpen ? "Hide steps (C)" : "Show steps (C)"}
-      >
-        <StepsIcon /> {stepsLabel(steps)}
-      </button>,
-    );
-  }
-  if (task.project && task.project !== inProject) {
-    meta.push(
-      <button key="proj" type="button" className="meta-project" onClick={() => onOpenProject(task.project!)} title={`Open ${task.project}`}>
-        <FolderIcon /> {task.project}
-        {task.heading ? ` · ${task.heading}` : ""}
-      </button>,
-    );
-  }
-  if (repeat) {
-    meta.push(
-      <span key="r" className="meta-repeat" title={repeat}>
-        <RepeatIcon /> {repeatShort(task.recurrence)}
-      </span>,
-    );
-  }
-  if (source) {
-    meta.push(
-      <button
-        key="src"
-        type="button"
-        className="meta-source"
-        onClick={() => void api.openSource(task.id).catch(actions.fail)}
-        title={task.source_url ?? `Open ${source}`}
-      >
-        {source} <span aria-hidden>↗</span>
-      </button>,
-    );
-  }
+  const check = (
+    <button
+      type="button"
+      data-nodrag
+      className={task.done || completing ? "check on" : "check"}
+      onClick={toggle}
+      aria-label={task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`}
+      aria-pressed={task.done}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4">
+        <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
 
   return (
     <li
       ref={ref}
       className={[
         "task",
+        open ? "open" : "",
         task.done ? "done" : "",
-        picking || snoozing || moving ? "picking" : "",
         highlighted ? "flash" : "",
-        focused ? "focused" : "",
+        focused && !open ? "focused" : "",
         completing ? "completing" : "",
         selected.has(task.id) ? "selected" : "",
+        drag?.drag?.task.id === task.id ? "lifted" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       aria-selected={selected.size ? selected.has(task.id) : undefined}
+      onPointerDown={(e) => {
+        if (!open && drag && !(e.metaKey || e.ctrlKey || e.shiftKey)) drag.start(e, task);
+      }}
       onMouseDown={() => onFocus(task.id)}
       // ⌘-click toggles a task in the selection, Shift-click selects a range.
       onMouseDownCapture={(e) => {
-        if (!(e.metaKey || e.ctrlKey || e.shiftKey) || e.button !== 0) return;
+        if (open || !(e.metaKey || e.ctrlKey || e.shiftKey) || e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
         onFocus(task.id);
         onSelect(task.id, e.shiftKey ? "range" : "toggle");
       }}
       onClickCapture={(e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        if (!open && (e.metaKey || e.ctrlKey || e.shiftKey)) {
           e.preventDefault();
           e.stopPropagation();
         }
       }}
     >
-      <div className="task-row" title={task.source_text ?? undefined}>
-        <button
-          type="button"
-          className={task.done || completing ? "check on" : "check"}
-          onClick={toggle}
-          aria-label={task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`}
-          aria-pressed={task.done}
+      {open ? (
+        <TaskCard
+          task={task}
+          check={check}
+          actions={actions}
+          now={now}
+          locale={locale}
+          projects={projects}
+          panel={panel}
+          onPanel={setPanel}
+          focusPart={focusPart}
+          onClose={() => onOpenTask(null)}
+        />
+      ) : (
+        <div
+          className="task-row"
+          title={task.done ? undefined : "Click to open · drag onto a day to move"}
+          onClick={(e) => {
+            if (drag?.wasDrag()) return;
+            if ((e.target as HTMLElement).closest("button, a, input")) return;
+            onOpenTask(task.id);
+          }}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4">
-            <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <div className="task-main">
-          {editing ? (
-            <input
-              className="task-edit"
-              autoFocus
-              value={draft}
-              maxLength={200}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commit();
-                if (e.key === "Escape") {
-                  e.stopPropagation();
-                  setDraft(task.title);
-                  setEditing(false);
-                }
-              }}
-              aria-label="Task title"
-            />
-          ) : (
-            <span
-              className="task-title"
-              onDoubleClick={() => {
-                if (task.done) return;
-                setDraft(task.title);
-                setEditing(true);
-              }}
-            >
+          {check}
+          <div className="task-main">
+            <span className="task-title">
               {titleParts(task.title).map((p, i) =>
                 p.tag ? (
-                  <button key={i} type="button" className="tag" onClick={() => onTag(p.text.toLowerCase())}>
+                  <button
+                    key={i}
+                    type="button"
+                    className="tag"
+                    data-nodrag
+                    onClick={() => onTag(p.text.toLowerCase())}
+                  >
                     {p.text}
                   </button>
                 ) : (
@@ -380,161 +295,312 @@ function TaskRow({
                 ),
               )}
             </span>
-          )}
-          {notesOpen ? (
-            <NotesEditor
-              initial={task.notes ?? ""}
-              onDone={(notes) => {
-                setNotesOpen(false);
-                if (notes !== null && notes.trim() !== (task.notes ?? "")) void actions.update(task, { notes: notes.trim() || null });
-              }}
-            />
-          ) : (
-            task.notes && <Notes text={task.notes} onEdit={() => setNotesOpen(true)} onError={actions.fail} />
-          )}
-          {meta.length > 0 && <div className="task-meta">{meta}</div>}
-          {stepsOpen && (
-            <Checklist items={steps} onChange={saveSteps} autoFocusAdd={steps.length === 0} readOnly={task.done} />
-          )}
-        </div>
-        {picking || snoozing || moving ? (
-          <div className="task-tools open">
-            <button
-              type="button"
-              className="task-done-editing"
-              onClick={closeEditors}
-              aria-label={picking ? "Close the date editor" : moving ? "Close project options" : "Close snooze options"}
-            >
-              Close
-            </button>
-          </div>
-        ) : (
-          <div className="task-tools">
-            {!task.done && (
-              <button
-                type="button"
-                className="task-date"
-                title="Snooze (S)"
-                aria-label="Snooze"
-                onClick={() => setSnoozing(true)}
-              >
-                <ClockIcon />
-              </button>
-            )}
-            {steps.length === 0 && !stepsOpen && !task.done && (
-              <button
-                type="button"
-                className="task-date"
-                title="Add steps (C)"
-                aria-label="Add a checklist"
-                onClick={() => setStepsOpen(true)}
-              >
-                <StepsIcon />
-              </button>
-            )}
-            {!task.done && (
-              <button
-                type="button"
-                className="task-date"
-                title="Move to a project (P)"
-                aria-label="Move to a project"
-                onClick={() => setMoving(true)}
-              >
-                <FolderIcon />
-              </button>
-            )}
-            {!task.notes && !notesOpen && (
-              <button
-                type="button"
-                className="task-date"
-                title="Add a description (N)"
-                aria-label="Add a description"
-                onClick={() => setNotesOpen(true)}
-              >
-                <NoteIcon />
-              </button>
-            )}
-            <button
-              type="button"
-              className="task-date"
-              title="Change date (D)"
-              aria-label="Change date, time or repeat"
-              onClick={() => setPicking(true)}
-            >
-              <CalendarIcon />
-            </button>
-            <span className="task-tools-gap" aria-hidden />
-            <button
-              type="button"
-              className="task-delete"
-              title="Delete (⌫) — you can undo"
-              aria-label={`Delete “${task.title}”`}
-              onClick={() => void actions.remove(task)}
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        )}
-      </div>
-      {(snoozing || picking || moving) && (
-        <div
-          className="task-editing"
-          // Keys pressed in here belong to the editor — never to the list
-          // (so Backspace or X can't delete or finish the task by accident).
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Escape") {
-              e.preventDefault();
-              closeEditors();
-            }
-          }}
-        >
-          {snoozing && !task.done && (
-            <SnoozeBar
-              onSnooze={(kind) => {
-                setSnoozing(false);
-                void actions.snooze(task, kind);
-              }}
-            />
-          )}
-          {picking && (
-            <DateEditor
-              date={task.due_date}
-              time={task.due_time}
-              repeat={task.recurrence}
-              evening={task.evening}
-              someday={task.someday}
-              deadline={task.deadline}
-              paused={task.paused}
-              onSkip={task.recurrence ? () => void actions.skip(task) : undefined}
-              onPause={task.recurrence ? (p) => void actions.pause(task, p) : undefined}
-              now={now}
-              locale={locale}
-              onApply={applyDate}
-              onClose={() => setPicking(false)}
-            />
-          )}
-          {moving && (
-            <ProjectPicker
-              projects={projects}
-              project={task.project}
-              heading={task.heading}
-              onPick={(project, heading) => {
-                void actions.update(task, { project, heading });
-                setMoving(false);
-              }}
-            />
-          )}
-          <div className="task-editing-foot">
-            <span>{picking || moving ? "Changes save as you pick" : "Pick when to be reminded"}</span>
-            <button type="button" className="task-editing-done" onClick={closeEditors}>
-              Close
-            </button>
+            <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} />
           </div>
         </div>
       )}
     </li>
   );
+}
+
+type Panel = "when" | "project" | "snooze" | null;
+
+/** One quiet grey line under a title; only lateness is red. */
+function RowMeta({
+  task,
+  now,
+  locale,
+  inProject,
+  onOpenProject,
+  onError,
+}: {
+  task: Task;
+  now: Date;
+  locale: string;
+  inProject: string | null;
+  onOpenProject: (name: string) => void;
+  onError: (e: unknown) => void;
+}) {
+  const parts: ReactNode[] = [];
+  const when = whenText(task, now, locale);
+  if (when) parts.push(<span key="w" className={when.late ? "late" : when.soon ? "soon" : undefined}>{when.text}</span>);
+  const dl = deadlineChip(task, now, locale);
+  if (dl) parts.push(<span key="dl" className={dl.tone === "overdue" ? "late" : undefined}>{dl.label}</span>);
+  if (task.paused && !task.done) parts.push(<span key="p">Paused</span>);
+  const steps = task.checklist ?? [];
+  if (steps.length) parts.push(<span key="s">{stepsLabel(steps)} steps</span>);
+  const link = firstLink(task.notes);
+  if (link) {
+    parts.push(
+      <a
+        key="l"
+        href={link}
+        data-nodrag
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void api.openUrl(link).catch(onError);
+        }}
+      >
+        {shortUrl(link)}
+      </a>,
+    );
+  }
+  if (task.project && task.project !== inProject) {
+    parts.push(
+      <button key="pr" type="button" className="meta-link" data-nodrag onClick={() => onOpenProject(task.project!)}>
+        {task.project}
+      </button>,
+    );
+  }
+  const repeat = repeatShort(task.recurrence);
+  if (repeat) parts.push(<span key="r">{repeat.toLowerCase()}</span>);
+  const source = sourceLabel(task);
+  if (source && !link) parts.push(<span key="src">from {source}</span>);
+  if (!parts.length) return null;
+  return (
+    <div className="task-meta">
+      {parts.map((p, i) => (
+        <span key={i} className="meta-part">
+          {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
+          {p}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** "Tuesday" (late), "4:26 PM", "in 40 min", "Evening". */
+function whenText(t: Task, now: Date, locale: string): { text: string; late?: boolean; soon?: boolean } | null {
+  if (t.done) return null;
+  const chip = dueChip(t, now, locale);
+  const time = t.due_time ? timeLabel(t.due_time, locale) : null;
+  if (chip?.tone === "overdue") {
+    const today = toISODate(now);
+    if (t.due_date && t.due_date < today) {
+      const day = relativeLabel(t.due_date, now, locale);
+      return { text: time ? `${day}, ${time}` : day, late: true };
+    }
+    return { text: time ?? "Late", late: true };
+  }
+  if (chip?.tone === "soon") return { text: chip.label, soon: true };
+  if (time) return { text: t.evening ? `${time} · evening` : time };
+  if (t.evening) return { text: "Evening" };
+  return null;
+}
+
+function firstLink(notes: string | null): string | null {
+  if (!notes) return null;
+  return linkParts(notes).find((p) => p.url)?.url ?? null;
+}
+
+function shortUrl(url: string): string {
+  const s = url.replace(/^(https?:\/\/(www\.)?|mailto:)/i, "").replace(/\/$/, "");
+  return s.length > 28 ? `${s.slice(0, 27)}…` : s;
+}
+
+/**
+ * A task opened in place: title, notes and steps to edit, and one row of
+ * pills for when, deadline, project and repeat. Everything saves as you go.
+ */
+function TaskCard({
+  task,
+  check,
+  actions,
+  now,
+  locale,
+  projects,
+  panel,
+  onPanel,
+  focusPart,
+  onClose,
+}: {
+  task: Task;
+  check: ReactNode;
+  actions: TaskActions;
+  now: Date;
+  locale: string;
+  projects: ProjectInfo[];
+  panel: Panel;
+  onPanel: (p: Panel) => void;
+  focusPart: "title" | "notes" | "steps" | null;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [notes, setNotes] = useState(task.notes ?? "");
+  const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
+  const stepsKey = JSON.stringify(task.checklist ?? []);
+  useEffect(() => setSteps(task.checklist ?? []), [stepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setTitle(task.title), [task.title]);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusPart === "notes") notesRef.current?.focus();
+  }, [focusPart]);
+  // Grow the notes box with its text.
+  useEffect(() => {
+    const el = notesRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [notes]);
+
+  function saveTitle() {
+    const t = title.trim();
+    if (t && t !== task.title) void actions.update(task, { title: t });
+    else setTitle(task.title);
+  }
+  function saveNotes() {
+    const n = notes.trim();
+    if (n !== (task.notes ?? "")) void actions.update(task, { notes: n || null });
+  }
+  function saveSteps(next: ChecklistItem[]) {
+    setSteps(next);
+    void actions.update(task, { checklist: next });
+  }
+  function applyDate(patch: TaskPatch) {
+    const keys = Object.keys(patch).filter((k) => k !== "only_this");
+    if (keys.length === 1 && "due_date" in patch) void actions.reschedule(task, patch);
+    else void actions.update(task, patch);
+  }
+  const toggle = (p: Panel) => onPanel(panel === p ? null : p);
+
+  const chip = dueChip(task, now, locale);
+  const whenLabel = task.someday
+    ? "Someday"
+    : task.due_date
+      ? [relativeLabel(task.due_date, now, locale), task.due_time && timeLabel(task.due_time, locale), task.evening && "evening"]
+          .filter(Boolean)
+          .join(", ")
+      : "When";
+  const dl = deadlineChip(task, now, locale);
+  const repeat = repeatShort(task.recurrence);
+  const source = sourceLabel(task);
+
+  return (
+    <div
+      className="task-card"
+      role="group"
+      aria-label={`Editing “${task.title}”`}
+      // Keys typed here are for the card, not the list's shortcuts.
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (panel) onPanel(null);
+          else onClose();
+        }
+      }}
+    >
+      <div className="tc-head">
+        {check}
+        <input
+          className="tc-title"
+          value={title}
+          autoFocus={focusPart === "title" || focusPart === null}
+          maxLength={200}
+          aria-label="Title"
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={saveTitle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+        />
+      </div>
+      <textarea
+        ref={notesRef}
+        className="tc-notes"
+        value={notes}
+        rows={1}
+        maxLength={2000}
+        placeholder="Notes"
+        aria-label="Notes"
+        onChange={(e) => setNotes(e.target.value)}
+        onBlur={saveNotes}
+      />
+      {task.notes && linkParts(task.notes).some((p) => p.url) && <Notes text={task.notes} onEdit={() => notesRef.current?.focus()} onError={actions.fail} />}
+      <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
+
+      <div className="tc-pills">
+        <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
+          <CalendarIcon /> {whenLabel}
+        </button>
+        <button type="button" className={pillClass(panel === "when", !!dl, dl?.tone === "overdue")} onClick={() => toggle("when")}>
+          <FlagIcon /> {dl ? dl.label : "Deadline"}
+        </button>
+        <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
+          <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : "Project"}
+        </button>
+        <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
+          <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Repeat"}
+        </button>
+      </div>
+
+      {panel === "when" && (
+        <DateEditor
+          date={task.due_date}
+          time={task.due_time}
+          repeat={task.recurrence}
+          evening={task.evening}
+          someday={task.someday}
+          deadline={task.deadline}
+          paused={task.paused}
+          onSkip={task.recurrence ? () => void actions.skip(task) : undefined}
+          onPause={task.recurrence ? (p) => void actions.pause(task, p) : undefined}
+          now={now}
+          locale={locale}
+          onApply={applyDate}
+          onClose={() => onPanel(null)}
+        />
+      )}
+      {panel === "project" && (
+        <ProjectPicker
+          projects={projects}
+          project={task.project}
+          heading={task.heading}
+          onPick={(project, heading) => {
+            void actions.update(task, { project, heading });
+            onPanel(null);
+          }}
+        />
+      )}
+      {panel === "snooze" && !task.done && (
+        <SnoozeBar
+          onSnooze={(kind) => {
+            onPanel(null);
+            void actions.snooze(task, kind);
+          }}
+        />
+      )}
+
+      <div className="tc-foot">
+        {source ? (
+          <button
+            type="button"
+            className="tc-link"
+            onClick={() => void api.openSource(task.id).catch(actions.fail)}
+            title={task.source_url ?? `Open ${source}`}
+          >
+            From {source} ↗
+          </button>
+        ) : (
+          <span className="tc-hint">Esc to close · saves as you go</span>
+        )}
+        <span className="tc-gap" />
+        {!task.done && (
+          <button type="button" className={panel === "snooze" ? "tc-link on" : "tc-link"} onClick={() => toggle("snooze")}>
+            <ClockIcon /> Snooze
+          </button>
+        )}
+        <button type="button" className="tc-link danger" onClick={() => void actions.remove(task)} aria-label={`Delete “${task.title}”`}>
+          <TrashIcon /> Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function pillClass(on: boolean, set: boolean, late: boolean): string {
+  return ["tc-pill", on ? "on" : "", set ? "set" : "", late ? "late" : ""].filter(Boolean).join(" ");
 }
 
 /** The description: one quiet line, links clickable, click to edit. */
@@ -559,36 +625,6 @@ function Notes({ text, onEdit, onError }: { text: string; onEdit: () => void; on
         ),
       )}
     </p>
-  );
-}
-
-/** Inline editor; Enter or clicking away saves, Esc cancels. */
-function NotesEditor({ initial, onDone }: { initial: string; onDone: (notes: string | null) => void }) {
-  const [value, setValue] = useState(initial);
-  const done = useRef(false);
-  const finish = (v: string | null) => {
-    if (done.current) return;
-    done.current = true;
-    onDone(v);
-  };
-  return (
-    <input
-      className="task-notes-edit"
-      autoFocus
-      value={value}
-      maxLength={2000}
-      placeholder="Add a description, link or detail…"
-      aria-label="Description"
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => finish(value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") finish(value);
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          finish(null);
-        }
-      }}
-    />
   );
 }
 

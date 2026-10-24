@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, onModelDownload } from "../lib/api";
-import { Toggle } from "./GeneralSettings";
 import { ShortcutEditor } from "./SettingsTab";
 import { formatShortcut, type ShortcutSettings } from "../lib/shortcuts";
-import type { AgentsStatus, AppSettings, ModelInfo, Status } from "../lib/types";
-import { AgentAppList } from "./AgentsSection";
+import type { AppSettings, ModelInfo, Status } from "../lib/types";
 
 interface Props {
   status: Status | null;
@@ -17,19 +15,18 @@ interface Props {
   /** A capture is on screen, so the tour steps aside for it. */
   hidden: boolean;
   onRefreshStatus: () => void;
-  /** Run the sample text through a real capture. */
+  /** Run text through a real capture (the review card). */
   onTry: (text: string) => void;
   onDone: () => void;
 }
 
-const SAMPLE = "Hi! Could you send me the Q3 numbers by Friday 3pm? Thanks!";
-
-const STEPS = ["Welcome", "Permission", "Model", "Shortcuts", "Reminders", "AI apps", "Try it", "Tour"] as const;
+const SAMPLE = "Could you send me the Q3 numbers by Friday 3pm? Thanks!";
+const STEPS = ["Model", "Shortcut", "Try it"] as const;
 
 /**
- * The first-run tour: what Plucky does, the one permission it needs, the
- * model, shortcuts, reminders, AI apps, a real capture from the browser, and a quick
- * look around. Shown on first launch and from Settings → General.
+ * The first-run tour, in three steps: pick the on-device model, pick how to
+ * capture, and capture something. Everything else has sensible defaults and
+ * lives behind the gear. Shown on first launch and from Preferences.
  */
 export function Onboarding({
   status,
@@ -44,41 +41,29 @@ export function Onboarding({
   onDone,
 }: Props) {
   const [step, setStep] = useState(0);
-  const [model, setModel] = useState<ModelInfo | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
-  const [notify, setNotify] = useState(settings?.notify.enabled ?? true);
-  const [login, setLogin] = useState(true);
-  const [showOnStart, setShowOnStart] = useState(settings?.show_on_start ?? true);
   const [captured, setCaptured] = useState(false);
-  const [agents, setAgents] = useState<AgentsStatus | null>(null);
-  const [agentsError, setAgentsError] = useState<string | null>(null);
   const baseline = useRef<number | null>(null);
+  const lastCopy = useRef(0);
 
   const hasModel = !!status?.active_model || status?.engine === "ollama";
-  const capture = shortcuts ? formatShortcut(shortcuts.capture) : "…";
-  const quick = shortcuts?.quick_add ? formatShortcut(shortcuts.quick_add) : null;
-  const toggle = shortcuts?.toggle_panel ? formatShortcut(shortcuts.toggle_panel) : null;
-
-  // Watch for the Accessibility switch while that step is open.
-  useEffect(() => {
-    if (step !== 1 || status?.accessibility) return;
-    const id = window.setInterval(onRefreshStatus, 1500);
-    return () => window.clearInterval(id);
-  }, [step, status?.accessibility, onRefreshStatus]);
+  const doubleCopy = settings?.double_copy ?? true;
+  const combo = shortcuts ? formatShortcut(shortcuts.capture) : "…";
+  const how = doubleCopy ? "⌘C twice" : combo;
 
   useEffect(() => {
     api
       .listModels()
       .then((ms) => {
-        setModel(ms.find((m) => m.recommended) ?? ms[0] ?? null);
+        const sorted = [...ms].sort((a, b) => Number(b.recommended) - Number(a.recommended) || a.rank - b.rank);
+        setModels(sorted.slice(0, 3));
+        setChosen((c) => c ?? sorted[0]?.id ?? null);
         const going = ms.find((m) => m.progress);
         if (going?.progress?.total) setProgress(Math.round((going.progress.downloaded / going.progress.total) * 100));
       })
-      .catch(() => undefined);
-    api
-      .autostartEnabled()
-      .then(setLogin)
       .catch(() => undefined);
     const sub = onModelDownload((e) => {
       if (e.state === "progress") setProgress(e.total ? Math.round((e.downloaded / e.total) * 100) : 0);
@@ -95,17 +80,16 @@ export function Onboarding({
     return () => void sub.then((u) => u());
   }, [onRefreshStatus]);
 
+  // The key combo needs Accessibility; watch for it being granted.
   useEffect(() => {
-    if (step !== 5 || agents) return;
-    api
-      .agentsStatus()
-      .then(setAgents)
-      .catch(() => setAgents(null));
-  }, [step, agents]);
+    if (step !== 1 || doubleCopy || status?.accessibility) return;
+    const id = window.setInterval(onRefreshStatus, 1500);
+    return () => window.clearInterval(id);
+  }, [step, doubleCopy, status?.accessibility, onRefreshStatus]);
 
   // "Try it": a new task appearing means the capture worked.
   useEffect(() => {
-    if (step !== 6) {
+    if (step !== 2) {
       baseline.current = null;
       return;
     }
@@ -113,37 +97,55 @@ export function Onboarding({
     else if (taskCount > baseline.current) setCaptured(true);
   }, [step, taskCount]);
 
+  // In the tour, copying the sample twice here works too (Plucky ignores
+  // copies made inside itself everywhere else).
+  useEffect(() => {
+    if (step !== 2) return;
+    const onCopy = () => {
+      const now = Date.now();
+      const text = window.getSelection()?.toString().trim() ?? "";
+      if (doubleCopy && text && now - lastCopy.current < 700) {
+        lastCopy.current = 0;
+        onTry(text);
+      } else lastCopy.current = now;
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, [step, doubleCopy, onTry]);
+
   async function download() {
-    if (!model) return;
+    if (!chosen) return;
     setModelError(null);
     setProgress(0);
     try {
-      await api.downloadModel(model.id);
+      await api.downloadModel(chosen);
     } catch (e) {
       setProgress(null);
       setModelError(String(e));
     }
   }
 
-  async function saveReminders() {
+  async function setDoubleCopy(on: boolean) {
     try {
-      await api.setAutostart(login);
-      if (notify) await api.requestNotificationPermission();
       const s = await api.getSettings();
-      onSettings(await api.setSettings({ ...s, show_on_start: showOnStart, notify: { ...s.notify, enabled: notify } }));
+      onSettings(await api.setSettings({ ...s, double_copy: on }));
     } catch {
-      // All of these can be changed later in Settings.
+      // Can be changed later in Preferences.
     }
-    setStep(5);
+  }
+
+  async function finish() {
+    // Reminders are on by default; ask for permission to show them now.
+    try {
+      await api.requestNotificationPermission();
+    } catch {
+      // Preferences can do this later.
+    }
+    onDone();
   }
 
   if (hidden) return null;
 
-  const next = (label = "Continue", to = step + 1, disabled = false) => (
-    <button type="button" className="primary" disabled={disabled} onClick={() => setStep(to)}>
-      {label}
-    </button>
-  );
   const back = step > 0 && (
     <button type="button" className="link-btn" onClick={() => setStep(step - 1)}>
       Back
@@ -163,220 +165,148 @@ export function Onboarding({
         <span className="onboard-count">
           {step + 1} of {STEPS.length}
         </span>
+        <button type="button" className="link-btn" onClick={onDone}>
+          Skip
+        </button>
       </div>
 
       {step === 0 && (
         <div className="onboard-body">
-          <h2>Turn any text into a task</h2>
-          <p>
-            Select a message, an email or a web page, press <kbd>{capture}</kbd>, and Plucky writes the to-do with the
-            right date — using a small model that runs on this Mac. Nothing you capture leaves it.
-          </p>
-          <p className="onboard-muted">This tour takes about two minutes and sets everything up.</p>
+          <h2>Pick your on-device model</h2>
+          <p>Plucky reads text and writes the to-do with a small AI model that runs on this Mac. Nothing leaves it.</p>
+          {hasModel ? (
+            <p className="onboard-ok">✓ {status?.active_model ?? "A model"} is ready</p>
+          ) : progress !== null ? (
+            <>
+              <div className="progress" aria-label="Download progress">
+                <div className="progress-bar" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="progress-label">Downloading… {progress}% — you can carry on meanwhile.</p>
+            </>
+          ) : (
+            <div className="onboard-choices" role="radiogroup" aria-label="Model">
+              {models.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={chosen === m.id}
+                  className={chosen === m.id ? "onboard-choice on" : "onboard-choice"}
+                  onClick={() => setChosen(m.id)}
+                >
+                  <span className="oc-title">
+                    {m.name}
+                    {m.recommended && <span className="oc-badge">Best for this Mac</span>}
+                  </span>
+                  <span className="oc-hint">
+                    {(m.approx_size_mb / 1000).toFixed(1)} GB · needs {m.min_ram_gb} GB memory
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {modelError && <p className="model-error">{modelError}</p>}
           <div className="onboard-actions">
-            <button type="button" className="link-btn" onClick={onDone}>
-              Skip tour
-            </button>
-            {next("Start the tour")}
+            <span />
+            {hasModel || progress !== null ? (
+              <button type="button" className="primary" onClick={() => setStep(1)}>
+                Continue
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary"
+                disabled={!chosen}
+                onClick={() => {
+                  void download();
+                  setStep(1);
+                }}
+              >
+                Download and continue
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {step === 1 && (
         <div className="onboard-body">
-          <h2>Let Plucky read selected text</h2>
-          <p>
-            macOS asks you to allow this once, in <b>System Settings → Privacy &amp; Security → Accessibility</b>. Turn
-            on <b>Plucky</b> there. It only reads your selection when you press the shortcut.
-          </p>
-          {status?.accessibility ? (
-            <p className="onboard-ok">✓ Access granted</p>
-          ) : (
-            <button type="button" className="ghost" onClick={() => void api.requestAccessibility().then(onRefreshStatus)}>
-              Open System Settings
+          <h2>How do you want to capture?</h2>
+          <div className="onboard-choices" role="radiogroup" aria-label="Capture with">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={doubleCopy}
+              className={doubleCopy ? "onboard-choice on" : "onboard-choice"}
+              onClick={() => void setDoubleCopy(true)}
+            >
+              <span className="oc-title">
+                Press <kbd>⌘C</kbd> twice<span className="oc-badge">Easiest</span>
+              </span>
+              <span className="oc-hint">Copy as usual, press ⌘C again — Plucky picks it up. Works in every app.</span>
             </button>
-          )}
-          <div className="onboard-actions">
-            {back}
-            {next(status?.accessibility ? "Continue" : "I’ll do this later")}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!doubleCopy}
+              className={!doubleCopy ? "onboard-choice on" : "onboard-choice"}
+              onClick={() => void setDoubleCopy(false)}
+            >
+              <span className="oc-title">
+                A shortcut, like <kbd>{combo}</kbd>
+              </span>
+              <span className="oc-hint">Select text and press it — no copying needed.</span>
+            </button>
           </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="onboard-body">
-          <h2>Download the on-device model</h2>
-          {hasModel ? (
-            <p className="onboard-ok">✓ {status?.active_model ?? "Model"} is ready</p>
-          ) : (
+          {!doubleCopy && (
             <>
-              <p>
-                {model
-                  ? `${model.name} — about ${(model.approx_size_mb / 1000).toFixed(1)} GB, downloaded once.`
-                  : "A small language model, downloaded once."}{" "}
-                It keeps downloading while you finish the tour.
-              </p>
-              {progress !== null ? (
-                <>
-                  <div className="progress" aria-label="Download progress">
-                    <div className="progress-bar" style={{ width: `${progress}%` }} />
-                  </div>
-                  <p className="progress-label">Downloading… {progress}%</p>
-                </>
+              <div className="onboard-shortcuts">
+                <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} compact />
+              </div>
+              {status?.accessibility ? (
+                <p className="onboard-ok">✓ Plucky can read selected text</p>
               ) : (
-                <button type="button" className="primary" onClick={() => void download()} disabled={!model}>
-                  Download recommended model
-                </button>
+                <p className="onboard-warn">
+                  The shortcut needs Accessibility access.{" "}
+                  <button type="button" className="link-btn" onClick={() => void api.requestAccessibility().then(onRefreshStatus)}>
+                    Allow in System Settings
+                  </button>
+                </p>
               )}
-              {modelError && <p className="model-error">{modelError}</p>}
-              <p className="onboard-muted">Already have a GGUF file? Add it later in the Models tab.</p>
             </>
           )}
           <div className="onboard-actions">
             {back}
-            {next()}
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="onboard-body">
-          <h2>Your shortcuts</h2>
-          <p>They work in every app. Click one and press new keys to change it.</p>
-          <div className="onboard-shortcuts">
-            <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} compact />
-          </div>
-          <div className="onboard-actions">
-            {back}
-            {next()}
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="onboard-body">
-          <h2>Stay on top of it</h2>
-          <div className="card-stack">
-            <Toggle
-              label="Remind me when tasks are due"
-              hint="A notification with Done and Snooze buttons."
-              checked={notify}
-              onChange={setNotify}
-            />
-            <Toggle label="Open Plucky when I log in" hint="So the shortcuts always work." checked={login} onChange={setLogin} />
-            <Toggle
-              label="Show this panel each morning"
-              hint="When your Mac starts or first wakes each day."
-              checked={showOnStart}
-              onChange={setShowOnStart}
-            />
-          </div>
-          <p className="onboard-muted">Want tasks on your iPhone too? Connect Apple Reminders in the Connectors tab.</p>
-          <div className="onboard-actions">
-            {back}
-            <button type="button" className="primary" onClick={() => void saveReminders()}>
+            <button type="button" className="primary" onClick={() => setStep(2)}>
               Continue
             </button>
           </div>
         </div>
       )}
 
-      {step === 5 && (
+      {step === 2 && (
         <div className="onboard-body">
-          <h2>Add tasks from your AI apps</h2>
-          <p>
-            Claude and other AI apps on this Mac can send you tasks — “remind me to send the deck Friday”. They can
-            never see your list, and nothing is added until you approve it.
-          </p>
-          {agents && agents.apps.some((a) => a.installed) ? (
-            <AgentAppList status={agents} onStatus={setAgents} onError={setAgentsError} />
-          ) : (
-            <p className="onboard-muted">
-              {agents ? "No AI apps found on this Mac. You can connect them later in Connectors → AI agents." : "Looking for AI apps…"}
-            </p>
-          )}
-          {agentsError && <p className="model-error">{agentsError}</p>}
-          <div className="onboard-actions">
-            {back}
-            {next(agents?.apps.some((a) => a.installed && a.connected) ? "Continue" : "Skip")}
-          </div>
-        </div>
-      )}
-
-      {step === 6 && (
-        <div className="onboard-body">
-          <h2>Try it in your browser</h2>
+          <h2>Try it</h2>
           {captured ? (
-            <p className="onboard-ok">✓ Your first task is in Plucky. Nice!</p>
+            <p className="onboard-ok">✓ Your first task is in Plucky.</p>
           ) : (
             <>
-              <ol className="onboard-howto">
-                <li>Open any web page in your browser.</li>
-                <li>Select a sentence — something like a to-do or a date.</li>
-                <li>
-                  Press <kbd>{capture}</kbd>, or right-click it and choose <b>Add to Plucky</b>.
-                </li>
-                <li>A card drops down from the Plucky icon in the menu bar — check it and press Return.</li>
-              </ol>
-              {!status?.accessibility && (
-                <p className="onboard-warn">
-                  The shortcut needs Accessibility access.{" "}
-                  <button type="button" className="link-btn" onClick={() => setStep(1)}>
-                    Set it up
-                  </button>
-                </p>
-              )}
-              {!hasModel && (
-                <p className="onboard-muted">
-                  The model is still downloading, so this time you’ll type the task yourself.
-                </p>
-              )}
-              <p className="onboard-wait">
-                <span className="onboard-pulse" aria-hidden /> Waiting for your first capture…
+              <p>
+                Select the message below, then press <kbd>{how}</kbd>. Check the card that drops down and press Return.
               </p>
+              <blockquote className="onboard-sample" tabIndex={0}>
+                {SAMPLE}
+              </blockquote>
+              {!hasModel && <p className="onboard-muted">The model is still downloading, so this time you’ll type the task yourself.</p>}
               <button type="button" className="link-btn" onClick={() => onTry(SAMPLE)}>
-                No browser handy? Try it on sample text
+                Or just use the sample
               </button>
             </>
           )}
           <div className="onboard-actions">
             {back}
-            {next(captured ? "Continue" : "Skip")}
-          </div>
-        </div>
-      )}
-
-      {step === 7 && (
-        <div className="onboard-body">
-          <h2>A quick look around</h2>
-          <ul className="onboard-tips">
-            <li>
-              <b>Menu bar icon</b> — a calendar and today’s tasks. Drag a task onto another day to move it.
-            </li>
-            {quick && (
-              <li>
-                <kbd>{quick}</kbd> <b>Quick add</b> — type “pay rent friday 5pm #home” from anywhere.
-              </li>
-            )}
-            {toggle && (
-              <li>
-                <kbd>{toggle}</kbd> <b>Show or hide Plucky</b> — even over full-screen apps.
-              </li>
-            )}
-            <li>
-              <b>Colored chips</b> — red is overdue, amber is due soon. Hover a task to snooze or add a description.
-            </li>
-            <li>
-              <kbd>?</kbd> <b>Keyboard</b> — every key for the task list, like <kbd>Space</kbd> to complete.
-            </li>
-            <li>
-              <b>Preferences</b> — dark mode, shortcuts, reminders, backups. Take this tour again from General.
-            </li>
-          </ul>
-          <div className="onboard-actions">
-            {back}
-            <button type="button" className="primary" onClick={onDone}>
-              Start using Plucky
+            <button type="button" className="primary" onClick={() => void finish()}>
+              {captured ? "Start using Plucky" : "Finish"}
             </button>
           </div>
         </div>

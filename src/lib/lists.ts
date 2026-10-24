@@ -6,7 +6,12 @@ import type { Task } from "./types";
  * Which tasks the panel's list shows: everything, today only, Someday, the
  * Logbook, or one project.
  */
-export type ListId = "all" | "today" | "someday" | "logbook" | `project:${string}`;
+export type ListId = "all" | "today" | "upcoming" | "someday" | "logbook" | `project:${string}`;
+
+/** A list's name as its title ("all" is shown as Anytime). */
+export function listTitle(id: ListId): string {
+  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Upcoming", someday: "Someday", logbook: "Logbook" }[id as "all"];
+}
 
 export const projectList = (name: string): ListId => `project:${name}`;
 export const projectOf = (id: ListId): string | null => (id.startsWith("project:") ? id.slice(8) : null);

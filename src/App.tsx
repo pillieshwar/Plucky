@@ -8,12 +8,18 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskList } from "./components/TaskList";
 import { Toasts, useToasts } from "./components/Toasts";
-import { SearchIcon } from "./components/icons";
+import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
 import { WeekView } from "./components/WeekView";
+import { WeekStrip } from "./components/WeekStrip";
+import { DayPlan } from "./components/DayPlan";
+import { DragGhost } from "./components/DragGhost";
+import { useTaskDrag } from "./lib/useTaskDrag";
+import { dropPatch } from "./lib/plan";
 import { weekStartForLocale } from "./lib/calendar";
 import {
   api,
+  onCalendarChanged,
   onCapture,
   onHighlightTask,
   onOpenTab,
@@ -38,7 +44,7 @@ import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
 import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
-import type { AppSettings, CaptureResult, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
+import type { AppSettings, CalendarEvent, CaptureResult, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
@@ -46,18 +52,26 @@ const LOCALE = safeLocale();
 type Tab = "tasks" | "connectors" | "models" | "settings";
 const TABS: { id: Tab; label: string }[] = [
   { id: "tasks", label: "Tasks" },
+  { id: "settings", label: "Preferences" },
   { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
-  { id: "settings", label: "Preferences" },
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
-type View = "list" | "week";
-function savedView(): View {
+type TodayMode = "list" | "hours";
+function saved<T extends string>(key: string, allowed: T[], fallback: T): T {
   try {
-    return localStorage.getItem("pluck.view") === "week" ? "week" : "list";
+    const v = localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
   } catch {
-    return "list";
+    return fallback;
+  }
+}
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable: the choice lasts this session.
   }
 }
 
@@ -74,11 +88,11 @@ const KEYS: [string, string][] = [
   ["S", "Snooze"],
   ["N", "Description"],
   ["A", "Add a task"],
-  ["F", "Today only (focus)"],
+  ["F", "Today ↔ Anytime"],
   ["C", "Steps (checklist)"],
   ["P", "Move to a project"],
-  ["V", "List or week view"],
-  ["← →", "Day before / after (week view)"],
+  ["V", "Today as a list or in hours"],
+  ["← →", "Day before / after (Upcoming)"],
   ["/ or ⌘F", "Search"],
 ];
 
@@ -109,9 +123,9 @@ export default function App() {
     try {
       const saved = localStorage.getItem("pluck.list");
       if (saved) return saved as ListId;
-      return localStorage.getItem("pluck.focusToday") === "1" ? "today" : "all";
+      return localStorage.getItem("pluck.view") === "week" ? "upcoming" : "today";
     } catch {
-      return "all";
+      return "today";
     }
   });
   useEffect(() => {
@@ -128,15 +142,15 @@ export default function App() {
   // Tasks selected for batch actions, and where a Shift-click range starts.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const anchor = useRef<number | null>(null);
-  // Tasks as a list, or the week in hour blocks. Remembered per Mac.
-  const [view, setView] = useState<View>(savedView);
-  useEffect(() => {
-    try {
-      localStorage.setItem("pluck.view", view);
-    } catch {
-      // Storage unavailable: the choice lasts this session.
-    }
-  }, [view]);
+  // Today as a list, or in hour blocks. Remembered per Mac.
+  const [todayMode, setTodayMode] = useState<TodayMode>(() => saved("pluck.todayMode", ["list", "hours"], "list"));
+  useEffect(() => remember("pluck.todayMode", todayMode), [todayMode]);
+  const upcoming = list === "upcoming";
+  const todayHours = list === "today" && todayMode === "hours";
+  // The search field shows on demand (/, ⌘F or the magnifier).
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The task opened as a card.
+  const [openId, setOpenId] = useState<number | null>(null);
   const [planDay, setPlanDay] = useState(() => toISODate(new Date()));
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const captureSeq = useRef(0);
@@ -243,7 +257,6 @@ export default function App() {
       onShortcutsChanged(setShortcuts),
       onHighlightTask((id) => {
         setTab("tasks");
-        setView("list");
         setList("all");
         setQuery("");
         setHighlight(id);
@@ -279,8 +292,49 @@ export default function App() {
     const names = new Set([...projectStats.map((p) => p.name), ...tasks.flatMap((t) => (t.project ? [t.project] : []))]);
     return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, headings: headingsOf(tasks, name) }));
   }, [projectStats, tasks]);
+  // Today's calendar events, for Today in hours.
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
+  const [eventsKey, setEventsKey] = useState(0);
+  useEffect(() => {
+    let live = true;
+    api
+      .calendarEvents(today, today)
+      .then((e) => live && setTodayEvents(e))
+      .catch(() => live && setTodayEvents([]));
+    return () => {
+      live = false;
+    };
+  }, [today, eventsKey]);
+  useEffect(() => {
+    const sub = onCalendarChanged(() => setEventsKey((k) => k + 1));
+    return () => void sub.then((u) => u());
+  }, []);
+  async function addFromPlan(task: NewTask) {
+    try {
+      await api.addTask(task);
+      show(
+        task.due_time
+          ? `Added at ${timeLabel(task.due_time, LOCALE)}`
+          : task.due_date
+            ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
+            : "Task added",
+      );
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+  /** From an hour block: show the task in a list, opened. */
+  function showInList(t: Task) {
+    setAdding(false);
+    setQuery("");
+    setTodayMode("list");
+    setList(t.due_date && t.due_date <= today ? "today" : "all");
+    setHighlight(t.id);
+    setFocusId(t.id);
+    window.setTimeout(() => setOpenId(t.id), 0);
+  }
   const openProject = (name: string) => {
-    setView("list");
     setTab("tasks");
     setQuery("");
     setList(projectList(name));
@@ -295,7 +349,15 @@ export default function App() {
       return next.size === sel.size ? sel : next;
     });
   }, [flat]);
-  useEffect(() => setSelected(new Set()), [list, view, tab]);
+  useEffect(() => {
+    setSelected(new Set());
+    setOpenId(null);
+  }, [list, tab, todayMode]);
+  // Drag a task onto a day of the week strip (or an hour, in Today's hours).
+  const drag = useTaskDrag((task, to) => {
+    const patch = dropPatch(task, to);
+    if (patch) void actions.reschedule(task, patch);
+  });
   const selectTask = (id: number, mode: "toggle" | "range") => {
     setSelected((sel) => {
       const next = new Set(sel);
@@ -319,17 +381,21 @@ export default function App() {
   const tags = useMemo(() => topTags(tasks), [tasks]);
 
   // Keyboard: Esc, undo, search and list navigation.
-  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, view, selectedTasks });
-  keyState.current = { flat, focusId, capture, tab, query, showKeys, view, selectedTasks };
+  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen });
+  keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = keyState.current;
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape" && !e.defaultPrevented) {
         if (s.showKeys) setShowKeys(false);
+        else if (s.openId !== null) setOpenId(null);
         else if (s.selectedTasks.length) setSelected(new Set());
         else if (s.capture) setCapture(null);
-        else if (s.query && document.activeElement === searchRef.current) setQuery("");
+        else if (s.searchOpen && document.activeElement === searchRef.current) {
+          setQuery("");
+          setSearchOpen(false);
+        } else if (s.tab !== "tasks") setTab("tasks");
         else void api.hidePanel();
         return;
       }
@@ -340,16 +406,19 @@ export default function App() {
       if (s.tab !== "tasks") return;
       if ((mod && e.key.toLowerCase() === "f") || (e.key === "/" && !typingIn(e.target))) {
         e.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
+        setSearchOpen(true);
+        window.setTimeout(() => {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }, 0);
         return;
       }
-      if (s.view === "week" && !typingIn(e.target) && !mod && !e.altKey && !s.capture) {
+      if (s.upcoming && !typingIn(e.target) && !mod && !e.altKey && !s.capture) {
         // The week has no list to move through; its own few keys.
         const k = e.key.toLowerCase();
         let used = true;
-        if (k === "v") setView("list");
-        else if (k === "a") setAdding(true);
+        if (k === "a") setAdding(true);
+        else if (k === "f") setList("today");
         else if (e.key === "?") setShowKeys((v) => !v);
         else if (k === "t") setPlanDay(toISODate(new Date()));
         else if (e.key === "ArrowLeft") setPlanDay((d) => toISODate(addDays(parseISODate(d), -1)));
@@ -359,7 +428,7 @@ export default function App() {
         return;
       }
       // ⌘A selects every open task shown.
-      if (mod && e.key.toLowerCase() === "a" && !typingIn(e.target) && s.view === "list" && !s.capture) {
+      if (mod && e.key.toLowerCase() === "a" && !typingIn(e.target) && !s.upcoming && !s.capture) {
         e.preventDefault();
         setSelected(new Set(s.flat.filter((t) => !t.done).map((t) => t.id)));
         return;
@@ -421,10 +490,11 @@ export default function App() {
       else if (key === "?") setShowKeys((v) => !v);
       else if (lower === "f") setFocusToday((v) => !v);
       else if (lower === "a") setAdding(true);
-      else if (lower === "v") setView("week");
+      else if (lower === "v") setTodayMode((m) => (m === "list" ? "hours" : "list"));
       else if (!current) handled = false;
       else if (key === " " || lower === "x") void actions.setDone(current, !current.done);
       else if (key === "Enter" || lower === "e") setCommand({ id: current.id, kind: "edit", n });
+      else if (key === "ArrowRight") setOpenId(current.id);
       else if (lower === "d") setCommand({ id: current.id, kind: "date", n });
       else if (lower === "s") setCommand({ id: current.id, kind: "snooze", n });
       else if (lower === "n") setCommand({ id: current.id, kind: "notes", n });
@@ -520,55 +590,151 @@ export default function App() {
     );
   }
 
+  const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
+  const subText =
+    tab !== "tasks"
+      ? tab === "connectors"
+        ? "Work with apps on this Mac"
+        : tab === "models"
+          ? status?.active_model
+            ? `Using ${status.active_model}`
+            : "No model yet"
+          : `Plucky ${status?.version ?? ""}`
+      : list === "today"
+        ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${listCounts.today} to do`
+        : list === "upcoming"
+          ? "Your week, hour by hour"
+          : list === "all"
+            ? `${listCounts.all} open`
+            : list === "someday"
+              ? "Ideas and paused repeats, out of the way"
+              : list === "logbook"
+                ? "Everything you've finished"
+                : stats
+                  ? `${stats.open} open · ${stats.done} done`
+                  : "";
+
   return (
-    <div className="panel">
-      <header className="panel-head" data-tauri-drag-region>
+    <div className={drag.drag ? "panel dragging" : "panel"}>
+      <header className="topbar" data-tauri-drag-region>
         <DragGrip />
-        <div className="head-text" data-tauri-drag-region>
-          <h1 data-tauri-drag-region>{TABS.find((t) => t.id === tab)?.label}</h1>
-          <p className="sub" data-tauri-drag-region>
-            {tab === "tasks"
-              ? `${now.toLocaleDateString(LOCALE, { weekday: "short", month: "short", day: "numeric" })} · ${open} open`
-              : tab === "connectors"
-                ? "Work with apps on this Mac"
-                : tab === "models"
-                ? status?.active_model
-                  ? `Using ${status.active_model}`
-                  : "No model yet"
-                : `Plucky ${status?.version ?? ""}`}
-          </p>
-        </div>
-        {tab === "tasks" && !onboarding && (
-          <ViewSwitch
-            value={view}
-            options={[
-              ["list", "List"],
-              ["week", "Week"],
-            ]}
-            onChange={(v) => {
-              setView(v);
+        {tab === "tasks" ? (
+          <ListPicker
+            value={list}
+            onChange={(l) => {
+              setList(l);
               setAdding(false);
+              setQuery("");
+              setSearchOpen(false);
             }}
-            label="Show tasks as (V)"
+            counts={listCounts}
+            projects={projectStats}
+            tags={tags}
+            onTag={(t) => {
+              setSearchOpen(true);
+              setQuery(t);
+            }}
           />
+        ) : (
+          <button type="button" className="back-btn" onClick={() => setTab("tasks")} title="Back to tasks (Esc)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M10 3.5 5.5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Settings
+          </button>
         )}
+        <span className="topbar-gap" data-tauri-drag-region />
+        {tab === "tasks" && !onboarding && (
+          <>
+            <button
+              type="button"
+              className={adding ? "icon accent on" : "icon accent"}
+              onClick={() => setAdding((a) => !a)}
+              aria-label="Add a task"
+              aria-expanded={adding}
+              title="Add a task (A)"
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className={searchOpen ? "icon on" : "icon"}
+              onClick={() => {
+                if (searchOpen) {
+                  setSearchOpen(false);
+                  setQuery("");
+                } else {
+                  setSearchOpen(true);
+                  window.setTimeout(() => searchRef.current?.focus(), 0);
+                }
+              }}
+              aria-label="Search"
+              aria-expanded={searchOpen}
+              title="Search (/)"
+            >
+              <SearchIcon />
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className={tab !== "tasks" ? "icon on" : "icon"}
+          onClick={() => setTab(tab === "tasks" ? "settings" : "tasks")}
+          aria-label="Settings"
+          title="Settings, models and connectors"
+        >
+          <GearIcon />
+          {update.state === "ready" && <span className="icon-dot" aria-label="Update ready" />}
+        </button>
         {controls}
       </header>
 
-      <nav className="tabs" role="tablist" aria-label="Sections">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            className={tab === t.id ? "tab on" : "tab"}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
-          </button>
-        ))}
-      </nav>
+      {tab === "tasks" ? (
+        <div className="subline" data-tauri-drag-region>
+          <p className="sub" data-tauri-drag-region>
+            {subText}
+          </p>
+          {list === "today" && !onboarding && (
+            <ViewSwitch
+              value={todayMode}
+              options={[
+                ["list", "List"],
+                ["hours", "Hours"],
+              ]}
+              onChange={setTodayMode}
+              label="Show today as (V)"
+            />
+          )}
+        </div>
+      ) : (
+        <nav className="tabs" role="tablist" aria-label="Settings">
+          {TABS.filter((t) => t.id !== "tasks").map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className={tab === t.id ? "tab on" : "tab"}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {tab === "tasks" && list === "today" && !onboarding && (
+        <WeekStrip
+          tasks={tasks}
+          now={now}
+          locale={LOCALE}
+          drag={drag.drag}
+          onPick={(iso) => {
+            setPlanDay(iso);
+            setList("upcoming");
+          }}
+        />
+      )}
 
       {tab !== "settings" && <UpdateBanner update={update} onError={setError} />}
       {status && !status.accessibility && !capture && !onboarding && (
@@ -605,9 +771,7 @@ export default function App() {
         />
       )}
 
-      {tab === "tasks" && !onboarding && !capture && view === "list" && (
-        <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
-      )}
+      {tab === "tasks" && !onboarding && !capture && <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />}
 
       {tab === "tasks" && capture && (
         <CaptureCard
@@ -619,9 +783,8 @@ export default function App() {
         />
       )}
 
-      {tab === "tasks" && !onboarding && view === "list" && tasks.length > 0 && (
+      {tab === "tasks" && !onboarding && searchOpen && (
         <div className="search">
-          <div className="search-line">
           <label className="search-box">
             <SearchIcon />
             <input
@@ -632,33 +795,12 @@ export default function App() {
               aria-label="Search tasks"
               spellCheck={false}
             />
-            {query ? (
+            {query && (
               <button type="button" className="search-clear" aria-label="Clear search" onClick={() => setQuery("")}>
                 ×
               </button>
-            ) : (
-              <kbd>/</kbd>
             )}
           </label>
-          <ListPicker
-            value={list}
-            onChange={(l) => {
-              setList(l);
-              setAdding(false);
-            }}
-            counts={listCounts}
-            projects={projectStats}
-          />
-          <button
-            type="button"
-            className={adding ? "add-task-btn on" : "add-task-btn"}
-            onClick={() => setAdding((a) => !a)}
-            aria-expanded={adding}
-            title="Add a task (A)"
-          >
-            <span aria-hidden>+</span> Add task
-          </button>
-          </div>
           {tags.length > 0 && (
             <div className="tag-row" aria-label="Tags">
               {tags.map((t) => {
@@ -674,8 +816,8 @@ export default function App() {
         </div>
       )}
 
-      <main className={tab === "tasks" && !onboarding && view === "week" ? "panel-body week" : "panel-body"}>
-        {tab === "tasks" && !onboarding && view === "week" && (
+      <main className={tab === "tasks" && !onboarding && (upcoming || todayHours) ? "panel-body week" : "panel-body"}>
+        {tab === "tasks" && !onboarding && upcoming && (
           <WeekView
             tasks={tasks}
             day={planDay}
@@ -686,32 +828,40 @@ export default function App() {
             actions={actions}
             adding={adding}
             onAdding={setAdding}
-            onAdd={async (task) => {
-              try {
-                await api.addTask(task);
-                show(
-                  task.due_time && task.due_date === planDay
-                    ? `Added at ${timeLabel(task.due_time, LOCALE)}`
-                    : task.due_date
-                      ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
-                      : "Task added",
-                );
-              } catch (e) {
-                setError(String(e));
-                throw e;
-              }
-            }}
-            onOpen={(t) => {
-              setView("list");
-              setAdding(false);
-              setQuery("");
-              if (!tasksForList(tasks, list, today).some((x) => x.id === t.id)) setList("all");
-              setHighlight(t.id);
-              setFocusId(t.id);
-            }}
+            onAdd={addFromPlan}
+            onOpen={showInList}
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && viewedProject !== null && (
+        {tab === "tasks" && !onboarding && todayHours && (
+          <div className="week-view today-hours">
+            {adding && (
+              <AddTaskForm
+                locale={LOCALE}
+                defaultDay={today}
+                projects={projectInfos.map((p) => p.name)}
+                placeholder="What needs doing? Try “call Sam 3pm”"
+                onAdd={async (t) => {
+                  await addFromPlan(t);
+                  setAdding(false);
+                }}
+                onCancel={() => setAdding(false)}
+              />
+            )}
+            <DayPlan
+              tasks={tasks}
+              day={today}
+              today={today}
+              now={now}
+              locale={LOCALE}
+              events={todayEvents}
+              actions={actions}
+              drag={drag}
+              onAdd={addFromPlan}
+              onOpen={showInList}
+            />
+          </div>
+        )}
+        {tab === "tasks" && !onboarding && !upcoming && !todayHours && viewedProject !== null && (
           <ProjectHeader
             name={viewedProject}
             stats={projectStats.find((p) => p.name === viewedProject) ?? null}
@@ -729,10 +879,11 @@ export default function App() {
             }}
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && adding && list !== "logbook" && (
+        {tab === "tasks" && !onboarding && !upcoming && !todayHours && adding && list !== "logbook" && (
           <AddTaskForm
             locale={LOCALE}
             defaultDay={list === "today" ? today : null}
+            projects={projectInfos.map((p) => p.name)}
             extra={
               viewedProject !== null
                 ? { project: viewedProject, heading: addHeading }
@@ -741,7 +892,7 @@ export default function App() {
                   : undefined
             }
             context={viewedProject !== null ? `in ${viewedProject}${addHeading ? ` · ${addHeading}` : ""}` : undefined}
-            placeholder="What needs doing? Try “send deck fri 3pm”"
+            placeholder="What needs doing? Try “send deck fri 3pm @Work”"
             onAdd={async (task) => {
               try {
                 await api.addTask(task);
@@ -757,10 +908,10 @@ export default function App() {
             }}
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && list === "logbook" && (
+        {tab === "tasks" && !onboarding && list === "logbook" && (
           <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && list !== "logbook" && (
+        {tab === "tasks" && !onboarding && !upcoming && !todayHours && list !== "logbook" && (
           <TaskList
             groups={groups}
             actions={actions}
@@ -781,6 +932,9 @@ export default function App() {
             onOpenProject={openProject}
             selected={selected}
             onSelect={selectTask}
+            drag={drag}
+            openId={openId}
+            onOpenTask={setOpenId}
             emptyNote={
               list === "someday" && !query.trim() ? (
                 <>
@@ -790,13 +944,13 @@ export default function App() {
               ) : viewedProject !== null && !query.trim() ? (
                 <>
                   <p className="empty-big">No tasks in {viewedProject}</p>
-                  <p>Add one above, or move tasks here with the folder button.</p>
+                  <p>Add one with +, or type “@{viewedProject}” in a new task.</p>
                 </>
               ) : undefined
             }
           />
         )}
-        {tab === "tasks" && !onboarding && view === "list" && list === "all" && listCounts.someday > 0 && !query.trim() && (
+        {tab === "tasks" && !onboarding && list === "all" && listCounts.someday > 0 && !query.trim() && (
           <button type="button" className="someday-link" onClick={() => setList("someday")}>
             {listCounts.someday} in Someday →
           </button>
@@ -820,10 +974,11 @@ export default function App() {
         )}
       </main>
 
-      {tab === "tasks" && view === "list" && selectedTasks.length > 0 && (
+      {tab === "tasks" && !upcoming && !todayHours && selectedTasks.length > 0 && (
         <BatchBar tasks={selectedTasks} actions={actions} projects={projectInfos} onClear={() => setSelected(new Set())} />
       )}
       <Toasts toasts={toasts} onDismiss={dismiss} />
+      {drag.drag && <DragGhost drag={drag.drag} now={now} locale={LOCALE} />}
 
       {showKeys && (
         <div className="keys-sheet" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setShowKeys(false)}>
@@ -849,13 +1004,14 @@ export default function App() {
       <footer className="panel-foot" data-tauri-drag-region>
         <span className="local-dot" aria-hidden />
         <span className="foot-text" data-tauri-drag-region>
-          On-device · <kbd>{captureLabel}</kbd> capture
-          {quickLabel && (
+          On this Mac · {settings?.double_copy !== false ? (
             <>
-              {" "}
-              · <kbd>{quickLabel}</kbd> type
+              <kbd>⌘C</kbd> twice
             </>
-          )}
+          ) : (
+            <kbd>{captureLabel}</kbd>
+          )}{" "}
+          to capture
         </span>
         <button type="button" className="foot-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts">
           ?

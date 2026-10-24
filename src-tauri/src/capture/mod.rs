@@ -34,6 +34,20 @@ use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 pub use macos::front_window_text;
 
+/// The clipboard's change count and its text, read on the main thread.
+#[cfg(target_os = "macos")]
+pub fn clipboard_snapshot(app: &AppHandle) -> Option<(i64, Option<String>)> {
+    on_main(app, || {
+        use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
+        let pb = NSPasteboard::generalPasteboard();
+        let ty = unsafe { NSPasteboardTypeString };
+        (
+            pb.changeCount() as i64,
+            pb.stringForType(ty).map(|s| s.to_string()),
+        )
+    })
+}
+
 /// Where a capture came from, so a task can link back to it.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SourceInfo {
@@ -81,6 +95,26 @@ const COPY_TIMEOUT: Duration = Duration::from_millis(1200);
 const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(3);
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
+/// After a capture, Plucky's own clipboard writes settle for a moment.
+static QUIET_UNTIL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Whether Plucky is using the clipboard itself (a capture, or just after
+/// one), so clipboard changes now aren't the user's.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn clipboard_busy() -> bool {
+    CAPTURING.load(Ordering::SeqCst)
+        || QUIET_UNTIL
+            .lock()
+            .ok()
+            .and_then(|q| *q)
+            .is_some_and(|t| std::time::Instant::now() < t)
+}
+
+fn quiet_for(d: Duration) {
+    if let Ok(mut q) = QUIET_UNTIL.lock() {
+        *q = Some(std::time::Instant::now() + d);
+    }
+}
 
 /// Tests that touch the real system clipboard or post key events run one at
 /// a time.
@@ -155,6 +189,7 @@ pub fn capture_selection(app: &AppHandle, with_source: bool) -> Option<CaptureRe
             message: "Something went wrong reading the selection. Please try again.".into(),
         }
     });
+    quiet_for(Duration::from_secs(1));
     CAPTURING.store(false, Ordering::SeqCst);
     Some(result)
 }
