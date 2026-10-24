@@ -78,7 +78,8 @@ function CityCanvas({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<[number, number]>([0, 0]);
-  const [cam, setCam] = useState<CityCamera>(DEFAULT_CAMERA);
+  // The corner card is wide and short: come in closer there.
+  const [cam, setCam] = useState<CityCamera>(still ? { ...DEFAULT_CAMERA, zoom: 1.5 } : DEFAULT_CAMERA);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const hits = useRef<CityHit[]>([]);
   const drag = useRef<{ x: number; y: number; cam: CityCamera; moved: boolean } | null>(null);
@@ -246,7 +247,8 @@ export function CityCard({
   const [pulse, setPulse] = useState(false);
   const lastTotal = useRef(city.total);
   useEffect(() => {
-    if (city.total > lastTotal.current) {
+    // Not when the city first loads: only for windows lit while you watch.
+    if (lastTotal.current > 0 && city.total > lastTotal.current) {
       setPulse(true);
       const t = window.setTimeout(() => setPulse(false), 1400);
       lastTotal.current = city.total;
@@ -258,7 +260,7 @@ export function CityCard({
   const title = name ?? "Your city";
   if (small) {
     return (
-      <button type="button" className={pulse ? "city-pill pulse" : "city-pill"} onClick={() => setSmall(false)} title="Show your city">
+      <button type="button" className={pulse ? "city-pill lit-up" : "city-pill"} onClick={() => setSmall(false)} title="Show your city">
         <BuildingIcon />
         <span>{title}</span>
         <span className="city-pill-count">{stats.inRange}</span>
@@ -266,7 +268,7 @@ export function CityCard({
     );
   }
   return (
-    <div className={pulse ? "city-card pulse" : "city-card"}>
+    <div className={pulse ? "city-card lit-up" : "city-card"}>
       <button type="button" className="city-card-art" onClick={onOpen} aria-label={`Open ${title}`} title="Open your city">
         <CityCanvas city={city} range="week" now={now} still />
       </button>
@@ -584,7 +586,7 @@ export function renderShareImage(
   c.width = W;
   c.height = H;
   const ctx = c.getContext("2d")!;
-  drawCity(ctx, W, H, city, { yaw: 0.72, pitch: 0.55, zoom: 1 }, {
+  drawCity(ctx, W, H, city, { yaw: 0.72, pitch: 0.55, zoom: 1.2 }, {
     palette: opts.dark ? NIGHT : DUSK,
     range: "week",
     now: opts.now,

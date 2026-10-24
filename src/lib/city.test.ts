@@ -45,6 +45,7 @@ describe("the city", () => {
   it("grows buildings wider and taller with more windows", () => {
     expect(shape(0).floors).toBe(1);
     expect(shape(10).per).toBe(2);
+    expect(shape(60).floors).toBeGreaterThan(5);
     expect(shape(200).per).toBeGreaterThan(shape(10).per);
     expect(shape(5000).floors).toBeLessThanOrEqual(72);
   });

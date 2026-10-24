@@ -67,10 +67,11 @@ export function lots(n: number): [number, number][] {
 
 /** How wide and tall a building with `n` windows is. */
 export function shape(n: number): { per: number; floors: number; size: number } {
-  let per = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(n / 12)) + 1));
+  // Slim towers: two windows a side until a building is big, then wider.
+  let per = n <= 90 ? 2 : n <= 300 ? 3 : 4;
   if (Math.ceil(n / (per * 4)) > MAX_FLOORS) per = Math.ceil(n / (4 * MAX_FLOORS));
   const floors = Math.max(1, Math.ceil(n / (per * 4)));
-  return { per, floors, size: Math.min(LOT - 0.55, 0.62 + per * 0.42) };
+  return { per, floors, size: Math.min(LOT - 0.55, 0.5 + per * 0.34) };
 }
 
 export function buildCity(windows: CityWindow[], tasks: Task[]): City {
@@ -203,7 +204,7 @@ export interface CityCamera {
   /** 1 = fits the view. */
   zoom: number;
 }
-export const DEFAULT_CAMERA: CityCamera = { yaw: 0.72, pitch: 0.58, zoom: 1 };
+export const DEFAULT_CAMERA: CityCamera = { yaw: 0.72, pitch: 0.58, zoom: 1.15 };
 
 export interface CityPalette {
   skyTop: string;
@@ -238,7 +239,7 @@ export const NIGHT: CityPalette = {
   dark: "#161926",
   lit: "#c4974c",
   fresh: "#ffd27a",
-  glow: "rgba(255, 223, 150, 0.45)",
+  glow: "rgba(255, 223, 150, 0.22)",
   beacon: "#d9d5ff",
   crane: "#6b7090",
   label: "#c9cddc",
@@ -259,7 +260,7 @@ export const DUSK: CityPalette = {
   dark: "#5e4852",
   lit: "#d9a04f",
   fresh: "#ffc768",
-  glow: "rgba(255, 199, 104, 0.45)",
+  glow: "rgba(255, 199, 104, 0.3)",
   beacon: "#5249d9",
   crane: "#8b6c73",
   label: "#3d2f35",
@@ -473,12 +474,10 @@ export function drawCity(ctx: CanvasRenderingContext2D, w: number, h: number, ci
           // "All time" brightens only today's; otherwise the range's.
           const fresh = o.range === "all" ? t >= todayStart : t >= from;
           if (fresh) {
+            // A soft halo: the window, a little bigger, faintly.
             const c = centroid(q);
-            const r = Math.max(2, Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]) * 1.1);
-            ctx.fillStyle = pal.glow;
-            ctx.beginPath();
-            ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
-            ctx.fill();
+            const halo = q.map(([px, py]) => [c[0] + (px - c[0]) * 1.7, c[1] + (py - c[1]) * 1.9] as Pt);
+            poly(halo, pal.glow);
           }
           poly(q, fresh ? pal.fresh : pal.lit);
           wins.push({ w: win, poly: q });
@@ -518,7 +517,7 @@ export function drawCity(ctx: CanvasRenderingContext2D, w: number, h: number, ci
       ctx.stroke();
       ctx.fillStyle = pal.glow;
       ctx.beginPath();
-      ctx.arc(tip[0], tip[1], Math.max(3, 0.22 * k), 0, Math.PI * 2);
+      ctx.arc(tip[0], tip[1], Math.max(2.5, 0.13 * k), 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = pal.beacon;
       ctx.beginPath();
