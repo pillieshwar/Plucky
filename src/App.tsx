@@ -999,7 +999,7 @@ export default function App() {
             onKeys={() => setShowKeys(true)}
             onCity={() => setCityOpen("view")}
             cityName={settings?.city_name ?? null}
-            updateReady={update.state === "ready"
+            updateReady={update.state === "ready"}
             model={status?.active_model ?? null}
             captureHint={<>{captureHint} to capture</>}
           />
