@@ -98,6 +98,7 @@ const SETTINGS = {
   theme: "system",
   theme_v2: true,
   double_copy: true,
+  done_sound: true,
   undated_nudge: true,
   undated_time: "16:00",
   last_undated_nudge: null,

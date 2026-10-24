@@ -146,6 +146,8 @@ export interface AppSettings {
   theme_v2?: boolean;
   /** Press ⌘C twice to capture. */
   double_copy: boolean;
+  /** Play a short sound when a task is checked off. */
+  done_sound: boolean;
   /** Once a day, open the menu-bar dropdown on tasks that have no date. */
   undated_nudge: boolean;
   /** When, `HH:MM` local time. */

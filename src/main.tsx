@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { api, onSettingsChanged } from "./lib/api";
 import { applyTheme, cachedTheme } from "./lib/theme";
+import { preloadDone, setDoneSound } from "./lib/sound";
 import Popover from "./popover/Popover";
 import QuickAdd from "./quick/QuickAdd";
 import "./styles.css";
@@ -28,9 +29,16 @@ applyTheme(cachedTheme());
 try {
   api
     .getSettings()
-    .then((s) => applyTheme(s.theme))
+    .then((s) => {
+      applyTheme(s.theme);
+      setDoneSound(s.done_sound !== false);
+      if (s.done_sound !== false) preloadDone();
+    })
     .catch(() => undefined);
-  void onSettingsChanged((s) => applyTheme(s.theme)).catch(() => undefined);
+  void onSettingsChanged((s) => {
+    applyTheme(s.theme);
+    setDoneSound(s.done_sound !== false);
+  }).catch(() => undefined);
 } catch {
   // Outside Tauri (e.g. a browser preview): follow the system.
 }

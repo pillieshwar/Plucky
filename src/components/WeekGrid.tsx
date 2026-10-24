@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { api, onCalendarChanged } from "../lib/api";
+import { playDone } from "../lib/sound";
 import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { holidaysByDay } from "../lib/holidays";
 import { eventsForDay, hourLabel, planFor } from "../lib/plan";
@@ -98,6 +99,7 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
   const weekday = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: "short" }), [locale]);
 
   function complete(t: Task) {
+    playDone(t.id);
     setCompleting((s) => new Set(s).add(t.id));
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => {

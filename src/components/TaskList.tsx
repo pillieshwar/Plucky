@@ -7,6 +7,7 @@ import { FlagIcon, FolderIcon, ProjectPicker, type ProjectInfo } from "./Project
 import { deadlineChip } from "../lib/lists";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
+import { playDone } from "../lib/sound";
 import type { DayGroup } from "../lib/grouping";
 import { repeatShort, timeLabel } from "../lib/schedule";
 import { relativeLabel, toISODate } from "../lib/dates";
@@ -206,7 +207,8 @@ function TaskRow({
       void actions.setDone(task, false);
       return;
     }
-    // Let the check animation play before the row leaves.
+    // Let the check animation play before the row leaves (the sound plays now).
+    playDone(task.id);
     setCompleting(true);
     if (open) onOpenTask(null);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;

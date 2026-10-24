@@ -1,3 +1,4 @@
+import { playDone, setDoneSound } from "../lib/sound";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
@@ -117,6 +118,19 @@ export function GeneralSection(
           checked={settings?.double_copy ?? true}
           disabled={!settings}
           onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
+        />
+        <Toggle
+          label="Play a sound when a task is done"
+          hint="A soft two-note pluck as you check something off."
+          checked={settings?.done_sound ?? true}
+          disabled={!settings}
+          onChange={(v) => {
+            void save((s) => ({ ...s, done_sound: v }));
+            if (v) {
+              setDoneSound(true);
+              playDone();
+            }
+          }}
         />
         <Toggle
           label="Review captures under the menu-bar icon"
