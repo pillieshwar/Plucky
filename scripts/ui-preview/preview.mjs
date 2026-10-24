@@ -98,6 +98,8 @@ const SETTINGS = {
   theme: "system",
   theme_v2: true,
   double_copy: true,
+  city_name: "Lumen Bay",
+  city_corner: true,
   undated_nudge: true,
   undated_time: "16:00",
   last_undated_nudge: null,
@@ -244,6 +246,8 @@ function mockTauri(s) {
       (s.events ?? []).filter((e) => e.start.slice(0, 10) <= a.to && (e.end.slice(0, 10) > a.from || e.start.slice(0, 10) >= a.from)),
     autostart_enabled: () => true,
     panel_full: () => !!s.full,
+    city_windows: () => s.cityWindows ?? [],
+    save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
     set_panel_full: (a) => {
       s.full = a.full;
       setTimeout(() => window.__emit("panel-full", a.full), 0);
@@ -835,7 +839,24 @@ const FULL_EVENTS = [
   { id: "e4", title: "Lunch with Sam", start: `${day(1)}T12:00:00`, end: `${day(1)}T13:00:00`, all_day: false, calendar: "Home", color: "#16a34a" },
   { id: "e5", title: "Launch rehearsal", start: `${day(3)}T15:00:00`, end: `${day(3)}T16:30:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
 ];
-const full = (o = {}) => scenario({ tasks: FULL_TASKS, logbook: LOGBOOK, events: FULL_EVENTS, calendar: CAL_ON, full: true, ...o });
+// The city: finished tasks over the last two months, more on some projects.
+const CITY_WINDOWS = (() => {
+  const out = [];
+  const projects = [["Q4 launch", 58], ["Hiring", 40], ["Offsite 2026", 31], [null, 26], ["Taxes 2026", 22], ["Home", 14], ["Reading list", 6]];
+  let n = 5000;
+  for (const [project, count] of projects) {
+    for (let i = 0; i < count; i++) {
+      const daysAgo = Math.floor(((i * 7919) % 60) * (i < count * 0.2 ? 0.1 : 1));
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      d.setHours(9 + (i % 9), (i * 13) % 60, 0, 0);
+      out.push({ id: n++, title: `${project ?? "Errand"} task ${i + 1}`, project, completed_at: d.toISOString() });
+    }
+  }
+  out.push({ id: n++, title: "Sent Q3 numbers to Priya", project: "Q4 launch", completed_at: new Date().toISOString() });
+  return out.sort((a, b) => a.completed_at.localeCompare(b.completed_at));
+})();
+const full = (o = {}) => scenario({ tasks: FULL_TASKS, logbook: LOGBOOK, events: FULL_EVENTS, calendar: CAL_ON, full: true, cityWindows: CITY_WINDOWS, ...o });
 const DARK = { ...SETTINGS, theme: "dark" };
 const LIGHT = { ...SETTINGS, theme: "light" };
 const side = (name) => async (p) => {
@@ -886,6 +907,50 @@ await shot("full-no-sidebar", FULL, full({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Hide sidebar" }).click();
 });
 await shot("full-tour", FULL, full({ settings: { ...DARK, onboarding_done: false }, status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.28", platform: "macos" } }));
+await shot("full-city-corner-hover", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card").hover();
+});
+await shot("full-city", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(300);
+});
+await shot("full-city-light", FULL, full({ settings: LIGHT }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(300);
+});
+await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(c.x + c.width / 2 - 260, c.y + c.height / 2 + 90, { steps: 10 });
+  await p.mouse.up();
+  await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2 + 40);
+  await p.waitForTimeout(200);
+});
+await shot("full-city-hover", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
+});
+await shot("full-city-clicked-building", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
+  await p.mouse.down();
+  await p.mouse.up();
+  await p.waitForTimeout(250);
+});
+await shot("full-city-share", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card").hover();
+  await p.getByRole("button", { name: "Share a picture of your city" }).click();
+  await p.waitForTimeout(300);
+});
+await shot("full-city-name", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(300);
+});
+await shot("full-city-empty", FULL, full({ settings: DARK, cityWindows: [] }));
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
 });

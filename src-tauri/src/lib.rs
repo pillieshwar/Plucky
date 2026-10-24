@@ -102,6 +102,17 @@ pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
     Ok(t)
 }
 
+/// Every completed task, briefly: the lit windows of the city.
+#[tauri::command]
+fn city_windows(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::CityWindow>> {
+    state
+        .store
+        .lock()
+        .map_err(err)?
+        .city_windows(20_000)
+        .map_err(err)
+}
+
 /// Completed tasks, newest first, a page at a time.
 #[tauri::command]
 fn logbook(
@@ -724,6 +735,35 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
     std::fs::write(&path, body).map_err(err)?;
     reveal(&path, true)?;
     Ok(path.display().to_string())
+}
+
+/// Save a picture of the user's city to Downloads and show it in Finder.
+/// The picture is made in the app; only a PNG is accepted.
+#[tauri::command]
+fn save_city_image(name: String, png: Vec<u8>) -> CmdResult<String> {
+    const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
+    if !png.starts_with(PNG_MAGIC) || png.len() > 20 * 1024 * 1024 {
+        return Err("That isn't a picture Plucky can save.".into());
+    }
+    let path = data::free_name(&data::downloads_dir(), &city_file_stem(&name), "png");
+    std::fs::write(&path, png).map_err(err)?;
+    reveal(&path, true)?;
+    Ok(path.display().to_string())
+}
+
+/// A safe file name from the city's name ("Lumen Bay" → "Lumen Bay").
+fn city_file_stem(name: &str) -> String {
+    let clean: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_'))
+        .take(60)
+        .collect();
+    let clean = clean.trim();
+    if clean.is_empty() {
+        "Plucky city".into()
+    } else {
+        clean.to_string()
+    }
 }
 
 fn reveal(path: &std::path::Path, select: bool) -> CmdResult<()> {
@@ -1350,6 +1390,8 @@ pub fn run() {
             extract,
             list_tasks,
             logbook,
+            city_windows,
+            save_city_image,
             list_projects,
             skip_occurrence,
             rename_project,
@@ -1450,6 +1492,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn city_file_names_are_safe() {
+        assert_eq!(city_file_stem("Lumen Bay"), "Lumen Bay");
+        assert_eq!(city_file_stem("../../etc/passwd"), "etcpasswd");
+        assert_eq!(city_file_stem("  /:  "), "Plucky city");
+    }
 
     fn task() -> Task {
         Task {

@@ -146,6 +146,10 @@ export interface AppSettings {
   theme_v2?: boolean;
   /** Press ⌘C twice to capture. */
   double_copy: boolean;
+  /** The name the user gave their city; null until they name it. */
+  city_name: string | null;
+  /** Show the city in the corner of full screen. */
+  city_corner: boolean;
   /** Once a day, open the menu-bar dropdown on tasks that have no date. */
   undated_nudge: boolean;
   /** When, `HH:MM` local time. */
@@ -397,4 +401,12 @@ export interface RemindersEnableRequest {
   list_id: string | null;
   include_notes: boolean;
   push_existing: boolean;
+}
+
+/** A finished task, as one lit window of the city. */
+export interface CityWindow {
+  id: number;
+  title: string;
+  project: string | null;
+  completed_at: string;
 }

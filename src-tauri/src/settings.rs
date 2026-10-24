@@ -49,6 +49,10 @@ pub struct AppSettings {
     pub theme_v2: bool,
     /// Press ⌘C twice quickly to capture what was just copied.
     pub double_copy: bool,
+    /// The name the user gave their city (every finished task lights a window).
+    pub city_name: Option<String>,
+    /// Show the city in the corner of full screen.
+    pub city_corner: bool,
     /// Once a day, open the menu-bar dropdown to plan tasks that have no date.
     pub undated_nudge: bool,
     /// When to do that, `HH:MM` local time.
@@ -167,6 +171,8 @@ impl Default for AppSettings {
             theme: "dark".into(),
             theme_v2: true,
             double_copy: true,
+            city_name: None,
+            city_corner: true,
             undated_nudge: true,
             undated_time: "16:00".into(),
             last_undated_nudge: None,
@@ -266,6 +272,7 @@ mod tests {
         let s = Settings::new(dir.path()).get();
         assert!(s.onboarding_done && s.auto_update && s.remember_source);
         assert!(s.double_copy);
+        assert!(s.city_corner && s.city_name.is_none());
     }
 
     #[test]

@@ -8,6 +8,8 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { SettingsTab } from "./components/SettingsTab";
 import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
+import { CityCard, CityView } from "./components/City";
+import { buildCity } from "./lib/city";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { Toasts, useToasts } from "./components/Toasts";
 import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
@@ -47,7 +49,7 @@ import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
 import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
-import type { AppSettings, CalendarEvent, CaptureResult, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
+import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
@@ -125,6 +127,10 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.full = full ? "1" : "";
   }, [full]);
+  useEffect(() => {
+    if (full) api.cityWindows().then(setCityWins, () => undefined);
+    else setCityOpen(null);
+  }, [full]);
   const [shortcuts, setShortcuts] = useState<ShortcutSettings | null>(null);
   const [highlight, setHighlight] = useState<number | null>(null);
   const [query, setQuery] = useState("");
@@ -191,10 +197,14 @@ export default function App() {
   }, []);
   const toggleFullRef = useRef(toggleFull);
   toggleFullRef.current = toggleFull;
+  // The city (full screen): finished tasks, and whether it's open.
+  const [cityWins, setCityWins] = useState<CityWindow[]>([]);
+  const [cityOpen, setCityOpen] = useState<null | "view" | "share">(null);
 
   const refresh = useCallback(async () => {
     try {
       api.listProjects().then(setProjectStats, () => undefined);
+      if (fullRef.current) api.cityWindows().then(setCityWins, () => undefined);
       setTasks(await api.listTasks(today));
     } catch (e) {
       setError(String(e));
@@ -412,13 +422,16 @@ export default function App() {
   };
   const selectedTasks = useMemo(() => flat.filter((t) => selected.has(t.id)), [flat, selected]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
+  const city = useMemo(() => buildCity(cityWins, tasks), [cityWins, tasks]);
 
   // Keyboard: Esc, undo, search and list navigation.
-  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full });
-  keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full };
+  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen });
+  keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = keyState.current;
+      // The city has its own keys.
+      if (s.cityOpen) return;
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape" && !e.defaultPrevented) {
         if (s.showKeys) setShowKeys(false);
@@ -984,7 +997,9 @@ export default function App() {
             }}
             onSettings={() => setTab(tab === "tasks" ? "settings" : "tasks")}
             onKeys={() => setShowKeys(true)}
-            updateReady={update.state === "ready"}
+            onCity={() => setCityOpen("view")}
+            cityName={settings?.city_name ?? null}
+            updateReady={update.state === "ready"
             model={status?.active_model ?? null}
             captureHint={<>{captureHint} to capture</>}
           />
@@ -1139,6 +1154,43 @@ export default function App() {
 
         {tasksShown && !upcoming && selectedTasks.length > 0 && (
           <BatchBar tasks={selectedTasks} actions={actions} projects={projectInfos} onClear={() => setSelected(new Set())} />
+        )}
+        {tasksShown && !cityOpen && settings?.city_corner !== false && (
+          <div className="city-corner">
+            <CityCard
+              city={city}
+              name={settings?.city_name ?? null}
+              now={now}
+              onOpen={() => setCityOpen("view")}
+              onShare={() => setCityOpen("share")}
+              onHide={() => {
+                if (settings) void saveSettings({ ...settings, city_corner: false });
+                show("Your city is hidden. Open it from the sidebar, or bring it back in Preferences.");
+              }}
+            />
+          </div>
+        )}
+        {cityOpen && (
+          <CityView
+            city={city}
+            name={settings?.city_name ?? null}
+            now={now}
+            locale={LOCALE}
+            startSharing={cityOpen === "share"}
+            onName={(n) => {
+              if (settings) void saveSettings({ ...settings, city_name: n });
+            }}
+            onOpenProject={(project) => {
+              setCityOpen(null);
+              setTab("tasks");
+              setQuery("");
+              setSearchOpen(false);
+              setList(project ? projectList(project) : "all");
+            }}
+            onClose={() => setCityOpen(null)}
+            onError={actions.fail}
+            onSaved={() => show("Saved a picture of your city to Downloads")}
+          />
         )}
         <Toasts toasts={toasts} onDismiss={dismiss} />
         {drag.drag && <DragGhost drag={drag.drag} now={now} locale={LOCALE} />}

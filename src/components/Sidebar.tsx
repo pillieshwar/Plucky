@@ -3,6 +3,7 @@ import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
 import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
 import { GearIcon, SearchIcon } from "./icons";
+import { BuildingIcon } from "./City";
 
 interface Props {
   list: ListId;
@@ -17,6 +18,9 @@ interface Props {
   onSearch: () => void;
   onSettings: () => void;
   onKeys: () => void;
+  /** Open the city. */
+  onCity: () => void;
+  cityName: string | null;
   updateReady: boolean;
   model: string | null;
   captureHint: ReactElement;
@@ -119,6 +123,12 @@ export function Sidebar(p: Props) {
             {p.captureHint}
           </span>
         </div>
+        <button type="button" className="sb-item sb-city" onClick={p.onCity} title="Your city: every finished task lights a window">
+          <span className="sb-icon" aria-hidden>
+            <BuildingIcon />
+          </span>
+          <span className="sb-text">{p.cityName ?? "Your city"}</span>
+        </button>
         <div className="sb-foot-row">
           <button type="button" className={p.inSettings ? "sb-item on" : "sb-item"} onClick={p.onSettings} title="Settings (⌘,)">
             <span className="sb-icon" aria-hidden>
