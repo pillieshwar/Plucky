@@ -10,6 +10,10 @@ export type { SnoozeKind };
 
 type Show = (text: string, action?: Toast["action"], tone?: Toast["tone"]) => number;
 
+function plural(n: number): string {
+  return n === 1 ? "1 task" : `${n} tasks`;
+}
+
 function short(title: string): string {
   return title.length > 34 ? `${title.slice(0, 33)}…` : title;
 }
@@ -116,7 +120,112 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
-  return { setDone, remove, reschedule, moveAll, snooze, update, fail };
+  /** Skip one occurrence of a repeating task (it moves to the next day in the series). */
+  async function skip(task: Task) {
+    const before: TaskPatch = { due_date: task.due_date, deadline: task.deadline };
+    try {
+      const t = await api.skipOccurrence(task.id);
+      const when = t.due_date ? relativeLabel(t.due_date, new Date(), locale).toLowerCase() : "later";
+      show(`Skipped — next one is ${when}`, {
+        label: "Undo",
+        run: () => api.updateTask(task.id, before).then(() => undefined, fail),
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /** Pause or resume a repeating task. Resuming a paused one that's fallen behind skips ahead to its next day. */
+  async function pause(task: Task, paused: boolean) {
+    try {
+      await api.updateTask(task.id, { paused });
+      const today = new Date();
+      const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      if (!paused && task.due_date && task.due_date < iso) await api.skipOccurrence(task.id);
+      show(paused ? `Paused “${short(task.title)}” — no reminders until you resume it` : `Resumed “${short(task.title)}”`, {
+        label: "Undo",
+        run: () =>
+          api.updateTask(task.id, { paused: !paused, due_date: task.due_date, deadline: task.deadline }).then(() => undefined, fail),
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /**
+   * One change to several tasks, with one Undo. `patch` may depend on the
+   * task; `undo` says which fields to put back.
+   */
+  async function batch(tasks: Task[], patch: TaskPatch | ((t: Task) => TaskPatch), message: string) {
+    const changed: { task: Task; before: TaskPatch }[] = [];
+    try {
+      for (const t of tasks) {
+        const p = typeof patch === "function" ? patch(t) : patch;
+        const before: TaskPatch = {};
+        for (const k of Object.keys(p) as (keyof TaskPatch)[]) {
+          if (k === "only_this") continue;
+          (before as Record<string, unknown>)[k] = (t as unknown as Record<string, unknown>)[k];
+        }
+        await api.updateTask(t.id, p);
+        changed.push({ task: t, before });
+      }
+      show(message, {
+        label: "Undo",
+        run: async () => {
+          try {
+            for (const c of changed.reverse()) await api.updateTask(c.task.id, c.before);
+          } catch (e) {
+            fail(e);
+          }
+        },
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  async function completeMany(tasks: Task[]) {
+    const open = tasks.filter((t) => !t.done);
+    try {
+      for (const t of open) await api.updateTask(t.id, { done: true });
+      show(`Completed ${plural(open.length)}`, {
+        label: "Undo",
+        run: async () => {
+          try {
+            for (const t of open) await api.updateTask(t.id, { done: false });
+          } catch (e) {
+            fail(e);
+          }
+        },
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  async function removeMany(tasks: Task[]) {
+    const gone: Task[] = [];
+    try {
+      for (const t of tasks) {
+        await api.deleteTask(t.id);
+        gone.push(t);
+      }
+      show(`Deleted ${plural(gone.length)}`, {
+        label: "Undo",
+        run: async () => {
+          try {
+            for (const t of gone) await api.restoreTask(t);
+          } catch (e) {
+            fail(e);
+          }
+        },
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  return { setDone, remove, reschedule, moveAll, snooze, update, fail, skip, pause, batch, completeMany, removeMany };
 }
 
 export type TaskActions = ReturnType<typeof taskActions>;

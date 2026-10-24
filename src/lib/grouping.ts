@@ -20,6 +20,7 @@ export function groupTasks(tasks: Task[], reference: Date, locale?: string): Day
   const byDay = new Map<string, Task[]>();
   const someday: Task[] = [];
   const parked: Task[] = [];
+  const paused: Task[] = [];
   const done: Task[] = [];
   const todayIso = toISODate(reference);
 
@@ -28,6 +29,8 @@ export function groupTasks(tasks: Task[], reference: Date, locale?: string): Day
     const day = t.done ? null : effectiveDay(t, todayIso);
     if (t.done) {
       done.push(t);
+    } else if (t.paused) {
+      paused.push(t);
     } else if (!day) {
       (t.someday ? parked : someday).push(t);
     } else if (daysBetween(reference, parseISODate(day)) < 0) {
@@ -72,6 +75,7 @@ export function groupTasks(tasks: Task[], reference: Date, locale?: string): Day
 
   if (someday.length) groups.push({ key: "someday", label: "No date", tone: "someday", tasks: someday.sort(byCreated) });
   if (parked.length) groups.push({ key: "parked", label: "Someday", tone: "someday", tasks: parked.sort(byCreated) });
+  if (paused.length) groups.push({ key: "paused", label: "Paused repeats", tone: "someday", tasks: paused.sort(byCreated) });
   if (done.length) {
     done.sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
     groups.push({ key: "done", label: "Done", tone: "done", tasks: done });

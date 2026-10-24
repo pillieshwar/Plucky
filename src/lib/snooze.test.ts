@@ -61,6 +61,14 @@ describe("snoozePlan", () => {
     expect(p.patch).toEqual({ snoozed_until: "2026-10-23T15:12:00" });
   });
 
+  it("tomorrow moves just this one of a repeating task", () => {
+    expect(snoozePlan(task({ recurrence: "weekly" }), "tomorrow", NOW, "en-US").patch).toEqual({
+      due_date: "2026-10-24",
+      snoozed_until: null,
+      only_this: true,
+    });
+  });
+
   it("tomorrow and next week move the day", () => {
     expect(snoozePlan(task(), "tomorrow", NOW, "en-US").patch).toEqual({ due_date: "2026-10-24", snoozed_until: null });
     expect(snoozePlan(task(), "week", NOW, "en-US").patch.due_date).toBe("2026-10-30");

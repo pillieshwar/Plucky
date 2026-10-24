@@ -16,7 +16,10 @@ export type SnoozeKind = "15m" | "1h" | "tonight" | "tomorrow" | "week";
 export function snoozePlan(task: Task, kind: SnoozeKind, now: Date, locale?: string): { patch: TaskPatch; text: string } {
   if (kind === "tomorrow" || kind === "week") {
     const day = toISODate(addDays(now, kind === "tomorrow" ? 1 : 7));
-    return { patch: { due_date: day, snoozed_until: null }, text: `Moved to ${relativeLabel(day, now, locale).toLowerCase()}` };
+    // A repeating task moves just this once; the series keeps its days.
+    const patch: TaskPatch = { due_date: day, snoozed_until: null };
+    if (task.recurrence) patch.only_this = true;
+    return { patch, text: `Moved to ${relativeLabel(day, now, locale).toLowerCase()}` };
   }
   const at =
     kind === "tonight"

@@ -25,7 +25,7 @@ export function planFor(tasks: Task[], day: string, today: string): DayPlan {
   const byHour = new Map<number, Task[]>();
   const overdue: Task[] = [];
   for (const t of tasks) {
-    if (t.done || !t.due_date) continue;
+    if (t.done || !t.due_date || t.paused) continue;
     if (t.due_date === day) {
       if (t.due_time) {
         const h = hourOf(t.due_time);
@@ -103,7 +103,10 @@ export function dropPatch(task: Task, to: DropTarget): TaskPatch | null {
     // Keep the minutes when it stays in its block (only the day moved).
     if (!sameBlock) patch.due_time = `${String(to.hour).padStart(2, "0")}:00`;
   }
-  return Object.keys(patch).length ? patch : null;
+  if (!Object.keys(patch).length) return null;
+  // Dragging one day of a repeating task moves just that one.
+  if (task.recurrence && patch.due_date !== undefined) patch.only_this = true;
+  return patch;
 }
 
 /** "9 AM", "12 PM", "21" (24-hour locales). */

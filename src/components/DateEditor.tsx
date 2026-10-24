@@ -15,6 +15,10 @@ interface Props {
   deadline?: string | null;
   /** Only day, time and repeat (for a task not saved yet). */
   basic?: boolean;
+  /** For a saved repeating task: skip this one, pause/resume. */
+  paused?: boolean;
+  onSkip?: () => void;
+  onPause?: (paused: boolean) => void;
   now: Date;
   locale: string;
   onApply: (patch: TaskPatch) => void;
@@ -26,8 +30,28 @@ interface Props {
  * monday"), tap a quick day, pick from the calendar, or set a time and a
  * repeat. Renders inline, so it can't be cut off.
  */
-export function DateEditor({ date, time, repeat, evening, someday, deadline, basic, now, locale, onApply, onClose }: Props) {
+export function DateEditor({
+  date,
+  time,
+  repeat,
+  evening,
+  someday,
+  deadline,
+  basic,
+  paused,
+  onSkip,
+  onPause,
+  now,
+  locale,
+  onApply: applyRaw,
+  onClose,
+}: Props) {
   const [text, setText] = useState("");
+  // Moving one day of a repeating task: just this one, or the whole series.
+  const repeating = !!repeat && !basic;
+  const [scope, setScope] = useState<"one" | "series">("one");
+  const onApply = (patch: TaskPatch) =>
+    applyRaw(repeating && patch.due_date !== undefined && !("recurrence" in patch) ? { ...patch, only_this: scope === "one" } : patch);
   const inputRef = useRef<HTMLInputElement>(null);
   const order = useMemo(() => dayOrderForLocale(locale), [locale]);
   const today = toISODate(now);
@@ -60,7 +84,7 @@ export function DateEditor({ date, time, repeat, evening, someday, deadline, bas
 
   return (
     <div
-      className="date-editor"
+      className={repeating ? "date-editor repeating" : "date-editor"}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -69,6 +93,37 @@ export function DateEditor({ date, time, repeat, evening, someday, deadline, bas
         }
       }}
     >
+      {repeating && (
+        <div className="de-series">
+          <span className="de-series-label">
+            {paused ? "Paused · repeats " : "Repeats "}
+            {(REPEATS.find((r) => r.id === repeat)?.label ?? repeat)?.toLowerCase()}. Change
+          </span>
+          <div className="view-switch" role="radiogroup" aria-label="Which to change">
+            <button type="button" role="radio" aria-checked={scope === "one"} className={scope === "one" ? "on" : ""} onClick={() => setScope("one")}>
+              This one
+            </button>
+            <button type="button" role="radio" aria-checked={scope === "series"} className={scope === "series" ? "on" : ""} onClick={() => setScope("series")}>
+              All
+            </button>
+          </div>
+          <div className="de-series-actions">
+            {onSkip && (
+              <button type="button" className="de-link" onClick={() => { onSkip(); onClose(); }} title="Move this one to the series' next day">
+                Skip this one
+              </button>
+            )}
+            {onPause && (
+              <button type="button" className="de-link" onClick={() => { onPause(!paused); onClose(); }}>
+                {paused ? "Resume" : "Pause"}
+              </button>
+            )}
+            <button type="button" className="de-link danger" onClick={() => apply({ recurrence: null })} title="Keep this task, stop making new ones">
+              Stop repeating
+            </button>
+          </div>
+        </div>
+      )}
       <form
         className="de-type"
         onSubmit={(e) => {

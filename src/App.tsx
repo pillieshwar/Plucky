@@ -30,6 +30,7 @@ import { ListPicker } from "./components/ListPicker";
 import { Logbook } from "./components/Logbook";
 import type { ProjectInfo } from "./components/ProjectPicker";
 import { ProjectHeader } from "./components/ProjectHeader";
+import { BatchBar } from "./components/BatchBar";
 import { taskActions } from "./lib/taskActions";
 import { dueNow } from "./lib/due";
 import { DueNowCard } from "./components/DueNowCard";
@@ -69,6 +70,7 @@ const KEYS: [string, string][] = [
   ["O", "Open where it came from"],
   ["⌫", "Delete"],
   ["⌘Z", "Undo"],
+  ["⌘-click · ⇧-click", "Select several (⌘A all)"],
   ["S", "Snooze"],
   ["N", "Description"],
   ["A", "Add a task"],
@@ -123,6 +125,9 @@ export default function App() {
   const setFocusToday = (f: boolean | ((v: boolean) => boolean)) =>
     setList((l) => ((typeof f === "function" ? f(l === "today") : f) ? "today" : "all"));
   const [projectStats, setProjectStats] = useState<ProjectSummary[]>([]);
+  // Tasks selected for batch actions, and where a Shift-click range starts.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const anchor = useRef<number | null>(null);
   // Tasks as a list, or the week in hour blocks. Remembered per Mac.
   const [view, setView] = useState<View>(savedView);
   useEffect(() => {
@@ -281,17 +286,48 @@ export default function App() {
     setList(projectList(name));
   };
   const flat = useMemo(() => groups.flatMap((g) => g.tasks), [groups]);
+  // The selection only holds tasks still on screen.
+  useEffect(() => {
+    setSelected((sel) => {
+      if (!sel.size) return sel;
+      const ids = new Set(flat.filter((t) => !t.done).map((t) => t.id));
+      const next = new Set([...sel].filter((id) => ids.has(id)));
+      return next.size === sel.size ? sel : next;
+    });
+  }, [flat]);
+  useEffect(() => setSelected(new Set()), [list, view, tab]);
+  const selectTask = (id: number, mode: "toggle" | "range") => {
+    setSelected((sel) => {
+      const next = new Set(sel);
+      const from = anchor.current ?? focusId;
+      if (mode === "range" && from !== null) {
+        const ids = flat.filter((t) => !t.done).map((t) => t.id);
+        const a = ids.indexOf(from);
+        const b = ids.indexOf(id);
+        if (a >= 0 && b >= 0) {
+          for (const x of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x);
+          return next;
+        }
+      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      anchor.current = id;
+      return next;
+    });
+  };
+  const selectedTasks = useMemo(() => flat.filter((t) => selected.has(t.id)), [flat, selected]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
 
   // Keyboard: Esc, undo, search and list navigation.
-  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, view });
-  keyState.current = { flat, focusId, capture, tab, query, showKeys, view };
+  const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, view, selectedTasks });
+  keyState.current = { flat, focusId, capture, tab, query, showKeys, view, selectedTasks };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = keyState.current;
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape" && !e.defaultPrevented) {
         if (s.showKeys) setShowKeys(false);
+        else if (s.selectedTasks.length) setSelected(new Set());
         else if (s.capture) setCapture(null);
         else if (s.query && document.activeElement === searchRef.current) setQuery("");
         else void api.hidePanel();
@@ -322,6 +358,30 @@ export default function App() {
         if (used) e.preventDefault();
         return;
       }
+      // ⌘A selects every open task shown.
+      if (mod && e.key.toLowerCase() === "a" && !typingIn(e.target) && s.view === "list" && !s.capture) {
+        e.preventDefault();
+        setSelected(new Set(s.flat.filter((t) => !t.done).map((t) => t.id)));
+        return;
+      }
+      // With a selection, the usual keys act on all of it.
+      const sel = s.selectedTasks;
+      if (sel.length && !typingIn(e.target) && !mod && !e.altKey && !s.capture) {
+        const k = e.key.toLowerCase();
+        const iso = (n: number) => toISODate(addDays(new Date(), n));
+        const what = sel.length === 1 ? "1 task" : `${sel.length} tasks`;
+        let used = true;
+        if (e.key === " " || k === "x") void actions.completeMany(sel).then(() => setSelected(new Set()));
+        else if (e.key === "Backspace" || e.key === "Delete") void actions.removeMany(sel).then(() => setSelected(new Set()));
+        else if (k === "t") void actions.batch(sel, { due_date: iso(0) }, `Moved ${what} to today`);
+        else if (k === "m") void actions.batch(sel, { due_date: iso(1) }, `Moved ${what} to tomorrow`);
+        else if (k === "w") void actions.batch(sel, { due_date: iso(7) }, `Moved ${what} to next week`);
+        else used = false;
+        if (used) {
+          e.preventDefault();
+          return;
+        }
+      }
       if (typingIn(e.target) || mod || e.altKey || s.capture) {
         if (e.key === "ArrowDown" && e.target === searchRef.current && s.flat.length) {
           e.preventDefault();
@@ -341,7 +401,22 @@ export default function App() {
       const key = e.key;
       const lower = key.toLowerCase();
       let handled = true;
-      if (key === "ArrowDown" || lower === "j") move(1);
+      if ((key === "ArrowDown" || key === "ArrowUp") && e.shiftKey) {
+        // Shift+↑/↓ grows the selection from the focused task.
+        const d = key === "ArrowDown" ? 1 : -1;
+        const open = s.flat.filter((t) => !t.done);
+        const i = open.findIndex((t) => t.id === s.focusId);
+        const next = open[Math.min(open.length - 1, Math.max(0, i + d))];
+        if (next) {
+          setSelected((sel) => {
+            const n2 = new Set(sel);
+            if (i >= 0) n2.add(open[i].id);
+            n2.add(next.id);
+            return n2;
+          });
+          setFocusId(next.id);
+        }
+      } else if (key === "ArrowDown" || lower === "j") move(1);
       else if (key === "ArrowUp" || lower === "k") move(-1);
       else if (key === "?") setShowKeys((v) => !v);
       else if (lower === "f") setFocusToday((v) => !v);
@@ -704,6 +779,8 @@ export default function App() {
             projects={projectInfos}
             inProject={viewedProject}
             onOpenProject={openProject}
+            selected={selected}
+            onSelect={selectTask}
             emptyNote={
               list === "someday" && !query.trim() ? (
                 <>
@@ -743,6 +820,9 @@ export default function App() {
         )}
       </main>
 
+      {tab === "tasks" && view === "list" && selectedTasks.length > 0 && (
+        <BatchBar tasks={selectedTasks} actions={actions} projects={projectInfos} onClear={() => setSelected(new Set())} />
+      )}
       <Toasts toasts={toasts} onDismiss={dismiss} />
 
       {showKeys && (
