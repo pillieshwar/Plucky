@@ -253,6 +253,18 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         None::<&str>,
     )?)?;
+    let full_label = if panel::is_full(app) {
+        "Back to the side panel"
+    } else {
+        "Open full screen"
+    };
+    menu.append(&MenuItem::with_id(
+        app,
+        "full",
+        full_label,
+        true,
+        None::<&str>,
+    )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "snap",
@@ -315,7 +327,19 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         }
         "models" => open_tab(app, "models"),
         "settings" => open_tab(app, "settings"),
-        "snap" => panel::snap_to_edge(app),
+        "full" => {
+            popover::hide(app);
+            let full = !panel::is_full(app);
+            if let Err(e) = panel::set_full(app, full) {
+                log::warn!("could not change full screen: {e}");
+            }
+        }
+        "snap" => {
+            if panel::is_full(app) {
+                let _ = panel::set_full(app, false);
+            }
+            panel::snap_to_edge(app)
+        }
         "quit" => app.exit(0),
         _ => {
             if let Some(task_id) = id.strip_prefix("task:").and_then(|n| n.parse::<i64>().ok()) {

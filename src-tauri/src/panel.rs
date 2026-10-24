@@ -6,6 +6,9 @@
 //!   across launches. "Snap to right edge" in the tray menu undoes that.
 //! * It can be minimized to a slim bar, and expands again on the next
 //!   capture, from the tray, or with its expand button.
+//! * Full screen turns it into an ordinary app window that fills the
+//!   screen (sidebar, task details, a week calendar), with a Dock icon while
+//!   it lasts; leaving full screen docks it again.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -27,6 +30,8 @@ const MAX_HEIGHT: f64 = 760.0;
 /// Logical gaps kept between the docked panel and the usable screen area
 /// (the screen minus the menu bar and the Dock or taskbar).
 const GAP: (f64, f64) = (10.0, 14.0);
+/// Smallest logical size of the full-screen window.
+const MIN_FULL: (f64, f64) = (960.0, 600.0);
 /// Moves reported this soon after we positioned the window ourselves are
 /// ours, not the user's.
 const SELF_MOVE_GRACE: Duration = Duration::from_millis(400);
@@ -51,6 +56,8 @@ struct Inner {
     /// Height to restore when expanding.
     expanded_height: Option<u32>,
     self_moved_at: Option<Instant>,
+    /// Full screen: a normal, resizable window filling the screen.
+    full: bool,
     dirty: bool,
     last_save: Option<Instant>,
 }
@@ -205,6 +212,15 @@ fn restore(win: &WebviewWindow, inner: &mut Inner, p: Placement) -> tauri::Resul
 pub fn show(app: &AppHandle) {
     let Some(win) = window(app) else { return };
     let st = state(app);
+    let full = st.inner.lock().map(|i| i.full).unwrap_or(false);
+    if full {
+        crate::spaces::configure(&win, crate::spaces::Kind::Full);
+        let _ = win.show();
+        let _ = win.unminimize();
+        crate::spaces::bring_to_front(&win);
+        let _ = win.set_focus();
+        return;
+    }
     if let Ok(mut inner) = st.inner.lock() {
         inner.collapsed = false;
         inner.expanded_height = None;
@@ -228,6 +244,13 @@ pub fn show(app: &AppHandle) {
 }
 
 pub fn hide(app: &AppHandle) {
+    // Hiding the full-screen window ends full screen (and its Dock icon);
+    // Plucky opens as the side panel next time.
+    if is_full(app) {
+        if let Err(e) = switch_full(app, false) {
+            log::warn!("could not leave full screen: {e}");
+        }
+    }
     if let Some(win) = window(app) {
         let _ = win.hide();
     }
@@ -251,7 +274,7 @@ pub fn set_collapsed(app: &AppHandle, collapsed: bool) -> tauri::Result<()> {
     let Ok(mut inner) = st.inner.lock() else {
         return Ok(());
     };
-    if inner.collapsed == collapsed {
+    if inner.collapsed == collapsed || inner.full {
         return Ok(());
     }
     let scale = win.scale_factor()?;
@@ -290,9 +313,10 @@ pub fn on_moved(app: &AppHandle, pos: PhysicalPosition<i32>) {
     let Ok(mut inner) = st.inner.lock() else {
         return;
     };
-    if inner
-        .self_moved_at
-        .is_some_and(|t| t.elapsed() < SELF_MOVE_GRACE)
+    if inner.full
+        || inner
+            .self_moved_at
+            .is_some_and(|t| t.elapsed() < SELF_MOVE_GRACE)
     {
         return;
     }
@@ -314,4 +338,67 @@ pub fn on_moved(app: &AppHandle, pos: PhysicalPosition<i32>) {
     if due {
         st.save(&mut inner);
     }
+}
+
+/// Whether the panel is in full screen.
+pub fn is_full(app: &AppHandle) -> bool {
+    state(app).inner.lock().map(|i| i.full).unwrap_or(false)
+}
+
+/// Enter or leave full screen. Entering fills the usable part of the screen
+/// the panel is on (clear of the menu bar and the Dock) with an ordinary,
+/// resizable window; leaving puts the panel back where it was.
+pub fn set_full(app: &AppHandle, full: bool) -> tauri::Result<()> {
+    switch_full(app, full)?;
+    show(app);
+    Ok(())
+}
+
+/// Change the window between full screen and the side panel, without
+/// showing it.
+fn switch_full(app: &AppHandle, full: bool) -> tauri::Result<()> {
+    let Some(win) = window(app) else {
+        return Ok(());
+    };
+    {
+        let st = state(app);
+        let Ok(mut inner) = st.inner.lock() else {
+            return Ok(());
+        };
+        if inner.full == full {
+            return Ok(());
+        }
+        inner.full = full;
+        inner.collapsed = false;
+        inner.expanded_height = None;
+        if full {
+            let monitor = match win.current_monitor()? {
+                Some(m) => Some(m),
+                None => monitor_under_cursor(&win)?,
+            };
+            win.set_always_on_top(false)?;
+            win.set_resizable(true)?;
+            if let Some(m) = monitor {
+                win.set_min_size(Some(tauri::LogicalSize::new(MIN_FULL.0, MIN_FULL.1)))?;
+                let (x, y, w, h) = usable(&m);
+                apply(&win, &mut inner, x, y, w as u32, h as u32)?;
+            }
+        } else {
+            win.set_min_size(None::<tauri::LogicalSize<f64>>)?;
+            win.set_resizable(false)?;
+            win.set_always_on_top(true)?;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // A Dock icon (and ⌘-Tab) while it's a full app window.
+        let _ = app.set_activation_policy(if full {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        });
+    }
+    let _ = app.emit_to(LABEL, "panel-full", full);
+    crate::tray::refresh(app);
+    Ok(())
 }

@@ -58,6 +58,8 @@ interface Props {
   /** The task opened as a card, if any. */
   openId: number | null;
   onOpenTask: (id: number | null) => void;
+  /** Full screen: an opened task shows in the detail pane, not in place. */
+  detail?: boolean;
 }
 
 export function TaskList(props: Props) {
@@ -98,7 +100,7 @@ export function TaskList(props: Props) {
     );
   }
   return (
-    <div className={props.openId !== null ? "groups has-open" : "groups"}>
+    <div className={props.openId !== null && !props.detail ? "groups has-open" : "groups"}>
       {groups.map((g) => (
         <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label}>
           <h2 className="day">
@@ -144,11 +146,14 @@ function TaskRow({
   drag,
   openId,
   onOpenTask,
+  detail,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
   const focused = focusId === task.id;
-  const open = openId === task.id;
+  // In full screen the row stays a row; the task opens in the detail pane.
+  const picked = !!detail && openId === task.id;
+  const open = !detail && openId === task.id;
   const [completing, setCompleting] = useState(false);
   // Which part of the open card is expanded: when (date, deadline, repeat), project or snooze.
   const [panel, setPanel] = useState<Panel>(null);
@@ -167,9 +172,14 @@ function TaskRow({
     } else ref.current?.scrollIntoView({ block: "nearest" });
   }, [open]);
   useEffect(() => {
+    if (picked) ref.current?.scrollIntoView({ block: "nearest" });
+  }, [picked]);
+  useEffect(() => {
     if (!command || command.id !== task.id) return;
     // Every row command opens the task with the right part ready.
     onOpenTask(task.id);
+    // (The detail pane picks the part itself.)
+    if (detail) return;
     if (command.kind === "date") setPanel("when");
     if (command.kind === "project" && !task.done) setPanel("project");
     if (command.kind === "snooze" && !task.done) setPanel("snooze");
@@ -224,6 +234,7 @@ function TaskRow({
       className={[
         "task",
         open ? "open" : "",
+        picked ? "picked" : "",
         task.done ? "done" : "",
         highlighted ? "flash" : "",
         focused && !open ? "focused" : "",
@@ -269,7 +280,7 @@ function TaskRow({
       ) : (
         <div
           className="task-row"
-          title={task.done ? undefined : "Click to open · drag onto a day to move"}
+          title={task.done ? undefined : detail ? "Click for details · drag onto a day or an hour" : "Click to open · drag onto a day to move"}
           onClick={(e) => {
             if (drag?.wasDrag()) return;
             if ((e.target as HTMLElement).closest("button, a, input")) return;
@@ -414,6 +425,7 @@ function TaskCard({
   onPanel,
   focusPart,
   onClose,
+  detail,
 }: {
   task: Task;
   check: ReactNode;
@@ -425,6 +437,8 @@ function TaskCard({
   onPanel: (p: Panel) => void;
   focusPart: "title" | "notes" | "steps" | null;
   onClose: () => void;
+  /** Shown in full screen's detail pane: properties as labelled rows. */
+  detail?: boolean;
 }) {
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
@@ -441,7 +455,7 @@ function TaskCard({
     const el = notesRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, detail ? 320 : 160)}px`;
   }, [notes]);
 
   function saveTitle() {
@@ -496,7 +510,7 @@ function TaskCard({
         <input
           className="tc-title"
           value={title}
-          autoFocus={focusPart === "title" || focusPart === null}
+          autoFocus={focusPart === "title" || (focusPart === null && !detail)}
           maxLength={200}
           aria-label="Title"
           onChange={(e) => setTitle(e.target.value)}
@@ -520,6 +534,26 @@ function TaskCard({
       {task.notes && linkParts(task.notes).some((p) => p.url) && <Notes text={task.notes} onEdit={() => notesRef.current?.focus()} onError={actions.fail} />}
       <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
 
+      {detail ? (
+        <div className="tc-props">
+          <span className="tc-prop-label">When</span>
+          <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
+            <CalendarIcon /> {whenLabel === "When" ? "Not planned" : whenLabel}
+          </button>
+          <span className="tc-prop-label">Deadline</span>
+          <button type="button" className={pillClass(panel === "when", !!dl, dl?.tone === "overdue")} onClick={() => toggle("when")}>
+            <FlagIcon /> {dl ? dl.label : "None"}
+          </button>
+          <span className="tc-prop-label">Project</span>
+          <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
+            <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : "None"}
+          </button>
+          <span className="tc-prop-label">Repeat</span>
+          <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
+            <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Doesn’t repeat"}
+          </button>
+        </div>
+      ) : (
       <div className="tc-pills">
         <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
           <CalendarIcon /> {whenLabel}
@@ -534,6 +568,7 @@ function TaskCard({
           <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Repeat"}
         </button>
       </div>
+      )}
 
       {panel === "when" && (
         <DateEditor
@@ -583,7 +618,7 @@ function TaskCard({
             From {source} ↗
           </button>
         ) : (
-          <span className="tc-hint">Esc to close · saves as you go</span>
+          <span className="tc-hint">{detail ? "Saves as you go" : "Esc to close · saves as you go"}</span>
         )}
         <span className="tc-gap" />
         {!task.done && (
@@ -596,6 +631,112 @@ function TaskCard({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Full screen's detail pane: the task opened beside the list, with its
+ * properties as rows. ↑ ↓ step through the list; Esc closes.
+ */
+export function TaskDetail({
+  task,
+  actions,
+  now,
+  locale,
+  projects,
+  command,
+  crumbs,
+  onClose,
+  onStep,
+}: {
+  task: Task;
+  actions: TaskActions;
+  now: Date;
+  locale: string;
+  projects: ProjectInfo[];
+  command: RowCommand | null;
+  /** Where the task lives ("Q4 launch", "Design"). */
+  crumbs: string[];
+  onClose: () => void;
+  /** Open the task before (-1) or after (1) in the list. */
+  onStep?: (d: -1 | 1) => void;
+}) {
+  const [panel, setPanel] = useState<Panel>(null);
+  const [focusPart, setFocusPart] = useState<"title" | "notes" | "steps" | null>(null);
+  useEffect(() => {
+    setPanel(null);
+    setFocusPart(null);
+  }, [task.id]);
+  useEffect(() => {
+    if (!command || command.id !== task.id) return;
+    if (command.kind === "date") setPanel("when");
+    if (command.kind === "project" && !task.done) setPanel("project");
+    if (command.kind === "snooze" && !task.done) setPanel("snooze");
+    if (command.kind === "edit") setFocusPart("title");
+    if (command.kind === "notes") setFocusPart("notes");
+    if (command.kind === "steps") setFocusPart("steps");
+    // Only react to new commands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command]);
+  const check = (
+    <button
+      type="button"
+      className={task.done ? "check on" : "check"}
+      onClick={() => void actions.setDone(task, !task.done)}
+      aria-label={task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`}
+      aria-pressed={task.done}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4">
+        <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+  return (
+    <aside className="side-pane detail-pane" aria-label="Task details">
+      <div className="sp-head">
+        <span className="sp-crumbs">
+          {crumbs.map((c, i) => (
+            <span key={i}>
+              {i > 0 && <span className="sp-crumb-sep" aria-hidden>›</span>}
+              {c}
+            </span>
+          ))}
+        </span>
+        {onStep && (
+          <>
+            <button type="button" className="icon" onClick={() => onStep(-1)} aria-label="Previous task" title="Previous task (↑)">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M4 10l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button type="button" className="icon" onClick={() => onStep(1)} aria-label="Next task" title="Next task (↓)">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </>
+        )}
+        <button type="button" className="sp-close" onClick={onClose} title="Close (Esc)">
+          Close <kbd>Esc</kbd>
+        </button>
+      </div>
+      <div className="sp-body">
+        <TaskCard
+          key={task.id}
+          task={task}
+          check={check}
+          actions={actions}
+          now={now}
+          locale={locale}
+          projects={projects}
+          panel={panel}
+          onPanel={setPanel}
+          focusPart={focusPart}
+          onClose={onClose}
+          detail
+        />
+      </div>
+    </aside>
   );
 }
 

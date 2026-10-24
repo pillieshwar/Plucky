@@ -877,7 +877,21 @@ fn set_panel_collapsed(app: AppHandle, collapsed: bool) -> CmdResult<()> {
 
 #[tauri::command]
 fn snap_panel_to_edge(app: AppHandle) {
+    if panel::is_full(&app) {
+        let _ = panel::set_full(&app, false);
+    }
     panel::snap_to_edge(&app);
+}
+
+/// Open the panel as a full-screen window, or put it back at the side.
+#[tauri::command]
+fn set_panel_full(app: AppHandle, full: bool) -> CmdResult<()> {
+    panel::set_full(&app, full).map_err(err)
+}
+
+#[tauri::command]
+fn panel_full(app: AppHandle) -> bool {
+    panel::is_full(&app)
 }
 
 // ── Shortcuts ───────────────────────────────────────────────────────────────
@@ -1347,6 +1361,8 @@ pub fn run() {
             hide_panel,
             set_panel_collapsed,
             snap_panel_to_edge,
+            set_panel_full,
+            panel_full,
             list_models,
             download_model,
             cancel_download,

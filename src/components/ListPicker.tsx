@@ -161,14 +161,14 @@ export function Pie({ done, total, size = 14 }: { done: number; total: number; s
 }
 
 const sv = { width: 15, height: 15, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.6, "aria-hidden": true } as const;
-function StarIcon() {
+export function StarIcon() {
   return (
     <svg {...sv} fill="currentColor" stroke="none">
       <path d="M8 1.5l1.9 4 4.4.5-3.3 3 .9 4.3L8 11.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5Z" />
     </svg>
   );
 }
-function CalIcon() {
+export function CalIcon() {
   return (
     <svg {...sv}>
       <rect x="2" y="3" width="12" height="11" rx="2" />
@@ -176,21 +176,21 @@ function CalIcon() {
     </svg>
   );
 }
-function LinesIcon() {
+export function LinesIcon() {
   return (
     <svg {...sv}>
       <path d="M3 4.5h10M3 8h10M3 11.5h10" strokeLinecap="round" />
     </svg>
   );
 }
-function CloudIcon() {
+export function CloudIcon() {
   return (
     <svg {...sv}>
       <path d="M4.5 12.5h7a3 3 0 0 0 .3-6 4 4 0 0 0-7.6-.8A3.4 3.4 0 0 0 4.5 12.5Z" strokeLinejoin="round" />
     </svg>
   );
 }
-function LogIcon() {
+export function LogIcon() {
   return (
     <svg {...sv} strokeWidth={1.8}>
       <rect x="2" y="2" width="12" height="12" rx="3" />

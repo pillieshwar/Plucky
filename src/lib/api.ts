@@ -51,6 +51,9 @@ export const api = {
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
   setActiveModel: (id: string) => invoke<void>("set_active_model", { id }),
   setPanelCollapsed: (collapsed: boolean) => invoke<void>("set_panel_collapsed", { collapsed }),
+  /** Open the panel as a full-screen window, or put it back at the side. */
+  setPanelFull: (full: boolean) => invoke<void>("set_panel_full", { full }),
+  panelFull: () => invoke<boolean>("panel_full"),
   snapPanelToEdge: () => invoke<void>("snap_panel_to_edge"),
   listLocalModels: () => invoke<LocalModels>("list_local_models"),
   addModelFile: (path: string, source: string | null = null) =>
@@ -169,6 +172,10 @@ export function onOpenTab(handler: (tab: string) => void): Promise<UnlistenFn> {
 /** The panel was minimized or expanded (by us, a capture, or the tray). */
 export function onPanelCollapsed(handler: (collapsed: boolean) => void): Promise<UnlistenFn> {
   return listen<boolean>("panel-collapsed", (e) => handler(e.payload));
+}
+
+export function onPanelFull(handler: (full: boolean) => void): Promise<UnlistenFn> {
+  return listen<boolean>("panel-full", (e) => handler(e.payload));
 }
 
 export function onShortcutsChanged(handler: (s: ShortcutSettings) => void): Promise<UnlistenFn> {

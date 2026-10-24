@@ -213,7 +213,7 @@ export function DayPlan({ tasks, day, today, now, locale, events, actions, drag,
 }
 
 /** The inline field for a new task: Enter adds, Esc cancels, clicking away keeps what was typed. */
-function NewTaskField({ placeholder, onDone }: { placeholder: string; onDone: (title: string) => Promise<void> }) {
+export function NewTaskField({ placeholder, onDone }: { placeholder: string; onDone: (title: string) => Promise<void> }) {
   const [text, setText] = useState("");
   const done = useRef(false);
   const finish = (title: string) => {
