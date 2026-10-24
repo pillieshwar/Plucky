@@ -21,6 +21,9 @@ pub enum Kind {
     Panel,
     /// Popover and quick add: on every Space, above full-screen windows.
     Overlay,
+    /// The panel in full screen: an ordinary window that comes to the
+    /// Space the user is in.
+    Full,
 }
 
 /// Apply the right Space behaviour to every Plucky window, and turn the
@@ -240,7 +243,8 @@ mod macos {
         true
     }
 
-    /// NSFloatingWindowLevel and NSPopUpMenuWindowLevel.
+    /// NSNormalWindowLevel, NSFloatingWindowLevel and NSPopUpMenuWindowLevel.
+    const NORMAL: isize = 0;
     const FLOATING: isize = 3;
     const POP_UP_MENU: isize = 101;
 
@@ -270,6 +274,7 @@ mod macos {
                     | NSWindowCollectionBehavior::FullScreenAuxiliary,
                 FLOATING,
             ),
+            Kind::Full => (NSWindowCollectionBehavior::MoveToActiveSpace, NORMAL),
             Kind::Overlay => (
                 NSWindowCollectionBehavior::CanJoinAllSpaces
                     | NSWindowCollectionBehavior::FullScreenAuxiliary

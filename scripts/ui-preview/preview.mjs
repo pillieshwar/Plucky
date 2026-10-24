@@ -243,6 +243,12 @@ function mockTauri(s) {
     calendar_events: (a) =>
       (s.events ?? []).filter((e) => e.start.slice(0, 10) <= a.to && (e.end.slice(0, 10) > a.from || e.start.slice(0, 10) >= a.from)),
     autostart_enabled: () => true,
+    panel_full: () => !!s.full,
+    set_panel_full: (a) => {
+      s.full = a.full;
+      setTimeout(() => window.__emit("panel-full", a.full), 0);
+      return null;
+    },
     list_backups: () => s.backups,
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
     update_task: (a) => ({ ...s.tasks.find((t) => t.id === a.id), ...a.patch }),
@@ -812,6 +818,77 @@ await shot("quick-typed", QUICK, scenario({ label: "quick" }), async (p) => {
 await shot("quick-typed-dark", QUICK, scenario({ label: "quick" }), async (p) => {
   await p.keyboard.type("call mom tomorrow 6pm");
 }, true);
+
+// ── Full screen ─────────────────────────────────────────────────────────────
+const FULL = { width: 1440, height: 900 };
+const FULL_TASKS = [
+  ...RICH_TASKS,
+  task("Wrap up the launch notes #work", { due_date: day(0), due_time: "12:00", project: "Q4 launch" }),
+  task("Draft the offsite agenda", { due_date: day(0), due_time: "10:00", project: "Offsite 2026", heading: "Program" }),
+  task("Final pricing page copy", { due_date: day(2), due_time: "11:00", deadline: day(3), project: "Q4 launch" }),
+  task("1:1 prep for Maya", { due_date: day(1), due_time: "15:00" }),
+  task("Accessibility pass", { project: "Q4 launch" }),
+  task("Order a new desk chair"),
+];
+const FULL_EVENTS = [
+  ...PLAN_EVENTS,
+  { id: "e4", title: "Lunch with Sam", start: `${day(1)}T12:00:00`, end: `${day(1)}T13:00:00`, all_day: false, calendar: "Home", color: "#16a34a" },
+  { id: "e5", title: "Launch rehearsal", start: `${day(3)}T15:00:00`, end: `${day(3)}T16:30:00`, all_day: false, calendar: "Work", color: "#3b82f6" },
+];
+const full = (o = {}) => scenario({ tasks: FULL_TASKS, logbook: LOGBOOK, events: FULL_EVENTS, calendar: CAL_ON, full: true, ...o });
+const DARK = { ...SETTINGS, theme: "dark" };
+const LIGHT = { ...SETTINGS, theme: "light" };
+const side = (name) => async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name }).first().click();
+  await p.waitForTimeout(250);
+};
+await shot("full-today", FULL, full({ settings: DARK }));
+await shot("full-today-light", FULL, full({ settings: LIGHT }));
+await shot("full-today-hours", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("radio", { name: "List + Hours" }).click();
+  await p.waitForTimeout(250);
+});
+await shot("full-task-open", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row").nth(1).click();
+});
+await shot("full-task-open-light", FULL, full({ settings: LIGHT }), async (p) => {
+  await p.locator(".task .task-row").nth(1).click();
+});
+await shot("full-project", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+});
+await shot("full-when-editor", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row").nth(1).click();
+  await p.locator(".tc-props .tc-pill").first().click();
+});
+await shot("full-upcoming", FULL, full({ settings: DARK }), side(/Upcoming/));
+await shot("full-upcoming-light", FULL, full({ settings: LIGHT }), side(/Upcoming/));
+await shot("full-upcoming-drag", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Upcoming/)(p);
+  const from = await p.locator(".wg-task").first().boundingBox();
+  const to = await p.locator(`.wg-cell[data-iso="${day(2)}"][data-hour="16"]`).boundingBox();
+  await p.mouse.move(from.x + 30, from.y + 8);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 60, from.y + 30, { steps: 4 });
+  await p.mouse.move(to.x + 30, to.y + 20, { steps: 8 });
+  await p.waitForTimeout(150);
+});
+await shot("full-settings", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await p.waitForTimeout(200);
+});
+await shot("full-search", FULL, full({ settings: DARK }), async (p) => {
+  await p.keyboard.press("Meta+k");
+  await p.keyboard.type("offsite");
+});
+await shot("full-no-sidebar", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Hide sidebar" }).click();
+});
+await shot("full-tour", FULL, full({ settings: { ...DARK, onboarding_done: false }, status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.28", platform: "macos" } }));
+await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Open full screen" }).hover();
+});
 
 await browser.close();
 
