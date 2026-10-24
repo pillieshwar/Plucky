@@ -3,7 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { api, onSettingsChanged } from "./lib/api";
-import { applyTheme } from "./lib/theme";
+import { applyTheme, cachedTheme } from "./lib/theme";
 import Popover from "./popover/Popover";
 import QuickAdd from "./quick/QuickAdd";
 import "./styles.css";
@@ -21,6 +21,8 @@ function currentView(): string {
 
 const view = currentView();
 document.documentElement.dataset.view = view;
+// No flash of the wrong theme while settings load.
+applyTheme(cachedTheme());
 
 // Every window follows the Appearance preference, live.
 try {

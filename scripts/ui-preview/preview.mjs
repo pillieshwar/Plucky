@@ -96,6 +96,8 @@ const SETTINGS = {
   menubar_placed: true,
   capture_in_menu_bar: true,
   theme: "system",
+  theme_v2: true,
+  double_copy: true,
   undated_nudge: true,
   undated_time: "16:00",
   last_undated_nudge: null,
@@ -310,6 +312,18 @@ async function shot(name, size, s, steps = async () => {}, dark = false) {
 }
 
 const PANEL = { width: 360, height: 720 };
+/** Settings live behind the gear; open it, then the tab. */
+const tab = async (p, name) => {
+  if (!(await p.getByRole("tab", { name, exact: true }).count())) {
+    await p.getByRole("button", { name: "Settings", exact: true }).click();
+  }
+  await p.getByRole("tab", { name, exact: true }).click();
+};
+/** Open a task as a card. */
+const openTask = async (p, n) => {
+  await p.locator(".task .task-row").nth(n).click();
+  await p.waitForTimeout(150);
+};
 const POP = { width: 340, height: 540 };
 const QUICK = { width: 640, height: 300 };
 
@@ -352,13 +366,13 @@ const LOGBOOK = [
 ];
 const rich = (o = {}) => scenario({ tasks: RICH_TASKS, logbook: LOGBOOK, ...o });
 const pickList = (name) => async (p) => {
-  await p.locator(".list-picker .focus-toggle").click();
+  await p.locator(".list-title").click();
   await p.locator(".lp-menu").getByRole("menuitemradio", { name }).click();
   await p.waitForTimeout(200);
 };
 await shot("panel-rich", PANEL, rich());
 await shot("panel-lists-menu", PANEL, rich(), async (p) => {
-  await p.locator(".list-picker .focus-toggle").click();
+  await p.locator(".list-title").click();
 });
 await shot("panel-project", PANEL, rich(), pickList(/Offsite 2026/));
 await shot("panel-project-dark", PANEL, rich(), pickList(/Offsite 2026/), true);
@@ -366,17 +380,15 @@ await shot("panel-someday", PANEL, rich(), pickList(/Someday/));
 await shot("panel-logbook", PANEL, rich(), pickList(/Logbook/));
 await shot("panel-steps-open", PANEL, rich(), async (p) => {
   await pickList(/Offsite 2026/)(p);
-  await p.locator(".meta-steps").first().click();
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
 });
 await shot("panel-project-picker", PANEL, rich(), async (p) => {
-  const row = p.locator(".task").nth(1);
-  await row.hover();
-  await row.locator('[aria-label="Move to a project"]').click({ force: true });
+  await openTask(p, 1);
+  await p.locator(".tc-pill", { hasText: "Project" }).click();
 });
 await shot("panel-when-editor", PANEL, rich(), async (p) => {
-  const row = p.locator(".task").nth(1);
-  await row.hover();
-  await row.locator('[aria-label="Change date, time or repeat"]').click({ force: true });
+  await openTask(p, 1);
+  await p.locator(".tc-pill").first().click();
 });
 await shot("popover-rich", POP, rich({ label: "popover" }));
 await shot("panel-multi-select", PANEL, rich(), async (p) => {
@@ -385,11 +397,9 @@ await shot("panel-multi-select", PANEL, rich(), async (p) => {
   await p.locator(".task").nth(3).click({ modifiers: ["Meta"] });
 });
 await shot("panel-repeat-editor", PANEL, rich(), async (p) => {
-  const row = p.locator(".task", { hasText: "Water the plants" }).first();
-  await row.scrollIntoViewIfNeeded();
-  await row.hover();
-  await row.locator('[aria-label="Change date, time or repeat"]').click({ force: true });
-  await row.locator(".de-series").scrollIntoViewIfNeeded();
+  await p.locator(".task .task-row", { hasText: "Water the plants" }).first().click();
+  await p.locator(".tc-pill").nth(3).click();
+  await p.locator(".de-series").scrollIntoViewIfNeeded();
 });
 
 const PLAN_EVENTS = [
@@ -405,7 +415,8 @@ const PLAN_TASKS = [
 ];
 const planScenario = (o = {}) => scenario({ tasks: PLAN_TASKS, events: PLAN_EVENTS, ...o });
 const week = async (p) => {
-  await p.getByRole("radio", { name: "Week" }).click();
+  await p.locator(".list-title").click();
+  await p.locator(".lp-menu").getByRole("menuitemradio", { name: /Upcoming/ }).click();
   await p.waitForTimeout(250);
 };
 await shot("panel-week", PANEL, planScenario(), week);
@@ -441,40 +452,60 @@ await shot("panel-week-drag-day", PANEL, planScenario(), async (p) => {
   await dragTo(".plan-any .plan-task", `.wk-day[data-iso="${day(1)}"]`)(p);
 });
 await shot("popover-hours", POP, planScenario({ label: "popover" }), async (p) => {
-  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.getByRole("radio", { name: "Day" }).click();
 });
 await shot("popover-hours-dark", POP, planScenario({ label: "popover" }), async (p) => {
-  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.getByRole("radio", { name: "Day" }).click();
 }, true);
 await shot("popover-hours-drag", POP, planScenario({ label: "popover" }), async (p) => {
-  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.getByRole("radio", { name: "Day" }).click();
   await p.waitForTimeout(200);
   await dragTo(".plan-any .plan-task", '.plan-slot[data-hour="16"] .plan-cell')(p);
+});
+await shot("panel-today-hours", PANEL, planScenario(), async (p) => {
+  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.waitForTimeout(250);
+});
+await shot("panel-today-hours-dark", PANEL, planScenario(), async (p) => {
+  await p.getByRole("radio", { name: "Hours" }).click();
+  await p.waitForTimeout(250);
+}, true);
+await shot("panel-anytime", PANEL, rich(), pickList(/Anytime/));
+await shot("panel-drag-to-day", PANEL, scenario(), async (p) => {
+  await dragTo(".task .task-row", ".ws-day:nth-child(4)")(p);
+});
+await shot("panel-add-at-project", PANEL, rich(), async (p) => {
+  await p.getByRole("button", { name: "Add a task", exact: true }).click();
+  await p.keyboard.type("Book hotel @off fri");
 });
 await shot("panel-focus-today", PANEL, scenario(), async (p) => {
   await p.keyboard.press("f");
 });
 await shot("panel-snooze", PANEL, scenario(), async (p) => {
-  await p.locator(".task").nth(2).hover();
-  await p.locator(".task").nth(2).locator(".task-date").first().click({ force: true });
+  await openTask(p, 2);
+  await p.locator(".tc-link", { hasText: "Snooze" }).click();
 });
-await shot("panel-row-tools", PANEL, scenario(), async (p) => {
-  await p.locator(".task").nth(1).hover();
+await shot("panel-task-open", PANEL, scenario(), async (p) => {
+  await openTask(p, 2);
 });
+await shot("panel-task-open-dark", PANEL, scenario(), async (p) => {
+  await openTask(p, 2);
+}, true);
 await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
-  await p.locator(".task").nth(3).hover();
-  await p.locator(".task").nth(3).locator('[aria-label="Add a description"]').click({ force: true });
+  await openTask(p, 3);
+  await p.locator(".tc-notes").click();
   await p.keyboard.type("Deck: https://slides.example.com/q3");
 });
 await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");
 });
 await shot("panel-date-editor", PANEL, scenario(), async (p) => {
-  await p.locator(".task").nth(0).hover();
-  await p.locator(".task").nth(0).locator('[aria-label="Change date, time or repeat"]').click({ force: true });
+  await openTask(p, 0);
+  await p.locator(".tc-pill").first().click();
   await p.keyboard.type("fri 3pm every week");
 });
 await shot("panel-search", PANEL, scenario(), async (p) => {
+  await p.getByRole("button", { name: "Search", exact: true }).click();
   await p.locator(".tag-chip").first().click();
 });
 await shot("panel-toast", PANEL, scenario(), async (p) => {
@@ -507,18 +538,18 @@ await shot("panel-extracting", PANEL, scenario({ extract: "pending" }), async (p
   );
 });
 await shot("panel-preferences", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Preferences" }).click();
+  await tab(p, "Preferences");
 });
 // Dark chosen in Preferences while macOS is light.
 await shot("panel-preferences-dark", PANEL, scenario({ settings: { ...SETTINGS, theme: "dark" } }), async (p) => {
-  await p.getByRole("tab", { name: "Preferences" }).click();
+  await tab(p, "Preferences");
 });
 await shot("panel-settings", PANEL, scenario({ update: { state: "ready", version: "0.2.1", notes: null } }), async (p) => {
-  await p.getByRole("tab", { name: "Preferences" }).click();
+  await tab(p, "Preferences");
   await p.locator(".settings-h", { hasText: "General" }).scrollIntoViewIfNeeded();
 });
 await shot("panel-settings-data", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Preferences" }).click();
+  await tab(p, "Preferences");
   await p.locator(".settings-h", { hasText: "Your data" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -553,11 +584,11 @@ await shot(
     },
   }),
   async (p) => {
-    await p.getByRole("tab", { name: "Models" }).click();
+    await tab(p, "Models");
   },
 );
 await shot("panel-models-local-open", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Models" }).click();
+  await tab(p, "Models");
   await p.locator(".local-toggle").click();
   await p.locator(".local-toggle").scrollIntoViewIfNeeded();
 });
@@ -577,7 +608,7 @@ await shot(
     },
   }),
   async (p) => {
-    await p.getByRole("tab", { name: "Connectors" }).click();
+    await tab(p, "Connectors");
     await p.locator(".connector-action").nth(1).click();
   },
 );
@@ -628,14 +659,14 @@ const EVENTS = [
   { id: "e3", title: "Pick up groceries", start: `${EV_DAY}T18:00:00`, end: `${EV_DAY}T18:30:00`, all_day: false, calendar: "Home", color: "#16a34a" },
 ];
 await shot("panel-connectors", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
 });
 await shot("panel-connectors-calendar", PANEL, scenario({ calendar: CAL_ON }), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").first().click();
 });
 await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").nth(1).click();
 });
 await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
@@ -654,17 +685,15 @@ await shot("popover-drag", POP, scenario({ label: "popover" }), async (p) => {
   await p.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
 });
 await shot("popover-add", POP, scenario({ label: "popover" }), async (p) => {
-  await p.keyboard.press("n");
+  await p.locator(".pop-quick input").click();
   await p.keyboard.type("dentist fri 3pm");
 });
 await shot("popover-add-description", POP, scenario({ label: "popover" }), async (p) => {
-  await p.keyboard.press("n");
-  await p.keyboard.type("Send the Q3 deck to Priya fri 3pm");
-  await p.getByRole("button", { name: "+ Description" }).click();
-  await p.keyboard.type("Latest numbers: https://docs.example.com/q3-deck");
+  await p.locator(".pop-quick input").click();
+  await p.keyboard.type("Send the Q3 deck to Priya fri 3pm @Offsite");
 });
 await shot("panel-add-task", PANEL, scenario(), async (p) => {
-  await p.getByRole("button", { name: "Add task" }).click();
+  await p.getByRole("button", { name: "Add a task", exact: true }).click();
   await p.keyboard.type("Book flights for the offsite next tue");
   await p.getByRole("button", { name: "+ Description" }).click();
   await p.keyboard.type("Team of 6, window seats if possible");
@@ -725,11 +754,11 @@ const WATCH_ON = {
   },
 };
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").nth(2).click();
 });
 await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").nth(2).click();
   await p.locator(".connector-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
@@ -742,7 +771,7 @@ const AGENTS_ON = {
   apps: AGENT_STATUS.apps.map((a) => (a.id === "claude_code" ? { ...a, connected: true } : a)),
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").nth(3).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
@@ -765,13 +794,13 @@ await shot(
     },
   }),
   async (p) => {
-    await p.getByRole("tab", { name: "Connectors" }).click();
+    await tab(p, "Connectors");
     await p.locator(".connector-action").nth(3).click();
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
-  await p.getByRole("tab", { name: "Connectors" }).click();
+  await tab(p, "Connectors");
   await p.locator(".connector-action").nth(3).click();
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);

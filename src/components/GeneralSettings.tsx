@@ -112,6 +112,13 @@ export function GeneralSection(
           onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
         />
         <Toggle
+          label="Press ⌘C twice to capture"
+          hint="Copy as usual; press ⌘C again within a moment and Plucky turns what you copied into a task."
+          checked={settings?.double_copy ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
+        />
+        <Toggle
           label="Review captures under the menu-bar icon"
           hint="A card drops down from the Plucky icon. Off: captures open in this panel."
           checked={settings?.capture_in_menu_bar ?? true}
@@ -166,15 +173,15 @@ export function GeneralSection(
 }
 
 const THEMES: { id: Theme; label: string; hint: string }[] = [
-  { id: "system", label: "System", hint: "Match macOS" },
-  { id: "light", label: "Light", hint: "Always light" },
   { id: "dark", label: "Dark", hint: "Always dark" },
+  { id: "light", label: "Light", hint: "Always light" },
+  { id: "system", label: "System", hint: "Match macOS" },
 ];
 
 /** Light, dark, or follow macOS — for every Plucky window. */
 export function AppearanceSection(props: SettingsProps) {
   const save = useSave(props);
-  const current = props.settings?.theme ?? "system";
+  const current = props.settings?.theme ?? "dark";
   function choose(theme: Theme) {
     applyTheme(theme); // right away; the other windows follow on save
     void save((s) => ({ ...s, theme }));

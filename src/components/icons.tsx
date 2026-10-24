@@ -53,3 +53,23 @@ export function TrashIcon() {
     </svg>
   );
 }
+
+export function PlusIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M8 3v10M3 8h10" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function GearIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <circle cx="8" cy="8" r="2.2" />
+      <path
+        d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

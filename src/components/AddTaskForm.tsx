@@ -17,6 +17,7 @@ export function AddTaskForm({
   compact,
   extra,
   context,
+  projects,
   onAdd,
   onCancel,
 }: {
@@ -30,6 +31,8 @@ export function AddTaskForm({
   extra?: Partial<NewTask>;
   /** Where it goes, shown under the field ("In Offsite · Travel"). */
   context?: string;
+  /** Existing project names, so "@off" files the task in "Offsite 2026". */
+  projects?: string[];
   /** Save the task. */
   onAdd: (task: NewTask) => Promise<void>;
   onCancel: () => void;
@@ -52,11 +55,13 @@ export function AddTaskForm({
     if (showNotes) notesRef.current?.focus();
   }, [showNotes]);
 
-  const typed = useMemo(() => (title.trim() ? findSchedule(title, now, order) : null), [title, now, order]);
+  // "@Project" anywhere in the title files the task there.
+  const at = useMemo(() => atProject(title, projects ?? []), [title, projects]);
+  const typed = useMemo(() => (at.rest.trim() ? findSchedule(at.rest, now, order) : null), [at.rest, now, order]);
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
-    const clean = (typed?.title || title).trim();
+    const clean = (typed?.title || at.rest).trim();
     if (!clean || busy) return;
     setBusy(true);
     try {
@@ -71,6 +76,7 @@ export function AddTaskForm({
         source_text: null,
         notes: notes.trim() || null,
         checklist: linesToSteps(stepsText).map((text) => ({ text, done: false })),
+        ...(at.project ? { project: at.project, heading: null } : {}),
       });
       setTitle("");
       setNotes("");
@@ -151,7 +157,11 @@ export function AddTaskForm({
       <div className="add-task-foot">
         <span className={typed?.date ? "add-task-when on" : "add-task-when"}>
           {when}
-          {context && <span className="add-task-context"> · {context}</span>}
+          {at.project ? (
+            <span className="add-task-context"> · in {at.project}</span>
+          ) : (
+            context && <span className="add-task-context"> · {context}</span>
+          )}
         </span>
         {!showNotes && (
           <button type="button" className="add-task-link" onClick={() => setShowNotes(true)}>
@@ -169,4 +179,27 @@ export function AddTaskForm({
       </div>
     </form>
   );
+}
+
+/**
+ * Pull "@Name" out of a title: the existing project it starts (case
+ * insensitive), or a new one by that name. Words after "@" up to the next
+ * "@", "#" or the end of a known name are taken; unknown names take one word.
+ */
+export function atProject(title: string, projects: string[]): { project: string | null; rest: string } {
+  const m = /(^|\s)@(\S[^@#]*)/.exec(title);
+  if (!m) return { project: null, rest: title };
+  const after = m[2];
+  const lower = after.toLowerCase();
+  // The longest existing project the text starts with, or one starting with the first word.
+  const exact = [...projects]
+    .sort((a, b) => b.length - a.length)
+    .find((p) => lower.startsWith(p.toLowerCase()) && /^(\s|$)/.test(after.slice(p.length)));
+  const word = after.split(/\s+/)[0];
+  const prefix = exact ?? projects.find((p) => p.toLowerCase().startsWith(word.toLowerCase())) ?? null;
+  const used = exact ?? word;
+  const project = exact ?? prefix ?? word;
+  const start = m.index + m[1].length;
+  const rest = (title.slice(0, start) + title.slice(start + 1 + used.length)).replace(/\s+/g, " ").trim();
+  return { project: project.trim() || null, rest };
 }

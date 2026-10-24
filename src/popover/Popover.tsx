@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { DayPlan } from "../components/DayPlan";
 import { DragGhost } from "../components/DragGhost";
@@ -18,8 +19,8 @@ import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWa
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
-import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
-import { repeatShort, timeLabel } from "../lib/schedule";
+import { addDays, dayOrderForLocale, parseISODate, relativeLabel, toISODate } from "../lib/dates";
+import { findSchedule, repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { linkParts, sourceLabel } from "../lib/taskText";
@@ -29,9 +30,9 @@ import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
 import { dueChip, dueNow, type DueChip } from "../lib/due";
 import { FocusCard, type Focus } from "./FocusCard";
-import { AddTaskForm } from "../components/AddTaskForm";
+import { atProject } from "../components/AddTaskForm";
 import { holidaysByDay } from "../lib/holidays";
-import { deadlineChip } from "../lib/lists";
+import { deadlineChip, isDeadlinePhrase } from "../lib/lists";
 
 const LOCALE = safeLocale();
 
@@ -61,6 +62,7 @@ export default function Popover() {
   const [view, setView] = useState(() => ({ year: now.getFullYear(), month: now.getMonth() }));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [adding, setAdding] = useState(false);
+  const quickRef = useRef<HTMLInputElement>(null);
   const [showDone, setShowDone] = useState(false);
   const [shortcut, setShortcut] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +215,7 @@ export default function Popover() {
   const marks = useMemo(() => dayMarks(tasks, today), [tasks, today]);
   const agenda = useMemo(() => agendaFor(tasks, selected, today), [tasks, selected, today]);
   const undated = useMemo(() => undatedCount(tasks), [tasks]);
+  const projectNames = useMemo(() => [...new Set(tasks.flatMap((t) => (t.project ? [t.project] : [])))], [tasks]);
   const heading = agendaHeading(selected, today, LOCALE);
 
   const stripDays = weekRows(stripAnchor, weekStart, 2);
@@ -343,7 +346,7 @@ export default function Popover() {
       select(toISODate(addDays(parseISODate(selected), moves[e.key])));
     } else if (e.key === "n" || e.key === "+") {
       e.preventDefault();
-      setAdding(true);
+      quickRef.current?.focus();
     } else if (e.key === "t") {
       e.preventDefault();
       select(today);
@@ -453,9 +456,6 @@ export default function Popover() {
               )}
             </IconButton>
           )}
-          <IconButton label="Add a task (N)" onClick={() => setAdding((a) => !a)} active={adding}>
-            <path d="M8 3v10M3 8h10" />
-          </IconButton>
           <IconButton label="Open Plucky" onClick={() => void api.openMain(null, null)}>
             <rect x="2.5" y="3" width="11" height="10" rx="2" />
             <path d="M9.5 3v10" />
@@ -532,7 +532,7 @@ export default function Popover() {
             value={mode}
             options={[
               ["list", "List"],
-              ["hours", "Hours"],
+              ["hours", "Day"],
             ]}
             onChange={setMode}
             label="Show the day as (H)"
@@ -555,19 +555,6 @@ export default function Popover() {
           <DueNowCard tasks={dueNow(tasks, new Date())} actions={actions} now={new Date()} locale={LOCALE} compact />
         )}
 
-        {adding && (
-          <AddTaskForm
-            compact
-            locale={LOCALE}
-            defaultDay={selected}
-            placeholder={`New task for ${heading.lead ?? heading.date.split(",")[0]}…`}
-            onAdd={add}
-            onCancel={() => {
-              setAdding(false);
-              rootRef.current?.focus();
-            }}
-          />
-        )}
         {mode === "hours" && (
           <DayPlan
             compact
@@ -627,7 +614,7 @@ export default function Popover() {
           <div className="pop-empty">
             <p className="big">{selected === today ? "You're all clear today." : "Nothing due this day."}</p>
             <p>
-              <button type="button" className="pop-link" onClick={() => setAdding(true)}>
+              <button type="button" className="pop-link" onClick={() => quickRef.current?.focus()}>
                 Add a task
               </button>
               {shortcut && (
@@ -657,21 +644,24 @@ export default function Popover() {
       </section>
 
       <footer className="pop-foot">
+        <QuickField
+          inputRef={quickRef}
+          placeholder={`Add to ${heading.lead ? heading.lead.toLowerCase() : heading.date.split(",")[0]}…`}
+          day={selected}
+          projects={projectNames}
+          onAdd={add}
+        />
         {undated > 0 ? (
-          <button type="button" className="pop-link" onClick={() => void api.openMain(null, "tasks")}>
-            {undated} without a date
+          <button
+            type="button"
+            className="pop-link"
+            onClick={() => void api.openMain(null, "tasks")}
+            title="Plan tasks that have no date"
+          >
+            {undated} undated
           </button>
         ) : (
-          <span>All tasks scheduled</span>
-        )}
-        {shortcut && (
-          <span className="pop-hint">
-            {mode === "hours"
-              ? "Drag tasks between hours or onto a day"
-              : agenda.due.length + agenda.overdue.length > 0
-                ? "Drag a task onto a day to move it"
-                : <><kbd>{shortcut}</kbd> capture</>}
-          </span>
+          shortcut && <span className="pop-hint"><kbd>{shortcut}</kbd></span>
         )}
       </footer>
       {focusing && focus && (
@@ -884,3 +874,68 @@ function EventList({ events, day, now }: { events: CalendarEvent[]; day: string;
   );
 }
 
+
+/** The one-line add field at the bottom: “call Sam 3pm @Work” → a task on the selected day. */
+function QuickField({
+  inputRef,
+  placeholder,
+  day,
+  projects,
+  onAdd,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  placeholder: string;
+  day: string;
+  projects: string[];
+  onAdd: (task: NewTask) => Promise<void>;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    if (!text.trim() || busy) return;
+    const at = atProject(text, projects);
+    const f = findSchedule(at.rest, new Date(), dayOrderForLocale(LOCALE));
+    const title = (f.title || at.rest).trim();
+    if (!title) return;
+    setBusy(true);
+    try {
+      await onAdd({
+        title,
+        due_date: f.date ?? day,
+        due_time: f.date ? f.time : null,
+        recurrence: f.repeat ?? null,
+        deadline: f.date && isDeadlinePhrase(f.matched) ? f.date : null,
+        project: at.project,
+        source_text: null,
+      });
+      setText("");
+    } catch {
+      // The error is shown; keep what was typed.
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <label className="pop-quick">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path d="M8 3v10M3 8h10" strokeLinecap="round" />
+      </svg>
+      <input
+        ref={inputRef}
+        value={text}
+        maxLength={200}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") void submit();
+          if (e.key === "Escape") {
+            if (text) setText("");
+            else (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+    </label>
+  );
+}

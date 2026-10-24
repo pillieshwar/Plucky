@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { SnoozeBar } from "./SnoozeBar";
 import { dueChip } from "../lib/due";
 import type { TaskActions } from "../lib/taskActions";
 import type { Task } from "../lib/types";
 
 /**
- * Reminders that just went off, each with Done and snooze choices right
- * there — no menus. Shown at the top of the panel and the menu-bar popover.
+ * Reminders that just went off, as one slim strip each: the task, Done, and
+ * Later (snooze choices). Shown at the top of the panel and the dropdown.
  */
 export function DueNowCard({
   tasks,
@@ -20,30 +21,45 @@ export function DueNowCard({
   locale: string;
   compact?: boolean;
 }) {
+  const [later, setLater] = useState<number | null>(null);
   if (!tasks.length) return null;
   return (
     <section className={compact ? "due-now compact" : "due-now"} aria-label="Due now">
-      <p className="due-now-h">
-        <span className="due-now-dot" aria-hidden /> Due now
-      </p>
-      <ul>
-        {tasks.slice(0, 3).map((t) => {
-          const chip = dueChip(t, now, locale);
-          return (
-            <li key={t.id}>
-              <div className="due-now-title">
-                <span>{t.title}</span>
-                {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
-              </div>
+      {tasks.slice(0, 3).map((t) => {
+        const chip = dueChip(t, now, locale);
+        const when = chip?.label.replace(/^Overdue · /, "was ") ?? null;
+        return (
+          <div key={t.id} className="due-strip">
+            <div className="due-line">
+              <span className="due-now-dot" aria-hidden />
+              <span className="due-text">
+                <strong>{t.title}</strong>
+                {when && <span> · {when}</span>}
+              </span>
+              <button type="button" className="due-done" onClick={() => void actions.setDone(t, true)}>
+                Done
+              </button>
+              <button
+                type="button"
+                className={later === t.id ? "due-later on" : "due-later"}
+                onClick={() => setLater((l) => (l === t.id ? null : t.id))}
+                aria-expanded={later === t.id}
+              >
+                Later
+              </button>
+            </div>
+            {later === t.id && (
               <SnoozeBar
                 compact={compact}
-                onDone={() => void actions.setDone(t, true)}
-                onSnooze={(kind) => void actions.snooze(t, kind)}
+                onSnooze={(kind) => {
+                  setLater(null);
+                  void actions.snooze(t, kind);
+                }}
               />
-            </li>
-          );
-        })}
-      </ul>
+            )}
+          </div>
+        );
+      })}
       {tasks.length > 3 && <p className="due-now-more">and {tasks.length - 3} more</p>}
     </section>
   );

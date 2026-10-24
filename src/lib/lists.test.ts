@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bulletSteps, effectiveDay, groupByHeading, isDeadlinePhrase, linesToSteps, tasksForList } from "./lists";
 import { groupTasks } from "./grouping";
+import { atProject } from "../components/AddTaskForm";
 import type { Task } from "./types";
 
 const TODAY = "2026-10-23";
@@ -92,5 +93,18 @@ describe("steps", () => {
   it("are offered from a bulleted selection", () => {
     expect(bulletSteps("Before Friday:\n- book room\n- order food\nThanks!")).toEqual(["book room", "order food"]);
     expect(bulletSteps("Just one line - with a dash")).toEqual([]);
+  });
+});
+
+describe("@project in a new task", () => {
+  it("matches an existing project by its start", () => {
+    expect(atProject("Book hotel @off fri", ["Offsite 2026", "Home"])).toEqual({ project: "Offsite 2026", rest: "Book hotel fri" });
+    expect(atProject("Book hotel @Offsite 2026 fri", ["Offsite 2026"])).toEqual({ project: "Offsite 2026", rest: "Book hotel fri" });
+  });
+  it("starts a new project from one word", () => {
+    expect(atProject("Paint the fence @Garden sat", [])).toEqual({ project: "Garden", rest: "Paint the fence sat" });
+  });
+  it("leaves emails alone", () => {
+    expect(atProject("Email sam@example.com", []).project).toBeNull();
   });
 });

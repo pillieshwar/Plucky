@@ -18,6 +18,7 @@
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
+pub mod double_copy;
 pub mod download;
 pub mod extraction;
 pub mod llm;

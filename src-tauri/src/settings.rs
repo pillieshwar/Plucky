@@ -43,6 +43,10 @@ pub struct AppSettings {
     pub calendar_hidden: Vec<String>,
     /// "system", "light" or "dark".
     pub theme: String,
+    /// 0.4.27 made dark the default; settings from before were moved over once.
+    pub theme_v2: bool,
+    /// Press ⌘C twice quickly to capture what was just copied.
+    pub double_copy: bool,
     /// Once a day, open the menu-bar dropdown to plan tasks that have no date.
     pub undated_nudge: bool,
     /// When to do that, `HH:MM` local time.
@@ -158,7 +162,9 @@ impl Default for AppSettings {
             calendar_enabled: false,
             calendar_ids: None,
             calendar_hidden: Vec::new(),
-            theme: "system".into(),
+            theme: "dark".into(),
+            theme_v2: true,
+            double_copy: true,
             undated_nudge: true,
             undated_time: "16:00".into(),
             last_undated_nudge: None,
@@ -179,14 +185,28 @@ pub struct Settings {
 impl Settings {
     pub fn new(data_dir: &Path) -> Self {
         let path = data_dir.join("settings.json");
-        let value = std::fs::read(&path)
+        let mut value: AppSettings = std::fs::read(&path)
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
-        Self {
-            path,
-            value: Mutex::new(value),
+        let migrate = !value.theme_v2;
+        if migrate {
+            // Dark is the default from 0.4.27; "follow the Mac" moves over once.
+            if value.theme == "system" {
+                value.theme = "dark".into();
+            }
+            value.theme_v2 = true;
         }
+        let me = Self {
+            path,
+            value: Mutex::new(value.clone()),
+        };
+        if migrate {
+            if let Err(e) = me.save(&value) {
+                log::warn!("could not save settings: {e}");
+            }
+        }
+        me
     }
 
     pub fn get(&self) -> AppSettings {
@@ -243,5 +263,19 @@ mod tests {
         .unwrap();
         let s = Settings::new(dir.path()).get();
         assert!(s.onboarding_done && s.auto_update && s.remember_source);
+        assert!(s.double_copy);
+    }
+
+    #[test]
+    fn dark_becomes_the_default_once() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("settings.json"), r#"{"theme":"system"}"#).unwrap();
+        let s = Settings::new(dir.path());
+        assert_eq!(s.get().theme, "dark");
+        // Choosing "system" again afterwards sticks.
+        s.update(|v| v.theme = "system".into());
+        assert_eq!(Settings::new(dir.path()).get().theme, "system");
+        std::fs::write(dir.path().join("settings.json"), r#"{"theme":"light"}"#).unwrap();
+        assert_eq!(Settings::new(dir.path()).get().theme, "light");
     }
 }

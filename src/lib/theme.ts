@@ -6,11 +6,25 @@ import type { Theme } from "./types";
  */
 export function applyTheme(theme: Theme | string | null | undefined): void {
   const root = document.documentElement;
+  try {
+    if (theme) localStorage.setItem("pluck.theme", theme);
+  } catch {
+    // Storage unavailable: the next launch starts dark until settings load.
+  }
   if (theme === "light" || theme === "dark") {
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
   } else {
     delete root.dataset.theme;
     root.style.colorScheme = "";
+  }
+}
+
+/** The last Appearance used in this window (dark before settings ever load). */
+export function cachedTheme(): string {
+  try {
+    return localStorage.getItem("pluck.theme") ?? "dark";
+  } catch {
+    return "dark";
   }
 }

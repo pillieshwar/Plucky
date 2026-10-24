@@ -143,6 +143,9 @@ export interface AppSettings {
   menubar_placed: boolean;
   capture_in_menu_bar: boolean;
   theme: Theme;
+  theme_v2?: boolean;
+  /** Press ⌘C twice to capture. */
+  double_copy: boolean;
   /** Once a day, open the menu-bar dropdown on tasks that have no date. */
   undated_nudge: boolean;
   /** When, `HH:MM` local time. */

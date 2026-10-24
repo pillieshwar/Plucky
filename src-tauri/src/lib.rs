@@ -11,6 +11,7 @@ mod agents;
 mod calendar;
 mod capture;
 mod data;
+mod double_copy;
 mod engine;
 mod greet;
 mod models;
@@ -1036,6 +1037,18 @@ fn migrate_login_item(app: &AppHandle) {
 /// Text sent through Services → "Add to Plucky".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
+    deliver_text(app, text, CaptureMethod::Service);
+}
+
+/// Text copied twice in a row (⌘C ⌘C).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) fn on_copied_text(app: AppHandle, text: String) {
+    deliver_text(app, text, CaptureMethod::Clipboard);
+}
+
+/// Review text that arrived ready-made (not read from a selection).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn deliver_text(app: AppHandle, text: String, method: CaptureMethod) {
     let with_source = app.state::<Settings>().get().remember_source;
     tauri::async_runtime::spawn(async move {
         let source = if with_source {
@@ -1054,7 +1067,7 @@ fn on_service_text(app: AppHandle, text: String) {
             &app,
             &CaptureResult::Text {
                 text,
-                method: CaptureMethod::Service,
+                method,
                 source,
             },
         );
@@ -1303,6 +1316,7 @@ pub fn run() {
             slack_cleanup::start(app.handle());
             agents::start(app.handle());
             watch::start(app.handle());
+            double_copy::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {
