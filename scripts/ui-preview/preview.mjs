@@ -295,7 +295,8 @@ function mockTauri(s) {
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
 }
 
-const browser = await chromium.launch();
+// Software WebGL, so the 3D city renders too.
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 
 const failed = [];
 async function shot(name, size, s, steps = async () => {}, dark = false) {
@@ -920,7 +921,7 @@ await shot("full-city-light", FULL, full({ settings: LIGHT }), async (p) => {
 });
 await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
   await p.mouse.down();
   await p.mouse.move(c.x + c.width / 2 - 260, c.y + c.height / 2 + 90, { steps: 10 });
@@ -930,12 +931,12 @@ await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
 });
 await shot("full-city-hover", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
 });
 await shot("full-city-clicked-building", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
-  const c = await p.locator(".city-view .city-canvas").boundingBox();
+  const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
   await p.mouse.down();
   await p.mouse.up();
@@ -949,6 +950,13 @@ await shot("full-city-share", FULL, full({ settings: DARK }), async (p) => {
 await shot("full-city-name", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
   await p.locator(".city-card-art").click();
   await p.waitForTimeout(300);
+});
+await shot("full-city-named", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.getByRole("button", { name: "Harbor Lights" }).click();
+  await p.getByRole("button", { name: "Found the city" }).click();
+  await p.waitForTimeout(1200);
+  if (!(await p.locator(".cv-name", { hasText: "Harbor Lights" }).count())) throw new Error("the city didn't open after naming it");
 });
 await shot("full-city-empty", FULL, full({ settings: DARK, cityWindows: [] }));
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {

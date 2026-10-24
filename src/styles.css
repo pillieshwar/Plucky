@@ -1893,3 +1893,19 @@ html[data-full="1"] body { background: var(--paper); }
 .app-full .toasts { left: 50%; right: auto; width: 440px; max-width: calc(100% - 40px); transform: translateX(-50%); bottom: 20px; z-index: 70; }
 /* Room to scroll the list clear of the city card. */
 .app-full:has(.city-corner) .full-content { padding-bottom: 210px; }
+
+/* The city in 3D (three.js) */
+.city3d { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.city3d-canvas { display: block; }
+.city3d-canvas.live { cursor: grab; outline: none; touch-action: none; }
+.city3d-canvas.live:active { cursor: grabbing; }
+.city3d-canvas.live:focus-visible { box-shadow: inset 0 0 0 2px var(--teal); }
+.city3d-labels { position: absolute; inset: 0; pointer-events: none; }
+.city3d-label {
+  padding: 3px 10px; border-radius: 999px; font: 500 12px/1.3 var(--sans); white-space: nowrap;
+  background: rgba(13, 14, 20, 0.78); border: 1px solid #2c2f40; color: #c9cddc; transform: translateY(-6px);
+}
+.city-view.light .city3d-label { background: rgba(255, 255, 255, 0.85); border-color: #e2cfc2; color: #3d2f35; }
+.city3d-label.on { border-color: var(--teal); color: #fff; background: rgba(82, 73, 217, 0.85); }
+.ss-wait { background: linear-gradient(90deg, #1b1d27, #252838, #1b1d27); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
