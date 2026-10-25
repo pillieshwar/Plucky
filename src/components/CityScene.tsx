@@ -8,6 +8,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FLOOR, HOUSES, HOUSES_PER_LOT, LOT, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
 import { clockHour12 } from "../lib/schedule";
+import { isUnlocked } from "../lib/milestones";
 
 /**
  * The city in real 3D (three.js): towers with lit windows that glow, street
@@ -37,6 +38,9 @@ export interface SceneTheme {
   house: string;
   houseRoof: string;
   plot: string;
+  grass: string;
+  water: string;
+  stone: string;
 }
 
 export const NIGHT_3D: SceneTheme = {
@@ -61,6 +65,9 @@ export const NIGHT_3D: SceneTheme = {
   house: "#3b3550",
   houseRoof: "#5a3f4a",
   plot: "#2a2420",
+  grass: "#18291f",
+  water: "#0c1a2e",
+  stone: "#454a66",
 };
 
 export const DUSK_3D: SceneTheme = {
@@ -85,6 +92,9 @@ export const DUSK_3D: SceneTheme = {
   house: "#c9a493",
   houseRoof: "#a2584a",
   plot: "#c8ab90",
+  grass: "#9db487",
+  water: "#7d9fbf",
+  stone: "#d8c6b8",
 };
 
 export interface Picked {
@@ -206,7 +216,9 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   const lampMat = keep(new THREE.MeshBasicMaterial({ color: theme.lamp }));
   const postGeo = keep(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6));
   const postMat = keep(new THREE.MeshStandardMaterial({ color: theme.crane }));
-  for (const x0 of lines) {
+  // Street lamps come with the first milestone (population 10).
+  const reached = city.reached ?? city.total;
+  for (const x0 of isUnlocked("lamps", reached) ? lines : []) {
     for (const z0 of lines) {
       const x = x0 + 0.34;
       const z = z0 + 0.34;
@@ -473,12 +485,15 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   if (main) addMayor(scene, main, opts.mayor ?? null, opts.labels, keep, labels);
   addGreenery(scene, city, main?.key ?? null, keep);
 
+  // Milestones: the park, fountain, train, harbour, stadium and island.
+  const grown = addMilestones(scene, reached, g0, g1, theme, keep, opts.labels ? labels : null, !!opts.still);
+
   // Traffic: cars on every street, trucks round buildings going up, and
   // a few luxury cars round the tallest tower.
   const traffic = opts.still ? null : addTraffic(scene, city, lines, g0, g1, tallestKey, keep);
 
-  // Shadows cover the city.
-  const r = Math.max(span, tallest) * 0.8 + 4;
+  // Shadows cover the city (and what's grown round it).
+  const r = Math.max(span, tallest, grown.extent * 1.2) * 0.8 + 4;
   moon.shadow.camera.left = -r;
   moon.shadow.camera.right = r;
   moon.shadow.camera.top = r;
@@ -488,7 +503,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   scene.add(moon, moon.target);
 
   const center = new THREE.Vector3(mid, Math.min(tallest * 0.3, 3), mid);
-  const radius = Math.max(span * 0.75, tallest * 0.9, 6);
+  const radius = Math.max(span * 0.75, tallest * 0.9, grown.extent * 0.62, 6);
   // `key` is a building's key, or "key#n" for one house.
   const setHover = (key: string | null) => {
     for (const body of bodies) {
@@ -507,7 +522,8 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     radius,
     center,
     tick: (dt) => {
-      const moved = traffic?.(dt) ?? false;
+      const grew = grown.tick?.(dt) ?? false;
+      const moved = (traffic?.(dt) ?? false) || grew;
       if (!late.length || document.documentElement.dataset.cityMotion === "off") return moved;
       blinkT += dt;
       lateMat.color.copy(lateBase).multiplyScalar(0.35 + 0.85 * (0.5 + 0.5 * Math.sin(blinkT * 4)));
@@ -699,6 +715,339 @@ function addGreenery(scene: THREE.Scene, city: City, mayorKey: string | null, ke
   instanced(new THREE.CylinderGeometry(0.022, 0.03, 0.2, 6), new THREE.MeshStandardMaterial({ color: "#6e4f38", roughness: 0.9 }), trees, (s) => 0.1 * s);
   instanced(new THREE.IcosahedronGeometry(0.15, 0), new THREE.MeshStandardMaterial({ color: "#3f8a5a", roughness: 0.85, flatShading: true }), trees, (s) => 0.3 * s, 1.15);
   instanced(new THREE.IcosahedronGeometry(0.085, 0), new THREE.MeshStandardMaterial({ color: "#4f9a5e", roughness: 0.9, flatShading: true }), bushes, (s) => 0.055 * s, 0.7);
+}
+
+/**
+ * What the city has grown at its milestones (see lib/milestones): a park
+ * with a fountain to the south, a train looping round, a harbour with
+ * boats to the east, a stadium to the west, and a bridge to an island.
+ * Returns how far it all reaches from the centre, and its animation.
+ */
+function addMilestones(
+  scene: THREE.Scene,
+  reached: number,
+  g0: number,
+  g1: number,
+  theme: SceneTheme,
+  keep: Keep,
+  labels: CSS2DObject[] | null,
+  still: boolean,
+): { extent: number; tick: ((dt: number) => boolean) | null } {
+  const has = (id: Parameters<typeof isUnlocked>[0]) => isUnlocked(id, reached);
+  const mid = (g0 + g1) / 2;
+  const W = g0 - 0.7;
+  const E = g1 + 0.7;
+  let extent = 0;
+  const reach = (x: number, z: number) => {
+    extent = Math.max(extent, Math.hypot(x - mid, z - mid));
+  };
+  const anims: ((t: number) => void)[] = [];
+  let seed = 41;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const std = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => keep(new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra }));
+  const glow = (color: string, k = 1.6) => keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), toneMapped: false }));
+  const box = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number) => {
+    const m = new THREE.Mesh(keep(new THREE.BoxGeometry(w, h, d)), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  };
+  const label = (text: string, x: number, y: number, z: number) => {
+    if (!labels) return;
+    const el = document.createElement("div");
+    el.className = "city3d-label landmark";
+    el.textContent = text;
+    const o = new CSS2DObject(el);
+    o.position.set(x, y, z);
+    scene.add(o);
+    labels.push(o);
+  };
+  const trunkMat = std("#6e4f38", { roughness: 0.9 });
+  const leafMat = std("#3f8a5a", { flatShading: true });
+  const trunkGeo = keep(new THREE.CylinderGeometry(0.03, 0.04, 0.26, 6));
+  const leafGeo = keep(new THREE.IcosahedronGeometry(0.2, 0));
+  const tree = (x: number, z: number, s = 1) => {
+    const t = new THREE.Mesh(trunkGeo, trunkMat);
+    t.position.set(x, 0.13 * s, z);
+    t.scale.setScalar(s);
+    const l = new THREE.Mesh(leafGeo, leafMat);
+    l.position.set(x, 0.38 * s, z);
+    l.scale.set(s, s * 1.15, s);
+    l.rotation.y = rnd() * Math.PI;
+    l.castShadow = true;
+    scene.add(t, l);
+  };
+  const lampPost = (x: number, z: number) => {
+    box(0.025, 0.45, 0.025, std(theme.crane), x, 0.225, z);
+    const bulb = new THREE.Mesh(keep(new THREE.SphereGeometry(0.06, 8, 6)), glow(theme.lamp, 1.2));
+    bulb.position.set(x, 0.47, z);
+    scene.add(bulb);
+  };
+
+  // Land round the city once there's something to put on it.
+  const park = has("park");
+  const stadium = has("stadium");
+  if (park) {
+    const x0 = stadium ? W - 5 : W - 1.2;
+    const x1 = E + 1.2;
+    const z0 = W - 1.2;
+    const z1 = E + 4.6;
+    box(x1 - x0, 0.28, z1 - z0, std(theme.ground, { roughness: 0.95 }), (x0 + x1) / 2, -0.16, (z0 + z1) / 2);
+    reach(x0, z0);
+    reach(x1, z1);
+  }
+
+  // 25 — a park to the south, with paths and trees.
+  const parkZ = E + 2.6;
+  if (park) {
+    const pw = Math.max(3.4, Math.min(g1 - g0, 6));
+    box(pw, 0.02, 3, std(theme.grass, { roughness: 1 }), mid, 0.0, parkZ);
+    const path = std(theme.stone, { roughness: 0.95 });
+    box(pw, 0.025, 0.22, path, mid, 0.004, parkZ);
+    box(0.22, 0.025, 3, path, mid, 0.004, parkZ);
+    for (let i = 0; i < 14; i++) {
+      const x = mid + (rnd() - 0.5) * (pw - 0.5);
+      const z = parkZ + (rnd() - 0.5) * 2.5;
+      if (Math.abs(x - mid) < 0.35 || Math.abs(z - parkZ) < 0.35) continue;
+      tree(x, z, 0.8 + rnd() * 0.5);
+    }
+    lampPost(mid - 0.3, parkZ - 0.3);
+    lampPost(mid + 0.3, parkZ + 0.3);
+    label("Park", mid - pw / 2 + 0.4, 0.7, parkZ + 1.2);
+  }
+
+  // 50 — the fountain in the middle of the park: the town square.
+  if (has("fountain")) {
+    const stone = std(theme.stone, { roughness: 0.6 });
+    const water = glow("#7fc4ff", 0.9);
+    const basin = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.62, 0.66, 0.16, 28)), stone);
+    basin.position.set(mid, 0.08, parkZ);
+    basin.castShadow = true;
+    const pool = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.55, 0.55, 0.02, 28)), water);
+    pool.position.set(mid, 0.155, parkZ);
+    const column = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.06, 0.09, 0.42, 10)), stone);
+    column.position.set(mid, 0.3, parkZ);
+    const bowl = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.24, 0.1, 0.07, 18)), stone);
+    bowl.position.set(mid, 0.52, parkZ);
+    const spray = new THREE.Mesh(keep(new THREE.ConeGeometry(0.16, 0.36, 14, 1, true)), keep(new THREE.MeshBasicMaterial({ color: "#bfe3ff", transparent: true, opacity: 0.55, side: THREE.DoubleSide, toneMapped: false })));
+    spray.position.set(mid, 0.73, parkZ);
+    spray.rotation.x = Math.PI;
+    scene.add(basin, pool, column, bowl, spray);
+    anims.push((t) => {
+      const k = 1 + 0.08 * Math.sin(t * 6);
+      spray.scale.set(k, 2 - k, k);
+    });
+    label("Town square", mid, 1.1, parkZ);
+  }
+
+  // 100 — a train line round the whole city.
+  if (has("train")) {
+    const d = 0.55;
+    const a0 = W - d;
+    const a1 = E + d;
+    const rail = std("#7a7f96", { metalness: 0.7, roughness: 0.35 });
+    const bed = std(theme.stone, { roughness: 1 });
+    const len = a1 - a0;
+    for (const [x, z, alongX] of [
+      [mid, a0, true],
+      [mid, a1, true],
+      [a0, mid, false],
+      [a1, mid, false],
+    ] as [number, number, boolean][]) {
+      box(alongX ? len + 0.3 : 0.3, 0.03, alongX ? 0.3 : len + 0.3, bed, x, 0.015, z);
+      for (const o of [-0.07, 0.07]) box(alongX ? len + 0.14 : 0.025, 0.03, alongX ? 0.025 : len + 0.14, rail, alongX ? x : x + o, 0.045, alongX ? z + o : z);
+    }
+    reach(a0, a0);
+    reach(a1, a1);
+    const path = [
+      new THREE.Vector3(a0, 0, a0),
+      new THREE.Vector3(a1, 0, a0),
+      new THREE.Vector3(a1, 0, a1),
+      new THREE.Vector3(a0, 0, a1),
+    ];
+    const lap = 4 * len;
+    const paint = std("#d9534f", { metalness: 0.4, roughness: 0.4 });
+    const coach = std("#e8e4dc", { metalness: 0.3, roughness: 0.5 });
+    const lit = glow("#ffd27a", 1.5);
+    const cars: THREE.Group[] = [];
+    for (let i = 0; i < 4; i++) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(keep(new THREE.BoxGeometry(0.5, 0.16, 0.18)), i === 0 ? paint : coach);
+      body.position.y = 0.15;
+      body.castShadow = true;
+      const win = new THREE.Mesh(keep(new THREE.BoxGeometry(0.42, 0.05, 0.185)), lit);
+      win.position.y = 0.17;
+      g.add(body, win);
+      scene.add(g);
+      cars.push(g);
+    }
+    const at = (dist: number, obj: THREE.Object3D) => {
+      let d2 = ((dist % lap) + lap) % lap;
+      for (let i = 0; i < 4; i++) {
+        const p = path[i];
+        const q = path[(i + 1) % 4];
+        if (d2 <= len) {
+          const k = d2 / len;
+          obj.position.set(p.x + (q.x - p.x) * k, 0.03, p.z + (q.z - p.z) * k);
+          obj.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x);
+          return;
+        }
+        d2 -= len;
+      }
+    };
+    let pos = lap * 0.3;
+    const place = () => cars.forEach((c, i) => at(pos - i * 0.56, c));
+    place();
+    anims.push((t) => {
+      pos = lap * 0.3 + t * 0.9;
+      place();
+    });
+    label("Train line", a1, 0.7, a1);
+  }
+
+  // 250 — the harbour: water to the east, a pier, a lighthouse and boats.
+  const shore = E + 1.2;
+  if (has("harbour")) {
+    const waterMat = keep(new THREE.MeshStandardMaterial({ color: theme.water, roughness: 0.25, metalness: 0.3 }));
+    const sea = new THREE.Mesh(keep(new THREE.BoxGeometry(14, 0.2, (E - W) + 16)), waterMat);
+    sea.position.set(shore + 7, -0.14, mid);
+    sea.receiveShadow = true;
+    scene.add(sea);
+    box(0.18, 0.12, (E - W) + 6, std(theme.stone, { roughness: 0.9 }), shore, -0.02, mid + 1.6);
+    const pierZ = mid - Math.max(1.4, (g1 - g0) * 0.3);
+    const wood = std("#7a5a40", { roughness: 0.9 });
+    box(2.2, 0.06, 0.34, wood, shore + 1.1, 0.03, pierZ);
+    box(0.22, 0.5, 0.22, std("#f1ece6"), shore + 2.3, 0.25, pierZ);
+    box(0.24, 0.08, 0.24, std("#d9534f"), shore + 2.3, 0.54, pierZ);
+    const beam = new THREE.Mesh(keep(new THREE.SphereGeometry(0.08, 10, 8)), glow("#fff2c4", 2.2));
+    beam.position.set(shore + 2.3, 0.62, pierZ);
+    scene.add(beam);
+    const hulls = ["#e8e4dc", "#3f7fd9", "#d9a441"];
+    const boats: { g: THREE.Group; phase: number; y: number }[] = [];
+    hulls.forEach((c, i) => {
+      const g = new THREE.Group();
+      const hull = new THREE.Mesh(keep(new THREE.BoxGeometry(0.62, 0.12, 0.22)), std(c, { roughness: 0.5 }));
+      hull.position.y = 0.04;
+      const cabin = new THREE.Mesh(keep(new THREE.BoxGeometry(0.22, 0.1, 0.16)), std("#f1ece6"));
+      cabin.position.set(-0.06, 0.15, 0);
+      const mast = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.01, 0.01, 0.5, 5)), std("#c9c3b8"));
+      mast.position.set(0.08, 0.32, 0);
+      const light = new THREE.Mesh(keep(new THREE.SphereGeometry(0.025, 6, 5)), glow("#ffd27a", 1.6));
+      light.position.set(0.08, 0.58, 0);
+      g.add(hull, cabin, mast, light);
+      g.position.set(shore + 0.8 + i * 0.75, 0, pierZ + (i % 2 ? 0.45 : -0.45));
+      g.rotation.y = (i - 1) * 0.25;
+      scene.add(g);
+      boats.push({ g, phase: i * 1.7, y: 0 });
+    });
+    anims.push((t) => {
+      for (const b of boats) {
+        b.g.position.y = 0.02 * Math.sin(t * 1.4 + b.phase);
+        b.g.rotation.z = 0.04 * Math.sin(t * 1.1 + b.phase);
+      }
+    });
+    reach(shore + 4, pierZ);
+    label("Harbour", shore + 1.6, 0.9, pierZ - 0.5);
+  }
+
+  // 500 — a stadium with floodlights to the west.
+  if (stadium) {
+    const sx = W - 3;
+    const stand = new THREE.Mesh(keep(new THREE.CylinderGeometry(1.35, 1.15, 0.5, 40, 1, true)), keep(new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.7, side: THREE.DoubleSide })));
+    stand.scale.set(1, 1, 1.45);
+    stand.position.set(sx, 0.25, mid);
+    stand.castShadow = true;
+    const pitch = new THREE.Mesh(keep(new THREE.CylinderGeometry(1.1, 1.1, 0.03, 40)), std("#3f8a4f", { roughness: 1 }));
+    pitch.scale.set(1, 1, 1.45);
+    pitch.position.set(sx, 0.02, mid);
+    const lines = new THREE.Mesh(keep(new THREE.BoxGeometry(0.03, 0.01, 1.9)), glow("#ffffff", 0.9));
+    lines.position.set(sx, 0.04, mid);
+    lines.rotation.y = Math.PI / 2;
+    scene.add(stand, pitch, lines);
+    for (const [dx, dz] of [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ]) {
+      const x = sx + dx * 1.15;
+      const z = mid + dz * 1.75;
+      box(0.04, 1.1, 0.04, std(theme.crane, { metalness: 0.6 }), x, 0.55, z);
+      const lamp = box(0.2, 0.1, 0.06, glow("#f4f7ff", 2.2), x, 1.12, z);
+      lamp.lookAt(sx, 0, mid);
+    }
+    reach(sx - 1.5, mid - 2);
+    label("Stadium", sx, 1.5, mid);
+  }
+
+  // 1,000 — a bridge across the harbour to a second island.
+  if (has("island")) {
+    const ix = shore + 8.2;
+    const land = new THREE.Mesh(keep(new THREE.CylinderGeometry(2.3, 2.5, 0.3, 32)), std(theme.ground, { roughness: 0.95 }));
+    land.position.set(ix, -0.1, mid);
+    land.receiveShadow = true;
+    scene.add(land);
+    const wall = std(theme.wall, { roughness: 0.75, metalness: 0.08 });
+    const win = glow(theme.lit, 1.1);
+    [
+      [-0.7, -0.6, 1.6],
+      [0.5, -0.4, 2.4],
+      [-0.2, 0.7, 1.2],
+      [0.9, 0.8, 0.9],
+    ].forEach(([dx, dz, h]) => {
+      box(0.62, h, 0.62, wall, ix + dx, h / 2, mid + dz);
+      for (let y = 0.25; y < h - 0.1; y += 0.3) box(0.64, 0.08, 0.64, win, ix + dx, y, mid + dz);
+    });
+    for (let i = 0; i < 6; i++) tree(ix + (rnd() - 0.5) * 3.4, mid + (rnd() < 0.5 ? -1 : 1) * (1.3 + rnd() * 0.6), 0.9);
+    const x0 = shore;
+    const x1 = ix - 2.2;
+    const deck = std(theme.roof, { metalness: 0.3, roughness: 0.6 });
+    box(x1 - x0, 0.06, 0.42, deck, (x0 + x1) / 2, 0.32, mid);
+    const steel = std("#b9b2ff", { metalness: 0.7, roughness: 0.3 });
+    const towers = [x0 + (x1 - x0) * 0.3, x0 + (x1 - x0) * 0.7];
+    for (const tx of towers) for (const s of [-1, 1]) box(0.07, 1.2, 0.07, steel, tx, 0.6, mid + s * 0.2);
+    // Cables: a sag between the towers, and down to each shore.
+    const cable = (a: THREE.Vector3, b: THREE.Vector3, sag: number) => {
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const k = i / 16;
+        pts.push(new THREE.Vector3(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - sag * 4 * k * (1 - k), a.z));
+      }
+      const geo = keep(new THREE.BufferGeometry().setFromPoints(pts));
+      scene.add(new THREE.Line(geo, keep(new THREE.LineBasicMaterial({ color: "#d6d2ff" }))));
+    };
+    for (const s of [-1, 1]) {
+      const z = mid + s * 0.2;
+      cable(new THREE.Vector3(x0, 0.36, z), new THREE.Vector3(towers[0], 1.2, z), -0.2);
+      cable(new THREE.Vector3(towers[0], 1.2, z), new THREE.Vector3(towers[1], 1.2, z), 0.7);
+      cable(new THREE.Vector3(towers[1], 1.2, z), new THREE.Vector3(x1, 0.36, z), -0.2);
+    }
+    for (let x = x0 + 0.4; x < x1; x += 0.7) {
+      for (const s of [-1, 1]) {
+        const b = new THREE.Mesh(keep(new THREE.SphereGeometry(0.03, 6, 5)), glow(theme.lamp, 1.4));
+        b.position.set(x, 0.4, mid + s * 0.2);
+        scene.add(b);
+      }
+    }
+    reach(ix + 2.5, mid + 2.5);
+    label("The island", ix, 2.9, mid);
+  }
+
+  const moving = !still && anims.length > 0 && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  let t = 0;
+  return {
+    extent,
+    tick: moving
+      ? (dt) => {
+          if (document.documentElement.dataset.cityMotion === "off") return false;
+          t += dt;
+          for (const a of anims) a(t);
+          return true;
+        }
+      : null,
+  };
 }
 
 function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number, g1: number, tallestKey: string, keep: Keep): ((dt: number) => boolean) | null {

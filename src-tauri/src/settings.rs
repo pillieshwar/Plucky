@@ -55,6 +55,11 @@ pub struct AppSettings {
     pub city_corner: bool,
     /// What the city calls its mayor (the user).
     pub mayor_name: Option<String>,
+    /// The highest population the city has reached: milestones built at it
+    /// stay built, even if tasks are un-ticked later. Only ever goes up.
+    pub city_peak: u32,
+    /// The milestone (its population) last celebrated, so each is cheered once.
+    pub city_seen: u32,
     /// Once a day, open the menu-bar dropdown to plan tasks that have no date.
     pub undated_nudge: bool,
     /// When to do that, `HH:MM` local time.
@@ -246,6 +251,8 @@ impl Default for AppSettings {
             city_name: None,
             city_corner: true,
             mayor_name: None,
+            city_peak: 0,
+            city_seen: 0,
             undated_nudge: true,
             undated_time: "16:00".into(),
             last_undated_nudge: None,

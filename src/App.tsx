@@ -11,6 +11,7 @@ import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
 import { CityCard, CityView } from "./components/City";
 import { buildCity } from "./lib/city";
+import { cheerFor, newMilestones, type Milestone } from "./lib/milestones";
 import { CITY, PLAIN, WordsContext } from "./lib/words";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { MonthCalendar } from "./components/MonthCalendar";
@@ -482,6 +483,28 @@ export default function App() {
     [projectStats],
   );
   const city = useMemo(() => buildCity(cityWins, tasks, projectStats, floorList, today), [cityWins, tasks, projectStats, floorList, today]);
+  // Milestones: the highest population ever reached keeps what's built.
+  const peak = settings?.city_peak ?? 0;
+  const reached = Math.max(city.total, peak);
+  const cityShown = useMemo(() => ({ ...city, reached }), [city, reached]);
+  const [celebrate, setCelebrate] = useState<Milestone[]>([]);
+  const cheered = useRef(0);
+  useEffect(() => {
+    if (!settings || !full || city.total === 0) return;
+    const seen = Math.max(settings.city_seen ?? 0, cheered.current);
+    const fresh = newMilestones(seen, reached);
+    const patch: Partial<AppSettings> = {};
+    if (city.total > peak) patch.city_peak = city.total;
+    if (fresh.length) {
+      const top = fresh[fresh.length - 1].at;
+      cheered.current = top;
+      patch.city_seen = top;
+      show(`🎉 ${cheerFor(fresh)} Open your city to see it.`);
+      setCelebrate(fresh);
+    }
+    if (Object.keys(patch).length) void patchSettings(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reached, city.total, peak, settings?.city_seen, full]);
   // Full screen's add form picks the building and floor.
   const places = useMemo(
     () => city.buildings.filter((b) => b.project).map((b) => ({ name: b.project!, floors: b.floors.filter((f) => f.name).map((f) => f.name!) })),
@@ -1437,7 +1460,7 @@ export default function App() {
         {tasksShown && !cityOpen && settings?.city_corner !== false && (
           <div className="city-corner">
             <CityCard
-              city={city}
+              city={cityShown}
               name={settings?.city_name ?? null}
               now={now}
               onOpen={() => setCityOpen("view")}
@@ -1451,7 +1474,9 @@ export default function App() {
         )}
         {cityOpen && (
           <CityView
-            city={city}
+            city={cityShown}
+            celebrate={celebrate}
+            onCelebrated={() => setCelebrate([])}
             name={settings?.city_name ?? null}
             now={now}
             locale={LOCALE}
