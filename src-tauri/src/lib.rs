@@ -740,6 +740,7 @@ fn set_autostart(app: AppHandle, enabled: bool) -> CmdResult<bool> {
     let al = app.autolaunch();
     if enabled {
         al.enable().map_err(err)?;
+        associate_login_item(&app);
     } else {
         al.disable().map_err(err)?;
     }
@@ -1221,6 +1222,47 @@ fn migrate_login_item(app: &AppHandle) {
     let _ = app;
 }
 
+/// Mark the login item as Todo City's (`AssociatedBundleIdentifiers`), so
+/// macOS lists it under the app's name and icon in Login Items & Extensions
+/// instead of under the developer's name. Safe to run every launch.
+fn associate_login_item(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let Some(home) = std::env::var_os("HOME") else {
+            return;
+        };
+        let path = std::path::PathBuf::from(home)
+            .join("Library/LaunchAgents")
+            .join(format!("{}.plist", app.package_info().name));
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        if let Some(fixed) = with_associated_bundle(&text, &app.config().identifier) {
+            match std::fs::write(&path, fixed) {
+                Ok(()) => log::info!("tied the login item to {}", app.config().identifier),
+                Err(e) => log::warn!("could not update the login item: {e}"),
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// The launch agent plist with `AssociatedBundleIdentifiers` added, or None
+/// when it already has it (or isn't a plist we understand).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn with_associated_bundle(plist: &str, id: &str) -> Option<String> {
+    if plist.contains("AssociatedBundleIdentifiers") {
+        return None;
+    }
+    let at = plist.rfind("</dict>")?;
+    Some(format!(
+        "{}  <key>AssociatedBundleIdentifiers</key>\n  <array>\n    <string>{id}</string>\n  </array>\n{}",
+        &plist[..at],
+        &plist[at..]
+    ))
+}
+
 /// Text sent through Services → "Add to Plucky".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
@@ -1464,7 +1506,7 @@ pub fn run() {
                 services::register(move |text| on_service_text(handle.clone(), text));
             }
 
-            // Plucky lives in the menu bar, so open it at login — once, by
+            // Todo City lives in the menu bar, so open it at login — once, by
             // default; after that it's the user's switch in Settings.
             let settings = app.state::<Settings>();
             migrate_login_item(app.handle());
@@ -1474,6 +1516,7 @@ pub fn run() {
                 }
                 settings.update(|s| s.autostart_initialized = true);
             }
+            associate_login_item(app.handle());
 
             // Show the panel at launch (always on a first run, for the tour),
             // and again on the first wake of each day.
@@ -1659,6 +1702,13 @@ mod tests {
         assert_eq!(city_file_stem("Lumen Bay"), "Lumen Bay");
         assert_eq!(city_file_stem("../../etc/passwd"), "etcpasswd");
         assert_eq!(city_file_stem("  /:  "), "My city");
+        let plist =
+            "<plist><dict>\n  <key>Label</key>\n  <string>Todo City</string>\n</dict></plist>";
+        let fixed = with_associated_bundle(plist, "app.pluck.desktop").unwrap();
+        assert!(fixed.contains("<key>AssociatedBundleIdentifiers</key>"));
+        assert!(fixed.contains("<string>app.pluck.desktop</string>"));
+        assert!(fixed.trim_end().ends_with("</dict></plist>"));
+        assert!(with_associated_bundle(&fixed, "app.pluck.desktop").is_none());
     }
 
     fn task() -> Task {

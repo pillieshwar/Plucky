@@ -3,10 +3,8 @@ name: Release
 # Builds the Mac app and publishes it as a GitHub Release. Run it either by
 # pushing a tag like v0.1.0, or from the Actions tab ("Release" → "Run
 # workflow"), which tags the current commit with the version in
-# src-tauri/tauri.conf.json. The "Download Plucky" button links to
-#   https://github.com/<owner>/<repo>/releases/latest/download/Plucky-macOS.dmg
-# (Pluck-macOS.dmg, the name from before the rename, is uploaded too so old
-# links keep working).
+# src-tauri/tauri.conf.json. The "Download Todo City" button links to
+#   https://github.com/<owner>/<repo>/releases/latest/download/TodoCity-macOS.dmg
 # which always points at the newest release.
 #
 # Signing (optional): add these repository secrets to ship a Developer ID
@@ -19,8 +17,8 @@ name: Release
 # In-app updates: add TAURI_SIGNING_PRIVATE_KEY and
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the key whose public half is in
 # tauri.conf.json → plugins.updater.pubkey). The release then also carries
-# Plucky.app.tar.gz, its .sig and latest.json, which installed copies of
-# Pluck and Plucky check for updates.
+# TodoCity.app.tar.gz, its .sig and latest.json, which installed copies of
+# Todo City (and older Pluck and Plucky) check for updates.
 #
 # Supply chain: builds use only the committed lockfiles, start from an empty
 # cache (a poisoned cache can't reach a signed release), and every .dmg and
@@ -86,7 +84,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Build Plucky.app and .dmg (universal)
+      - name: Build Todo City.app and .dmg (universal)
         shell: bash
         env:
           CERT: ${{ secrets.APPLE_CERTIFICATE }}
@@ -149,20 +147,19 @@ jobs:
         run: |
           mkdir -p dist-release
           dmg=$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
+          # Just what people need: the app to download, and what installed
+          # copies read to update themselves (the source code is added by GitHub).
           cp "$dmg" dist-release/TodoCity-macOS.dmg
-          cp "$dmg" dist-release/Plucky-macOS.dmg
-          cp "$dmg" dist-release/Pluck-macOS.dmg
-          cp "$dmg" "dist-release/$(basename "$dmg")"
           tarball=$(ls target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -n1 || true)
           if [ -n "$tarball" ] && [ -f "$tarball.sig" ]; then
-            cp "$tarball" dist-release/Plucky.app.tar.gz
-            cp "$tarball.sig" dist-release/Plucky.app.tar.gz.sig
-            # The manifest installed copies of Plucky read to find updates.
+            cp "$tarball" dist-release/TodoCity.app.tar.gz
+            cp "$tarball.sig" dist-release/TodoCity.app.tar.gz.sig
+            # The manifest installed copies read to find updates.
             python3 - <<'PY'
           import json, os, datetime
           tag = os.environ["TAG"]
-          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/Plucky.app.tar.gz"
-          sig = open("dist-release/Plucky.app.tar.gz.sig").read().strip()
+          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/TodoCity.app.tar.gz"
+          sig = open("dist-release/TodoCity.app.tar.gz.sig").read().strip()
           entry = {"signature": sig, "url": url}
           manifest = {
               "version": tag.lstrip("v"),
@@ -176,7 +173,7 @@ jobs:
           else
             echo "::warning::No signed updater archive was built; skipping latest.json."
           fi
-          (cd dist-release && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          (cd dist-release && shasum -a 256 *.dmg)
 
       - name: Attest build provenance
         if: github.ref_type == 'tag' || inputs.publish
@@ -184,11 +181,11 @@ jobs:
         with:
           subject-path: |
             dist-release/*.dmg
-            dist-release/Plucky.app.tar.gz
+            dist-release/TodoCity.app.tar.gz
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Plucky-macOS
+          name: TodoCity-macOS
           path: dist-release/*
 
       - name: Publish GitHub Release
@@ -215,8 +212,17 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — replacing its files"
             gh release upload "$TAG" dist-release/* --clobber
+            gh release edit "$TAG" --title "Todo City $TAG"
           else
             # Creates the tag on this commit if it doesn't exist yet.
             gh release create "$TAG" dist-release/* --target "$GITHUB_SHA" \
-              --title "Plucky $TAG" --notes-file notes.md
+              --title "Todo City $TAG" --notes-file notes.md
           fi
+          # Only this release's own files: anything else (older names) goes.
+          keep=$(cd dist-release && ls)
+          gh release view "$TAG" --json assets -q '.assets[].name' | while read -r name; do
+            if ! grep -qxF "$name" <<<"$keep"; then
+              echo "Removing $name"
+              gh release delete-asset "$TAG" "$name" --yes
+            fi
+          done
