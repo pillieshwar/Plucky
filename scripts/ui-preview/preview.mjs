@@ -258,6 +258,24 @@ function mockTauri(s) {
     },
     delete_floor: () => true,
     add_floor: (a) => a.name,
+    things_find: () => [{ path: "/Users/sam/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/ThingsData-1A2B3/Things Database.thingsdatabase/main.sqlite", modified: "2026-10-25T18:40:00Z" }],
+    things_pick: () => null,
+    things_preview: (a) => {
+      const done = a.options?.include_done ?? true;
+      const b = (key, name, kind, area, open, d, floors) => ({ key, name, kind, area, open, done: done ? d : 0, floors });
+      const buildings = [
+        b("P1", "Kitchen remodel", "project", "Home", 14, 22, 3),
+        b("P2", "Q1 planning", "project", "Work", 9, 41, 2),
+        b("P3", "Trip to Lisbon", "project", null, 6, 3, 0),
+        b("area:A1", "Home", "area", null, 7, 120, 0),
+        b("", "", "loose", null, 11, 310, 0),
+      ];
+      return {
+        source: { path: "/Users/sam/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/ThingsData-1A2B3/Things Database.thingsdatabase/main.sqlite", modified: "2026-10-25T18:40:00Z" },
+        preview: { buildings, open: 47, done: done ? 496 : 0, someday: 8, repeating: 4, subtasks: 63, canceled: 5, unmapped_repeats: 1, already: 0 },
+      };
+    },
+    things_import: () => ({ added: 543, done: 496, skipped: 0, failed: 0 }),
     save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
     set_panel_full: (a) => {
       s.full = a.full;
@@ -926,6 +944,23 @@ await shot("full-customize", FULL, full({ settings: DARK }), async (p) => {
   await p.waitForTimeout(150);
   await p.locator(".settings-h", { hasText: "Customize" }).scrollIntoViewIfNeeded();
   if ((await p.evaluate(() => document.documentElement.dataset.accent)) !== "green") throw new Error("the accent color didn't change");
+});
+await shot("full-transfer", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await p.waitForTimeout(150);
+  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await p.getByRole("button", { name: "Find my Things library" }).click();
+  await p.waitForTimeout(200);
+  await p.locator(".tr-list li", { hasText: "Trip to Lisbon" }).locator("input").click();
+  const label = await p.locator(".tr-preview .primary").textContent();
+  if (label !== "Move in 534 to-dos") throw new Error(`move-in count wrong: ${label}`);
+});
+await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
+  await tab(p, "Data transfer");
+  await p.getByRole("button", { name: "Find my Things library" }).click();
+  await p.getByRole("button", { name: /^Move in \d/ }).click();
+  await p.locator(".tr-done").waitFor();
+  if (!(await p.locator(".tr-done").textContent()).includes("543 to-dos moved in")) throw new Error("done message missing");
 });
 await shot("full-compact-blue", FULL, full({ settings: { ...DARK, look: { week_start: "mon", clock: "24", start_list: "last", details: false, accent: "blue", city_sky: "auto", city_motion: true, compact: true } } }), async (p) => {
   if (!(await p.locator(".app-full.compact").count())) throw new Error("compact rows didn't apply");

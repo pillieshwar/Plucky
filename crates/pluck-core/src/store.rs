@@ -236,7 +236,41 @@ INSERT OR IGNORE INTO floors (project, name, created_at)
     r#"
 ALTER TABLE projects ADD COLUMN color TEXT;
 "#,
+    // Tasks brought in from another app (e.g. Things 3), so importing again
+    // never adds a task twice, even one deleted here since.
+    r#"
+CREATE TABLE imports (
+    source      TEXT NOT NULL,
+    ext_id      TEXT NOT NULL,
+    task_id     INTEGER,
+    imported_at TEXT NOT NULL,
+    PRIMARY KEY (source, ext_id)
+);
+"#,
 ];
+
+/// One task to bring in from another app, with its history.
+#[derive(Debug, Clone, Default)]
+pub struct Imported {
+    /// The other app's id for it, unique within `source`.
+    pub ext_id: String,
+    pub task: NewTask,
+    pub done: bool,
+    /// RFC 3339 UTC; when it was finished (done tasks) and created.
+    pub completed_at: Option<String>,
+    pub created_at: Option<String>,
+}
+
+/// What an import did.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ImportReport {
+    pub added: usize,
+    pub done: usize,
+    /// Brought in before, so left alone.
+    pub skipped: usize,
+    /// Couldn't be read (e.g. an impossible date); the rest still came in.
+    pub failed: usize,
+}
 
 /// A Plucky task linked to an external reminder, with the state both sides
 /// last agreed on (see `reminders_sync`).
@@ -852,6 +886,72 @@ impl Store {
             params![next, deadline, id],
         )?;
         self.get(id)
+    }
+
+    /// The other app's ids already brought in from `source`.
+    pub fn imported_ids(
+        &self,
+        source: &str,
+    ) -> Result<std::collections::HashSet<String>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT ext_id FROM imports WHERE source = ?1")?;
+        let rows = stmt.query_map([source], |r| r.get::<_, String>(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Bring in tasks from another app in one go: projects and floors first
+    /// (empty ones too), then every task not brought in before. All or
+    /// nothing: if the database fails part way, nothing is kept.
+    pub fn import(
+        &self,
+        source: &str,
+        floors: &[(String, Option<String>)],
+        items: &[Imported],
+    ) -> Result<ImportReport, StoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+        for (project, floor) in floors {
+            match floor {
+                Some(f) => self.add_floor(project, f)?,
+                None => self.create_project(project)?,
+            };
+        }
+        let known = self.imported_ids(source)?;
+        let mut report = ImportReport::default();
+        for item in items {
+            if known.contains(&item.ext_id) {
+                report.skipped += 1;
+                continue;
+            }
+            let task = match self.insert(item.task.clone()) {
+                Ok(t) => t,
+                Err(StoreError::Sqlite(e)) => return Err(e.into()),
+                Err(_) => {
+                    report.failed += 1;
+                    continue;
+                }
+            };
+            let created = item
+                .created_at
+                .clone()
+                .unwrap_or_else(|| task.created_at.clone());
+            let completed = item
+                .done
+                .then(|| item.completed_at.clone().unwrap_or_else(|| created.clone()));
+            self.conn.execute(
+                "UPDATE tasks SET created_at = ?1, done = ?2, completed_at = ?3 WHERE id = ?4",
+                params![created, item.done, completed, task.id],
+            )?;
+            self.conn.execute(
+                "INSERT OR IGNORE INTO imports (source, ext_id, task_id, imported_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![source, item.ext_id, task.id, now()],
+            )?;
+            report.added += 1;
+            report.done += item.done as usize;
+        }
+        tx.commit()?;
+        Ok(report)
     }
 
     pub fn delete(&self, id: i64) -> Result<(), StoreError> {

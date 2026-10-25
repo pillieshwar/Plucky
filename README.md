@@ -185,6 +185,34 @@ Finished tasks go to the **Logbook**. A task added with no date and no project g
 - whether notes and sub-tasks show **under each task**, and **compact rows**;
 - your city's **sky** (follow Appearance, always night or always dusk) and whether its **cars and blinking windows** move.
 
+## Moving from Things 3
+
+Preferences → **Data transfer** brings your whole Things 3 library into Todo City. It all happens on your Mac: Todo City reads a copy of Things' database, and Things itself isn't changed, so you can keep using it while you try Todo City.
+
+1. **Open Things 3 on this Mac** and let it finish syncing. If you only use Things on iPhone or iPad, install Things 3 for Mac and sign in to Things Cloud first.
+2. In Todo City, open **Preferences → Data transfer** and click **Find my Things library**. If macOS asks whether Todo City may access data from other apps, click **Allow**.
+3. **Check the preview.** Untick any project you'd rather leave behind, and choose whether to bring the Logbook and cancelled to-dos.
+4. **Click Move in.** Todo City backs itself up first (Preferences → Your data → "before import"), so you can undo it.
+
+Running it again later only brings to-dos that are new since last time, even if you've deleted some here.
+
+| Things 3 | Todo City |
+|---|---|
+| Project | Project (a building) |
+| Heading | Floor |
+| To-do | Task (a home) |
+| Checklist | Sub-tasks |
+| Area | Its projects come as they are; to-dos right in the area become a project named after it |
+| Inbox, loose to-dos | Tasks with no project (houses) |
+| Today, This Evening, Upcoming | The same day (and evening). Today items from earlier days come in for today, not as overdue |
+| Anytime / Someday | No day / Someday |
+| Deadline, reminder time | Deadline, time of day |
+| Repeating to-do | The same repeat when it's daily, weekdays, weekly, every 2 weeks, monthly or yearly; other patterns come once, with a note |
+| Tags | `#tags` on the task |
+| Logbook | Done tasks: lit windows in your city |
+
+Trashed to-dos stay behind. **Can't find your library?** Click **Choose the database myself…**: in Finder, Go → Go to Folder… `~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac`, open the `ThingsData-…` folder and pick `Things Database.thingsdatabase`. If macOS blocks it, give Todo City **Full Disk Access** in System Settings → Privacy & Security, or copy that folder to your Desktop and choose the copy. Todoist is next.
+
 ## Install
 
 1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg).

@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
 import { ConnectorsTab } from "./components/ConnectorsTab";
+import { DataTransferTab } from "./components/DataTransferTab";
 import { Onboarding } from "./components/Onboarding";
 import { processCapture } from "./lib/capture";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -57,12 +58,13 @@ import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
 
-type Tab = "tasks" | "connectors" | "models" | "settings";
-const TABS: { id: Tab; label: string }[] = [
+type Tab = "tasks" | "connectors" | "models" | "transfer" | "settings";
+const TABS: { id: Tab; label: string; short?: string }[] = [
   { id: "tasks", label: "Tasks" },
   { id: "settings", label: "Preferences" },
   { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
+  { id: "transfer", label: "Data transfer", short: "Transfer" },
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
@@ -764,7 +766,9 @@ export default function App() {
     tab !== "tasks"
       ? tab === "connectors"
         ? "Work with apps on this Mac"
-        : tab === "models"
+        : tab === "transfer"
+          ? "Move in from Things 3"
+          : tab === "models"
           ? status?.active_model
             ? `Using ${status.active_model}`
             : "No model yet"
@@ -1005,6 +1009,7 @@ export default function App() {
     <>
       {tab === "connectors" && <ConnectorsTab />}
       {tab === "models" && <ModelsTab onChanged={checkStatus} />}
+      {tab === "transfer" && <DataTransferTab onFinished={() => setTab("tasks")} />}
       {tab === "settings" && (
         <SettingsTab
           shortcuts={shortcuts}
@@ -1583,8 +1588,9 @@ export default function App() {
               aria-selected={tab === t.id}
               className={tab === t.id ? "tab on" : "tab"}
               onClick={() => setTab(t.id)}
+              aria-label={t.label}
             >
-              {t.label}
+              {t.short ?? t.label}
               {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
             </button>
           ))}

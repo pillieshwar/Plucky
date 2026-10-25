@@ -90,12 +90,13 @@ pub fn backup_path(data_dir: &Path, name: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// Copy the current database aside before a restore replaces it.
-pub fn safety_copy(store: &Store, data_dir: &Path) -> Result<PathBuf, String> {
+/// Copy the current database aside before a restore (or an import) changes
+/// it: `tasks-…-before-{what}.db`.
+pub fn safety_copy(store: &Store, data_dir: &Path, what: &str) -> Result<PathBuf, String> {
     let dir = backup_dir(data_dir);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(format!(
-        "tasks-{}-before-restore.db",
+        "tasks-{}-before-{what}.db",
         Local::now().format("%Y-%m-%d-%H%M%S")
     ));
     store.backup_to(&path).map_err(|e| e.to_string())?;
