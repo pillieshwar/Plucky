@@ -1006,7 +1006,7 @@ await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
   await p.getByRole("button", { name: "Find my Things library" }).click();
   await p.getByRole("button", { name: /^Move in \d/ }).click();
   await p.locator(".tr-done").waitFor();
-  if (!(await p.locator(".tr-done").textContent()).includes("543 to-dos moved in")) throw new Error("done message missing");
+  if (!(await p.locator(".tr-done").textContent()).includes("543 tasks moved in")) throw new Error("done message missing");
 });
 await shot("full-compact-blue", FULL, full({ settings: { ...DARK, look: { week_start: "mon", clock: "24", start_list: "last", details: false, accent: "blue", city_sky: "auto", city_motion: true, compact: true } } }), async (p) => {
   if (!(await p.locator(".app-full.compact").count())) throw new Error("compact rows didn't apply");

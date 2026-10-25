@@ -22,9 +22,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{
-    DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc,
-};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 
 pub use crate::things::{BuildingPreview, Options, Plan, Preview, LOOSE_KEY};
@@ -821,7 +819,7 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
         }
         out
     };
-    tops.sort_by(|a, b| (is_done(a), a.child_order).cmp(&(is_done(b), b.child_order)));
+    tops.sort_by_key(|t| (is_done(t), t.child_order));
 
     let mut preview = Preview::default();
     let mut floors: Vec<(String, Option<String>)> = Vec::new();
