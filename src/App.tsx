@@ -59,12 +59,12 @@ import { safeLocale } from "./lib/locale";
 const LOCALE = safeLocale();
 
 type Tab = "tasks" | "connectors" | "models" | "transfer" | "settings";
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: Tab; label: string; short?: string }[] = [
   { id: "tasks", label: "Tasks" },
   { id: "settings", label: "Preferences" },
   { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
-  { id: "transfer", label: "Data transfer" },
+  { id: "transfer", label: "Data transfer", short: "Transfer" },
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
@@ -1588,8 +1588,9 @@ export default function App() {
               aria-selected={tab === t.id}
               className={tab === t.id ? "tab on" : "tab"}
               onClick={() => setTab(t.id)}
+              aria-label={t.label}
             >
-              {t.label}
+              {t.short ?? t.label}
               {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
             </button>
           ))}

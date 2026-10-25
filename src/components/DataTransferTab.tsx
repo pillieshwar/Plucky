@@ -240,8 +240,9 @@ export function DataTransferTab({ onFinished }: { onFinished: () => void }) {
             {data.preview.repeating > 0 && <li>{plural(data.preview.repeating, "repeating to-do")} keep their repeat.</li>}
             {data.preview.unmapped_repeats > 0 && (
               <li>
-                {plural(data.preview.unmapped_repeats, "repeat")} use a pattern Todo City doesn't have yet; they come
-                once, with a note to set a repeat.
+                {data.preview.unmapped_repeats === 1
+                  ? "1 repeat uses a pattern Todo City doesn't have yet; it comes once, with a note to set a repeat."
+                  : `${n(data.preview.unmapped_repeats)} repeats use patterns Todo City doesn't have yet; they come once, with a note to set a repeat.`}
               </li>
             )}
           </ul>
