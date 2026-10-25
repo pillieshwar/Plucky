@@ -1911,7 +1911,7 @@ html[data-full="1"] body { background: var(--paper); }
 .app-full:has(.city-corner) .full-content.week { padding-bottom: 0; }
 
 /* The city in 3D (three.js) */
-.city3d { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.city3d { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; }
 .city3d-canvas { display: block; }
 .city3d-canvas.live { cursor: grab; outline: none; touch-action: none; }
 .city3d-canvas.live:active { cursor: grabbing; }

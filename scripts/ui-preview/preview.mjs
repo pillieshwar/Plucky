@@ -189,7 +189,7 @@ function mockTauri(s) {
     list_tasks: () => s.tasks,
     status: () => s.status,
     get_settings: () => s.settings,
-    set_settings: (a) => a.value,
+    set_settings: (a) => (s.settings = a.value),
     get_shortcuts: () => s.shortcuts,
     update_status: () => s.update,
     list_models: () => [
@@ -1098,7 +1098,7 @@ await shot("full-city-milestones-light", FULL, full({ settings: { ...LIGHT, city
   await p.locator(".city-card-art").click();
   await p.waitForTimeout(900);
 });
-await shot("full-city-milestones-sheet", FULL, full({ settings: { ...DARK, city_peak: 80, city_seen: 80 } }), async (p) => {
+await shot("full-city-milestones-sheet", FULL, full({ settings: { ...DARK, city_peak: 80, city_seen: 99999 } }), async (p) => {
   await p.locator(".city-card-art").click();
   await p.waitForTimeout(500);
   await p.getByRole("button", { name: /Milestones/ }).click();
