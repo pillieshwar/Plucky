@@ -1,17 +1,17 @@
 import type { CityWindow, FloorSummary, ProjectSummary, Task } from "./types";
 
 /**
- * Your city, with you as its mayor.
+ * Lights On — your city, with you as its mayor.
  *
- * - A project is a building; its headings are floors; each task is a room.
- * - A finished task is a lit room; an open one is a dark room. A task's
- *   steps are the drawers in its room.
- * - Tasks in a project but on no floor wait in the building's lobby, on the
- *   ground. Tasks in no project live on Main Street.
- * - Floors are stacked by size — the most rooms at the bottom — so every
- *   building narrows as it rises. Each floor is as wide as its rooms need.
- * - A building with nothing finished yet is under construction; one with no
- *   rooms at all is an empty lot with a crane.
+ * - Every project is an apartment building; its sections are floors.
+ * - Every task is a home. A new task is an empty home, its window dark.
+ *   Finishing it means someone moves in, and the lights come on — for good.
+ * - Sub-tasks get a home ready: once some are ticked, its window glows
+ *   faintly. An overdue home blinks amber: someone's waiting at the door.
+ * - Tasks in a project but on no floor live on the ground floor. Tasks in
+ *   no project are houses on the edge of town, with porch lights.
+ * - Someday ideas are "Coming soon" plots.
+ * - The population is every task you've finished.
  *
  * This file is the model (what's built, where); CityScene draws it in 3D.
  */
@@ -24,14 +24,16 @@ export interface Room {
   lit: boolean;
   /** When it was finished (lit rooms). */
   at: string | null;
-  /** The room's drawers (its task's steps), when it has any. */
-  drawers?: { done: number; total: number } | null;
+  /** Sub-tasks done of all, when the task has any (an open home being readied). */
+  readying?: { done: number; total: number } | null;
+  /** Open and past its day or deadline: blinks amber. */
+  late?: boolean;
 }
 
 export interface Floor {
   /** The heading, or null for the lobby. */
   name: string | null;
-  /** "Lobby", "1st Floor: Travel". */
+  /** "Ground floor", "1st Floor: Travel". */
   label: string;
   rooms: Room[];
   /** Rooms along each side. */
@@ -48,11 +50,15 @@ export interface Billboard {
 }
 
 export interface Building {
-  /** Project name, or "" for Main Street. */
+  /** Project name; HOUSES_KEY for the houses, SOMEDAY_KEY for the plots. */
   key: string;
+  /** A tower (a project), the houses (tasks in no project), or Coming soon plots (Someday). */
+  kind: "tower" | "houses" | "plots";
+  /** Every lot it stands on (houses and plots can spread over several). */
+  lots: [number, number][];
   name: string;
   project: string | null;
-  /** Bottom to top: the lobby first, then the floors by size. */
+  /** Bottom to top: the ground floor first, then the floors by size. */
   floors: Floor[];
   open: number;
   done: number;
@@ -70,12 +76,18 @@ export interface Building {
 
 export interface City {
   buildings: Building[];
-  /** Finished tasks, all of them. */
+  /** Finished tasks, all of them: the population. */
   total: number;
+  /** Someday ideas, shown as Coming soon plots. */
+  comingSoon: { id: number; title: string; project: string | null }[];
   founded: string | null;
 }
 
-export const MAIN_STREET = "Main Street";
+export const HOUSES = "Houses";
+export const HOUSES_KEY = "";
+export const SOMEDAY_KEY = "~someday";
+/** Houses on one lot (a 3 × 3 block). */
+export const HOUSES_PER_LOT = 9;
 /** Lot spacing and storey height, in world units. */
 export const LOT = 3.6;
 export const FLOOR = 0.36;
@@ -122,7 +134,7 @@ export function floorShape(n: number): { per: number; levels: number; size: numb
 export function stack(lobby: Room[], floors: { name: string; rooms: Room[] }[], hasLobby: boolean): Floor[] {
   const sorted = [...floors].sort((a, b) => b.rooms.length - a.rooms.length || a.name.localeCompare(b.name));
   const out: Floor[] = [];
-  if (hasLobby || lobby.length || !sorted.length) out.push({ name: null, label: "Lobby", rooms: lobby, ...floorShape(lobby.length) });
+  if (hasLobby || lobby.length || !sorted.length) out.push({ name: null, label: "Ground floor", rooms: lobby, ...floorShape(lobby.length) });
   sorted.forEach((f, i) => out.push({ name: f.name, label: `${ordinal(i + 1)} Floor: ${f.name}`, rooms: f.rooms, ...floorShape(f.rooms.length) }));
   // Narrowing upward: each floor at most as wide as the one under it.
   for (let i = out.length - 2; i >= 0; i--) out[i].size = Math.max(out[i].size, out[i + 1].size);
@@ -151,8 +163,8 @@ export function buildCity(
     if (b.project && heading) b.floors.set(heading, [...(b.floors.get(heading) ?? []), room]);
     else b.lobby.push(room);
   };
-  get(null);
   for (const p of projects) get(p.name);
+  const comingSoon: City["comingSoon"] = [];
   for (const f of floorList) {
     const b = get(f.project);
     if (!b.floors.has(f.name)) b.floors.set(f.name, []);
@@ -165,51 +177,111 @@ export function buildCity(
   }
   for (const t of tasks) {
     if (t.done) continue;
+    if (t.someday || t.paused) {
+      comingSoon.push({ id: t.id, title: t.title, project: t.project });
+      continue;
+    }
     const b = get(t.project);
     b.open += 1;
     const steps = t.checklist ?? [];
-    put(b, t.heading, { id: t.id, title: t.title, lit: false, at: null, drawers: steps.length ? { done: steps.filter((s) => s.done).length, total: steps.length } : null });
-    if (today && t.due_date === today && t.due_time && !t.someday) b.today.push({ time: t.due_time, title: t.title });
+    const day = [t.due_date, t.deadline].filter((d): d is string => !!d).sort()[0];
+    put(b, t.heading, {
+      id: t.id,
+      title: t.title,
+      lit: false,
+      at: null,
+      readying: steps.length ? { done: steps.filter((s) => s.done).length, total: steps.length } : null,
+      late: !!today && !!day && day < today,
+    });
+    if (today && t.due_date === today && t.due_time) b.today.push({ time: t.due_time, title: t.title });
   }
+  const houses = byKey.get(HOUSES_KEY);
+  byKey.delete(HOUSES_KEY);
   const sorted = [...byKey.entries()].sort(([ka, a], [kb, b]) => {
-    if (ka === "") return -1;
-    if (kb === "") return 1;
-    // Founded first, first; buildings with nothing done yet go last.
+    // Founded first, first (downtown); buildings with nothing done yet go last.
     if (a.first && b.first && a.first !== b.first) return a.first < b.first ? -1 : 1;
     if (!a.first !== !b.first) return a.first ? -1 : 1;
     return ka.localeCompare(kb);
   });
-  const places = lots(sorted.length);
+  // Towers downtown, then the houses' blocks, then the Coming soon plots.
+  const houseRooms = houses ? houses.lobby.length : 0;
+  const houseLots = houseRooms ? Math.ceil(houseRooms / HOUSES_PER_LOT) : 0;
+  const places = lots(sorted.length + houseLots + (comingSoon.length ? 1 : 0));
+  // Lit homes first (in the order people moved in), then the empty ones.
+  const order = (rooms: Room[]) => [...rooms.filter((r) => r.lit).sort((x, y) => (x.at ?? "").localeCompare(y.at ?? "")), ...rooms.filter((r) => !r.lit)];
   const buildings: Building[] = sorted.map(([key, b], i) => {
-    // Lit rooms first (in the order they were finished), then the open ones.
-    const order = (rooms: Room[]) => [...rooms.filter((r) => r.lit).sort((x, y) => (x.at ?? "").localeCompare(y.at ?? "")), ...rooms.filter((r) => !r.lit)];
     const floors = stack(
       order(b.lobby),
       [...b.floors.entries()].map(([name, rooms]) => ({ name, rooms: order(rooms) })),
-      key !== "",
+      true,
     );
     const rooms = b.open + b.done;
     return {
       key,
-      name: key || MAIN_STREET,
+      kind: "tower",
+      lots: [places[i]],
+      name: key,
       project: b.project,
       floors,
       open: b.open,
       done: b.done,
-      planned: rooms === 0 && key !== "",
+      planned: rooms === 0,
       building: rooms > 0 && b.done === 0,
-      finished: key !== "" && b.done > 0 && b.open === 0,
+      finished: b.done > 0 && b.open === 0,
       today: b.today.sort((x, y) => x.time.localeCompare(y.time)),
       gx: places[i][0],
       gy: places[i][1],
     };
   });
+  let next = sorted.length;
+  if (houses && houseRooms) {
+    const hl = places.slice(next, next + houseLots);
+    next += houseLots;
+    const rooms = order(houses.lobby);
+    buildings.push({
+      key: HOUSES_KEY,
+      kind: "houses",
+      lots: hl,
+      name: HOUSES,
+      project: null,
+      floors: [{ name: null, label: HOUSES, rooms, per: 1, levels: 1, size: 0.5 }],
+      open: houses.open,
+      done: houses.done,
+      planned: false,
+      building: false,
+      finished: false,
+      today: houses.today.sort((x, y) => x.time.localeCompare(y.time)),
+      gx: hl[0][0],
+      gy: hl[0][1],
+    });
+  }
+  if (comingSoon.length) {
+    const at = places[next];
+    buildings.push({
+      key: SOMEDAY_KEY,
+      kind: "plots",
+      lots: [at],
+      name: "Coming soon",
+      project: null,
+      floors: [],
+      open: comingSoon.length,
+      done: 0,
+      planned: false,
+      building: false,
+      finished: false,
+      today: [],
+      gx: at[0],
+      gy: at[1],
+    });
+  }
   const founded = windows.reduce<string | null>((m, w) => (m === null || w.completed_at < m ? w.completed_at : m), null);
-  return { buildings, total: windows.length, founded };
+  return { buildings, total: windows.length, founded, comingSoon };
 }
 
 /** The building's height, in world units (to the roof). */
 export function heightOf(b: Building): number {
+  if (b.kind === "houses") return FLOOR * 1.6;
+  if (b.kind === "plots") return FLOOR * 0.8;
   if (b.planned) return FLOOR * 1.2;
   return b.floors.reduce((h, f) => h + f.levels * FLOOR, 0) + FLOOR * 0.6;
 }
@@ -251,7 +323,7 @@ export function cityStats(city: City, range: CityRange, now: Date, locale?: stri
   let open = 0;
   const byDay = new Map<string, number>();
   for (const b of city.buildings) {
-    open += b.open;
+    if (b.kind !== "plots") open += b.open;
     for (const f of b.floors) {
       for (const r of f.rooms) {
         if (!r.lit || !r.at) continue;
@@ -267,14 +339,14 @@ export function cityStats(city: City, range: CityRange, now: Date, locale?: stri
   }
   let brightest: { day: string; count: number } | null = null;
   for (const [day, count] of byDay) if (!brightest || count > brightest.count) brightest = { day, count };
-  const built = city.buildings.filter((b) => !b.planned);
+  const built = city.buildings.filter((b) => !b.planned && b.kind === "tower");
   const tallest = built.reduce<Building | null>((m, b) => (!m || heightOf(b) > heightOf(m) ? b : m), null);
   return {
     inRange,
     today: todayN,
     before: range === "all" ? null : before,
     tallest,
-    finished: city.buildings.filter((b) => b.finished).length,
+    finished: city.buildings.filter((b) => b.finished && b.kind === "tower").length,
     brightest,
     open,
   };

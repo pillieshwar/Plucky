@@ -6,11 +6,11 @@ import type { Task } from "./types";
  * Which tasks the panel's list shows: everything, today only, Someday, the
  * Logbook, or one project.
  */
-export type ListId = "all" | "today" | "upcoming" | "someday" | "logbook" | `project:${string}`;
+export type ListId = "all" | "today" | "upcoming" | "overdue" | "someday" | "logbook" | `project:${string}`;
 
 /** A list's name as its title ("all" is shown as Anytime). */
 export function listTitle(id: ListId): string {
-  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Calendar", someday: "Someday", logbook: "Logbook" }[id as "all"];
+  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Calendar", overdue: "Overdue", someday: "Someday", logbook: "Logbook" }[id as "all"];
 }
 
 export const projectList = (name: string): ListId => `project:${name}`;
@@ -26,10 +26,23 @@ export function effectiveDay(t: Task, today: string): string | null {
   return t.due_date;
 }
 
+/**
+ * Overdue: open tasks whose day or deadline has passed — and today's timed
+ * ones whose time has come (`nowTime`, "HH:MM").
+ */
+export function isOverdue(t: Task, today: string, nowTime?: string): boolean {
+  if (t.done || t.someday || t.paused) return false;
+  if (t.deadline && t.deadline < today) return true;
+  if (!t.due_date) return false;
+  if (t.due_date < today) return true;
+  return t.due_date === today && !!t.due_time && !!nowTime && t.due_time <= nowTime;
+}
+
 /** Tasks for a list (Logbook is loaded separately). */
-export function tasksForList(tasks: Task[], list: ListId, today: string): Task[] {
+export function tasksForList(tasks: Task[], list: ListId, today: string, nowTime?: string): Task[] {
   const project = projectOf(list);
   if (project !== null) return tasks.filter((t) => t.project === project);
+  if (list === "overdue") return tasks.filter((t) => isOverdue(t, today, nowTime));
   if (list === "someday") return tasks.filter((t) => !t.done && (t.someday || t.paused));
   // Someday and paused tasks stay out of the way everywhere else.
   const active = tasks.filter((t) => (!t.someday && !t.paused) || t.done);
@@ -52,13 +65,14 @@ export function deadlineChip(t: Task, now: Date, locale?: string): { label: stri
 
 /**
  * A project's tasks by heading: tasks without a heading first, then each
- * heading in the order it was first used; completed ones at the end.
+ * heading in the order it was first used; completed ones at the end — or,
+ * with `doneInPlace`, under their own heading after its open ones.
  */
-export function groupByHeading(tasks: Task[]): DayGroup[] {
+export function groupByHeading(tasks: Task[], doneInPlace = false): DayGroup[] {
   const open = tasks.filter((t) => !t.done).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const done = tasks.filter((t) => t.done).sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
   const sections = new Map<string, Task[]>();
-  for (const t of open) {
+  for (const t of doneInPlace ? [...open, ...done] : open) {
     const k = t.heading ?? "";
     sections.set(k, [...(sections.get(k) ?? []), t]);
   }
@@ -68,7 +82,7 @@ export function groupByHeading(tasks: Task[]): DayGroup[] {
   for (const [k, list] of sections) {
     if (k) groups.push({ key: `h:${k}`, label: k, tone: "upcoming", tasks: list });
   }
-  if (done.length) groups.push({ key: "done", label: "Done", tone: "done", tasks: done });
+  if (done.length && !doneInPlace) groups.push({ key: "done", label: "Done", tone: "done", tasks: done });
   return groups;
 }
 

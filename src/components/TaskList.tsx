@@ -59,8 +59,13 @@ interface Props {
   /** The task opened as a card, if any. */
   openId: number | null;
   onOpenTask: (id: number | null) => void;
-  /** Full screen: an opened task shows in the detail pane, not in place. */
+  /** An opened task shows in a detail pane, not in place. */
   detail?: boolean;
+  /**
+   * Full screen: each row shows its notes and sub-tasks underneath, and a
+   * task opens in place with every property as a labelled row.
+   */
+  rich?: boolean;
 }
 
 export function TaskList(props: Props) {
@@ -148,6 +153,7 @@ function TaskRow({
   openId,
   onOpenTask,
   detail,
+  rich,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
@@ -277,8 +283,11 @@ function TaskRow({
           onPanel={setPanel}
           focusPart={focusPart}
           onClose={() => onOpenTask(null)}
+          detail={rich}
+          inline={rich}
         />
       ) : (
+        <>
         <div
           className="task-row"
           title={task.done ? undefined : detail ? "Click for details · drag onto a day or an hour" : "Click to open · drag onto a day to move"}
@@ -310,6 +319,15 @@ function TaskRow({
             <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} />
           </div>
         </div>
+        {rich && (task.notes || (task.checklist?.length ?? 0) > 0) && (
+          <div className="task-extra" data-nodrag>
+            {task.notes && <Notes text={task.notes} onEdit={() => onOpenTask(task.id)} onError={actions.fail} />}
+            {(task.checklist?.length ?? 0) > 0 && (
+              <Checklist items={task.checklist} onChange={(next) => void actions.update(task, { checklist: next })} readOnly={task.done} noAdd />
+            )}
+          </div>
+        )}
+        </>
       )}
     </li>
   );
@@ -428,6 +446,7 @@ function TaskCard({
   focusPart,
   onClose,
   detail,
+  inline,
 }: {
   task: Task;
   check: ReactNode;
@@ -439,8 +458,10 @@ function TaskCard({
   onPanel: (p: Panel) => void;
   focusPart: "title" | "notes" | "steps" | null;
   onClose: () => void;
-  /** Shown in full screen's detail pane: properties as labelled rows. */
+  /** Properties as labelled rows (full screen). */
   detail?: boolean;
+  /** Opened in place in the list (full screen): ends with a Done button. */
+  inline?: boolean;
 }) {
   const w = useWords();
   const [title, setTitle] = useState(task.title);
@@ -621,7 +642,7 @@ function TaskCard({
             From {source} ↗
           </button>
         ) : (
-          <span className="tc-hint">{detail ? "Saves as you go · Done when you’re finished" : "Esc to close · saves as you go"}</span>
+          <span className="tc-hint">{detail ? "Saves as you go" : "Esc to close · saves as you go"}</span>
         )}
         <span className="tc-gap" />
         {!task.done && (
@@ -632,6 +653,17 @@ function TaskCard({
         <button type="button" className="tc-link danger" onClick={() => void actions.remove(task)} aria-label={`Delete “${task.title}”`}>
           <TrashIcon /> Delete
         </button>
+        {inline && (
+          <button
+            type="button"
+            className="primary sp-done"
+            onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
+            onClick={onClose}
+            title="Done (Esc)"
+          >
+            Done
+          </button>
+        )}
       </div>
     </div>
   );

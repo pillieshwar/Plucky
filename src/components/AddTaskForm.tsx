@@ -286,19 +286,19 @@ function PlacePicker(p: {
   return (
     <div className="add-place">
       <label className="ap-field">
-        <span>Building</span>
+        <span>Project</span>
         {p.newBuilding !== null ? (
-          <input autoFocus value={p.newBuilding} maxLength={60} placeholder="New building's name" onChange={(e) => p.onNewBuilding(e.target.value)} />
+          <input autoFocus value={p.newBuilding} maxLength={60} placeholder="New project's name" onChange={(e) => p.onNewBuilding(e.target.value)} />
         ) : (
           <select value={p.building ?? ""} onChange={(e) => p.onBuilding(e.target.value || null)}>
-            <option value="">Main Street (no building)</option>
+            <option value="">No project (a house)</option>
             {!known && p.building && <option value={p.building}>{p.building} (new)</option>}
             {p.places.map((x) => (
               <option key={x.name} value={x.name}>
                 {x.name}
               </option>
             ))}
-            <option value="__new">+ New building…</option>
+            <option value="__new">+ New project…</option>
           </select>
         )}
       </label>
@@ -308,7 +308,7 @@ function PlacePicker(p: {
           <input autoFocus value={p.newFloor} maxLength={60} placeholder="New floor's name" onChange={(e) => p.onNewFloor(e.target.value)} />
         ) : (
           <select value={p.floor ?? ""} disabled={!p.building} onChange={(e) => p.onFloor(e.target.value || null)}>
-            <option value="">Lobby (choose a floor later)</option>
+            <option value="">Ground floor</option>
             {floors.map((f) => (
               <option key={f} value={f}>
                 {f}

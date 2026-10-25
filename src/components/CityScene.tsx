@@ -6,7 +6,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { FLOOR, LOT, MAIN_STREET, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
+import { FLOOR, HOUSES, HOUSES_PER_LOT, LOT, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
 
 /**
  * The city in real 3D (three.js): towers with lit windows that glow, street
@@ -33,6 +33,9 @@ export interface SceneTheme {
   moon: string;
   stars: boolean;
   bloom: number;
+  house: string;
+  houseRoof: string;
+  plot: string;
 }
 
 export const NIGHT_3D: SceneTheme = {
@@ -54,6 +57,9 @@ export const NIGHT_3D: SceneTheme = {
   moon: "#c9d2ff",
   stars: true,
   bloom: 0.9,
+  house: "#3b3550",
+  houseRoof: "#5a3f4a",
+  plot: "#2a2420",
 };
 
 export const DUSK_3D: SceneTheme = {
@@ -75,11 +81,14 @@ export const DUSK_3D: SceneTheme = {
   moon: "#fff1e2",
   stars: false,
   bloom: 0.35,
+  house: "#c9a493",
+  houseRoof: "#a2584a",
+  plot: "#c8ab90",
 };
 
 export interface Picked {
   key: string;
-  /** The room (task) under the pointer, lit or dark. */
+  /** The home (task) under the pointer, lit or dark. */
   room: Room | null;
   /** Which floor it's on ("1st Floor: Travel"). */
   floor: string | null;
@@ -163,8 +172,10 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   let gMin = 0;
   let gMax = 0;
   for (const b of city.buildings) {
-    gMin = Math.min(gMin, b.gx, b.gy);
-    gMax = Math.max(gMax, b.gx, b.gy);
+    for (const [x, y] of b.lots) {
+      gMin = Math.min(gMin, x, y);
+      gMax = Math.max(gMax, x, y);
+    }
   }
   const g0 = gMin * LOT - LOT / 2;
   const g1 = gMax * LOT + LOT / 2;
@@ -211,13 +222,40 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   const roofMat = keep(new THREE.MeshStandardMaterial({ color: theme.roof, roughness: 0.8 }));
   const ledgeMat = keep(new THREE.MeshStandardMaterial({ color: theme.roof, roughness: 0.6, metalness: 0.2 }));
   const planMat = keep(new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.9, transparent: true, opacity: 0.45 }));
+  const houseMat = keep(new THREE.MeshStandardMaterial({ color: theme.house, roughness: 0.8 }));
+  const houseRoofMat = keep(new THREE.MeshStandardMaterial({ color: theme.houseRoof, roughness: 0.7, flatShading: true }));
+  const plotMat = keep(new THREE.MeshStandardMaterial({ color: theme.plot, roughness: 1 }));
+  const porchMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fresh).multiplyScalar(1.4), toneMapped: false }));
+  const houseGeo = keep(new THREE.BoxGeometry(0.62, 0.42, 0.56));
+  const houseRoofGeo = keep(new THREE.ConeGeometry(0.5, 0.3, 4));
+  const porchGeo = keep(new THREE.SphereGeometry(0.035, 8, 6));
+  // Remember each body's own look, and its look under the pointer.
+  const own = (body: THREE.Mesh, mats: THREE.Material[]) => {
+    body.material = mats;
+    body.userData.base = mats;
+    body.userData.hover = mats.map((m) => (m === roofMat || m === houseRoofMat ? m : hoverMat));
+  };
   const bodies: THREE.Mesh[] = [];
   const from = rangeStart(range, now);
   const todayStart = startOfToday(now);
   type Slot = { m: THREE.Matrix4; room: Room; key: string; floor: string };
   const dark: Slot[] = [];
+  const readying: Slot[] = [];
+  const late: Slot[] = [];
   const lit: Slot[] = [];
   const fresh: Slot[] = [];
+  const sort = (slot: Slot) => {
+    const room = slot.room;
+    if (!room.lit) {
+      if (room.late) late.push(slot);
+      else if (room.readying && room.readying.done > 0) readying.push(slot);
+      else dark.push(slot);
+      return;
+    }
+    const t = Date.parse(room.at ?? "");
+    const isFresh = range === "all" ? t >= todayStart : t >= from;
+    (isFresh ? fresh : lit).push(slot);
+  };
   const labels: CSS2DObject[] = [];
   let tallest = 1;
   let tallestKey = "";
@@ -225,6 +263,14 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
 
   for (const b of city.buildings) {
     const H = heightOf(b);
+    if (b.kind === "houses") {
+      addHouses(b);
+      continue;
+    }
+    if (b.kind === "plots") {
+      addPlots(b);
+      continue;
+    }
     if (H > tallest) {
       tallest = H;
       tallestKey = b.key;
@@ -234,6 +280,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     if (b.planned) {
       const geo = keep(new THREE.BoxGeometry(1.6, H, 1.6));
       const lot = new THREE.Mesh(geo, planMat);
+      own(lot, [planMat, planMat, planMat, planMat, planMat, planMat]);
       lot.position.set(cx, H / 2, cz);
       lot.userData.key = b.key;
       lot.userData.floor = "Planned";
@@ -245,12 +292,13 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       b.floors.forEach((f, fi) => {
         const h = f.levels * FLOOR;
         const geo = keep(new THREE.BoxGeometry(f.size, h, f.size));
-        const body = new THREE.Mesh(geo, [wallMat, wallMat, fi === b.floors.length - 1 ? roofMat : wallMat, wallMat, wallMat, wallMat]);
+        const body = new THREE.Mesh(geo);
+        own(body, [wallMat, wallMat, fi === b.floors.length - 1 ? roofMat : wallMat, wallMat, wallMat, wallMat]);
         body.position.set(cx, y + h / 2, cz);
         body.castShadow = true;
         body.receiveShadow = true;
         body.userData.key = b.key;
-        body.userData.floor = b.key ? f.label : MAIN_STREET;
+        body.userData.floor = f.label;
         scene.add(body);
         bodies.push(body);
         // A thin ledge where a floor steps in from the one below.
@@ -259,15 +307,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
           ledge.position.set(cx, y + 0.02, cz);
           scene.add(ledge);
         }
-        placeRooms(f, cx, cz, y, tmp, (m, room) => {
-          const slot = { m, room, key: b.key, floor: b.key ? f.label : MAIN_STREET };
-          if (!room.lit) dark.push(slot);
-          else {
-            const t = Date.parse(room.at ?? "");
-            const isFresh = range === "all" ? t >= todayStart : t >= from;
-            (isFresh ? fresh : lit).push(slot);
-          }
-        });
+        placeRooms(f, cx, cz, y, tmp, (m, room) => sort({ m, room, key: b.key, floor: f.label }));
         y += h;
       });
       // A slim parapet on the roof.
@@ -279,17 +319,111 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       if (b.finished) addBeacon(scene, cx, H - FLOOR * 0.6, cz, theme, keep);
       if (b.today.length) addBillboard(scene, b, cx, H - FLOOR * 0.6, cz, top.size, theme, keep);
     }
-    if (opts.labels) {
-      const el = document.createElement("div");
-      el.className = "city3d-label";
-      el.dataset.key = b.key;
-      el.textContent = b.name;
-      const label = new CSS2DObject(el);
-      label.position.set(cx, H + (b.today.length ? 1.25 : b.finished ? 1.0 : b.planned ? 1.6 : 0.45), cz);
-      label.center.set(0.5, 1);
-      scene.add(label);
-      labels.push(label);
+    addLabel(b, cx, H + (b.today.length ? 1.25 : b.finished ? 1.0 : b.planned ? 1.6 : 0.45), cz);
+  }
+
+  function addLabel(b: Building, x: number, y: number, z: number) {
+    if (!opts.labels) return;
+    const el = document.createElement("div");
+    el.className = b.kind === "tower" ? "city3d-label" : `city3d-label ${b.kind}`;
+    el.dataset.key = b.key;
+    el.textContent = b.name;
+    const label = new CSS2DObject(el);
+    label.position.set(x, y, z);
+    label.center.set(0.5, 1);
+    scene.add(label);
+    labels.push(label);
+  }
+
+  /** Tasks in no project: little houses, nine to a block, porch lights on once done. */
+  function addHouses(b: Building) {
+    const rooms = b.floors[0]?.rooms ?? [];
+    rooms.forEach((room, i) => {
+      const [gx, gy] = b.lots[Math.floor(i / HOUSES_PER_LOT)] ?? b.lots[b.lots.length - 1];
+      const k = i % HOUSES_PER_LOT;
+      const x = gx * LOT + ((k % 3) - 1) * 1.02;
+      const z = gy * LOT + (Math.floor(k / 3) - 1) * 1.02;
+      const body = new THREE.Mesh(houseGeo);
+      own(body, [houseMat, houseMat, houseMat, houseMat, houseMat, houseMat]);
+      body.position.set(x, 0.21, z);
+      body.castShadow = true;
+      body.receiveShadow = true;
+      body.userData.key = b.key;
+      body.userData.floor = HOUSES;
+      scene.add(body);
+      bodies.push(body);
+      const roof = new THREE.Mesh(houseRoofGeo, houseRoofMat);
+      roof.position.set(x, 0.42 + 0.15, z);
+      roof.rotation.y = Math.PI / 4;
+      roof.scale.set(1, 1, 0.92);
+      roof.castShadow = true;
+      scene.add(roof);
+      // One window on the front, and a porch light by the door once someone lives here.
+      tmp.position.set(x - 0.12, 0.22, z + 0.282);
+      tmp.rotation.set(0, 0, 0);
+      tmp.scale.set(0.2, 0.16, 1);
+      tmp.updateMatrix();
+      sort({ m: tmp.matrix.clone(), room, key: b.key, floor: HOUSES });
+      if (room.lit) {
+        const porch = new THREE.Mesh(porchGeo, porchMat);
+        porch.position.set(x + 0.16, 0.3, z + 0.3);
+        scene.add(porch);
+      }
+    });
+    const [gx, gy] = b.lots[0];
+    addLabel(b, gx * LOT, 1.3, gy * LOT - 1.02);
+  }
+
+  /** Someday ideas: a cleared plot with a Coming soon sign for each (up to nine). */
+  function addPlots(b: Building) {
+    const [gx, gy] = b.lots[0];
+    const cx = gx * LOT;
+    const cz = gy * LOT;
+    const ground = new THREE.Mesh(keep(new THREE.BoxGeometry(2.7, 0.05, 2.7)));
+    own(ground, [plotMat, plotMat, plotMat, plotMat, plotMat, plotMat]);
+    ground.position.set(cx, 0.025, cz);
+    ground.receiveShadow = true;
+    ground.userData.key = b.key;
+    ground.userData.floor = `${city.comingSoon.length} ${city.comingSoon.length === 1 ? "idea" : "ideas"} for someday`;
+    scene.add(ground);
+    bodies.push(ground);
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#f4efe3";
+    ctx.fillRect(0, 0, 256, 128);
+    ctx.strokeStyle = "#5249d9";
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, 246, 118);
+    ctx.fillStyle = "#2a2850";
+    ctx.font = "800 40px -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("COMING", 128, 58);
+    ctx.fillText("SOON", 128, 102);
+    const tex = keep(new THREE.CanvasTexture(c));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const boardMat = keep(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+    const postMat = keep(new THREE.MeshStandardMaterial({ color: "#7a5a3c", roughness: 0.9 }));
+    const boardGeo = keep(new THREE.BoxGeometry(0.46, 0.23, 0.02));
+    const postGeo = keep(new THREE.BoxGeometry(0.03, 0.34, 0.03));
+    const n = Math.min(9, city.comingSoon.length);
+    for (let i = 0; i < n; i++) {
+      const x = cx + ((i % 3) - 1) * 0.8;
+      const z = cz + (Math.floor(i / 3) - 1) * 0.8;
+      const sign = new THREE.Group();
+      const board = new THREE.Mesh(boardGeo, boardMat);
+      board.position.y = 0.36;
+      board.castShadow = true;
+      const post = new THREE.Mesh(postGeo, postMat);
+      post.position.y = 0.17;
+      sign.add(board, post);
+      sign.position.set(x, 0.05, z);
+      sign.rotation.y = 0.78;
+      scene.add(sign);
     }
+    addLabel(b, cx, 1.1, cz);
   }
 
   // Rooms as instanced windows: dark (open), lit earlier, and lit recently (glowing).
@@ -304,11 +438,18 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     windowMeshes.push({ mesh, rooms: slots.map((s) => ({ room: s.room, key: s.key, floor: s.floor })) });
   };
   instanced(dark, keep(new THREE.MeshStandardMaterial({ color: theme.dark, roughness: 0.35, metalness: 0.4 })));
+  // A home being readied (some sub-tasks done): a faint glow behind the curtains.
+  instanced(readying, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.lit).multiplyScalar(0.38) })));
+  // Overdue: blinking amber, someone's waiting at the door.
+  const lateMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff9a3d"), toneMapped: false }));
+  const lateBase = new THREE.Color("#ff9a3d");
+  instanced(late, lateMat);
+  let blinkT = 0;
   instanced(lit, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.lit).multiplyScalar(0.95), fog: true })));
   instanced(fresh, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fresh).multiplyScalar(1.6), toneMapped: false })));
 
-  // The mayor, by Main Street.
-  const main = city.buildings.find((b) => b.key === "");
+  // The mayor, by the oldest building downtown.
+  const main = city.buildings[0];
   if (main) addMayor(scene, main, opts.mayor ?? null, opts.labels, keep, labels);
   addGreenery(scene, city, main?.key ?? null, keep);
 
@@ -329,13 +470,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   const center = new THREE.Vector3(mid, Math.min(tallest * 0.3, 3), mid);
   const radius = Math.max(span * 0.75, tallest * 0.9, 6);
   const setHover = (key: string | null) => {
-    for (const body of bodies) {
-      const b = city.buildings.find((x) => x.key === body.userData.key);
-      if (!b || b.planned) continue;
-      const mats = body.material as THREE.Material[];
-      const side = body.userData.key === key ? hoverMat : wallMat;
-      body.material = [side, side, mats[2] === roofMat ? roofMat : side, side, side, side];
-    }
+    for (const body of bodies) body.material = body.userData.key === key ? body.userData.hover : body.userData.base;
     for (const l of labels) l.element.classList.toggle("on", l.element.dataset.key === key);
   };
   return {
@@ -346,7 +481,13 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     labels,
     radius,
     center,
-    tick: (dt) => traffic?.(dt) ?? false,
+    tick: (dt) => {
+      const moved = traffic?.(dt) ?? false;
+      if (!late.length) return moved;
+      blinkT += dt;
+      lateMat.color.copy(lateBase).multiplyScalar(0.35 + 0.85 * (0.5 + 0.5 * Math.sin(blinkT * 4)));
+      return true;
+    },
     dispose: () => {
       for (const d of disposables) d.dispose();
       for (const l of labels) l.element.remove();
@@ -373,7 +514,7 @@ function placeRooms(f: Floor, cx: number, cz: number, y0: number, tmp: THREE.Obj
   });
 }
 
-/** Today's timed rooms on a billboard on the roof, in time order. */
+/** "Moving in today": today's timed tasks on a billboard on the roof, in time order. */
 function addBillboard(scene: THREE.Scene, b: Building, x: number, h: number, z: number, size: number, theme: SceneTheme, keep: Keep) {
   const c = document.createElement("canvas");
   c.width = 512;
@@ -387,7 +528,7 @@ function addBillboard(scene: THREE.Scene, b: Building, x: number, h: number, z: 
   ctx.strokeRect(4, 4, 504, 248);
   ctx.fillStyle = "#a29bff";
   ctx.font = "700 30px -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif";
-  ctx.fillText("TODAY", 26, 48);
+  ctx.fillText("MOVING IN TODAY", 26, 48);
   ctx.font = "600 26px -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif";
   const rows = b.today.slice(0, 4);
   rows.forEach((r, i) => {
@@ -490,6 +631,7 @@ function addGreenery(scene: THREE.Scene, city: City, mayorKey: string | null, ke
   const bushes: [number, number, number][] = [];
   const edge = LOT / 2 - 0.42;
   for (const b of city.buildings) {
+    if (b.kind !== "tower") continue;
     const half = (b.floors[0]?.size ?? 0.6) / 2;
     if (half + 0.2 > edge) continue; // No room on this block.
     const cx = b.gx * LOT;
@@ -499,7 +641,7 @@ function addGreenery(scene: THREE.Scene, city: City, mayorKey: string | null, ke
       for (const t of [-0.62, 0, 0.62]) {
         const a = t * edge;
         const [x, z] = side === 0 ? [a, -edge] : side === 1 ? [edge, a] : side === 2 ? [a, edge] : [-edge, a];
-        // The mayor stands on Main Street's south-east corner.
+        // The mayor stands on this block's south-east corner.
         if (b.key === mayorKey && x > 0.3 && z > 0.3) continue;
         spots.push([cx + x, cz + z]);
       }
@@ -626,7 +768,7 @@ function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number,
   }
   // Luxury cars round the tallest tower.
   const top = city.buildings.find((b) => b.key === tallestKey);
-  if (top && !top.planned) {
+  if (top && top.kind === "tower" && !top.planned) {
     for (const c of ["#111216", "#c9a24a", "#e9e6df"]) add(make("luxury", c), around(top.gx, top.gy, 0.1), 0.8);
   }
   if (!vehicles.length) return null;

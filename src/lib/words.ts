@@ -1,10 +1,9 @@
 import { createContext, useContext } from "react";
 
 /**
- * What things are called. The side panel uses plain words; full screen tells
- * the city story: a project is a building, its headings are floors, each
- * task is a room — and finishing one lights its window. A task's steps are
- * the drawers in its room.
+ * What things are called. The side panel uses plain words; full screen adds
+ * the city's: a project's sections are floors. (The city itself tells the
+ * Lights On story: projects are buildings, tasks are homes.)
  */
 export interface Words {
   city: boolean;
@@ -22,7 +21,7 @@ export interface Words {
   newTask: string;
   /** The add button at the top of a list. */
   addButton: string;
-  /** A task's checklist item: "step" / "drawer" (lower case). */
+  /** A task's checklist item: "sub-task" (lower case). */
   step: string;
   steps: string;
   inProject: (project: string) => string;
@@ -35,7 +34,6 @@ export interface Words {
   emptyProject: (project: string) => string;
 }
 
-const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
 
 export const PLAIN: Words = {
   city: false,
@@ -51,8 +49,8 @@ export const PLAIN: Words = {
   tasks: "tasks",
   newTask: "New task",
   addButton: "New task",
-  step: "step",
-  steps: "steps",
+  step: "sub-task",
+  steps: "sub-tasks",
   inProject: (p) => `in ${p}`,
   progress: (o, d) => `${o} open · ${d} done`,
   toDo: (k) => `${k} to do`,
@@ -61,28 +59,33 @@ export const PLAIN: Words = {
   emptyProject: (p) => `No tasks in ${p}`,
 };
 
+/**
+ * Full screen: plain words for the work (task, sub-task, project), with the
+ * city's names where they help you picture it — a project's sections are its
+ * floors, and tasks on no floor are on the ground floor.
+ */
 export const CITY: Words = {
   city: true,
-  project: "Building",
-  projects: "Buildings",
-  newProject: "+ New building",
-  newProjectName: "New building's name",
-  noProject: "Main Street",
+  project: "Project",
+  projects: "Projects",
+  newProject: "+ New project",
+  newProjectName: "New project's name",
+  noProject: "No project",
   heading: "Floor",
   newHeading: "+ Floor",
   headingIn: (p) => `Floor in ${p}`,
-  task: "room",
-  tasks: "rooms",
-  newTask: "New room",
-  addButton: "Add Task (aka Room)",
-  step: "drawer",
-  steps: "drawers",
-  inProject: (p) => `in the ${p} building`,
-  progress: (o, d) => `${n(o, "room", "rooms")} open · ${d} lit`,
-  toDo: (k) => `${n(k, "room", "rooms")} to do`,
-  open: (k) => `${n(k, "open room", "open rooms")}`,
-  looseHeading: "Lobby",
-  emptyProject: (p) => `No rooms in ${p} yet`,
+  task: "task",
+  tasks: "tasks",
+  newTask: "New task",
+  addButton: "Add Task",
+  step: "sub-task",
+  steps: "sub-tasks",
+  inProject: (p) => `in ${p}`,
+  progress: (o, d) => `${o} to do · ${d} done`,
+  toDo: (k) => `${k} to do`,
+  open: (k) => `${k} open`,
+  looseHeading: "Ground floor",
+  emptyProject: (p) => `No tasks in ${p} yet`,
 };
 
 export const WordsContext = createContext<Words>(PLAIN);
