@@ -1474,6 +1474,7 @@ pub fn run() {
             app.manage(Settings::new(&data_dir));
             app.manage(agents::Agents::new(&data_dir));
             app.manage(Updates::default());
+            app.manage(import::TodoistCache::default());
             app.manage(ModelManager::new(&data_dir));
             app.manage(panel::PanelState::new(&data_dir));
             app.manage(Engine::new(&log_dir));
@@ -1600,6 +1601,9 @@ pub fn run() {
             import::things_pick,
             import::things_preview,
             import::things_import,
+            import::todoist_pick_files,
+            import::todoist_preview,
+            import::todoist_import,
             list_tasks,
             logbook,
             city_windows,

@@ -94,6 +94,8 @@ pub struct Options {
     pub include_canceled: bool,
     /// Buildings (by [`BuildingPreview::key`]) to leave behind.
     pub skip: Vec<String>,
+    /// Todoist: turn priorities 1–3 into `#p1`–`#p3` tags.
+    pub priority_tags: bool,
 }
 
 /// One building-to-be in the preview.
@@ -378,7 +380,7 @@ fn clean_notes(s: Option<&str>) -> Option<String> {
 
 /// A Things tag as a Todo City `#tag`: spaces become dashes, and only
 /// letters, digits, `_` and `-` are kept ("Work Stuff!" → `#Work-Stuff`).
-fn hashtag(tag: &str) -> Option<String> {
+pub(crate) fn hashtag(tag: &str) -> Option<String> {
     let t: String = tag
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -1107,6 +1109,7 @@ INSERT INTO TMTag VALUES ('G1', 'errand');
             include_done: true,
             include_canceled: true,
             skip: vec!["P1".into()],
+            ..Default::default()
         };
         let already: HashSet<String> = ["T2".to_string()].into();
         let p = plan(&lib, &opts, &already, today());

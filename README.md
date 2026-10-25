@@ -227,7 +227,32 @@ Running it again later only brings to-dos that are new since last time, even if 
 | Tags | `#tags` on the task |
 | Logbook | Done tasks: lit windows in your city |
 
-Trashed to-dos stay behind. **Can't find your library?** Click **Choose the database myself…**: in Finder, Go → Go to Folder… `~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac`, open the `ThingsData-…` folder and pick `Things Database.thingsdatabase`. If macOS blocks it, give Todo City **Full Disk Access** in System Settings → Privacy & Security, or copy that folder to your Desktop and choose the copy. Todoist is next.
+Trashed to-dos stay behind. **Can't find your library?** Click **Choose the database myself…**: in Finder, Go → Go to Folder… `~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac`, open the `ThingsData-…` folder and pick `Things Database.thingsdatabase`. If macOS blocks it, give Todo City **Full Disk Access** in System Settings → Privacy & Security, or copy that folder to your Desktop and choose the copy. 
+
+## Moving from Todoist
+
+Preferences → **Data transfer** → **Todoist** brings your Todoist into Todo City. Todoist isn't changed, so you can keep using it while you try Todo City.
+
+1. In Todoist (web or app), open **Settings → Integrations → Developer** and click **Copy API token**.
+2. In Todo City, paste it and click **Connect**. Todo City reads your projects, sections, tasks, sub-tasks, labels, comments and completed tasks straight from Todoist's servers to your Mac. The token is used for that and never saved; big accounts take a minute while completed tasks come in, year by year.
+3. **Check the preview.** Untick any project you'd rather leave behind; choose whether to bring completed tasks and whether priorities 1–3 become `#p1`–`#p3`.
+4. **Click Move in.** Todo City backs itself up first (Preferences → Your data → "before import"). Running it again later only brings tasks that are new since last time.
+
+**No token?** Export each project with **⋯ → Export as CSV** in Todoist (or, on Pro, download a backup from Settings → Backups and unzip it), then choose **No token? Use CSV files instead** and pick all the .csv files. CSV exports don't include completed tasks, so your city starts dark.
+
+| Todoist | Todo City |
+|---|---|
+| Project (and sub-projects) | Project (a building) |
+| Inbox | Tasks with no project (houses) |
+| Section | Floor |
+| Task | Task (a home) |
+| Sub-tasks, any depth | Sub-tasks (their own dates are dropped) |
+| Labels | `#tags` on the task |
+| Priority 1–3 | `#p1`–`#p3`, if you choose |
+| Description and comments | Notes |
+| Date and time, deadline | Day and time, deadline |
+| Recurring date | The same repeat when it's daily, weekdays, weekly, every 2 weeks, monthly or yearly; other patterns come once, with a note |
+| Completed tasks | Done tasks: lit windows in your city |
 
 ## Install
 

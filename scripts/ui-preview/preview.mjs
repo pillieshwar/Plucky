@@ -277,6 +277,26 @@ function mockTauri(s) {
       };
     },
     things_import: () => ({ added: 543, done: 496, skipped: 0, failed: 0 }),
+    todoist_pick_files: () => ["/Users/sam/Downloads/Lisbon [2203306141].csv"],
+    todoist_preview: (a) => {
+      if (a.token && a.token !== "good-token") throw "Todoist didn't accept that token. Copy it again from Todoist → Settings → Integrations → Developer.";
+      if (a.token || a.files) s.todoistKind = a.token ? "api" : "csv";
+      const api = (s.todoistKind ?? "api") === "api";
+      const done = api && (a.options?.include_done ?? true);
+      const b = (key, name, kind, area, open, d, floors) => ({ key, name, kind, area, open, done: done ? d : 0, floors });
+      const buildings = [
+        b("200", "Kitchen", "project", null, 12, 30, 2),
+        b("201", "Tiles", "project", "Kitchen", 4, 6, 0),
+        b("300", "Work", "project", null, 21, 180, 3),
+        b("9", "Old launch", "project", "archived", 0, 44, 0),
+        b("", "", "loose", null, 9, 75, 0),
+      ].filter((x) => x.open + x.done > 0);
+      return {
+        source: api ? { kind: "api", label: "your Todoist account" } : { kind: "csv", label: "1 CSV file" },
+        preview: { buildings, open: 46, done: done ? 335 : 0, someday: 0, repeating: 6, subtasks: 38, canceled: 0, unmapped_repeats: 2, already: 0 },
+      };
+    },
+    todoist_import: () => ({ added: 381, done: 335, skipped: 0, failed: 0 }),
     save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
     set_panel_full: (a) => {
       s.full = a.full;
@@ -956,12 +976,37 @@ await shot("full-transfer", FULL, full({ settings: DARK }), async (p) => {
   const label = await p.locator(".tr-preview .primary").textContent();
   if (label !== "Move in 534 to-dos") throw new Error(`move-in count wrong: ${label}`);
 });
+await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await p.waitForTimeout(150);
+  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await p.getByRole("tab", { name: /Todoist/ }).click();
+  await p.getByLabel("Todoist API token").fill("bad-token");
+  await p.getByRole("button", { name: "Connect" }).click();
+  await p.locator(".tr-error").waitFor();
+  await p.getByLabel("Todoist API token").fill("good-token");
+  await p.getByRole("button", { name: "Connect" }).click();
+  await p.locator(".tr-preview").waitFor();
+  const label = await p.locator(".tr-preview .primary").textContent();
+  if (label !== "Move in 381 tasks") throw new Error(`move-in count wrong: ${label}`);
+  if ((await p.getByLabel("Todoist API token").count()) !== 0) throw new Error("the token field should be gone after connecting");
+});
+await shot("full-transfer-todoist-csv", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await p.waitForTimeout(150);
+  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await p.getByRole("tab", { name: /Todoist/ }).click();
+  await p.getByText("No token? Use CSV files instead").click();
+  await p.getByRole("button", { name: "Choose CSV files…" }).click();
+  await p.locator(".tr-preview").waitFor();
+  if (!(await p.getByRole("switch", { name: /Bring completed tasks/ }).isDisabled())) throw new Error("completed tasks should be off for CSV");
+});
 await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
   await tab(p, "Data transfer");
   await p.getByRole("button", { name: "Find my Things library" }).click();
   await p.getByRole("button", { name: /^Move in \d/ }).click();
   await p.locator(".tr-done").waitFor();
-  if (!(await p.locator(".tr-done").textContent()).includes("543 to-dos moved in")) throw new Error("done message missing");
+  if (!(await p.locator(".tr-done").textContent()).includes("543 tasks moved in")) throw new Error("done message missing");
 });
 await shot("full-compact-blue", FULL, full({ settings: { ...DARK, look: { week_start: "mon", clock: "24", start_list: "last", details: false, accent: "blue", city_sky: "auto", city_motion: true, compact: true } } }), async (p) => {
   if (!(await p.locator(".app-full.compact").count())) throw new Error("compact rows didn't apply");

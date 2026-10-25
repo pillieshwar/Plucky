@@ -790,7 +790,7 @@ export default function App() {
       ? tab === "connectors"
         ? "Work with apps on this Mac"
         : tab === "transfer"
-          ? "Move in from Things 3"
+          ? "Move in from Things 3 or Todoist"
           : tab === "models"
           ? status?.active_model
             ? `Using ${status.active_model}`
