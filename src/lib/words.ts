@@ -42,9 +42,9 @@ export const PLAIN: Words = {
   newProject: "+ New project",
   newProjectName: "New project name",
   noProject: "No project",
-  heading: "Heading",
-  newHeading: "+ Heading",
-  headingIn: (p) => `Heading in ${p}`,
+  heading: "Floor",
+  newHeading: "+ Floor",
+  headingIn: (p) => `Floor in ${p}`,
   task: "task",
   tasks: "tasks",
   newTask: "New task",
@@ -55,7 +55,7 @@ export const PLAIN: Words = {
   progress: (o, d) => `${o} open · ${d} done`,
   toDo: (k) => `${k} to do`,
   open: (k) => `${k} open`,
-  looseHeading: "Tasks",
+  looseHeading: "Ground floor",
   emptyProject: (p) => `No tasks in ${p}`,
 };
 

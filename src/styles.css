@@ -1733,6 +1733,8 @@ html[data-full="1"] body { background: var(--paper); }
    Every finished task lights a window. A card in the corner of full screen;
    click it for the city in 3D. */
 .city-corner { position: absolute; right: 16px; bottom: 16px; z-index: 30; }
+/* With a side pane open (the month, the hours, a task), the card sits beside it, not over it. */
+.app-full:has(.full-body.with-side):not(:has(.full-content.week)) .city-corner { right: 416px; }
 .city-canvas { display: block; width: 100%; height: 100%; }
 .city-canvas.live { cursor: grab; outline: none; touch-action: none; }
 .city-canvas.live:active { cursor: grabbing; }
@@ -1759,7 +1761,7 @@ html[data-full="1"] body { background: var(--paper); }
 .city-card-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px 9px 12px; }
 .city-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .city-card-name { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.city-card-sub { font-size: 11.5px; color: var(--faint); }
+.city-card-sub { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .city-card-today { font-size: 11px; font-weight: 700; color: var(--amber); white-space: nowrap; }
 .city-card-hide {
   border: 0; background: transparent; color: var(--faint); font-size: 11px; padding: 2px 4px; border-radius: 5px; cursor: pointer;
@@ -2119,3 +2121,34 @@ html[data-full="1"] body { background: var(--paper); }
 .app-full .task.open .tc-foot .sp-done { margin-left: 8px; }
 @keyframes card-open { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .app-full .task.open .task-card { animation: none; } }
+
+/* Accent colors (Preferences → Customize). Purple is the default. */
+:root[data-accent="blue"] { --teal: #2f6fe0; --teal-soft: #e3ecfd; }
+:root[data-accent="green"] { --teal: #1f8a5b; --teal-soft: #dff3e9; }
+:root[data-accent="orange"] { --teal: #c75d14; --teal-soft: #fcebdc; }
+:root[data-accent="pink"] { --teal: #c23b7c; --teal-soft: #fbe3ef; }
+:root[data-theme="dark"][data-accent="blue"] { --teal: #7aa7ff; --teal-soft: #1f2c47; }
+:root[data-theme="dark"][data-accent="green"] { --teal: #5fd39b; --teal-soft: #17352a; }
+:root[data-theme="dark"][data-accent="orange"] { --teal: #ffa66b; --teal-soft: #3d2a1c; }
+:root[data-theme="dark"][data-accent="pink"] { --teal: #ff8fc2; --teal-soft: #3c1f30; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-accent="blue"] { --teal: #7aa7ff; --teal-soft: #1f2c47; }
+  :root:not([data-theme="light"])[data-accent="green"] { --teal: #5fd39b; --teal-soft: #17352a; }
+  :root:not([data-theme="light"])[data-accent="orange"] { --teal: #ffa66b; --teal-soft: #3d2a1c; }
+  :root:not([data-theme="light"])[data-accent="pink"] { --teal: #ff8fc2; --teal-soft: #3c1f30; }
+}
+
+/* Compact rows (Preferences → Customize). */
+.app-full.compact .task, .app-full.compact .tone-overdue .task { padding-top: 6px; padding-bottom: 6px; }
+.app-full.compact .group .day { padding-top: 12px; padding-bottom: 5px; }
+.app-full.compact .task-title { font-size: 13.5px; }
+.app-full.compact .task-extra { margin-top: 2px; }
+
+.accent-picker { display: flex; align-items: center; gap: 10px; margin: 0 0 10px 2px; }
+.accent-dot {
+  width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 15%, transparent); transition: transform 120ms;
+}
+.accent-dot:hover { transform: scale(1.1); }
+.accent-dot.on { border-color: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
+.accent-name { font-size: 12px; color: var(--muted); }

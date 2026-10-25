@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { AppearanceSection, DataSection, GeneralSection, MenuBarNudgesSection, NotificationsSection } from "./GeneralSettings";
+import { AppearanceSection, CustomizeSection, DataSection, GeneralSection, MenuBarNudgesSection, NotificationsSection } from "./GeneralSettings";
 import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import {
   formatShortcut,
@@ -50,6 +50,8 @@ export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, stat
   return (
     <div className="settings">
       <AppearanceSection settings={settings} onSettings={onSettings} onError={onError} />
+
+      <CustomizeSection settings={settings} onSettings={onSettings} onError={onError} />
 
       <MenuBarNudgesSection settings={settings} onSettings={onSettings} onError={onError} />
 

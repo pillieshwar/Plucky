@@ -7,6 +7,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FLOOR, HOUSES, HOUSES_PER_LOT, LOT, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
+import { clockHour12 } from "../lib/schedule";
 
 /**
  * The city in real 3D (three.js): towers with lit windows that glow, street
@@ -483,7 +484,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     center,
     tick: (dt) => {
       const moved = traffic?.(dt) ?? false;
-      if (!late.length) return moved;
+      if (!late.length || document.documentElement.dataset.cityMotion === "off") return moved;
       blinkT += dt;
       lateMat.color.copy(lateBase).multiplyScalar(0.35 + 0.85 * (0.5 + 0.5 * Math.sin(blinkT * 4)));
       return true;
@@ -568,7 +569,7 @@ function addBillboard(scene: THREE.Scene, b: Building, x: number, h: number, z: 
 function timeText(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
   const d = new Date(2000, 0, 1, h, m);
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: clockHour12() });
 }
 
 /** The mayor: a small figure in a dark suit with a purple sash and a top hat. */
@@ -677,7 +678,7 @@ function addGreenery(scene: THREE.Scene, city: City, mayorKey: string | null, ke
 }
 
 function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number, g1: number, tallestKey: string, keep: Keep): ((dt: number) => boolean) | null {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return null;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.cityMotion === "off") return null;
   const vehicles: Vehicle[] = [];
   let seed = 11;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -933,7 +934,7 @@ export function CityScene({
       c.minDistance = built.radius * 0.6;
       c.maxDistance = built.radius * 5;
       c.screenSpacePanning = false;
-      c.autoRotate = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      c.autoRotate = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches && document.documentElement.dataset.cityMotion !== "off";
       c.autoRotateSpeed = 0.35;
       c.update();
       c.addEventListener("start", () => {

@@ -3,6 +3,7 @@ import { api, onRemindersChanged } from "../lib/api";
 import { safeLocale } from "../lib/locale";
 import type { RemindersList, RemindersStatus } from "../lib/types";
 import { Toggle } from "./GeneralSettings";
+import { clockHour12 } from "../lib/schedule";
 
 const LOCALE = safeLocale();
 const NEW_LIST = "__new__";
@@ -98,7 +99,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
   const accessBlocked = status.access === "denied" || status.access === "restricted";
 
   const synced = status.last_sync
-    ? ` · synced ${new Date(status.last_sync).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" })}`
+    ? ` · synced ${new Date(status.last_sync).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit", hour12: clockHour12() })}`
     : "";
 
   return (

@@ -71,6 +71,76 @@ pub struct AppSettings {
     pub email: EmailSchedule,
     /// Notice to-dos in Slack and Outlook as they appear on screen.
     pub watch: WatchSettings,
+    /// How Plucky looks and behaves, as the user likes it.
+    pub look: LookSettings,
+}
+
+/// Personal touches: calendar, clock, colors, density and the city.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LookSettings {
+    /// First day of the week: "auto" (from the Mac's region), "sun", "mon" or "sat".
+    pub week_start: String,
+    /// "auto", "12" or "24" hour clock.
+    pub clock: String,
+    /// Which list opens: "last" (where you left off), "today", "upcoming" or "all".
+    pub start_list: String,
+    /// Show each task's notes and sub-tasks under it in full screen.
+    pub details: bool,
+    /// Accent color: "purple", "blue", "green", "orange" or "pink".
+    pub accent: String,
+    /// The city's sky: "auto" (follows Appearance), "night" or "dusk".
+    pub city_sky: String,
+    /// Cars, trucks and blinking windows in the city.
+    pub city_motion: bool,
+    /// Tighter rows in full screen.
+    pub compact: bool,
+}
+
+impl Default for LookSettings {
+    fn default() -> Self {
+        Self {
+            week_start: "auto".into(),
+            clock: "auto".into(),
+            start_list: "last".into(),
+            details: true,
+            accent: "purple".into(),
+            city_sky: "auto".into(),
+            city_motion: true,
+            compact: false,
+        }
+    }
+}
+
+impl LookSettings {
+    /// Unknown values fall back to the defaults.
+    pub fn clean(self) -> Self {
+        let pick = |v: String, ok: &[&str], d: &str| {
+            if ok.contains(&v.as_str()) {
+                v
+            } else {
+                d.to_string()
+            }
+        };
+        Self {
+            week_start: pick(self.week_start, &["auto", "sun", "mon", "sat"], "auto"),
+            clock: pick(self.clock, &["auto", "12", "24"], "auto"),
+            start_list: pick(
+                self.start_list,
+                &["last", "today", "upcoming", "all"],
+                "last",
+            ),
+            details: self.details,
+            accent: pick(
+                self.accent,
+                &["purple", "blue", "green", "orange", "pink"],
+                "purple",
+            ),
+            city_sky: pick(self.city_sky, &["auto", "night", "dusk"], "auto"),
+            city_motion: self.city_motion,
+            compact: self.compact,
+        }
+    }
 }
 
 /// Watch mode (see `watch.rs`).
@@ -184,6 +254,7 @@ impl Default for AppSettings {
             agents_proactive: true,
             email: EmailSchedule::default(),
             watch: WatchSettings::default(),
+            look: LookSettings::default(),
         }
     }
 }
@@ -262,6 +333,21 @@ mod tests {
         });
         let again = Settings::new(dir.path());
         assert!(again.get().onboarding_done && again.get().notify.daily_summary);
+    }
+
+    #[test]
+    fn look_falls_back_to_defaults() {
+        let odd = LookSettings {
+            week_start: "tue".into(),
+            clock: "24".into(),
+            accent: "neon".into(),
+            ..LookSettings::default()
+        }
+        .clean();
+        assert_eq!(odd.week_start, "auto");
+        assert_eq!(odd.clock, "24");
+        assert_eq!(odd.accent, "purple");
+        assert!(odd.details && odd.city_motion && !odd.compact);
     }
 
     #[test]

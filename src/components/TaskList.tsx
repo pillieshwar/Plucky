@@ -66,6 +66,10 @@ interface Props {
    * task opens in place with every property as a labelled row.
    */
   rich?: boolean;
+  /** No section headers (a floor's own page already says which floor). */
+  plain?: boolean;
+  /** With `rich`: show notes and sub-tasks under each row (Preferences). */
+  details?: boolean;
 }
 
 export function TaskList(props: Props) {
@@ -76,7 +80,7 @@ export function TaskList(props: Props) {
       <div className="empty">
         <EmptyArt />
         <p className="empty-big">Nothing left for today</p>
-        <p>Open Calendar in the list menu to see what’s next.</p>
+        <p>{props.rich ? "Open Calendar in the sidebar to see what’s next." : "Open Calendar in the list menu to see what’s next."}</p>
       </div>
     );
   }
@@ -109,7 +113,7 @@ export function TaskList(props: Props) {
     <div className={props.openId !== null && !props.detail ? "groups has-open" : "groups"}>
       {groups.map((g) => (
         <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label} data-group={g.key}>
-          <h2 className="day">
+          <h2 className={props.plain ? "day sr-only" : "day"}>
             {g.label}
             <span className="count">{g.tasks.length}</span>
             {g.tone === "overdue" && (
@@ -154,6 +158,7 @@ function TaskRow({
   onOpenTask,
   detail,
   rich,
+  details = true,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   const highlighted = highlight === task.id;
@@ -319,7 +324,7 @@ function TaskRow({
             <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} />
           </div>
         </div>
-        {rich && (task.notes || (task.checklist?.length ?? 0) > 0) && (
+        {rich && details && (task.notes || (task.checklist?.length ?? 0) > 0) && (
           <div className="task-extra" data-nodrag>
             {task.notes && <Notes text={task.notes} onEdit={() => onOpenTask(task.id)} onError={actions.fail} />}
             {(task.checklist?.length ?? 0) > 0 && (
