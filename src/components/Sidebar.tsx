@@ -29,6 +29,8 @@ interface Props {
   buildings: Building[];
   /** Open a building at one of its floors (null: the lobby). */
   onFloor: (project: string, floor: string | null) => void;
+  /** The floor whose page is showing. */
+  floorOn: { project: string; floor: string | null } | null;
   onNewBuilding: (name: string) => void;
   onNewFloor: (project: string, name: string) => void;
   updateReady: boolean;
@@ -141,7 +143,7 @@ export function Sidebar(p: Props) {
         )}
         {p.buildings.map((b) => {
           const name = b.project!;
-          const on = !p.inSettings && project === name;
+          const on = !p.inSettings && project === name && !(p.floorOn && p.floorOn.project === name);
           const expanded = openB.has(name);
           const pr = p.projects.find((x) => x.name === name);
           return (
@@ -169,7 +171,12 @@ export function Sidebar(p: Props) {
               {expanded && (
                 <div className="sb-floors">
                   {[...b.floors].reverse().map((f) => (
-                    <button key={f.label} type="button" className="sb-floor" onClick={() => p.onFloor(name, f.name)} title={f.name ? f.label : "Rooms not on a floor yet"}>
+                    <button
+                      key={f.label}
+                      type="button"
+                      className={p.floorOn && p.floorOn.project === name && p.floorOn.floor === f.name ? "sb-floor on" : "sb-floor"}
+                      aria-current={p.floorOn && p.floorOn.project === name && p.floorOn.floor === f.name ? "page" : undefined}
+                      onClick={() => p.onFloor(name, f.name)} title={f.name ? f.label : "Rooms not on a floor yet"}>
                       <span className="sb-floor-name">{f.label}</span>
                       <span className="sb-floor-count" title={`${f.rooms.filter((r) => !r.lit).length} dark · ${f.rooms.filter((r) => r.lit).length} lit`}>
                         {f.rooms.filter((r) => !r.lit).length || ""}

@@ -187,6 +187,8 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   // The heading new tasks go under, when adding from a project's heading.
   const [addHeading, setAddHeading] = useState<string | null>(null);
+  // Full screen: one floor of a building on a page of its own (floor null: the lobby).
+  const [floorView, setFloorView] = useState<{ project: string; floor: string | null } | null>(null);
   const actions = useMemo(() => taskActions(show, LOCALE), [show]);
   const fullRef = useRef(false);
   fullRef.current = full;
@@ -323,10 +325,17 @@ export default function App() {
   );
   const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
   const viewedProject = projectOf(list);
-  const groups = useMemo(
-    () => (list === "logbook" ? [] : viewedProject !== null ? groupByHeading(visible) : groupTasks(visible, now, LOCALE)),
-    [visible, now, list, viewedProject],
-  );
+  const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
+  useEffect(() => {
+    if (floorView && projectOf(list) !== floorView.project) setFloorView(null);
+  }, [list, floorView]);
+  const groups = useMemo(() => {
+    if (list === "logbook") return [];
+    if (viewedProject === null) return groupTasks(visible, now, LOCALE);
+    const all = groupByHeading(visible);
+    // A floor's page: just that floor's rooms.
+    return floorOpen ? all.filter((g) => g.key === `h:${floorOpen.floor ?? ""}`) : all;
+  }, [visible, now, list, viewedProject, floorOpen]);
   const listCounts = useMemo(
     () => ({
       all: tasksForList(tasks, "all", today).filter((t) => !t.done).length,
@@ -382,6 +391,7 @@ export default function App() {
     window.setTimeout(() => setOpenId(t.id), 0);
   }
   const openProject = (name: string) => {
+    setFloorView(null);
     setTab("tasks");
     setQuery("");
     setList(projectList(name));
@@ -692,6 +702,11 @@ export default function App() {
   const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
   // Full screen tells the city story: projects are buildings, tasks are rooms.
   const w = full ? CITY : PLAIN;
+  const floorShown = floorOpen ? city.buildings.find((b) => b.project === floorOpen.project)?.floors.find((f) => f.name === floorOpen.floor) : undefined;
+  const floorTitle = floorShown?.label ?? (floorOpen?.floor ? floorOpen.floor : CITY.looseHeading);
+  const floorSub = floorOpen
+    ? `${floorOpen.project} · ${CITY.progress(floorShown?.rooms.filter((r) => !r.lit).length ?? 0, floorShown?.rooms.filter((r) => r.lit).length ?? 0)}`
+    : "";
   const weekDays = sevenDays(planDay);
   const rangeText = (() => {
     const a = parseISODate(weekDays[0]);
@@ -806,7 +821,17 @@ export default function App() {
   const tasksShown = tab === "tasks" && !onboarding;
   const listEl = tasksShown && (
     <>
-      {showList && viewedProject !== null && (
+      {showList && floorOpen && (
+        <div className="floor-head">
+          <button type="button" className="fh-btn floor-back" onClick={() => setFloorView(null)} title={`Back to the whole ${viewedProject} building`}>
+            ‹ {viewedProject}
+          </button>
+          <span className="floor-head-text">
+            {floorOpen.floor ? "Rooms on this floor" : "Rooms waiting in the lobby — open one and pick its floor"}
+          </span>
+        </div>
+      )}
+      {showList && viewedProject !== null && !floorOpen && (
         <ProjectHeader
           name={viewedProject}
           stats={projectStats.find((p) => p.name === viewedProject) ?? null}
@@ -834,17 +859,24 @@ export default function App() {
           projects={projectInfos.map((p) => p.name)}
           extra={
             viewedProject !== null
-              ? { project: viewedProject, heading: addHeading }
+              ? { project: viewedProject, heading: floorOpen ? floorOpen.floor : addHeading }
               : list === "someday"
                 ? { someday: true, due_date: null }
                 : undefined
           }
-          context={viewedProject !== null ? `${w.inProject(viewedProject)}${addHeading ? ` · ${addHeading}` : ""}` : undefined}
+          context={
+            viewedProject !== null
+              ? `${w.inProject(viewedProject)}${(floorOpen ? floorOpen.floor : addHeading) ? ` · ${floorOpen ? floorOpen.floor : addHeading}` : ""}`
+              : undefined
+          }
           placeholder="What needs doing? Try “send deck fri 3pm @Work”"
           onAdd={async (task) => {
             try {
               await api.addTask(task);
-              show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : "Task added");
+              show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : full ? "Room added" : "Task added");
+              // Added: the form closes; the add button opens it again.
+              setAdding(false);
+              setAddHeading(null);
             } catch (e) {
               setError(String(e));
               throw e;
@@ -888,11 +920,20 @@ export default function App() {
                 <p className="empty-big">Nothing in Someday</p>
                 <p>Park ideas here from a task's date menu — they stay out of Today and the calendar.</p>
               </>
+            ) : floorOpen && !query.trim() ? (
+              <>
+                <p className="empty-big">{floorOpen.floor ? "No rooms on this floor yet" : "The lobby is empty"}</p>
+                <p>
+                  <button type="button" className="primary floor-add" onClick={() => setAdding(true)}>
+                    <PlusIcon /> {w.addButton}
+                  </button>
+                </p>
+              </>
             ) : viewedProject !== null && !query.trim() ? (
               <>
                 <p className="empty-big">{w.emptyProject(viewedProject)}</p>
                 <p>
-                  Add one with {full ? w.newTask : "+"}, or type “@{viewedProject}” in a new {w.task}.
+                  Add one with {full ? w.addButton : "+"}, or type “@{viewedProject}” in a new {w.task}.
                 </p>
               </>
             ) : undefined
@@ -939,7 +980,7 @@ export default function App() {
               <dt>
                 <kbd>{k}</kbd>
               </dt>
-              <dd>{v}</dd>
+              <dd>{full ? v.replace("Steps", "Drawers").replace("Add a task", "Add a room") : v}</dd>
             </div>
           ))}
         </dl>
@@ -1039,6 +1080,7 @@ export default function App() {
             onList={(l) => {
               setTab("tasks");
               setList(l);
+              setFloorView(null);
               setAdding(false);
               setQuery("");
               setSearchOpen(false);
@@ -1063,14 +1105,15 @@ export default function App() {
             mayor={settings?.mayor_name ?? null}
             lit={city.total}
             buildings={city.buildings.filter((b) => b.project)}
+            floorOn={tab === "tasks" ? floorOpen : null}
             onFloor={(project, floor) => {
+              // The floor's own page: its rooms, and adding a room adds it there.
               setTab("tasks");
               setQuery("");
+              setAdding(false);
+              setOpenId(null);
               setList(projectList(project));
-              window.setTimeout(() => {
-                const key = `h:${floor ?? ""}`;
-                document.querySelector(`[data-group="${CSS.escape(key)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
-              }, 120);
+              setFloorView({ project, floor });
             }}
             onNewBuilding={(name) =>
               void api
@@ -1113,10 +1156,10 @@ export default function App() {
               {tab !== "tasks" ? <GearIcon /> : <ListIcon list={list} stats={stats} />}
             </span>
             <h1 className="fh-title" data-tauri-drag-region>
-              {tab === "tasks" ? listTitle(list) : "Settings"}
+              {tab !== "tasks" ? "Settings" : floorOpen ? floorTitle : listTitle(list)}
             </h1>
             <span className="fh-sub" data-tauri-drag-region>
-              {subText}
+              {tab === "tasks" && floorOpen ? floorSub : subText}
             </span>
             {tab === "tasks" && upcoming && (
               <div className="fh-week">
@@ -1165,7 +1208,7 @@ export default function App() {
             )}
             {tasksShown && list !== "logbook" && (
               <button type="button" className="primary fh-new" onClick={() => setAdding(true)} title="New task (A)">
-                <PlusIcon /> {w.newTask}
+                <PlusIcon /> {w.addButton}
               </button>
             )}
           </header>

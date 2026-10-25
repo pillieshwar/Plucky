@@ -310,6 +310,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   // The mayor, by Main Street.
   const main = city.buildings.find((b) => b.key === "");
   if (main) addMayor(scene, main, opts.mayor ?? null, opts.labels, keep, labels);
+  addGreenery(scene, city, main?.key ?? null, keep);
 
   // Traffic: cars on every street, trucks round buildings going up, and
   // a few luxury cars round the tallest tower.
@@ -478,13 +479,69 @@ function addMayor(scene: THREE.Scene, main: Building, name: string | null, label
 type Vehicle = { obj: THREE.Object3D; path: THREE.Vector3[]; length: number; t: number; speed: number };
 
 /** Cars, trucks and luxury cars, each driving its own loop. */
+/**
+ * A few trees and bushes on the pavements between the buildings and the
+ * streets — two or three per block, never crowding a building or the mayor.
+ */
+function addGreenery(scene: THREE.Scene, city: City, mayorKey: string | null, keep: Keep) {
+  let seed = 23;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const trees: [number, number, number][] = [];
+  const bushes: [number, number, number][] = [];
+  const edge = LOT / 2 - 0.42;
+  for (const b of city.buildings) {
+    const half = (b.floors[0]?.size ?? 0.6) / 2;
+    if (half + 0.2 > edge) continue; // No room on this block.
+    const cx = b.gx * LOT;
+    const cz = b.gy * LOT;
+    const spots: [number, number][] = [];
+    for (let side = 0; side < 4; side++) {
+      for (const t of [-0.62, 0, 0.62]) {
+        const a = t * edge;
+        const [x, z] = side === 0 ? [a, -edge] : side === 1 ? [edge, a] : side === 2 ? [a, edge] : [-edge, a];
+        // The mayor stands on Main Street's south-east corner.
+        if (b.key === mayorKey && x > 0.3 && z > 0.3) continue;
+        spots.push([cx + x, cz + z]);
+      }
+    }
+    // Shuffle, then take a couple of trees and a bush or two.
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+    const nT = 1 + Math.floor(rnd() * 2);
+    const nB = 1 + Math.floor(rnd() * 2);
+    spots.slice(0, nT).forEach(([x, z]) => trees.push([x, z, 0.85 + rnd() * 0.35]));
+    spots.slice(nT, nT + nB).forEach(([x, z]) => bushes.push([x, z, 0.8 + rnd() * 0.4]));
+  }
+  const tmp = new THREE.Object3D();
+  const instanced = (geo: THREE.BufferGeometry, mat: THREE.Material, items: [number, number, number][], y: (s: number) => number, sy = 1) => {
+    if (!items.length) return;
+    const m = new THREE.InstancedMesh(keep(geo), keep(mat), items.length);
+    items.forEach(([x, z, s], i) => {
+      tmp.position.set(x, y(s), z);
+      tmp.rotation.set(0, rnd() * Math.PI, 0);
+      tmp.scale.set(s, s * sy, s);
+      tmp.updateMatrix();
+      m.setMatrixAt(i, tmp.matrix);
+    });
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+  };
+  instanced(new THREE.CylinderGeometry(0.022, 0.03, 0.2, 6), new THREE.MeshStandardMaterial({ color: "#6e4f38", roughness: 0.9 }), trees, (s) => 0.1 * s);
+  instanced(new THREE.IcosahedronGeometry(0.15, 0), new THREE.MeshStandardMaterial({ color: "#3f8a5a", roughness: 0.85, flatShading: true }), trees, (s) => 0.3 * s, 1.15);
+  instanced(new THREE.IcosahedronGeometry(0.085, 0), new THREE.MeshStandardMaterial({ color: "#4f9a5e", roughness: 0.9, flatShading: true }), bushes, (s) => 0.055 * s, 0.7);
+}
+
 function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number, g1: number, tallestKey: string, keep: Keep): ((dt: number) => boolean) | null {
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return null;
   const vehicles: Vehicle[] = [];
   let seed = 11;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  const headMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3c9").multiplyScalar(2), toneMapped: false }));
-  const tailMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff4a3d").multiplyScalar(1.6), toneMapped: false }));
+  // Soft, dim lamps: enough to tell which way a car is going, no glare.
+  const headMat = keep(new THREE.MeshBasicMaterial({ color: "#b9b09a" }));
+  const tailMat = keep(new THREE.MeshBasicMaterial({ color: "#8f3a33" }));
   const glassMat = keep(new THREE.MeshStandardMaterial({ color: "#1b2233", metalness: 0.6, roughness: 0.2 }));
 
   const make = (kind: "car" | "truck" | "luxury", color: string) => {

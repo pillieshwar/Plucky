@@ -4,7 +4,8 @@ import type { CityWindow, FloorSummary, ProjectSummary, Task } from "./types";
  * Your city, with you as its mayor.
  *
  * - A project is a building; its headings are floors; each task is a room.
- * - A finished task is a lit room; an open one is a dark room.
+ * - A finished task is a lit room; an open one is a dark room. A task's
+ *   steps are the drawers in its room.
  * - Tasks in a project but on no floor wait in the building's lobby, on the
  *   ground. Tasks in no project live on Main Street.
  * - Floors are stacked by size — the most rooms at the bottom — so every
@@ -23,6 +24,8 @@ export interface Room {
   lit: boolean;
   /** When it was finished (lit rooms). */
   at: string | null;
+  /** The room's drawers (its task's steps), when it has any. */
+  drawers?: { done: number; total: number } | null;
 }
 
 export interface Floor {
@@ -164,7 +167,8 @@ export function buildCity(
     if (t.done) continue;
     const b = get(t.project);
     b.open += 1;
-    put(b, t.heading, { id: t.id, title: t.title, lit: false, at: null });
+    const steps = t.checklist ?? [];
+    put(b, t.heading, { id: t.id, title: t.title, lit: false, at: null, drawers: steps.length ? { done: steps.filter((s) => s.done).length, total: steps.length } : null });
     if (today && t.due_date === today && t.due_time && !t.someday) b.today.push({ time: t.due_time, title: t.title });
   }
   const sorted = [...byKey.entries()].sort(([ka, a], [kb, b]) => {

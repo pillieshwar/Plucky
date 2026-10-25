@@ -68,7 +68,7 @@ describe("the city", () => {
   it("stacks floors by size, lobby first, never wider going up", () => {
     const city = buildCity(
       [win("B", "2026-10-02T10:00:00Z", "Small"), win("B", "2026-10-03T10:00:00Z", "Big"), win("B", "2026-10-04T10:00:00Z", "Big")],
-      [open("B", { heading: "Big" }), open("B", { heading: "Big" }), open("B"), open("C", { someday: true })],
+      [open("B", { heading: "Big", checklist: [{ text: "a", done: true }, { text: "b", done: false }] }), open("B", { heading: "Big" }), open("B"), open("C", { someday: true })],
       [{ name: "D", open: 0, done: 0 }],
       [{ project: "B", name: "Empty", open: 0, done: 0 }],
     );
@@ -76,6 +76,8 @@ describe("the city", () => {
     const b = city.buildings[1];
     expect(b.floors.map((f) => f.label)).toEqual(["Lobby", "1st Floor: Big", "2nd Floor: Small", "3rd Floor: Empty"]);
     expect(b.floors[1].rooms.map((r) => r.lit)).toEqual([true, true, false, false]);
+    expect(b.floors[1].rooms[2].drawers).toEqual({ done: 1, total: 2 });
+    expect(b.floors[1].rooms[3].drawers).toBeNull();
     for (let i = 1; i < b.floors.length; i++) expect(b.floors[i].size).toBeLessThanOrEqual(b.floors[i - 1].size);
     expect(b.open).toBe(3);
     expect(b.done).toBe(3);

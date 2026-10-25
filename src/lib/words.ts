@@ -3,7 +3,8 @@ import { createContext, useContext } from "react";
 /**
  * What things are called. The side panel uses plain words; full screen tells
  * the city story: a project is a building, its headings are floors, each
- * task is a room — and finishing one lights its window.
+ * task is a room — and finishing one lights its window. A task's steps are
+ * the drawers in its room.
  */
 export interface Words {
   city: boolean;
@@ -19,6 +20,11 @@ export interface Words {
   task: string;
   tasks: string;
   newTask: string;
+  /** The add button at the top of a list. */
+  addButton: string;
+  /** A task's checklist item: "step" / "drawer" (lower case). */
+  step: string;
+  steps: string;
   inProject: (project: string) => string;
   /** "3 open · 2 done" / "3 rooms open · 2 lit". */
   progress: (open: number, done: number) => string;
@@ -44,6 +50,9 @@ export const PLAIN: Words = {
   task: "task",
   tasks: "tasks",
   newTask: "New task",
+  addButton: "New task",
+  step: "step",
+  steps: "steps",
   inProject: (p) => `in ${p}`,
   progress: (o, d) => `${o} open · ${d} done`,
   toDo: (k) => `${k} to do`,
@@ -65,6 +74,9 @@ export const CITY: Words = {
   task: "room",
   tasks: "rooms",
   newTask: "New room",
+  addButton: "Add Task (aka Room)",
+  step: "drawer",
+  steps: "drawers",
   inProject: (p) => `in the ${p} building`,
   progress: (o, d) => `${n(o, "room", "rooms")} open · ${d} lit`,
   toDo: (k) => `${n(k, "room", "rooms")} to do`,
