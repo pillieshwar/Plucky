@@ -327,7 +327,7 @@ export function CityCard({
         <div className="city-card-text">
           <span className="city-card-name">{name ?? "Name your city"}</span>
           <span className="city-card-sub">
-            {stats.inRange} lit this week · {city.total} in all
+            {stats.inRange} this week · {city.total} rooms lit
           </span>
         </div>
         {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
@@ -408,6 +408,12 @@ export function CityView({
         />
       </div>
       <header className="cv-head" data-tauri-drag-region>
+        <button type="button" className="cv-back" onClick={onClose} title="Back to your tasks (Esc)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M10 3.5 5.5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back
+        </button>
         {renaming ? (
           <RenameField
             name={name}
@@ -466,8 +472,8 @@ export function CityView({
             <>
               <strong>{hb.name}</strong>
               <span>
-                {hb.planned ? "Being planned" : `${hb.windows.length} ${hb.windows.length === 1 ? "window" : "windows"} lit`}
-                {hb.open ? ` · ${hb.open} still open` : hb.finished ? " · finished" : ""}
+                {hb.planned ? "Being planned" : `${hb.windows.length} ${hb.windows.length === 1 ? "room" : "rooms"} lit`}
+                {hb.open ? ` · ${hb.open} ${hb.open === 1 ? "room" : "rooms"} still open` : hb.finished ? " · every room lit" : ""}
               </span>
               <span className="cv-tip-go">Click to open</span>
             </>
@@ -476,24 +482,24 @@ export function CityView({
       )}
 
       <footer className="cv-stats">
-        <Stat big={String(stats.inRange)} small={`windows lit ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
+        <Stat big={String(stats.inRange)} small={`rooms lit ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
         <Stat big={String(city.total)} small="lit since the city began" />
-        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.windows.length} windows`} />}
-        <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="projects finished" />
+        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.windows.length} rooms lit`} />}
+        <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="buildings finished" />
         {stats.brightest && <Stat big={stats.brightest.day} small="brightest day" note={`${stats.brightest.count} done`} />}
         <span className="cv-gap" />
         <div className="cv-legend" aria-label="Legend">
           <span>
-            <i className="lg-fresh" /> Done {range === "all" ? "today" : rangeLabel}
+            <i className="lg-fresh" /> Room lit {range === "all" ? "today" : rangeLabel}
           </span>
           <span>
-            <i className="lg-lit" /> Done earlier
+            <i className="lg-lit" /> Room lit earlier
           </span>
           <span>
-            <i className="lg-beacon" /> Project finished
+            <i className="lg-beacon" /> Building finished
           </span>
           <span>
-            <i className="lg-plan" /> Planned, nothing done yet
+            <i className="lg-plan" /> Planned: no rooms lit yet
           </span>
         </div>
       </footer>
@@ -502,7 +508,7 @@ export function CityView({
         {city.buildings.map((b) => (
           <li key={b.key}>
             <button type="button" onClick={() => onOpenProject(b.project)}>
-              {b.name}: {b.windows.length} done, {b.open} open. Open {b.project ? "project" : "tasks in no project"}.
+              {b.name}: {b.windows.length} rooms lit, {b.open} open. Open {b.project ? "this building" : "rooms in no building"}.
             </button>
           </li>
         ))}
@@ -571,10 +577,16 @@ function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onNam
       <div className="cv-stage low">
         <City3D city={city} range="week" now={now} still />
       </div>
+      <button type="button" className="cv-back nc-back" onClick={onLater} title="Back to your tasks (Esc)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="M10 3.5 5.5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Back
+      </button>
       <div className="nc-card">
         <p className="nc-kicker">{city.total ? "Your windows are lit" : "Your city starts here"}</p>
         <h2>Every task you finish lights up your city.</h2>
-        <p className="nc-text">Each project becomes a building. It grows as you get things done, and nothing ever goes dark. What should we call it?</p>
+        <p className="nc-text">Each project is a building and each task a room in it. Finish one and its window lights up — the building grows as you go, and nothing ever goes dark. What should we call your city?</p>
         <input
           className="nc-input"
           autoFocus

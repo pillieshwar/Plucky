@@ -944,6 +944,16 @@ fn set_panel_full(app: AppHandle, full: bool) -> CmdResult<()> {
     panel::set_full(&app, full).map_err(err)
 }
 
+/// Full screen: minimize the window to the Dock (clicking Plucky's Dock icon
+/// brings it back).
+#[tauri::command]
+fn minimize_panel(app: AppHandle) -> CmdResult<()> {
+    match app.get_webview_window("panel") {
+        Some(w) => w.minimize().map_err(err),
+        None => Ok(()),
+    }
+}
+
 #[tauri::command]
 fn panel_full(app: AppHandle) -> bool {
     panel::is_full(&app)
@@ -1420,6 +1430,7 @@ pub fn run() {
             snap_panel_to_edge,
             set_panel_full,
             panel_full,
+            minimize_panel,
             list_models,
             download_model,
             cancel_download,
@@ -1491,6 +1502,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Plucky")
         .run(|app, event| {
+            // Clicking the Dock icon (shown while full screen) brings the
+            // window back, minimized or hidden.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if panel::is_full(app) {
+                    panel::show(app);
+                }
+            }
             if let tauri::RunEvent::Exit = event {
                 // try_state: a relaunch after the rename exits before setup
                 // registers anything.

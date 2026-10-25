@@ -1,3 +1,4 @@
+import { useWords } from "../lib/words";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DateEditor } from "./DateEditor";
 import { CalendarIcon, ClockIcon, RepeatIcon, TrashIcon } from "./icons";
@@ -440,6 +441,7 @@ function TaskCard({
   /** Shown in full screen's detail pane: properties as labelled rows. */
   detail?: boolean;
 }) {
+  const w = useWords();
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
   const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
@@ -544,9 +546,9 @@ function TaskCard({
           <button type="button" className={pillClass(panel === "when", !!dl, dl?.tone === "overdue")} onClick={() => toggle("when")}>
             <FlagIcon /> {dl ? dl.label : "None"}
           </button>
-          <span className="tc-prop-label">Project</span>
+          <span className="tc-prop-label">{w.project}</span>
           <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
-            <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : "None"}
+            <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.city ? w.noProject : "None"}
           </button>
           <span className="tc-prop-label">Repeat</span>
           <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
@@ -562,7 +564,7 @@ function TaskCard({
           <FlagIcon /> {dl ? dl.label : "Deadline"}
         </button>
         <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
-          <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : "Project"}
+          <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.project}
         </button>
         <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
           <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Repeat"}

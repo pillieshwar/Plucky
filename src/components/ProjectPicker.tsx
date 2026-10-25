@@ -1,3 +1,4 @@
+import { useWords } from "../lib/words";
 import { useState } from "react";
 
 export interface ProjectInfo {
@@ -20,6 +21,7 @@ export function ProjectPicker({
   heading: string | null;
   onPick: (project: string | null, heading: string | null) => void;
 }) {
+  const w = useWords();
   const [creating, setCreating] = useState<"project" | "heading" | null>(projects.length ? null : "project");
   const [name, setName] = useState("");
   const current = projects.find((p) => p.name === project);
@@ -34,7 +36,7 @@ export function ProjectPicker({
   }
 
   return (
-    <div className="project-picker" role="group" aria-label="Project">
+    <div className="project-picker" role="group" aria-label={w.project}>
       <div className="pp-chips">
         {projects.map((p) => (
           <button
@@ -47,21 +49,21 @@ export function ProjectPicker({
           </button>
         ))}
         {creating === "project" ? (
-          <NameField placeholder="New project name" value={name} onChange={setName} onSubmit={submit} onCancel={() => setCreating(null)} />
+          <NameField placeholder={w.newProjectName} value={name} onChange={setName} onSubmit={submit} onCancel={() => setCreating(null)} />
         ) : (
           <button type="button" className="pp-chip new" onClick={() => setCreating("project")}>
-            + New project
+            {w.newProject}
           </button>
         )}
         {project && (
           <button type="button" className="pp-chip clear" onClick={() => onPick(null, null)}>
-            No project
+            {w.noProject}
           </button>
         )}
       </div>
       {project && (
         <div className="pp-headings">
-          <span className="pp-label">Heading in {project}</span>
+          <span className="pp-label">{w.headingIn(project)}</span>
           {(current?.headings ?? []).map((h) => (
             <button
               key={h}
@@ -73,10 +75,10 @@ export function ProjectPicker({
             </button>
           ))}
           {creating === "heading" ? (
-            <NameField placeholder="New heading" value={name} onChange={setName} onSubmit={submit} onCancel={() => setCreating(null)} />
+            <NameField placeholder={`New ${w.heading.toLowerCase()}`} value={name} onChange={setName} onSubmit={submit} onCancel={() => setCreating(null)} />
           ) : (
             <button type="button" className="pp-chip small new" onClick={() => setCreating("heading")}>
-              + Heading
+              {w.newHeading}
             </button>
           )}
         </div>

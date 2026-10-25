@@ -1,3 +1,4 @@
+import { useWords } from "../lib/words";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { dayOrderForLocale, relativeLabel } from "../lib/dates";
 import { findSchedule, repeatLabel, timeLabel } from "../lib/schedule";
@@ -37,6 +38,7 @@ export function AddTaskForm({
   onAdd: (task: NewTask) => Promise<void>;
   onCancel: () => void;
 }) {
+  const w = useWords();
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
@@ -158,7 +160,7 @@ export function AddTaskForm({
         <span className={typed?.date ? "add-task-when on" : "add-task-when"}>
           {when}
           {at.project ? (
-            <span className="add-task-context"> · in {at.project}</span>
+            <span className="add-task-context"> · {w.inProject(at.project)}</span>
           ) : (
             context && <span className="add-task-context"> · {context}</span>
           )}

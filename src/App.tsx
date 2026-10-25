@@ -10,6 +10,7 @@ import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
 import { CityCard, CityView } from "./components/City";
 import { buildCity } from "./lib/city";
+import { CITY, PLAIN, WordsContext } from "./lib/words";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { Toasts, useToasts } from "./components/Toasts";
 import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
@@ -658,6 +659,8 @@ export default function App() {
   }
 
   const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
+  // Full screen tells the city story: projects are buildings, tasks are rooms.
+  const w = full ? CITY : PLAIN;
   const weekDays = sevenDays(planDay);
   const rangeText = (() => {
     const a = parseISODate(weekDays[0]);
@@ -678,19 +681,19 @@ export default function App() {
             : "No model yet"
           : `Plucky ${status?.version ?? ""}`
       : list === "today"
-        ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${listCounts.today} to do`
+        ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${w.toDo(listCounts.today)}`
         : list === "upcoming"
           ? full
             ? rangeText
             : "Your week, hour by hour"
           : list === "all"
-            ? `${listCounts.all} open`
+            ? w.open(listCounts.all)
             : list === "someday"
               ? "Ideas and paused repeats, out of the way"
               : list === "logbook"
                 ? "Everything you've finished"
                 : stats
-                  ? `${stats.open} open · ${stats.done} done`
+                  ? w.progress(stats.open, stats.done)
                   : "";
 
   const banners = (
@@ -802,7 +805,7 @@ export default function App() {
                 ? { someday: true, due_date: null }
                 : undefined
           }
-          context={viewedProject !== null ? `in ${viewedProject}${addHeading ? ` · ${addHeading}` : ""}` : undefined}
+          context={viewedProject !== null ? `${w.inProject(viewedProject)}${addHeading ? ` · ${addHeading}` : ""}` : undefined}
           placeholder="What needs doing? Try “send deck fri 3pm @Work”"
           onAdd={async (task) => {
             try {
@@ -822,7 +825,7 @@ export default function App() {
       {list === "logbook" && <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />}
       {showList && list !== "logbook" && (
         <TaskList
-          groups={groups}
+          groups={full && viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
           actions={actions}
           now={now}
           locale={LOCALE}
@@ -853,8 +856,10 @@ export default function App() {
               </>
             ) : viewedProject !== null && !query.trim() ? (
               <>
-                <p className="empty-big">No tasks in {viewedProject}</p>
-                <p>Add one with +, or type “@{viewedProject}” in a new task.</p>
+                <p className="empty-big">{w.emptyProject(viewedProject)}</p>
+                <p>
+                  Add one with {full ? w.newTask : "+"}, or type “@{viewedProject}” in a new {w.task}.
+                </p>
               </>
             ) : undefined
           }
@@ -969,7 +974,29 @@ export default function App() {
       </aside>
     ) : null;
 
+    // The window's own buttons, top left as on every Mac window: close
+    // (hide Plucky), minimize to the Dock, and back to the side panel.
+    const lights = (
+      <div className="traffic" data-tauri-drag-region>
+        <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (hide Plucky)">
+          <svg viewBox="0 0 12 12" aria-hidden>
+            <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" />
+          </svg>
+        </button>
+        <button type="button" className="tl min" onClick={() => void api.minimizePanel().catch((e) => setError(String(e)))} aria-label="Minimize" title="Minimize to the Dock">
+          <svg viewBox="0 0 12 12" aria-hidden>
+            <path d="M3 6h6" />
+          </svg>
+        </button>
+        <button type="button" className="tl zoom" onClick={toggleFull} aria-label="Back to the side panel" title="Back to the side panel (⌃⌘F)">
+          <svg viewBox="0 0 12 12" aria-hidden>
+            <path d="M3.2 6.6V8.8h2.2M8.8 5.4V3.2H6.6" />
+          </svg>
+        </button>
+      </div>
+    );
     return (
+      <WordsContext.Provider value={CITY}>
       <div className={["app-full", drag.drag ? "dragging" : ""].filter(Boolean).join(" ")}>
         {sideOpen && (
           <Sidebar
@@ -1002,10 +1029,12 @@ export default function App() {
             updateReady={update.state === "ready"}
             model={status?.active_model ?? null}
             captureHint={<>{captureHint} to capture</>}
+            lights={lights}
           />
         )}
         <div className="full-main">
           <header className="full-head" data-tauri-drag-region>
+            {!sideOpen && lights}
             <button
               type="button"
               className={sideOpen ? "icon" : "icon on"}
@@ -1071,15 +1100,9 @@ export default function App() {
             )}
             {tasksShown && list !== "logbook" && (
               <button type="button" className="primary fh-new" onClick={() => setAdding(true)} title="New task (A)">
-                <PlusIcon /> New task
+                <PlusIcon /> {w.newTask}
               </button>
             )}
-            <button type="button" className="icon" onClick={toggleFull} aria-label="Exit full screen" title="Back to the side panel (⌃⌘F)">
-              <ShrinkIcon />
-            </button>
-            <button type="button" className="icon" onClick={() => void api.hidePanel()} aria-label="Hide Plucky" title="Hide">
-              <CloseIcon />
-            </button>
           </header>
 
           {banners}
@@ -1196,6 +1219,7 @@ export default function App() {
         {drag.drag && <DragGhost drag={drag.drag} now={now} locale={LOCALE} />}
         {keysSheet}
       </div>
+      </WordsContext.Provider>
     );
   }
 
@@ -1475,14 +1499,6 @@ function FullIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2.5 6V2.5H6M10 2.5h3.5V6M2.5 10v3.5H6M13.5 10v3.5H10" />
-    </svg>
-  );
-}
-
-function ShrinkIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2.5V6H2.5M10 2.5V6h3.5M6 13.5V10H2.5M10 13.5V10h3.5" />
     </svg>
   );
 }

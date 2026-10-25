@@ -1,3 +1,4 @@
+import { useWords } from "../lib/words";
 import type { ReactElement } from "react";
 import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
@@ -24,6 +25,8 @@ interface Props {
   updateReady: boolean;
   model: string | null;
   captureHint: ReactElement;
+  /** The window's close, minimize and zoom buttons. */
+  lights: ReactElement;
 }
 
 /**
@@ -32,6 +35,7 @@ interface Props {
  * bottom — what's reading captures and Settings.
  */
 export function Sidebar(p: Props) {
+  const w = useWords();
   const project = projectOf(p.list);
   const item = (id: ListId, text: string, icon: ReactElement, count?: number, tone?: string) => {
     const on = !p.inSettings && p.list === id;
@@ -54,6 +58,7 @@ export function Sidebar(p: Props) {
   return (
     <aside className="sidebar" aria-label="Lists">
       <div className="sb-top" data-tauri-drag-region>
+        {p.lights}
         <span className="sb-brand" data-tauri-drag-region>
           Plucky
         </span>
@@ -72,8 +77,12 @@ export function Sidebar(p: Props) {
       </nav>
 
       <div className="sb-scroll">
-        <h2 className="sb-head">Projects</h2>
-        {p.projects.length === 0 && <p className="sb-empty">Type “@Name” in a task, or open one and pick Project.</p>}
+        <h2 className="sb-head">{w.projects}</h2>
+        {p.projects.length === 0 && (
+          <p className="sb-empty">
+            Type “@Name” in a {w.task}, or open one and pick {w.project}.
+          </p>
+        )}
         {p.projects.map((pr) => {
           const on = !p.inSettings && project === pr.name;
           return (

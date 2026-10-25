@@ -4,12 +4,12 @@
 
 # Plucky
 
-**Turn any text you select into a dated task — privately, on your Mac.**
+**Turn any text into a dated task — privately, on your Mac. Then watch your city light up as you get things done.**
 
-Select a message, an email or a web page, press <kbd>⇧⌘S</kbd>, and Plucky writes the to-do, finds the due date and reminds you on time.<br>
-A small AI model runs entirely on your own computer, so nothing you select ever leaves it.
+Copy a message, an email or a web page and press <kbd>⌘C</kbd> once more. Plucky writes the to-do, finds the due date and reminds you on time.<br>
+A small AI model runs entirely on your own computer, so nothing you capture ever leaves it.
 
-[![Latest release](https://img.shields.io/github/v/release/pillieshwar/Plucky?label=release&color=0f7168)](https://github.com/pillieshwar/Plucky/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/pillieshwar/Plucky?label=release&color=5249d9)](https://github.com/pillieshwar/Plucky/releases/latest)
 [![CI](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml)
 [![Security](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pillieshwar/Plucky/badge)](https://scorecard.dev/viewer/?uri=github.com/pillieshwar/Plucky)
@@ -18,52 +18,147 @@ A small AI model runs entirely on your own computer, so nothing you select ever 
 
 <a href="https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Plucky for Mac" width="248" height="52"></a>
 
-<sub>Free and open source · Apple silicon and Intel · one model download (about 2 GB) from inside the app</sub>
+<sub>Free and open source · Apple silicon and Intel · one model download from inside the app</sub>
 
 <br><br>
 
-<img src="docs/screenshots/panel.png" alt="Plucky's task panel with a captured task, due-time chips and today's list" width="380">&nbsp;&nbsp;<img src="docs/screenshots/popover.png" alt="The menu-bar popover with a calendar and today's agenda" width="300">
+<img src="docs/screenshots/full-screen.png" alt="Plucky in full screen: a sidebar of lists and buildings, today's tasks, and your city in the corner" width="860">
 
 </div>
 
 ---
 
-## Why Plucky
+## Plucky in one minute
 
-Most to-dos start as text someone sent you — "can you send the deck by Friday 3pm?". Copying that into a task app, retyping the title and picking a date is just enough friction that it doesn't happen. Plucky removes the friction:
+1. **Capture.** Copy any text and press <kbd>⌘C</kbd> again — or select it and press your capture shortcut. A card drops down from the menu bar with the task, its date and time already filled in. Press <kbd>Return</kbd>.
+2. **Plan.** Your tasks sit in **Today**, **Upcoming**, **Anytime** and **Someday**, in projects with steps and deadlines. Drag a task onto a day or an hour to plan it.
+3. **Get reminded.** When a task's time comes, Plucky tells you — with **Done** and **Snooze** one click away.
+4. **Watch your city grow.** Every task you finish lights a window in your own 3D city. It's the most satisfying way to see what you've done.
 
-- **One shortcut from text to task.** Select, press <kbd>⇧⌘S</kbd>, press <kbd>Return</kbd>. Or right-click the selection and choose **Add to Plucky**.
-- **Dates done right.** "by Friday 3pm", "every Monday", "tomorrow evening" become a real day, time and repeat. When a phrase is ambiguous, Plucky asks instead of guessing.
-- **Private by design.** The model runs locally through a bundled [llama.cpp](https://github.com/ggml-org/llama.cpp) runtime. No account, no cloud, no telemetry.
-- **Native and out of the way.** Lives in the menu bar, works over full-screen apps, opens at login and updates itself.
+Everything runs on your Mac. There's no account, no cloud and no tracking.
 
-## Features
+## Your city
+
+<img src="docs/screenshots/city.png" alt="A city at night in 3D: towers for each project with lit windows, rooftop lights on finished projects and street lamps" width="860">
+
+Plucky turns your work into a place. The idea is simple:
+
+| In your city | In Plucky | What you see |
+| --- | --- | --- |
+| **The city** | All your tasks | You name it — "Lumen Bay", "Harbor Lights", anything you like. |
+| **A building** | A project | Each project is a tower. The oldest ones stand downtown, in the middle. |
+| **A floor** | A heading in a project | "Travel" and "Program" are floors of the Offsite 2026 building. |
+| **A room** | A task | "New room" adds a task. "3 rooms open · 2 lit" means three to do, two done. |
+| **A lit window** | A finished task | Tick a task and its window lights up. Windows fill from the ground floor up, so a building grows as you finish its work. This week's windows glow brightest. |
+| **Main Street** | Tasks in no project | Every finished task counts somewhere. |
+| **A rooftop light** | A finished project | Everything done, nothing left open. |
+| **A crane on an empty lot** | A project with nothing done yet | Planned, waiting for its first window. |
+
+**Nothing ever goes dark.** Your city is made only of work you've finished, so it can only grow — a late or skipped task never takes anything away.
+
+**Explore it.** In full screen your city sits in the bottom-right corner and glows whenever a new window lights up. Click it to open the city in 3D:
+
+- **Drag** to turn it to any angle and tilt it, **scroll** to zoom, **double-click** to reset (arrow keys, <kbd>+</kbd> <kbd>−</kbd> and <kbd>0</kbd> work too).
+- **Hover** a building to see how many rooms are lit and open; hover a lit window to see which task it was and when you finished it.
+- **Click a building** and Plucky glides to it and opens that project.
+- See the last **7 days**, **30 days** or **all time**, with your busiest day, tallest tower and finished projects.
+
+<img src="docs/screenshots/city-share.png" alt="The share sheet: a picture of the city with its name and this week's count" width="560" align="right">
+
+**Share it.** **Share** makes a picture of your city with its name and, if you like, how many things you did this week. Copy it or save it to Downloads. The picture is made on your Mac and contains no task names, notes or times — and project names stay off unless you turn them on.
+
+The building words appear in full screen; the compact side panel keeps the plain ones (*project*, *task*). Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
+
+<br clear="right">
+
+## Three ways to see your tasks
 
 | | |
 | --- | --- |
-| **Capture from anywhere** | Select text in any app and press <kbd>⇧⌘S</kbd>, or right-click → **Add to Plucky**. A card drops down from the Plucky icon in the menu bar with a suggested title, date and time. |
-| **Quick add** | Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm #home` — Plucky shows how it reads the date as you type. |
-| **Reminders that respect you** | Notifications with **Done**, **Snooze** and **Tomorrow** buttons, or one morning summary instead. A **Due now** card keeps fired reminders one click away. |
-| **Check-ins in the menu bar** | When a task's time comes, the menu-bar dropdown opens on just that task — everything else blurred — with **Done** and **Snooze**. Once a day (4:00 PM by default) it asks you to plan tasks that have no date, one tap each. Neither takes your keyboard. |
-| **AI agents, write-only** | Let Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio add tasks — "add a Plucky task to send the deck Friday 3pm", or on their own when you mention a deadline. Plucky finds them and connects each in one click. They can never read your list, and you approve every task. |
-| **Watch my screen** | Optional: in whatever app is in front — Slack, Outlook, a ticket, a doc, a web page — Plucky reads the new text on screen (through Accessibility — no screenshots, never what you type) and suggests what asks something of you or what you promised ("I'll send it Monday"), with the date. Password managers, Keychain, System Settings and terminals are never read, and you can skip any other app. The on-device model decides; nothing is stored or leaves the Mac, and every suggestion waits for your approval. |
-| **Email to tasks** | With an Outlook or Exchange connection in Claude Code, Plucky has Claude Code check your new email every 30 minutes from 9 to 5 (you pick) and send the action items to Plucky for review. Plucky never reads your mail, and a task you've already reviewed isn't suggested again. |
-| **Light, dark or system** | Pick the look in **Preferences → Appearance**. |
-| **See what matters** | Due-time chips are red when overdue, amber when due soon, muted when done. **Today focus** (<kbd>F</kbd>) hides everything but today. |
-| **Menu-bar calendar** | Click the icon for a month view and today's agenda. Drag a task onto another day to move it. With the Calendar connector on, holidays show as a purple dot. |
-| **Back to the source** | Each task remembers where it came from — the Slack thread, web page or file — and opens it in one click. |
-| **Descriptions** | Add links and details to a task with **+ Add description**; links become clickable. |
-| **Repeating tasks** | Completing "water plants every Monday" schedules the next one. |
-| **Search and tags** | <kbd>/</kbd> to search, `#tags` to filter, undo everything with <kbd>⌘Z</kbd>. |
-| **Connectors** | **Calendar** shows your meetings next to your tasks in the menu bar (read-only; includes Google, Outlook and iCloud calendars added to the Mac). **Apple Reminders** syncs tasks both ways — off by default, with a clear warning if the list syncs through iCloud. |
-| **Your data, your files** | Tasks live in one SQLite file on your Mac with daily backups, and export to CSV or JSON. |
+| <img src="docs/screenshots/panel.png" alt="The side panel" width="300"> | **The side panel** docks at the edge of your screen: today's list, a week strip to drag tasks onto other days, and everything else one click away in the list menu. Press <kbd>⇧⌘H</kbd> to show or hide it, even over full-screen apps. |
+| <img src="docs/screenshots/popover.png" alt="The menu-bar dropdown" width="300"> | **The menu-bar dropdown** opens from the Plucky icon: today's agenda next to your calendar, frosted over whatever you're doing. Captures drop down here for review. |
+| <img src="docs/screenshots/full-screen-small.png" alt="Full screen" width="300"> | **Full screen** (<kbd>⌃⌘F</kbd>, or the expand button in the panel) turns Plucky into a full window with a sidebar, task details on the right, a week calendar — and your city. It gets a Dock icon while it's open; the green button at the top left takes you back to the side panel. |
+
+## Features
+
+### Capture from anywhere
+
+<img src="docs/screenshots/capture.png" alt="A capture card under the menu-bar icon, with the task, date and time filled in" width="340" align="right">
+
+- **<kbd>⌘C</kbd> twice.** Copy as usual, then press <kbd>⌘C</kbd> again within a moment. Works in every app, no permissions needed.
+- **Or a shortcut.** Select text and press <kbd>⇧⌘S</kbd> (change it in Preferences) — no copying at all. Or right-click → **Add to Plucky**.
+- **Dates done right.** "by Friday 3pm", "every Monday", "tomorrow evening" become a real day, time and repeat — and "by Friday" becomes a **deadline**. When a phrase is ambiguous, Plucky asks instead of guessing.
+- **Lists become steps.** Capture a bulleted list and it turns into a checklist.
+- **Back to the source.** Each task remembers where it came from — the Slack thread, the email, the web page — and opens it in one click.
+
+<br clear="right">
+
+### Quick add
+
+<img src="docs/screenshots/quick-add.png" alt="Quick add with a task being typed" width="480">
+
+Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm every month #home`. Plucky shows how it reads the date as you type. (In the app's own add field, `@Name` also puts the task in a project.)
+
+### Today, in a list or in hours
+
+<img src="docs/screenshots/today-hours.png" alt="Today as a list with the day's hours beside it" width="860">
+
+Today shows what's due, late and planned for **This evening**. Switch to **Hours** to see the day as time blocks next to your calendar events, and drag a task onto an hour to plan it. Tick it and it leaves the block.
+
+### Your week
+
+<img src="docs/screenshots/week.png" alt="Seven days as a calendar with tasks and events, and tasks with no date beside it" width="860">
+
+**Upcoming** shows the next seven days with hours, your tasks beside your calendar events. Drag tasks between days and hours, click an empty hour to add one there, and drag tasks with no date onto the week to plan them.
+
+### Every detail of a task
+
+<img src="docs/screenshots/task-details.png" alt="A task opened beside the list with its date, deadline, project and repeat" width="860">
+
+Click a task to open it: notes with clickable links, **steps** (a checklist), **When** (a day, a time, this evening or someday), a separate **deadline**, its **project** and **repeat**. Snooze, skip one repeat, pause a series or delete — everything saves as you go.
+
+### Projects (buildings) with floors and steps
+
+<img src="docs/screenshots/building.png" alt="A project with tasks grouped under headings" width="860">
+
+Group tasks into projects, split a project into headings, and see each project's progress at a glance. Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Someday**.
+
+### Reminders and check-ins
+
+<img src="docs/screenshots/check-in.png" alt="The menu-bar dropdown opened on a task that just came due" width="340" align="right">
+
+- Notifications with **Done**, **Snooze** and **Tomorrow** — or one morning summary instead.
+- When a task's time comes, the menu-bar dropdown opens on just that task, everything else blurred. It never takes your keyboard.
+- Once a day, it asks you to plan tasks that have no date, one tap each.
+- Repeating tasks schedule the next one when you finish; skip one or pause the series any time.
+
+<br clear="right">
+
+### Connectors
+
+<img src="docs/screenshots/agents.png" alt="Connectors: AI apps that can send tasks to Plucky" width="340" align="right">
+
+- **Calendar** shows your meetings beside your tasks (read-only; includes Google, Outlook and iCloud calendars added to the Mac).
+- **Apple Reminders** syncs both ways — off by default.
+- **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a Plucky task to send the deck Friday 3pm"). They can never read your list, and you approve every task.
+- **Watch my screen** (optional) suggests tasks from what's in front of you — asks of you and things you promised — using the on-device model. Password managers, Keychain and terminals are never read.
+- **Email to tasks** has Claude Code check your new Outlook email on a schedule and send the action items to Plucky for review.
+
+<br clear="right">
+
+### And more
+
+- **Search and tags** — <kbd>/</kbd> or <kbd>⌘K</kbd> to search, `#tags` to filter, <kbd>⌘Z</kbd> undoes anything.
+- **Select several** with <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click and complete, move or delete them together.
+- **Dark by default**, light or following your Mac, with a purple accent.
+- **Your data, your files** — one SQLite file on your Mac, daily backups, export to CSV or JSON.
 
 ## Install
 
 1. **Download** [`Plucky-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg).
 2. **Open it** and drag **Plucky** into **Applications**.
 3. **Launch Plucky.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
-4. **Follow the short setup.** Plucky asks for **Accessibility** access (how macOS lets an app read selected text), downloads the recommended model (*Qwen3.5 4B*, about 3 GB, once — chosen by Plucky's model tests), turns on reminders and lets you try a capture.
+4. **Follow the three-step tour.** Pick the on-device model (Plucky recommends the best one for your Mac and downloads it once), choose how to capture — <kbd>⌘C</kbd> twice, or a shortcut (which needs **Accessibility** access, how macOS lets an app read selected text) — and try a capture on a sample message.
 
 There's nothing else to install. Plucky opens at login and updates itself — look for **Restart to update** when a new version is ready.
 
@@ -83,7 +178,8 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 | Shortcut | Action |
 | --- | --- |
-| <kbd>⇧⌘S</kbd> | Capture the selected text as a task |
+| <kbd>⌘C</kbd> <kbd>⌘C</kbd> | Capture what you just copied (copy, then press <kbd>⌘C</kbd> again) |
+| <kbd>⇧⌘S</kbd> | Capture the selected text as a task (when you choose a shortcut instead) |
 | <kbd>⇧⌘Space</kbd> | Quick add — type a task |
 | <kbd>⇧⌘H</kbd> | Show or hide Plucky (handy over full-screen apps, where the menu bar is hidden) |
 
@@ -95,8 +191,11 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 | <kbd>Space</kbd> | Complete | <kbd>S</kbd> | Snooze |
 | <kbd>E</kbd> | Edit title | <kbd>N</kbd> | Edit description |
 | <kbd>D</kbd> | Change date and time | <kbd>O</kbd> | Open the source |
-| <kbd>F</kbd> | Today focus | <kbd>⌫</kbd> | Delete |
-| <kbd>/</kbd> or <kbd>⌘F</kbd> | Search | <kbd>⌘Z</kbd> | Undo |
+| <kbd>F</kbd> | Today ↔ Anytime | <kbd>⌫</kbd> | Delete |
+| <kbd>/</kbd>, <kbd>⌘F</kbd> or <kbd>⌘K</kbd> | Search | <kbd>⌘Z</kbd> | Undo |
+| <kbd>C</kbd> | Steps (checklist) | <kbd>P</kbd> | Move to a project |
+| <kbd>V</kbd> | Today as a list or in hours | <kbd>A</kbd> | Add a task |
+| <kbd>⌃⌘F</kbd> | Full screen ↔ side panel | <kbd>⌘\\</kbd> | Show or hide the sidebar (full screen) |
 
 ## Privacy
 
@@ -161,6 +260,7 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | Problem | Fix |
 | --- | --- |
 | "Apple could not verify Plucky…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
+| <kbd>⌘C</kbd> twice does nothing | Check that **Preferences → Press ⌘C twice to capture** is on and the Plucky icon is in the menu bar. Copies made inside Plucky itself are ignored. |
 | <kbd>⇧⌘S</kbd> does nothing | Check that the Plucky icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Preferences → Keyboard shortcuts**. |
 | "No selected text found" | Select the text again. Password fields and some secure apps can't be read, by design. |
 | **Add to Plucky** isn't in the right-click menu | Open Plucky from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
