@@ -2183,3 +2183,4 @@ html[data-full="1"] body { background: var(--paper); }
 }
 .mcal-scope i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--pc, var(--teal)); }
 .mcal-scope span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-icon.t-project .pie { color: inherit; }
