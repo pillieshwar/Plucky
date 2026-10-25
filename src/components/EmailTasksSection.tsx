@@ -17,8 +17,8 @@ function when(at: string, locale: string): string {
 }
 
 /**
- * Connectors → AI agents → Email to tasks: Plucky runs Claude Code's
- * /email-tasks on a schedule; Claude Code reads the mail, Plucky only gets
+ * Connectors → AI agents → Email to tasks: Todo City runs Claude Code's
+ * /email-tasks on a schedule; Claude Code reads the mail, Todo City only gets
  * the tasks.
  */
 export function EmailTasksSection({ locale }: { locale: string }) {
@@ -81,7 +81,7 @@ export function EmailTasksSection({ locale }: { locale: string }) {
           <div className="card-stack">
             <Toggle
               label="Check my email for to-dos"
-              hint="Claude Code reads new email with your mail connection and sends what you need to do here for review. Plucky never reads your mail."
+              hint="Claude Code reads new email with your mail connection and sends what you need to do here for review. Todo City never reads your mail."
               checked={s.enabled}
               disabled={!server}
               onChange={(v) => void save({ enabled: v })}
@@ -117,7 +117,7 @@ export function EmailTasksSection({ locale }: { locale: string }) {
             <div className={s.enabled ? "toggle-row email-when-row" : "toggle-row email-when-row disabled"}>
               <span className="toggle-text">
                 <span className="toggle-label">When</span>
-                <span className="toggle-hint">Your local time, while Plucky is running.</span>
+                <span className="toggle-hint">Your local time, while Todo City is running.</span>
               </span>
               <span className="email-when">
                 <select

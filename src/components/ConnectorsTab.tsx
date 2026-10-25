@@ -8,7 +8,7 @@ import { safeLocale } from "../lib/locale";
 import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
 /**
- * Connectors: apps on this Mac that Plucky can work with. Each card shows
+ * Connectors: apps on this Mac that Todo City can work with. Each card shows
  * whether it's connected and opens to its settings. Everything goes through
  * macOS on this Mac; nothing signs in to a server.
  */
@@ -37,7 +37,7 @@ export function ConnectorsTab() {
   return (
     <div className="connectors">
       <p className="connectors-intro">
-        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Plucky server or
+        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Todo City server or
         account.
       </p>
 
@@ -223,8 +223,8 @@ function CalendarSection({
     <div className="connector-body-inner">
       <div className="card-stack">
         <Toggle
-          label="Show calendar events in Plucky"
-          hint="Meetings appear next to your tasks in the menu bar. Read-only — Plucky never changes your calendar."
+          label="Show calendar events in Todo City"
+          hint="Meetings appear next to your tasks in the menu bar. Read-only — Todo City never changes your calendar."
           checked={enabled}
           disabled={busy || blocked}
           onChange={(v) => void (v ? turnOn() : turnOff())}
@@ -233,7 +233,7 @@ function CalendarSection({
         {blocked && (
           <div className="setting-line">
             <span className="dot warn" aria-hidden />
-            <span className="setting-line-text">Calendar access is off for Plucky.</span>
+            <span className="setting-line-text">Calendar access is off for Todo City.</span>
             <button type="button" className="ghost small" onClick={() => void api.calendarOpenPrivacySettings()}>
               Allow
             </button>

@@ -14,6 +14,7 @@ import { CITY, PLAIN, WordsContext } from "./lib/words";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { MonthCalendar } from "./components/MonthCalendar";
 import { applyLook, lookOf, weekStartOf } from "./lib/look";
+import { ProjectColors } from "./lib/colors";
 import { Toasts, useToasts } from "./components/Toasts";
 import { ClockIcon, GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
@@ -474,6 +475,10 @@ export default function App() {
   };
   const selectedTasks = useMemo(() => flat.filter((t) => selected.has(t.id)), [flat, selected]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
+  const projectColors = useMemo(
+    () => Object.fromEntries(projectStats.flatMap((p) => (p.color ? [[p.name, p.color] as [string, string]] : []))),
+    [projectStats],
+  );
   const city = useMemo(() => buildCity(cityWins, tasks, projectStats, floorList, today), [cityWins, tasks, projectStats, floorList, today]);
   // Full screen's add form picks the building and floor.
   const places = useMemo(
@@ -727,7 +732,7 @@ export default function App() {
         <header className="mini" data-tauri-drag-region onDoubleClick={() => minimize(false)}>
           {controls}
           <span className="mini-title" data-tauri-drag-region>
-            Plucky
+            Todo City
           </span>
           <span className="mini-meta" data-tauri-drag-region>
             {open} open{dueToday ? ` · ${dueToday} due` : ""}
@@ -743,7 +748,7 @@ export default function App() {
   const floorShown = floorOpen ? city.buildings.find((b) => b.project === floorOpen.project)?.floors.find((f) => f.name === floorOpen.floor) : undefined;
   const floorTitle = floorShown?.label ?? (floorOpen?.floor ? floorOpen.floor : CITY.looseHeading);
   const floorSub = floorOpen
-    ? `${floorOpen.project} · ${CITY.progress(floorShown?.rooms.filter((r) => !r.lit).length ?? 0, floorShown?.rooms.filter((r) => r.lit).length ?? 0)}`
+    ? `${CITY.progress(floorShown?.rooms.filter((r) => !r.lit).length ?? 0, floorShown?.rooms.filter((r) => r.lit).length ?? 0)}`
     : "";
   const weekDays = sevenDays(planDay);
   const rangeText = (() => {
@@ -763,7 +768,7 @@ export default function App() {
           ? status?.active_model
             ? `Using ${status.active_model}`
             : "No model yet"
-          : `Plucky ${status?.version ?? ""}`
+          : `Todo City ${status?.version ?? ""}`
       : list === "today"
         ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${w.toDo(listCounts.today)}`
         : list === "upcoming"
@@ -789,12 +794,12 @@ export default function App() {
       {tab !== "settings" && <UpdateBanner update={update} onError={setError} />}
       {status && !status.accessibility && !capture && !onboarding && (
         <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
-          Plucky needs Accessibility permission to read selected text.
+          Todo City needs Accessibility permission to read selected text.
         </Banner>
       )}
       {tab === "tasks" && status?.engine === "bundled" && !status.active_model && !onboarding && (
         <Banner tone="warn" action={{ label: "Get a model", run: () => setTab("models") }}>
-          Download a model so Plucky can read your selections.
+          Download a model so Todo City can read your selections.
         </Banner>
       )}
       {error && (
@@ -863,16 +868,6 @@ export default function App() {
   const tasksShown = tab === "tasks" && !onboarding;
   const listEl = tasksShown && (
     <>
-      {showList && floorOpen && (
-        <div className="floor-head">
-          <button type="button" className="fh-btn floor-back" onClick={() => setFloorView(null)} title={`Back to all of ${viewedProject}`}>
-            ‹ {viewedProject}
-          </button>
-          <span className="floor-head-text">
-            {floorOpen.floor ? "Tasks on this floor — done ones stay, crossed out" : "Tasks in this project on no floor yet"}
-          </span>
-        </div>
-      )}
       {showList && viewedProject !== null && !floorOpen && (
         <ProjectHeader
           name={viewedProject}
@@ -914,8 +909,16 @@ export default function App() {
           placeholder="What needs doing? Try “send deck fri 3pm @Work”"
           onAdd={async (task) => {
             try {
-              await api.addTask(task);
-              show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : "Task added");
+              // No day and no project: it waits in Someday until you plan it.
+              const loose = !task.due_date && !task.project && !task.someday;
+              await api.addTask(loose ? { ...task, someday: true } : task);
+              show(
+                task.due_date
+                  ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
+                  : loose
+                    ? "Added to Someday — give it a day or a project to plan it"
+                    : "Task added",
+              );
               // Added: the form closes; the add button opens it again.
               setAdding(false);
               setAddHeading(null);
@@ -1052,6 +1055,11 @@ export default function App() {
 
   if (full) {
     const openTask = openId !== null ? (tasks.find((t) => t.id === openId) ?? null) : null;
+    // The right side follows the page: a project's tasks, a floor's, or all of them.
+    const sideTasks =
+      viewedProject === null
+        ? tasks
+        : tasks.filter((t) => t.project === viewedProject && (!floorOpen || (t.heading ?? null) === floorOpen.floor));
     const ids = flat.map((t) => t.id);
     const stepTask = (d: -1 | 1) => {
       const i = ids.indexOf(openId ?? -1);
@@ -1093,9 +1101,23 @@ export default function App() {
         }
       />
     ) : list !== "logbook" ? (
-      // Every list: the month at a glance, and the picked day's hours below it.
+      // Every list: the month at a glance, and the picked day's hours below
+      // it — in a project or on a floor, only that project's or floor's tasks.
       <aside className="side-pane plan-pane month-pane" aria-label="Calendar">
-        <MonthCalendar tasks={tasks} today={today} selected={sideDay} locale={LOCALE} weekStart={weekStart} drag={drag} onSelect={setSideDay} />
+        <MonthCalendar
+          tasks={sideTasks}
+          today={today}
+          selected={sideDay}
+          locale={LOCALE}
+          weekStart={weekStart}
+          drag={drag}
+          onSelect={setSideDay}
+          scope={
+            viewedProject !== null
+              ? { label: floorOpen ? `${viewedProject} · ${floorTitle}` : viewedProject, color: projectColors[viewedProject] }
+              : null
+          }
+        />
         <div className="sp-head">
           <span className="sp-title">
             {sideDay === today ? "Today" : parseISODate(sideDay).toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })}
@@ -1103,12 +1125,12 @@ export default function App() {
           <span className="sp-count">Drag a task onto an hour</span>
         </div>
         <DayPlan
-          tasks={tasks}
+          tasks={sideTasks}
           day={sideDay}
           today={today}
           now={now}
           locale={LOCALE}
-          events={sideDay === today ? todayEvents : []}
+          events={sideDay === today && viewedProject === null ? todayEvents : []}
           actions={actions}
           drag={drag}
           onAdd={addFromPlan}
@@ -1118,10 +1140,10 @@ export default function App() {
     ) : null;
 
     // The window's own buttons, top left as on every Mac window: close
-    // (hide Plucky), minimize to the Dock, and back to the side panel.
+    // (hide Todo City), minimize to the Dock, and back to the side panel.
     const lights = (
       <div className="traffic" data-tauri-drag-region>
-        <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (hide Plucky)">
+        <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (hide Todo City)">
           <svg viewBox="0 0 12 12" aria-hidden>
             <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" />
           </svg>
@@ -1139,6 +1161,7 @@ export default function App() {
       </div>
     );
     return (
+      <ProjectColors.Provider value={projectColors}>
       <WordsContext.Provider value={CITY}>
       <div className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}>
         {sideOpen && (
@@ -1236,6 +1259,12 @@ export default function App() {
                 })
                 .catch((e) => setError(String(e)))
             }
+            onColor={(project, color) =>
+              void api
+                .setProjectColor(project, color)
+                .then(() => refresh())
+                .catch((e) => setError(String(e)))
+            }
             onDeleteFloor={(project, name) =>
               void api
                 .deleteFloor(project, name)
@@ -1271,9 +1300,22 @@ export default function App() {
             <span className="fh-icon" aria-hidden>
               {tab !== "tasks" ? <GearIcon /> : <ListIcon list={list} stats={stats} />}
             </span>
-            <h1 className="fh-title" data-tauri-drag-region>
-              {tab !== "tasks" ? "Settings" : floorOpen ? floorTitle : listTitle(list)}
-            </h1>
+            {/* Where you are, as a breadcrumb: Project › Floor. Earlier steps are links. */}
+            <nav className="fh-crumbs" aria-label="You are here" data-tauri-drag-region>
+              {tab === "tasks" && floorOpen && (
+                <>
+                  <button type="button" className="fh-crumb" onClick={() => setFloorView(null)} title={`All of ${floorOpen.project}`}>
+                    {floorOpen.project}
+                  </button>
+                  <span className="fh-crumb-sep" aria-hidden>
+                    ›
+                  </span>
+                </>
+              )}
+              <h1 className="fh-title" data-tauri-drag-region>
+                {tab !== "tasks" ? "Settings" : floorOpen ? floorTitle : listTitle(list)}
+              </h1>
+            </nav>
             <span className="fh-sub" data-tauri-drag-region>
               {tab === "tasks" && floorOpen ? floorSub : subText}
             </span>
@@ -1436,10 +1478,12 @@ export default function App() {
         {keysSheet}
       </div>
       </WordsContext.Provider>
+      </ProjectColors.Provider>
     );
   }
 
   return (
+    <ProjectColors.Provider value={projectColors}>
     <div className={drag.drag ? "panel dragging" : "panel"}>
       <header className="topbar" data-tauri-drag-region>
         {controls}
@@ -1638,6 +1682,7 @@ export default function App() {
         </button>
       </footer>
     </div>
+    </ProjectColors.Provider>
   );
 }
 

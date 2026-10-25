@@ -149,6 +149,7 @@ jobs:
         run: |
           mkdir -p dist-release
           dmg=$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
+          cp "$dmg" dist-release/TodoCity-macOS.dmg
           cp "$dmg" dist-release/Plucky-macOS.dmg
           cp "$dmg" dist-release/Pluck-macOS.dmg
           cp "$dmg" "dist-release/$(basename "$dmg")"
@@ -165,7 +166,7 @@ jobs:
           entry = {"signature": sig, "url": url}
           manifest = {
               "version": tag.lstrip("v"),
-              "notes": f"Plucky {tag}",
+              "notes": f"Todo City {tag}",
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
           }
@@ -200,15 +201,15 @@ jobs:
           cat > notes.md <<'EOF'
           ## Download
 
-          **[Download Plucky for Mac](https://github.com/REPO/releases/latest/download/Plucky-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
+          **[Download Todo City for Mac](https://github.com/REPO/releases/latest/download/TodoCity-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
 
-          1. Open `Plucky-macOS.dmg` and drag **Plucky** into **Applications**.
-          2. Open Plucky. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          1. Open `TodoCity-macOS.dmg` and drag **Todo City** into **Applications**.
+          2. Open Todo City. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
           3. The tour walks you through the rest: permission, model download (about 2 GB, once), shortcuts and a first capture.
 
-          Already using Pluck? It updates itself to Plucky — look for **Restart to update** in the menu bar. Your tasks and settings stay.
+          Already using Plucky (or Pluck)? It updates itself to Todo City — look for **Restart to update** in the menu bar. Your tasks and settings stay.
 
-          **Verify your download** (optional): `gh attestation verify Plucky-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow.
+          **Verify your download** (optional): `gh attestation verify TodoCity-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow.
           EOF
           sed -i '' "s#REPO#${GITHUB_REPOSITORY}#g" notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then

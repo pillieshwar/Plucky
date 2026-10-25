@@ -51,7 +51,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
       const found = (await api.remindersLists()).filter((l) => l.writable);
       setLists(found);
       // Reuse the list made before the app was renamed from Pluck.
-      const existing = found.find((l) => l.title === "Plucky") ?? found.find((l) => l.title === "Pluck");
+      const existing = found.find((l) => l.title === "Todo City") ?? found.find((l) => l.title === "Pluck");
       setChoice(existing ? existing.id : NEW_LIST);
       setAcknowledged(false);
       setSetup(true);
@@ -119,7 +119,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
           {accessBlocked && (
             <div className="setting-line">
               <span className="dot warn" aria-hidden />
-              <span className="setting-line-text">Reminders access is off for Plucky.</span>
+              <span className="setting-line-text">Reminders access is off for Todo City.</span>
               <button type="button" className="ghost small" onClick={() => void api.remindersOpenPrivacySettings()}>
                 Allow
               </button>
@@ -137,7 +137,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
                 <span className="toggle-hint">Where your tasks appear in Reminders.</span>
               </span>
               <select value={choice} onChange={(e) => setChoice(e.target.value)}>
-                <option value={NEW_LIST}>New list “Plucky”</option>
+                <option value={NEW_LIST}>New list “Todo City”</option>
                 {lists.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.title} — {l.source}
@@ -148,7 +148,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
             <Where leaves={mayLeave} source={chosen && !chosen.icloud ? chosen.source : "iCloud"} />
             <Toggle
               label="Add my open tasks too"
-              hint="Copies the tasks already in Plucky to the list."
+              hint="Copies the tasks already in Todo City to the list."
               checked={pushExisting}
               onChange={setPushExisting}
             />
@@ -213,7 +213,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
           {status.access !== "full" && (
             <div className="setting-line">
               <span className="dot warn" aria-hidden />
-              <span className="setting-line-text">Reminders access is off for Plucky.</span>
+              <span className="setting-line-text">Reminders access is off for Todo City.</span>
               <button type="button" className="ghost small" onClick={() => void api.remindersOpenPrivacySettings()}>
                 Allow
               </button>

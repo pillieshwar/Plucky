@@ -1,5 +1,6 @@
 import { useWords } from "../lib/words";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { useProjectColor } from "../lib/colors";
 import { DateEditor } from "./DateEditor";
 import { CalendarIcon, ClockIcon, RepeatIcon, TrashIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
@@ -161,6 +162,8 @@ function TaskRow({
   details = true,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
+  // The project's color, if the user picked one: the check and the calendar chips use it.
+  const pc = useProjectColor(task.project);
   const highlighted = highlight === task.id;
   const focused = focusId === task.id;
   // In full screen the row stays a row; the task opens in the detail pane.
@@ -257,6 +260,7 @@ function TaskRow({
         .filter(Boolean)
         .join(" ")}
       aria-selected={selected.size ? selected.has(task.id) : undefined}
+      style={pc ? ({ "--pc": pc } as CSSProperties) : undefined}
       onPointerDown={(e) => {
         if (!open && drag && !(e.metaKey || e.ctrlKey || e.shiftKey)) drag.start(e, task);
       }}
@@ -385,6 +389,7 @@ function RowMeta({
   if (task.project && task.project !== inProject) {
     parts.push(
       <button key="pr" type="button" className="meta-link" data-nodrag onClick={() => onOpenProject(task.project!)}>
+        <span className="task-project-dot" aria-hidden />
         {task.project}
       </button>,
     );

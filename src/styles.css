@@ -15,7 +15,7 @@
   --amber-soft: #fdf0d8;
   --check: #9a9ea5;
   /* One family everywhere: the system UI font — SF Pro on macOS, Segoe UI
-     Variable on Windows — so Plucky reads like a native app at every size.
+     Variable on Windows — so Todo City reads like a native app at every size.
      Monospace is kept only for file paths and code. */
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Code", Consolas, monospace;
@@ -2098,7 +2098,7 @@ html[data-full="1"] body { background: var(--paper); }
 .mcal-day.sel { background: var(--teal-soft); box-shadow: inset 0 0 0 1.5px var(--teal); }
 .mcal-day.drop { background: var(--teal-soft); box-shadow: inset 0 0 0 2px var(--teal); transform: scale(1.06); }
 .mcal-num { line-height: 1; font-variant-numeric: tabular-nums; }
-.mcal-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--teal); }
+.mcal-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--pc, var(--teal)); }
 .mcal-dot.late { background: var(--accent); }
 .mcal-dot.none { background: transparent; }
 .mcal-hint { margin: 6px 0 0; font-size: 11px; color: var(--faint); text-align: center; }
@@ -2152,3 +2152,35 @@ html[data-full="1"] body { background: var(--paper); }
 .accent-dot:hover { transform: scale(1.1); }
 .accent-dot.on { border-color: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
 .accent-name { font-size: 12px; color: var(--muted); }
+
+/* Project colors (Sidebar → ⋯ → Color): set as --pc on a task's row or chip. */
+.wg-task, .plan-task { border-left-color: var(--pc, var(--teal)); }
+.wg-task:hover, .plan-task:hover { border-left-color: var(--pc, var(--teal)); }
+.task .check { border-color: color-mix(in srgb, var(--pc, var(--check)) 85%, transparent); }
+.task .check:hover { border-color: var(--pc, var(--teal)); color: var(--pc, var(--teal)); }
+.task .check.on { background: var(--pc, var(--teal)); border-color: var(--pc, var(--teal)); }
+.task-project-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--pc, var(--teal)); vertical-align: 1px; }
+.sb-swatches { display: grid; grid-template-columns: repeat(5, 18px); gap: 6px; padding: 6px 9px 8px; }
+.sb-swatch { width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.sb-swatch.on { border-color: var(--ink); }
+.sb-swatch.none { background: transparent; border: 1.5px dashed var(--faint); }
+.sb-menu-label { padding: 6px 9px 0; font-size: 11px; font-weight: 650; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Full screen header: a breadcrumb (Project › Floor), then the counts. */
+.fh-crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fh-crumb {
+  padding: 3px 7px; margin: 0 -3px; border: 0; border-radius: 6px; background: transparent; color: var(--muted);
+  font: 600 17px/1 var(--sans); letter-spacing: -0.01em; white-space: nowrap; cursor: pointer; transition: background 120ms, color 120ms;
+}
+.fh-crumb:hover { background: color-mix(in srgb, var(--line) 80%, transparent); color: var(--ink); }
+.fh-crumb-sep { color: var(--faint); font-size: 17px; }
+.fh-crumbs .fh-title { overflow: hidden; text-overflow: ellipsis; }
+
+/* The month on the right, narrowed to one project or floor. */
+.mcal-scope {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 3px 9px 3px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--pc, var(--teal)) 14%, transparent); color: var(--muted); font-size: 11.5px; max-width: 100%;
+}
+.mcal-scope i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--pc, var(--teal)); }
+.mcal-scope span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-icon.t-project .pie { color: inherit; }

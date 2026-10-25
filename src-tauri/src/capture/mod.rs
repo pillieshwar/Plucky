@@ -219,7 +219,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         Err(e) => {
             log::warn!("clipboard unavailable: {e}");
             return CaptureResult::Failed {
-                message: format!("Plucky couldn't open the clipboard ({e})."),
+                message: format!("Todo City couldn't open the clipboard ({e})."),
             };
         }
     };
@@ -243,7 +243,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         FallbackOutcome::Failed(e) => {
             log::warn!("clipboard capture failed: {e}");
             CaptureResult::Failed {
-                message: format!("Plucky couldn't copy the selection ({e})."),
+                message: format!("Todo City couldn't copy the selection ({e})."),
             }
         }
     }

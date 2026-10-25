@@ -5,6 +5,7 @@ import type { ProjectSummary } from "../lib/types";
 import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
 import { GearIcon, SearchIcon } from "./icons";
 import { initials, type Building } from "../lib/city";
+import { PROJECT_COLORS } from "../lib/colors";
 
 interface Props {
   list: ListId;
@@ -38,6 +39,8 @@ interface Props {
   onDeleteBuilding: (name: string) => void;
   onRenameFloor: (project: string, from: string, to: string) => void;
   onDeleteFloor: (project: string, name: string) => void;
+  /** Pick a project's color (null: the accent color). */
+  onColor: (project: string, color: string | null) => void;
   updateReady: boolean;
   model: string | null;
   captureHint: ReactElement;
@@ -135,7 +138,7 @@ export function Sidebar(p: Props) {
       <div className="sb-top" data-tauri-drag-region>
         {p.lights}
         <span className="sb-brand" data-tauri-drag-region>
-          Plucky
+          Todo City
         </span>
       </div>
       <button type="button" className="sb-search" onClick={p.onSearch} title="Search (/ or ⌘K)">
@@ -195,7 +198,7 @@ export function Sidebar(p: Props) {
                   </svg>
                 </button>
                 <button type="button" className="sb-b-main" aria-current={on ? "page" : undefined} onClick={() => p.onList(projectList(name))}>
-                  <span className="sb-icon t-project" aria-hidden>
+                  <span className="sb-icon t-project" aria-hidden style={pr?.color ? { color: pr.color } : undefined}>
                     <Pie done={pr?.done ?? b.done} total={(pr?.open ?? b.open) + (pr?.done ?? b.done)} />
                   </span>
                   <span className="sb-text">{name}</span>
@@ -234,6 +237,31 @@ export function Sidebar(p: Props) {
                     >
                       Add a floor…
                     </button>
+                    <p className="sb-menu-label">Color</p>
+                    <div className="sb-swatches" role="radiogroup" aria-label={`${name}'s color`}>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!pr?.color}
+                        aria-label="Default color"
+                        title="Default"
+                        className={!pr?.color ? "sb-swatch none on" : "sb-swatch none"}
+                        onClick={() => p.onColor(name, null)}
+                      />
+                      {PROJECT_COLORS.map(([c, label]) => (
+                        <button
+                          key={c}
+                          type="button"
+                          role="radio"
+                          aria-checked={pr?.color === c}
+                          aria-label={label}
+                          title={label}
+                          className={pr?.color === c ? "sb-swatch on" : "sb-swatch"}
+                          style={{ background: c }}
+                          onClick={() => p.onColor(name, c)}
+                        />
+                      ))}
+                    </div>
                     <button
                       type="button"
                       role="menuitem"

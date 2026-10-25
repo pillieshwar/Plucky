@@ -26,7 +26,7 @@ function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "mute
     case "no_model":
       return { tone: "warn", text: "Download a model in the Models tab first; it reads your screen on this Mac." };
     case "no_access":
-      return { tone: "warn", text: "Plucky needs Accessibility access (the same as the capture shortcut)." };
+      return { tone: "warn", text: "Todo City needs Accessibility access (the same as the capture shortcut)." };
     case "unsupported":
       return { tone: "muted", text: "Watching is available on macOS." };
     default:
@@ -90,7 +90,7 @@ export function WatchSection({ locale }: { locale: string }) {
       <div className="card-stack">
         <Toggle
           label="Watch my screen for to-dos"
-          hint="Whatever app is in front, Plucky reads new text on this Mac and suggests what asks something of you — requests, assignments, deadlines, your own promises. You approve each one."
+          hint="Whatever app is in front, Todo City reads new text on this Mac and suggests what asks something of you — requests, assignments, deadlines, your own promises. You approve each one."
           checked={s.enabled}
           onChange={(v) => void save({ enabled: v })}
         />
@@ -137,7 +137,7 @@ export function WatchSection({ locale }: { locale: string }) {
           <h4 className="connector-subhead">Apps</h4>
           <p className="setting-line muted">
             Every app is watched except these, which are never read: password managers, Keychain, System Settings,
-            terminals and Plucky. Skip any other app below.
+            terminals and Todo City. Skip any other app below.
           </p>
           {recent.length > 0 || otherExcluded.length > 0 ? (
             <ul className="watch-apps">
@@ -185,7 +185,7 @@ export function WatchSection({ locale }: { locale: string }) {
       <div className="setting-line">
         <span className="dot ok" aria-hidden />
         <span className="setting-line-text muted">
-          No screenshots or recording. Plucky reads the text of the window in front — never what you type or password
+          No screenshots or recording. Todo City reads the text of the window in front — never what you type or password
           fields — keeps none of it, and nothing leaves this Mac.
         </span>
       </div>

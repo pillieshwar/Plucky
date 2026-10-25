@@ -232,6 +232,10 @@ INSERT OR IGNORE INTO floors (project, name, created_at)
     SELECT project, heading, MIN(created_at) FROM tasks
     WHERE project IS NOT NULL AND heading IS NOT NULL GROUP BY project, heading;
 "#,
+    // Each project can have its own color (`#rrggbb`), used for its tasks.
+    r#"
+ALTER TABLE projects ADD COLUMN color TEXT;
+"#,
 ];
 
 /// A Plucky task linked to an external reminder, with the state both sides
@@ -271,6 +275,8 @@ pub struct ProjectSummary {
     pub name: String,
     pub open: i64,
     pub done: i64,
+    /// The color the user picked (`#rrggbb`), if any.
+    pub color: Option<String>,
 }
 
 pub struct Store {
@@ -642,7 +648,8 @@ impl Store {
     /// Every project with its open and completed task counts, by name.
     pub fn projects(&self) -> Result<Vec<ProjectSummary>, StoreError> {
         let mut stmt = self.conn.prepare(
-            "SELECT p.name, COALESCE(SUM(t.done = 0), 0), COALESCE(SUM(t.done = 1), 0)
+            "SELECT p.name, COALESCE(SUM(t.done = 0), 0), COALESCE(SUM(t.done = 1), 0),
+                    (SELECT color FROM projects c WHERE c.name = p.name)
              FROM (SELECT name FROM projects UNION SELECT project FROM tasks WHERE project IS NOT NULL) p
              LEFT JOIN tasks t ON t.project = p.name
              GROUP BY p.name ORDER BY p.name COLLATE NOCASE",
@@ -652,6 +659,7 @@ impl Store {
                 name: r.get(0)?,
                 open: r.get(1)?,
                 done: r.get(2)?,
+                color: r.get(3)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -731,6 +739,23 @@ impl Store {
             .prepare(&format!("{SELECT} WHERE project = ?1 ORDER BY {ORDER}"))?;
         let rows = stmt.query_map([project], map_row)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Give a project its own color (`#rrggbb`), or none (`None`). Projects
+    /// that only exist through their tasks get a row of their own here.
+    pub fn set_project_color(&self, name: &str, color: Option<&str>) -> Result<(), StoreError> {
+        let color = color.filter(|c| {
+            c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
+        });
+        self.conn.execute(
+            "INSERT OR IGNORE INTO projects (name, created_at) VALUES (?1, ?2)",
+            params![name, now()],
+        )?;
+        self.conn.execute(
+            "UPDATE projects SET color = ?2 WHERE name = ?1",
+            params![name, color],
+        )?;
+        Ok(())
     }
 
     /// Take down an empty project (a building with no homes, done or not).
@@ -1733,9 +1758,14 @@ mod tests {
             vec![ProjectSummary {
                 name: "P".into(),
                 open: 1,
-                done: 3
+                done: 3,
+                color: None
             }]
         );
+        s.set_project_color("P", Some("#ff8800")).unwrap();
+        assert_eq!(s.projects().unwrap()[0].color.as_deref(), Some("#ff8800"));
+        s.set_project_color("P", Some("red; drop")).unwrap();
+        assert_eq!(s.projects().unwrap()[0].color, None);
     }
 
     #[test]

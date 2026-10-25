@@ -163,6 +163,20 @@ fn add_floor(app: AppHandle, project: String, name: String) -> CmdResult<Option<
     Ok(made)
 }
 
+/// Give a project its own color (`#rrggbb`), or clear it.
+#[tauri::command]
+fn set_project_color(app: AppHandle, name: String, color: Option<String>) -> CmdResult<()> {
+    {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store
+            .set_project_color(&name, color.as_deref())
+            .map_err(err)?;
+    }
+    let _ = app.emit("tasks-changed", ());
+    Ok(())
+}
+
 /// Every task in a project, done ones too.
 #[tauri::command]
 fn project_tasks(state: State<'_, AppState>, project: String) -> CmdResult<Vec<Task>> {
@@ -811,7 +825,10 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
         "json" => ("json", serde_json::to_string_pretty(&tasks).map_err(err)?),
         other => return Err(format!("Unknown export format {other}")),
     };
-    let stem = format!("Plucky tasks {}", chrono::Local::now().format("%Y-%m-%d"));
+    let stem = format!(
+        "Todo City tasks {}",
+        chrono::Local::now().format("%Y-%m-%d")
+    );
     let path = data::free_name(&data::downloads_dir(), &stem, ext);
     std::fs::write(&path, body).map_err(err)?;
     reveal(&path, true)?;
@@ -824,7 +841,7 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
 fn save_city_image(name: String, png: Vec<u8>) -> CmdResult<String> {
     const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
     if !png.starts_with(PNG_MAGIC) || png.len() > 20 * 1024 * 1024 {
-        return Err("That isn't a picture Plucky can save.".into());
+        return Err("That isn't a picture Todo City can save.".into());
     }
     let path = data::free_name(&data::downloads_dir(), &city_file_stem(&name), "png");
     std::fs::write(&path, png).map_err(err)?;
@@ -853,7 +870,7 @@ fn city_file_stem(name: &str) -> String {
         .collect();
     let clean = clean.trim();
     if clean.is_empty() {
-        "Plucky city".into()
+        "My city".into()
     } else {
         clean.to_string()
     }
@@ -1125,9 +1142,10 @@ fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     }
 }
 
-/// Up to 0.4.1 the app was called Pluck. An update keeps the old bundle
-/// path, so finish the rename on first launch: move `Pluck.app` to
-/// `Plucky.app` and reopen from there. Returns true when relaunching.
+/// Up to 0.4.1 the app was called Pluck, then Plucky until 0.4.36. An
+/// update keeps the old bundle path, so finish the rename on first launch:
+/// move it to `Todo City.app` and reopen from there. Returns true when
+/// relaunching.
 #[cfg(target_os = "macos")]
 fn finish_rename(app: &AppHandle) -> bool {
     let Ok(exe) = std::env::current_exe() else {
@@ -1138,15 +1156,22 @@ fn finish_rename(app: &AppHandle) -> bool {
     let Some(bundle) = exe.ancestors().nth(3).map(|p| p.to_path_buf()) else {
         return false;
     };
-    if bundle.file_name().and_then(|n| n.to_str()) != Some("Pluck.app") {
+    // Earlier names: Pluck, then Plucky.
+    if !matches!(
+        bundle.file_name().and_then(|n| n.to_str()),
+        Some("Pluck.app" | "Plucky.app")
+    ) {
         return false;
     }
-    let target = bundle.with_file_name("Plucky.app");
+    let target = bundle.with_file_name("Todo City.app");
     if target.exists() {
         return false;
     }
     if let Err(e) = std::fs::rename(&bundle, &target) {
-        log::warn!("could not rename {} to Plucky.app: {e}", bundle.display());
+        log::warn!(
+            "could not rename {} to Todo City.app: {e}",
+            bundle.display()
+        );
         return false;
     }
     log::info!("renamed the app to {}", target.display());
@@ -1160,7 +1185,7 @@ fn finish_rename(app: &AppHandle) -> bool {
             true
         }
         Err(e) => {
-            log::warn!("could not reopen as Plucky: {e}");
+            log::warn!("could not reopen as Todo City: {e}");
             false
         }
     }
@@ -1174,16 +1199,21 @@ fn migrate_login_item(app: &AppHandle) {
         let Some(home) = std::env::var_os("HOME") else {
             return;
         };
-        let old = std::path::PathBuf::from(home).join("Library/LaunchAgents/Pluck.plist");
-        if !old.is_file() {
+        let agents = std::path::PathBuf::from(home).join("Library/LaunchAgents");
+        // The login items of the app's earlier names.
+        let Some(old) = ["Pluck.plist", "Plucky.plist"]
+            .iter()
+            .map(|n| agents.join(n))
+            .find(|p| p.is_file())
+        else {
             return;
-        }
+        };
         if let Err(e) = std::fs::remove_file(&old) {
             log::warn!("could not remove the old login item: {e}");
             return;
         }
         match app.autolaunch().enable() {
-            Ok(()) => log::info!("moved the login item to Plucky"),
+            Ok(()) => log::info!("moved the login item to Todo City"),
             Err(e) => log::warn!("could not re-create the login item: {e}"),
         }
     }
@@ -1501,6 +1531,7 @@ pub fn run() {
             add_floor,
             rename_floor,
             project_tasks,
+            set_project_color,
             delete_project,
             delete_floor,
             skip_occurrence,
@@ -1627,7 +1658,7 @@ mod tests {
     fn city_file_names_are_safe() {
         assert_eq!(city_file_stem("Lumen Bay"), "Lumen Bay");
         assert_eq!(city_file_stem("../../etc/passwd"), "etcpasswd");
-        assert_eq!(city_file_stem("  /:  "), "Plucky city");
+        assert_eq!(city_file_stem("  /:  "), "My city");
     }
 
     fn task() -> Task {

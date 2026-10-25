@@ -2,11 +2,11 @@
 
 <img src="docs/logo.svg" alt="" width="88" height="88">
 
-# Plucky
+# Todo City
 
 **Turn any text into a dated task — privately, on your Mac. Then watch your city's lights come on as you get things done.**
 
-Copy a message, an email or a web page and press <kbd>⌘C</kbd> once more. Plucky writes the to-do, finds the due date and reminds you on time.<br>
+Copy a message, an email or a web page and press <kbd>⌘C</kbd> once more. Todo City writes the to-do, finds the due date and reminds you on time.<br>
 A small AI model runs entirely on your own computer, so nothing you capture ever leaves it.
 
 [![Latest release](https://img.shields.io/github/v/release/pillieshwar/Plucky?label=release&color=5249d9)](https://github.com/pillieshwar/Plucky/releases/latest)
@@ -16,23 +16,23 @@ A small AI model runs entirely on your own computer, so nothing you capture ever
 [![macOS 11+](https://img.shields.io/badge/macOS-11%2B-171b1a?logo=apple)](#install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<a href="https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Plucky for Mac" width="248" height="52"></a>
+<a href="https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Todo City for Mac" width="248" height="52"></a>
 
 <sub>Free and open source · Apple silicon and Intel · one model download from inside the app</sub>
 
 <br><br>
 
-<img src="docs/screenshots/full-screen.png" alt="Plucky in full screen: a sidebar of lists and projects, today's tasks with their hours and a month calendar, and your city in the corner" width="860">
+<img src="docs/screenshots/full-screen.png" alt="Todo City in full screen: a sidebar of lists and projects, today's tasks with their hours and a month calendar, and your city in the corner" width="860">
 
 </div>
 
 ---
 
-## Plucky in one minute
+## Todo City in one minute
 
 1. **Capture.** Copy any text and press <kbd>⌘C</kbd> again — or select it and press your capture shortcut. A card drops down from the menu bar with the task, its date and time already filled in. Press <kbd>Return</kbd>.
 2. **Plan.** Your tasks sit in **Today**, **Calendar**, **Anytime** and **Someday**, in projects with sub-tasks and deadlines. Drag a task onto a day or an hour to plan it.
-3. **Get reminded.** When a task's time comes, Plucky tells you — with **Done** and **Snooze** one click away.
+3. **Get reminded.** When a task's time comes, Todo City tells you — with **Done** and **Snooze** one click away.
 4. **Watch your city grow.** Every task is a home in your own 3D city. Finish it, someone moves in, and the lights come on.
 
 Everything runs on your Mac. There's no account, no cloud and no tracking.
@@ -45,7 +45,7 @@ Everything runs on your Mac. There's no account, no cloud and no tracking.
 
 You're the mayor of a new city. It starts quiet and dark, and your job is to fill it with people — and the only way anyone moves in is when you get something done.
 
-| In your city | In Plucky | What you see |
+| In your city | In Todo City | What you see |
 | --- | --- | --- |
 | **An apartment building** | A project | It goes up when you start the project. The older the project, the closer to downtown it stands. |
 | **A floor** | A section of a project | You name it: "1st Floor: Travel", "2nd Floor: Program". Tasks on no floor live on the **ground floor**. |
@@ -60,7 +60,7 @@ You're the mayor of a new city. It starts quiet and dark, and your job is to fil
 | **Luxury cars** | Your tallest tower | The project you've finished the most of. |
 | **Population** | Every task you've finished | Your number as mayor: "Mayor Sam · Lumen Bay · population 198". |
 
-**The shape of a building.** Each floor is as wide as its homes need — a floor with 20 homes is wider than one with 4. Floors are stacked with the most homes at the bottom, so every building narrows as it rises; when a floor outgrows the one below, Plucky restacks them (their names go with them).
+**The shape of a building.** Each floor is as wide as its homes need — a floor with 20 homes is wider than one with 4. Floors are stacked with the most homes at the bottom, so every building narrows as it rises; when a floor outgrows the one below, Todo City restacks them (their names go with them).
 
 **The city is alive.** Cars drive every street with soft headlights, a few trees and bushes line the pavements, trucks come and go around buildings under construction, and luxury cars circle your tallest tower. (Everything stays still if your Mac is set to reduce motion.)
 
@@ -68,7 +68,7 @@ You're the mayor of a new city. It starts quiet and dark, and your job is to fil
 
 - **Drag** to turn it to any angle and tilt it, **scroll** to zoom, **double-click** to reset (arrow keys, <kbd>+</kbd> <kbd>−</kbd> and <kbd>0</kbd> work too).
 - **Hover** a window to see its task — empty, being readied, overdue, or when someone moved in. Hover a building for how many homes are lived in and still empty.
-- **Click a building** and Plucky glides to it and opens that project; click the houses for tasks in no project, or a plot for Someday.
+- **Click a building** and Todo City glides to it and opens that project; click the houses for tasks in no project, or a plot for Someday.
 - **Story** walks you through all of this, page by page.
 - See the last **7 days**, **30 days** or **all time**: new residents, population, your tallest tower, finished projects and your busiest moving day.
 
@@ -85,8 +85,8 @@ Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
 | | |
 | --- | --- |
 | <img src="docs/screenshots/panel.png" alt="The side panel" width="300"> | **The side panel** docks at the edge of your screen: today's list, a week strip to drag tasks onto other days, and everything else one click away in the list menu. Press <kbd>⇧⌘H</kbd> to show or hide it, even over full-screen apps. |
-| <img src="docs/screenshots/popover.png" alt="The menu-bar dropdown" width="300"> | **The menu-bar dropdown** opens from the Plucky icon: today's agenda next to your calendar, frosted over whatever you're doing. Captures drop down here for review. |
-| <img src="docs/screenshots/full-screen-small.png" alt="Full screen" width="300"> | **Full screen** (<kbd>⌃⌘F</kbd>, or the expand button in the panel) turns Plucky into a full window with a sidebar, tasks that open in place, a month calendar on the right, a week calendar — and your city. It gets a Dock icon while it's open; the green button at the top left takes you back to the side panel. |
+| <img src="docs/screenshots/popover.png" alt="The menu-bar dropdown" width="300"> | **The menu-bar dropdown** opens from the Todo City icon: today's agenda next to your calendar, frosted over whatever you're doing. Captures drop down here for review. |
+| <img src="docs/screenshots/full-screen-small.png" alt="Full screen" width="300"> | **Full screen** (<kbd>⌃⌘F</kbd>, or the expand button in the panel) turns Todo City into a full window with a sidebar, tasks that open in place, a month calendar on the right, a week calendar — and your city. It gets a Dock icon while it's open; the green button at the top left takes you back to the side panel. |
 
 ## Features
 
@@ -95,8 +95,8 @@ Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
 <img src="docs/screenshots/capture.png" alt="A capture card under the menu-bar icon, with the task, date and time filled in" width="340" align="right">
 
 - **<kbd>⌘C</kbd> twice.** Copy as usual, then press <kbd>⌘C</kbd> again within a moment. Works in every app, no permissions needed.
-- **Or a shortcut.** Select text and press <kbd>⇧⌘S</kbd> (change it in Preferences) — no copying at all. Or right-click → **Add to Plucky**.
-- **Dates done right.** "by Friday 3pm", "every Monday", "tomorrow evening" become a real day, time and repeat — and "by Friday" becomes a **deadline**. When a phrase is ambiguous, Plucky asks instead of guessing.
+- **Or a shortcut.** Select text and press <kbd>⇧⌘S</kbd> (change it in Preferences) — no copying at all. Or right-click → **Add to Todo City**.
+- **Dates done right.** "by Friday 3pm", "every Monday", "tomorrow evening" become a real day, time and repeat — and "by Friday" becomes a **deadline**. When a phrase is ambiguous, Todo City asks instead of guessing.
 - **Lists become sub-tasks.** Capture a bulleted list and it turns into a checklist.
 - **Back to the source.** Each task remembers where it came from — the Slack thread, the email, the web page — and opens it in one click.
 
@@ -106,7 +106,7 @@ Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
 
 <img src="docs/screenshots/quick-add.png" alt="Quick add with a task being typed" width="480">
 
-Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm every month #home`. Plucky shows how it reads the date as you type. (In the app's own add field, `@Name` also puts the task in a project.)
+Press <kbd>⇧⌘Space</kbd> anywhere and type `pay rent friday 5pm every month #home`. Todo City shows how it reads the date as you type. (In the app's own add field, `@Name` also puts the task in a project.)
 
 ### Today, with its hours
 
@@ -136,12 +136,14 @@ In full screen, every task shows its **notes** and **sub-tasks** right under it 
 
 - **Start a project** with the **+** next to **Projects (Buildings)** in the sidebar — even before it has any tasks.
 - **Open a project** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Ground floor"), with how many tasks each has to do. Click a floor for its own page: done tasks stay there, crossed out, and **Add Task** puts the new task straight on that floor.
+- **Give a project its own color** from its **⋯** menu: its tasks' checkboxes, calendar blocks and dots on the month all take that color.
+- **The calendar on the right follows you**: inside a project (or on one floor), the month and the day's hours show only that project's (or floor's) tasks.
 - **Rename or delete** a project or a floor from its **⋯** menu. A project or floor can be deleted once it has no tasks left in it.
 - **Add Task** at the top right picks the **project**, **floor**, **date** and **time** right in the form. The form closes once the task is added.
 
 <img src="docs/screenshots/add-room.png" alt="Adding a task with project, floor, date and time pickers" width="860">
 
-Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Someday**.
+Finished tasks go to the **Logbook**. A task added with no date and no project goes straight to **Someday**, where ideas wait until you plan them.
 
 ### Reminders and check-ins
 
@@ -156,13 +158,13 @@ Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Somed
 
 ### Connectors
 
-<img src="docs/screenshots/agents.png" alt="Connectors: AI apps that can send tasks to Plucky" width="340" align="right">
+<img src="docs/screenshots/agents.png" alt="Connectors: AI apps that can send tasks to Todo City" width="340" align="right">
 
 - **Calendar** shows your meetings beside your tasks (read-only; includes Google, Outlook and iCloud calendars added to the Mac).
 - **Apple Reminders** syncs both ways — off by default.
-- **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a Plucky task to send the deck Friday 3pm"). They can never read your list, and you approve every task.
+- **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a Todo City task to send the deck Friday 3pm"). They can never read your list, and you approve every task.
 - **Watch my screen** (optional) suggests tasks from what's in front of you — asks of you and things you promised — using the on-device model. Password managers, Keychain and terminals are never read.
-- **Email to tasks** has Claude Code check your new Outlook email on a schedule and send the action items to Plucky for review.
+- **Email to tasks** has Claude Code check your new Outlook email on a schedule and send the action items to Todo City for review.
 
 <br clear="right">
 
@@ -178,26 +180,26 @@ Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Somed
 **Preferences → Customize** lets you pick:
 
 - an **accent color** (purple, blue, green, orange or pink);
-- which list Plucky **opens to** (where you left off, Today, Calendar or Anytime);
+- which list Todo City **opens to** (where you left off, Today, Calendar or Anytime);
 - the **first day of the week** and a **12- or 24-hour clock**;
 - whether notes and sub-tasks show **under each task**, and **compact rows**;
 - your city's **sky** (follow Appearance, always night or always dusk) and whether its **cars and blinking windows** move.
 
 ## Install
 
-1. **Download** [`Plucky-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/Plucky-macOS.dmg).
-2. **Open it** and drag **Plucky** into **Applications**.
-3. **Launch Plucky.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
-4. **Follow the three-step tour.** Pick the on-device model (Plucky recommends the best one for your Mac and downloads it once), choose how to capture — <kbd>⌘C</kbd> twice, or a shortcut (which needs **Accessibility** access, how macOS lets an app read selected text) — and try a capture on a sample message.
+1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg).
+2. **Open it** and drag **Todo City** into **Applications**.
+3. **Launch Todo City.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
+4. **Follow the three-step tour.** Pick the on-device model (Todo City recommends the best one for your Mac and downloads it once), choose how to capture — <kbd>⌘C</kbd> twice, or a shortcut (which needs **Accessibility** access, how macOS lets an app read selected text) — and try a capture on a sample message.
 
-There's nothing else to install. Plucky opens at login and updates itself — look for **Restart to update** when a new version is ready.
+There's nothing else to install. Todo City opens at login and updates itself — look for **Restart to update** when a new version is ready.
 
-> **Coming from Pluck?** Pluck is now called Plucky. It updates itself as usual, renames itself to Plucky in Applications on first launch, and keeps your tasks, models, settings and login item.
+> **Coming from Pluck?** Pluck is now called Todo City. It updates itself as usual, renames itself to Todo City in Applications on first launch, and keeps your tasks, models, settings and login item.
 
 **Verify your download (optional).** Every release is built by this repository's public release workflow and carries a signed build-provenance attestation. With the [GitHub CLI](https://cli.github.com):
 
 ```bash
-gh attestation verify ~/Downloads/Plucky-macOS.dmg --repo pillieshwar/Plucky
+gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/Plucky
 ```
 
 Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
@@ -211,7 +213,7 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 | <kbd>⌘C</kbd> <kbd>⌘C</kbd> | Capture what you just copied (copy, then press <kbd>⌘C</kbd> again) |
 | <kbd>⇧⌘S</kbd> | Capture the selected text as a task (when you choose a shortcut instead) |
 | <kbd>⇧⌘Space</kbd> | Quick add — type a task |
-| <kbd>⇧⌘H</kbd> | Show or hide Plucky (handy over full-screen apps, where the menu bar is hidden) |
+| <kbd>⇧⌘H</kbd> | Show or hide Todo City (handy over full-screen apps, where the menu bar is hidden) |
 
 **In the task list** — press <kbd>?</kbd> to see them in the app:
 
@@ -231,11 +233,11 @@ Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
-- **Plucky uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**). There is no Plucky server.
-- **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to Plucky over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
-- **Watching your screen stays on your Mac.** If you turn on **Connectors → Watch my screen**, Plucky reads the text of the window in front (never password managers, Keychain, System Settings or terminals, and never what you type), runs the on-device model on new text, and keeps none of it.
+- **Todo City uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**). There is no Todo City server.
+- **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to Todo City over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
+- **Watching your screen stays on your Mac.** If you turn on **Connectors → Watch my screen**, Todo City reads the text of the window in front (never password managers, Keychain, System Settings or terminals, and never what you type), runs the on-device model on new text, and keeps none of it.
 - **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
-- **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. Plucky warns you and asks first; pick an "On My Mac" list to stay fully local.
+- **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. Todo City warns you and asks first; pick an "On My Mac" list to stay fully local.
 
 ## How it works
 
@@ -245,7 +247,7 @@ select text ─▶ read selection ─▶ local model ─▶ resolve the date ─
                clipboard fallback constrained     today's real date
 ```
 
-1. **Capture** ([`src-tauri/src/capture/`](src-tauri/src/capture)) reads the selection with macOS Accessibility (`AXSelectedText`). If an app doesn't expose it, Plucky sends Copy and restores your clipboard afterwards — only if nothing else wrote to it in the meantime, and never when it holds images or files. **Add to Plucky** in the right-click menu receives the text directly from macOS and doesn't touch the clipboard at all.
+1. **Capture** ([`src-tauri/src/capture/`](src-tauri/src/capture)) reads the selection with macOS Accessibility (`AXSelectedText`). If an app doesn't expose it, Todo City sends Copy and restores your clipboard afterwards — only if nothing else wrote to it in the meantime, and never when it holds images or files. **Add to Todo City** in the right-click menu receives the text directly from macOS and doesn't touch the clipboard at all.
 2. **Extract** ([`src-tauri/src/engine.rs`](src-tauri/src/engine.rs), [`crates/pluck-core/src/llm.rs`](crates/pluck-core/src/llm.rs)) starts the bundled `llama-server` on demand and asks for exactly three fields — `task`, `date_text` and `date_confidence` — under a JSON Schema at temperature 0. Output is validated in Rust, with one repair retry. The runtime stops after five idle minutes to give the memory back.
 3. **Resolve the date** ([`src/lib/dates.ts`](src/lib/dates.ts), [`src/lib/schedule.ts`](src/lib/schedule.ts)): the model only copies the phrase; deterministic code turns it into a day, time and repeat rule. Ambiguous phrases ("next Friday" on a Tuesday, `3/4`) offer both readings.
 4. **Store and remind** ([`crates/pluck-core/src/store.rs`](crates/pluck-core/src/store.rs), [`src-tauri/src/notifications/`](src-tauri/src/notifications)) keeps tasks in SQLite and shows native notifications with actions when they're due.
@@ -261,10 +263,10 @@ git clone https://github.com/pillieshwar/Plucky.git && cd Plucky
 npm install
 scripts/build-llama-server.sh   # build the bundled model runtime once (a few minutes)
 npm run tauri dev               # run in development
-npm run tauri build             # Plucky.app and a .dmg in target/release/bundle/
+npm run tauri build             # Todo City.app and a .dmg in target/release/bundle/
 ```
 
-During `tauri dev`, macOS grants Accessibility permission to your terminal, not to Plucky. To use an existing Ollama instead of the bundled runtime, set `PLUCK_OLLAMA_URL=http://127.0.0.1:11434` (and optionally `PLUCK_MODEL`).
+During `tauri dev`, macOS grants Accessibility permission to your terminal, not to Todo City. To use an existing Ollama instead of the bundled runtime, set `PLUCK_OLLAMA_URL=http://127.0.0.1:11434` (and optionally `PLUCK_MODEL`).
 
 **Tests**
 
@@ -289,19 +291,19 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 
 | Problem | Fix |
 | --- | --- |
-| "Apple could not verify Plucky…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
-| <kbd>⌘C</kbd> twice does nothing | Check that **Preferences → Press ⌘C twice to capture** is on and the Plucky icon is in the menu bar. Copies made inside Plucky itself are ignored. |
-| <kbd>⇧⌘S</kbd> does nothing | Check that the Plucky icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Preferences → Keyboard shortcuts**. |
+| "Apple could not verify Todo City…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
+| <kbd>⌘C</kbd> twice does nothing | Check that **Preferences → Press ⌘C twice to capture** is on and the Todo City icon is in the menu bar. Copies made inside Todo City itself are ignored. |
+| <kbd>⇧⌘S</kbd> does nothing | Check that the Todo City icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Preferences → Keyboard shortcuts**. |
 | "No selected text found" | Select the text again. Password fields and some secure apps can't be read, by design. |
-| **Add to Plucky** isn't in the right-click menu | Open Plucky from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
+| **Add to Todo City** isn't in the right-click menu | Open Todo City from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
 | No reminders appear | **Preferences → Notifications** shows whether they're allowed and can send a test notification. |
-| Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Plucky with **–**, then capture again and re-allow it. |
-| The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Plucky starts next to the battery, but never moves the icon again after that. |
-| Something else | **Preferences → Show log file** opens Plucky's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
+| Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Todo City with **–**, then capture again and re-allow it. |
+| The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Todo City starts next to the battery, but never moves the icon again after that. |
+| Something else | **Preferences → Show log file** opens Todo City's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
 
 ## Uninstall
 
-Quit Plucky from its menu-bar icon, move it from Applications to the Bin and remove it from **Privacy & Security → Accessibility**. To delete your tasks and models too:
+Quit Todo City from its menu-bar icon, move it from Applications to the Bin and remove it from **Privacy & Security → Accessibility**. To delete your tasks and models too:
 
 ```bash
 rm -rf ~/Library/Application\ Support/app.pluck.desktop

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Plucky",
+  "productName": "Todo City",
   "mainBinaryName": "Pluck",
-  "version": "0.4.36",
+  "version": "0.4.37",
   "identifier": "app.pluck.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "panel",
-        "title": "Plucky",
+        "title": "Todo City",
         "width": 360,
         "height": 720,
         "resizable": false,
@@ -29,7 +29,7 @@
       },
       {
         "label": "popover",
-        "title": "Plucky Today",
+        "title": "Todo City Today",
         "url": "index.html",
         "width": 340,
         "height": 540,
@@ -46,7 +46,7 @@
       },
       {
         "label": "quick",
-        "title": "Plucky Quick Add",
+        "title": "Todo City Quick Add",
         "url": "index.html",
         "width": 640,
         "height": 300,

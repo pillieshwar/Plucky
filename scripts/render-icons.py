@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render Plucky's icons from src-tauri/icons/source/*.svg.
+"""Render Todo City's icons from src-tauri/icons/source/*.svg.
 
 Needs Playwright's Chromium (for SVG rendering) and Pillow:
     python3 scripts/render-icons.py

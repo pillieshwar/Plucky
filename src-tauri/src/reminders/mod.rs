@@ -339,7 +339,7 @@ impl Worker {
                     ek.refresh();
                     Ok(ek.lists())
                 } else {
-                    Err("Plucky doesn't have access to Reminders.".into())
+                    Err("Todo City doesn't have access to Reminders.".into())
                 };
                 let _ = tx.send(result);
                 false
@@ -363,7 +363,7 @@ impl Worker {
     #[cfg(target_os = "macos")]
     fn enable(&self, ek: &eventkit::EventKit, req: EnableRequest) -> Result<(), String> {
         if eventkit::access() != Access::Full {
-            return Err("Allow Plucky to use Reminders first.".into());
+            return Err("Allow Todo City to use Reminders first.".into());
         }
         ek.refresh();
         let list = match req.list_id {
@@ -411,7 +411,7 @@ impl Worker {
         };
         if eventkit::access() != Access::Full {
             self.set_runtime(|r| {
-                r.last_error = Some("Plucky no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
+                r.last_error = Some("Todo City no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
             });
             return;
         }
@@ -420,7 +420,7 @@ impl Worker {
         if list.is_none() {
             self.set_runtime(|r| {
                 r.list = None;
-                r.last_error = Some("The Reminders list Plucky syncs with was deleted. Choose another list in Settings.".into());
+                r.last_error = Some("The Reminders list Todo City syncs with was deleted. Choose another list in Settings.".into());
             });
             return;
         }

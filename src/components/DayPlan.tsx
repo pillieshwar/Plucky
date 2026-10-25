@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { eventsForDay, hourLabel, hourRange, planFor } from "../lib/plan";
 import { relativeLabel } from "../lib/dates";
 import { timeLabel } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { CalendarEvent, NewTask, Task } from "../lib/types";
+import { useProjectColors } from "../lib/colors";
 
 interface Props {
   tasks: Task[];
@@ -31,6 +32,7 @@ type AddAt = number | "any" | null;
  * a task and it leaves the plan.
  */
 export function DayPlan({ tasks, day, today, now, locale, events, actions, drag, onAdd, onOpen, compact }: Props) {
+  const colors = useProjectColors();
   const plan = useMemo(() => planFor(tasks, day, today), [tasks, day, today]);
   const evs = useMemo(() => eventsForDay(events, day), [events, day]);
   const hours = useMemo(() => hourRange(plan, evs), [plan, evs]);
@@ -81,6 +83,7 @@ export function DayPlan({ tasks, day, today, now, locale, events, actions, drag,
         ]
           .filter(Boolean)
           .join(" ")}
+        style={t.project && colors[t.project] ? ({ "--pc": colors[t.project] } as CSSProperties) : undefined}
         onPointerDown={(e) => drag.start(e, t)}
       >
         <button

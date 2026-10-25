@@ -252,6 +252,10 @@ function mockTauri(s) {
     create_project: (a) => a.name,
     project_tasks: (a) => [...s.tasks, ...(s.logbook ?? [])].filter((t) => t.project === a.project),
     delete_project: () => true,
+    set_project_color: (a) => {
+      s.colors = { ...(s.colors ?? { "Offsite 2026": "#f08a3c", "Q4 launch": "#3fbf7f" }), [a.name]: a.color };
+      return null;
+    },
     delete_floor: () => true,
     add_floor: (a) => a.name,
     save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
@@ -268,7 +272,7 @@ function mockTauri(s) {
       const m = new Map();
       for (const t of [...s.tasks, ...(s.logbook ?? [])]) {
         if (!t.project) continue;
-        const p = m.get(t.project) ?? { name: t.project, open: 0, done: 0 };
+        const p = m.get(t.project) ?? { name: t.project, open: 0, done: 0, color: (s.colors ?? { "Offsite 2026": "#f08a3c", "Q4 launch": "#3fbf7f" })[t.project] ?? null };
         if (t.done) p.done += 1;
         else p.open += 1;
         m.set(t.project, p);
@@ -1005,6 +1009,8 @@ const openFloor = async (p) => {
   await p.locator(".sb-floor", { hasText: "Floor: Travel" }).click();
   await p.waitForTimeout(250);
   if (!(await p.locator(".fh-title", { hasText: "Floor: Travel" }).count())) throw new Error("the floor's page didn't open");
+  if (!(await p.locator(".fh-crumb", { hasText: "Offsite 2026" }).count())) throw new Error("no breadcrumb back to the project");
+  if (!(await p.locator(".mcal-scope", { hasText: "Offsite 2026" }).count())) throw new Error("the month isn't narrowed to the floor");
 };
 await shot("full-floor-page", FULL, full({ settings: DARK }), openFloor);
 await shot("full-floor-add", FULL, full({ settings: DARK }), async (p) => {
@@ -1030,6 +1036,13 @@ await shot("full-floor-menu", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
   await p.locator(".sb-b", { hasText: "Offsite 2026" }).hover();
   await p.getByRole("button", { name: "More for Offsite 2026" }).click();
+});
+await shot("full-project-color", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Q4 launch/)(p);
+  await p.locator(".sb-b", { hasText: "Q4 launch" }).hover();
+  await p.getByRole("button", { name: "More for Q4 launch" }).click();
+  await p.getByRole("radio", { name: "Pink" }).click();
+  await p.waitForTimeout(300);
 });
 await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
