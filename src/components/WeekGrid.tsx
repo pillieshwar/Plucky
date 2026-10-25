@@ -33,7 +33,7 @@ export function sevenDays(day: string): string[] {
 type AddAt = { iso: string; hour: number | "any" } | null;
 
 /**
- * Full screen's Upcoming: the whole week as a calendar. Tasks sit in the
+ * Full screen's Calendar: the whole week as a calendar. Tasks sit in the
  * hour of their time beside calendar events; untimed ones in Any time. Drag
  * a task to another day or hour, click an empty hour to add one there.
  */
@@ -70,18 +70,9 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
     [tasks, events, from, today],
   );
   const holidays = useMemo(() => holidaysByDay(events, from, to), [events, from, to]);
-  // 7 AM – 9 PM, widened to take in anything earlier or later.
-  const hours = useMemo(() => {
-    let lo = 7;
-    let hi = 21;
-    for (const c of cols) {
-      for (const h of [...c.plan.byHour.keys(), ...c.evs.byHour.keys()]) {
-        lo = Math.min(lo, h);
-        hi = Math.max(hi, h);
-      }
-    }
-    return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
-  }, [cols]);
+  // The whole day, midnight to 11 PM: scrolling never runs out of hours, so
+  // the calendar always reaches the bottom of the window.
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
   // Open on the morning (or now, this week).
   useEffect(() => {

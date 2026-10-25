@@ -3,7 +3,7 @@ import { listTitle, projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
 
 /**
- * The panel's title, which is also the list menu: Today, Upcoming, Anytime,
+ * The panel's title, which is also the list menu: Today, Calendar, Anytime,
  * Someday, Logbook, then projects and tags.
  */
 export function ListPicker({
@@ -90,7 +90,7 @@ export function ListPicker({
       {open && (
         <div className="lp-menu" role="menu" aria-label="Lists">
           {item("today", "Today", counts.today, <StarIcon />)}
-          {item("upcoming", "Upcoming", null, <CalIcon />, "week · hours")}
+          {item("upcoming", "Calendar", null, <CalIcon />, "week · hours")}
           {item("all", "Anytime", counts.all, <LinesIcon />)}
           {item("someday", "Someday", counts.someday, <CloudIcon />)}
           {item("logbook", "Logbook", null, <LogIcon />)}

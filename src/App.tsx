@@ -98,7 +98,7 @@ const KEYS: [string, string][] = [
   ["C", "Steps (checklist)"],
   ["P", "Move to a project"],
   ["V", "Today as a list or in hours"],
-  ["← →", "Day before / after (Upcoming)"],
+  ["← →", "Day before / after (Calendar)"],
   ["/ or ⌘F", "Search"],
   ["⌃⌘F", "Full screen ↔ side panel"],
 ];

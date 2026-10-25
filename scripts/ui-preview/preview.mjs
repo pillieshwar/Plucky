@@ -430,7 +430,7 @@ const PLAN_TASKS = [
 const planScenario = (o = {}) => scenario({ tasks: PLAN_TASKS, events: PLAN_EVENTS, ...o });
 const week = async (p) => {
   await p.locator(".list-title").click();
-  await p.locator(".lp-menu").getByRole("menuitemradio", { name: /Upcoming/ }).click();
+  await p.locator(".lp-menu").getByRole("menuitemradio", { name: /Calendar/ }).click();
   await p.waitForTimeout(250);
 };
 await shot("panel-week", PANEL, planScenario(), week);
@@ -891,10 +891,10 @@ await shot("full-when-editor", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();
   await p.locator(".tc-props .tc-pill").first().click();
 });
-await shot("full-upcoming", FULL, full({ settings: DARK }), side(/Upcoming/));
-await shot("full-upcoming-light", FULL, full({ settings: LIGHT }), side(/Upcoming/));
+await shot("full-upcoming", FULL, full({ settings: DARK }), side(/Calendar/));
+await shot("full-upcoming-light", FULL, full({ settings: LIGHT }), side(/Calendar/));
 await shot("full-upcoming-drag", FULL, full({ settings: DARK }), async (p) => {
-  await side(/Upcoming/)(p);
+  await side(/Calendar/)(p);
   const from = await p.locator(".wg-task").first().boundingBox();
   const to = await p.locator(`.wg-cell[data-iso="${day(2)}"][data-hour="16"]`).boundingBox();
   await p.mouse.move(from.x + 30, from.y + 8);

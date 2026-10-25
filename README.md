@@ -31,7 +31,7 @@ A small AI model runs entirely on your own computer, so nothing you capture ever
 ## Plucky in one minute
 
 1. **Capture.** Copy any text and press <kbd>⌘C</kbd> again — or select it and press your capture shortcut. A card drops down from the menu bar with the task, its date and time already filled in. Press <kbd>Return</kbd>.
-2. **Plan.** Your tasks sit in **Today**, **Upcoming**, **Anytime** and **Someday**, in projects with steps and deadlines. Drag a task onto a day or an hour to plan it.
+2. **Plan.** Your tasks sit in **Today**, **Calendar**, **Anytime** and **Someday**, in projects with steps and deadlines. Drag a task onto a day or an hour to plan it.
 3. **Get reminded.** When a task's time comes, Plucky tells you — with **Done** and **Snooze** one click away.
 4. **Watch your city grow.** Every task you finish lights a window in your own 3D city. It's the most satisfying way to see what you've done.
 
@@ -117,7 +117,7 @@ Today shows what's due, late and planned for **This evening**. Switch to **Hours
 
 <img src="docs/screenshots/week.png" alt="Seven days as a calendar with tasks and events, and tasks with no date beside it" width="860">
 
-**Upcoming** shows the next seven days with hours, your tasks beside your calendar events. Drag tasks between days and hours, click an empty hour to add one there, and drag tasks with no date onto the week to plan them.
+**Calendar** shows the next seven days, every hour of the day, filling the window — your tasks beside your calendar events. Drag tasks between days and hours, click an empty hour to add one there, and drag tasks with no date onto the week to plan them.
 
 ### Every detail of a task
 
