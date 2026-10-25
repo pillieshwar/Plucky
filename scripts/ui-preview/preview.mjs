@@ -1066,6 +1066,24 @@ await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
     if (await p.locator(".cv-tip", { hasText: /still to do|Overdue|readied/ }).count()) break;
   }
 });
+await shot("full-city-house", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(900);
+  const c = await p.locator(".city-view canvas").first().boundingBox();
+  // Sweep across the city until a house is under the pointer.
+  outer: for (let y = 0.35; y < 0.95; y += 0.05) {
+    for (let x = 0.1; x < 0.95; x += 0.05) {
+      await p.mouse.move(c.x + c.width * x, c.y + c.height * y);
+      await p.waitForTimeout(30);
+      if (await p.locator(".cv-tip", { hasText: "A house" }).count()) break outer;
+    }
+  }
+  const tip = p.locator(".cv-tip", { hasText: "A house" });
+  if (await tip.count()) {
+    const strong = await tip.locator("strong").textContent();
+    if (strong === "Houses") throw new Error("hovering a house shows the whole neighbourhood, not its task");
+  }
+});
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
 });

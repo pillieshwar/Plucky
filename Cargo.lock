@@ -3159,7 +3159,7 @@ dependencies = [
 
 [[package]]
 name = "pluck"
-version = "0.4.38"
+version = "0.4.39"
 dependencies = [
  "arboard",
  "block2",
@@ -3198,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "pluck-core"
-version = "0.4.38"
+version = "0.4.39"
 dependencies = [
  "chrono",
  "log",

@@ -93,6 +93,8 @@ export interface Picked {
   room: Room | null;
   /** Which floor it's on ("1st Floor: Travel"). */
   floor: string | null;
+  /** Which house, for a task in no project (each house is one task). */
+  house?: number;
   x: number;
   y: number;
 }
@@ -104,7 +106,7 @@ interface Built {
   /** Building floors, for picking (userData.key, userData.floor). */
   bodies: THREE.Mesh[];
   /** Rooms (windows): the instanced meshes and which room each instance is. */
-  windowMeshes: { mesh: THREE.InstancedMesh; rooms: { room: Room; key: string; floor: string }[] }[];
+  windowMeshes: { mesh: THREE.InstancedMesh; rooms: { room: Room; key: string; floor: string; house?: number }[] }[];
   labels: CSS2DObject[];
   radius: number;
   center: THREE.Vector3;
@@ -239,7 +241,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   const bodies: THREE.Mesh[] = [];
   const from = rangeStart(range, now);
   const todayStart = startOfToday(now);
-  type Slot = { m: THREE.Matrix4; room: Room; key: string; floor: string };
+  type Slot = { m: THREE.Matrix4; room: Room; key: string; floor: string; house?: number };
   const dark: Slot[] = [];
   const readying: Slot[] = [];
   const late: Slot[] = [];
@@ -351,6 +353,9 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       body.receiveShadow = true;
       body.userData.key = b.key;
       body.userData.floor = HOUSES;
+      // Each house is one task: hovering it shows that task, and only it lights up.
+      body.userData.room = room;
+      body.userData.house = i;
       scene.add(body);
       bodies.push(body);
       const roof = new THREE.Mesh(houseRoofGeo, houseRoofMat);
@@ -378,7 +383,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       tmp.rotation.set(0, Math.atan2(nx, nz), 0);
       tmp.scale.set(0.2, 0.16, 1);
       tmp.updateMatrix();
-      sort({ m: tmp.matrix.clone(), room, key: b.key, floor: HOUSES });
+      sort({ m: tmp.matrix.clone(), room, key: b.key, floor: HOUSES, house: i });
       if (room.lit) {
         const porch = new THREE.Mesh(porchGeo, porchMat);
         porch.position.set(x + nx * (half + 0.02) + tx * 0.16, 0.3, z + nz * (half + 0.02) + tz * 0.16);
@@ -450,7 +455,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     slots.forEach((s, i) => mesh.setMatrixAt(i, s.m));
     mesh.instanceMatrix.needsUpdate = true;
     scene.add(mesh);
-    windowMeshes.push({ mesh, rooms: slots.map((s) => ({ room: s.room, key: s.key, floor: s.floor })) });
+    windowMeshes.push({ mesh, rooms: slots.map((s) => ({ room: s.room, key: s.key, floor: s.floor, house: s.house })) });
   };
   instanced(dark, keep(new THREE.MeshStandardMaterial({ color: theme.dark, roughness: 0.35, metalness: 0.4 })));
   // A home being readied (some sub-tasks done): a faint glow behind the curtains.
@@ -484,9 +489,14 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
 
   const center = new THREE.Vector3(mid, Math.min(tallest * 0.3, 3), mid);
   const radius = Math.max(span * 0.75, tallest * 0.9, 6);
+  // `key` is a building's key, or "key#n" for one house.
   const setHover = (key: string | null) => {
-    for (const body of bodies) body.material = body.userData.key === key ? body.userData.hover : body.userData.base;
-    for (const l of labels) l.element.classList.toggle("on", l.element.dataset.key === key);
+    for (const body of bodies) {
+      const on = body.userData.house !== undefined ? key === `${body.userData.key}#${body.userData.house}` : body.userData.key === key;
+      body.material = on ? body.userData.hover : body.userData.base;
+    }
+    const building = key?.split("#")[0] ?? null;
+    for (const l of labels) l.element.classList.toggle("on", l.element.dataset.key === building);
   };
   return {
     scene,
@@ -1004,15 +1014,18 @@ export function CityScene({
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       const hitB = ray.intersectObjects(built.bodies, false)[0];
-      let best: { d: number; room: Room; key: string; floor: string } | null = null;
+      let best: { d: number; room: Room; key: string; floor: string; house?: number } | null = null;
       for (const wm of built.windowMeshes) {
         const h = ray.intersectObject(wm.mesh, false)[0];
         if (h && h.instanceId !== undefined && (!best || h.distance < best.d)) best = { d: h.distance, ...wm.rooms[h.instanceId] };
       }
       const x = clientX - r.left;
       const y = clientY - r.top;
-      if (best && (!hitB || best.d <= hitB.distance + 0.05)) return { key: best.key, room: best.room, floor: best.floor, x, y };
-      if (hitB) return { key: hitB.object.userData.key as string, room: null, floor: (hitB.object.userData.floor as string) ?? null, x, y };
+      if (best && (!hitB || best.d <= hitB.distance + 0.05)) return { key: best.key, room: best.room, floor: best.floor, house: best.house, x, y };
+      if (hitB) {
+        const u = hitB.object.userData;
+        return { key: u.key as string, room: (u.room as Room | undefined) ?? null, floor: (u.floor as string) ?? null, house: u.house as number | undefined, x, y };
+      }
       return null;
     };
 
@@ -1023,7 +1036,7 @@ export function CityScene({
     const onMove = (e: PointerEvent) => {
       if (down && (e.buttons & 1) !== 0) return;
       const p = pickAt(e.clientX, e.clientY);
-      const key = p?.key ?? null;
+      const key = p ? (p.house !== undefined ? `${p.key}#${p.house}` : p.key) : null;
       if (key !== hoverKey) {
         hoverKey = key;
         built.setHover(key);
