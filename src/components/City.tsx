@@ -327,7 +327,7 @@ export function CityCard({
         <div className="city-card-text">
           <span className="city-card-name">{name ?? "Name your city"}</span>
           <span className="city-card-sub">
-            {stats.inRange} rooms lit this week · {city.total} in all
+            {stats.inRange} this week · {city.total} rooms lit
           </span>
         </div>
         {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
