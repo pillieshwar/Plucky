@@ -693,6 +693,9 @@ fn set_settings(app: AppHandle, settings: State<'_, Settings>, value: AppSetting
         v.city_name = clean_city_name(value.city_name.as_deref());
         v.city_corner = value.city_corner;
         v.mayor_name = clean_city_name(value.mayor_name.as_deref());
+        // Milestones are kept for good: these only go up.
+        v.city_peak = v.city_peak.max(value.city_peak);
+        v.city_seen = v.city_seen.max(value.city_seen);
         v.look = value.look.clean();
     });
     // Every window follows the theme (and other preferences) right away.

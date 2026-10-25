@@ -60,6 +60,22 @@ You're the mayor of a new city. It starts quiet and dark, and your job is to fil
 | **Luxury cars** | Your tallest tower | The project you've finished the most of. |
 | **Population** | Every task you've finished | Your number as mayor: "Mayor Sam · Lumen Bay · population 198". |
 
+### Milestones: your city grows with you
+
+Your population is every task you've finished. At each milestone the city gains something new — for good. Open your city and click **Milestones** to see the rules, what's built and how far it is to the next one.
+
+| Population | Your city gains |
+| --- | --- |
+| 10 | 🏮 Street lamps on every corner |
+| 25 | 🌳 A park at the south end of town |
+| 50 | ⛲ A fountain in the park: the town square |
+| 100 | 🚆 A train line looping round the city |
+| 250 | ⛵ A harbour with a pier, a lighthouse and boats |
+| 500 | 🏟️ A stadium with floodlights |
+| 1,000 | 🌉 A bridge across the harbour to a second island |
+
+**The rules.** What's built stays built: un-ticking or deleting a task never takes anything away. There are no streaks, points or penalties, and rewards are only for your city — every feature of the app is yours from day one. Each milestone is celebrated once and adds a chapter to the city's **Story**.
+
 **The shape of a building.** Each floor is as wide as its homes need — a floor with 20 homes is wider than one with 4. Floors are stacked with the most homes at the bottom, so every building narrows as it rises; when a floor outgrows the one below, Todo City restacks them (their names go with them).
 
 **The city is alive.** Cars drive every street with soft headlights, a few trees and bushes line the pavements, trucks come and go around buildings under construction, and luxury cars circle your tallest tower. (Everything stays still if your Mac is set to reduce motion.)

@@ -101,6 +101,7 @@ const SETTINGS = {
   city_name: "Lumen Bay",
   city_corner: true,
   mayor_name: "Sam",
+  city_seen: 99999,
   undated_nudge: true,
   undated_time: "16:00",
   last_undated_nudge: null,
@@ -188,7 +189,7 @@ function mockTauri(s) {
     list_tasks: () => s.tasks,
     status: () => s.status,
     get_settings: () => s.settings,
-    set_settings: (a) => a.value,
+    set_settings: (a) => (s.settings = a.value),
     get_shortcuts: () => s.shortcuts,
     update_status: () => s.update,
     list_models: () => [
@@ -1086,6 +1087,31 @@ await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".story-card").getByRole("button", { name: "Next", exact: true }).click();
   await p.locator(".story-card").getByRole("button", { name: "Next", exact: true }).click();
   await p.waitForTimeout(350);
+});
+await shot("full-city-milestones", FULL, full({ settings: { ...DARK, city_peak: 1200, city_seen: 1200 } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(900);
+  const n = await p.locator(".city3d-label.landmark").count();
+  if (n < 6) throw new Error(`expected the park, square, train, harbour, stadium and island labels, saw ${n}`);
+});
+await shot("full-city-milestones-light", FULL, full({ settings: { ...LIGHT, city_peak: 1200, city_seen: 1200 } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(900);
+});
+await shot("full-city-milestones-sheet", FULL, full({ settings: { ...DARK, city_peak: 80, city_seen: 99999 } }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /Milestones/ }).click();
+  await p.waitForTimeout(300);
+  if ((await p.locator(".ms-list li.got").count()) < 3) throw new Error("reached milestones aren't marked");
+  if (!(await p.locator(".ms-rules").textContent()).includes("What's built stays built")) throw new Error("rules missing");
+});
+await shot("full-city-celebrate", FULL, full({ settings: { ...DARK, city_peak: 120, city_seen: 10 } }), async (p) => {
+  await p.waitForTimeout(300);
+  if (!(await p.locator(".toast, [role=status]").filter({ hasText: "the train is running" }).count())) throw new Error("no milestone toast");
+  await p.locator(".city-card-art").click();
+  await p.locator(".ms-cheer").waitFor();
+  await p.waitForTimeout(400);
 });
 await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "New project" }).click();

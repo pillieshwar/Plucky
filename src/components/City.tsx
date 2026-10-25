@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { CITY_NAMES, SOMEDAY_KEY, cityStats, initials, type City, type CityRange } from "../lib/city";
 import { api } from "../lib/api";
+import { MILESTONES, MILESTONE_RULES, nextMilestone, reachedMilestones, type Milestone } from "../lib/milestones";
 import type { Picked } from "./CityScene";
 
 // three.js loads only when the city is first shown (full screen).
@@ -178,11 +179,16 @@ export function CityView({
   onClose,
   onError,
   onSaved,
+  celebrate = [],
+  onCelebrated,
 }: {
   city: City;
   name: string | null;
   now: Date;
   locale: string;
+  /** Milestones just reached, to celebrate when the city opens. */
+  celebrate?: Milestone[];
+  onCelebrated?: () => void;
   startSharing?: boolean;
   /** The mayor's (the user's) name. */
   mayor: string | null;
@@ -203,7 +209,10 @@ export function CityView({
   const [renaming, setRenaming] = useState(false);
   const [sharing, setSharing] = useState(!!startSharing && !!name);
   const [story, setStory] = useState(false);
+  const [goals, setGoals] = useState(false);
   const dark = useDark();
+  const reached = city.reached ?? city.total;
+  const next = nextMilestone(reached);
   const stats = useMemo(() => cityStats(city, range, now, locale), [city, range, now, locale]);
   const byKey = useMemo(() => new Map(city.buildings.map((b) => [b.key, b] as const)), [city]);
   const rangeLabel = range === "week" ? "this week" : range === "month" ? "this month" : "in all";
@@ -214,13 +223,15 @@ export function CityView({
       e.preventDefault();
       e.stopImmediatePropagation();
       if (sharing) setSharing(false);
+      else if (celebrate.length) onCelebrated?.();
+      else if (goals) setGoals(false);
       else if (story) setStory(false);
       else if (renaming) setRenaming(false);
       else onClose();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [sharing, story, renaming, onClose]);
+  }, [sharing, story, goals, celebrate, onCelebrated, renaming, onClose]);
 
   if (!name)
     return (
@@ -310,6 +321,12 @@ export function CityView({
             </button>
           ))}
         </div>
+        <button type="button" className="cv-story cv-goals" onClick={() => setGoals(true)} title="What your city unlocks as it grows">
+          <TrophyIcon /> Milestones
+          <span className="cv-goals-count">
+            {reachedMilestones(reached).length}/{MILESTONES.length}
+          </span>
+        </button>
         <button type="button" className="cv-story" onClick={() => setStory(true)} title="How your city works">
           <BookIcon /> Story
         </button>
@@ -360,7 +377,11 @@ export function CityView({
 
       <footer className="cv-stats">
         <Stat big={`+${stats.inRange}`} small={`new residents ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
-        <Stat big={String(city.total)} small="population" note="every task you've finished" />
+        <Stat
+          big={String(city.total)}
+          small="population"
+          note={next ? `${next.left} more to ${next.milestone.name.replace(/^(A|The) /, "the ").toLowerCase()}` : "every milestone reached"}
+        />
         {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.floors.length} ${stats.tallest.floors.length === 1 ? "floor" : "floors"} · ${stats.tallest.done + stats.tallest.open} homes`} />}
         <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="projects complete" />
         {stats.brightest && <Stat big={stats.brightest.day} small="busiest moving day" note={`${stats.brightest.count} moved in`} />}
@@ -394,7 +415,9 @@ export function CityView({
         ))}
       </ul>
 
-      {story && <StorySheet name={name} mayor={mayor} onClose={() => setStory(false)} />}
+      {story && <StorySheet name={name} mayor={mayor} reached={reached} onClose={() => setStory(false)} />}
+      {goals && <MilestonesSheet name={name} reached={reached} onClose={() => setGoals(false)} />}
+      {celebrate.length > 0 && !sharing && <Celebration name={name} fresh={celebrate} onClose={() => onCelebrated?.()} />}
       {sharing && (
         <ShareSheet
           city={city}
@@ -690,23 +713,28 @@ const STORY: { title: string; text: string; art: string }[] = [
   },
   {
     title: "Your city grows with you",
-    text: "Today's timed tasks go up on the rooftop “Moving in today” billboard. Trucks circle buildings still under construction; a rooftop light switches on when every home is lived in; luxury cars come to the tallest tower. Your population is every task you've finished.",
+    text: "Today's timed tasks go up on the rooftop “Moving in today” billboard. Trucks circle buildings still under construction; a rooftop light switches on when every home is lived in; luxury cars come to the tallest tower. Your population is every task you've finished — and at each milestone the city gains something new for good: street lamps, a park, a train, a harbour. See Milestones.",
     art: "🌆",
   },
 ];
 
-function StorySheet({ name, mayor, onClose }: { name: string; mayor: string | null; onClose: () => void }) {
+function StorySheet({ name, mayor, reached, onClose }: { name: string; mayor: string | null; reached: number; onClose: () => void }) {
   const [page, setPage] = useState(0);
-  const p = STORY[page];
-  const last = page === STORY.length - 1;
+  // Each milestone reached adds a chapter.
+  const pages = useMemo(
+    () => [...STORY, ...reachedMilestones(reached).map((m) => ({ title: `Population ${m.at.toLocaleString()}: ${m.name}`, text: m.story, art: m.emoji }))],
+    [reached],
+  );
+  const p = pages[page];
+  const last = page === pages.length - 1;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") setPage((n) => Math.min(STORY.length - 1, n + 1));
+      if (e.key === "ArrowRight") setPage((n) => Math.min(pages.length - 1, n + 1));
       if (e.key === "ArrowLeft") setPage((n) => Math.max(0, n - 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [pages.length]);
   return (
     <div className="story-sheet" role="dialog" aria-label="The story of your city" onClick={onClose}>
       <div className="story-card" onClick={(e) => e.stopPropagation()}>
@@ -720,7 +748,7 @@ function StorySheet({ name, mayor, onClose }: { name: string; mayor: string | nu
         <h2 key={`t${page}`}>{p.title}</h2>
         <p className="story-text">{p.text}</p>
         <div className="story-dots" role="tablist" aria-label="Pages">
-          {STORY.map((s, i) => (
+          {pages.map((s, i) => (
             <button key={s.title} type="button" role="tab" aria-selected={i === page} aria-label={s.title} className={i === page ? "on" : ""} onClick={() => setPage(i)} />
           ))}
         </div>
@@ -730,6 +758,108 @@ function StorySheet({ name, mayor, onClose }: { name: string; mayor: string | nu
           </button>
           <button type="button" className="story-btn" onClick={() => (last ? onClose() : setPage(page + 1))} autoFocus>
             {last ? "Start building" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" aria-hidden>
+      <path d="M5 2.5h6v3.2a3 3 0 0 1-6 0V2.5ZM5 3.5H2.8c0 1.8.9 3 2.4 3.2M11 3.5h2.2c0 1.8-.9 3-2.4 3.2M8 8.7v2.6M5.5 13.5h5M6.3 11.3h3.4" />
+    </svg>
+  );
+}
+
+/** The rules of the game, and every milestone: reached, or how far to go. */
+function MilestonesSheet({ name, reached, onClose }: { name: string; reached: number; onClose: () => void }) {
+  const next = nextMilestone(reached);
+  return (
+    <div className="story-sheet" role="dialog" aria-label="City milestones" onClick={onClose}>
+      <div className="story-card ms-card" onClick={(e) => e.stopPropagation()}>
+        <p className="story-kicker">{name} · milestones</p>
+        <h2>Grow your city</h2>
+        <div className="ms-progress">
+          <div className="ms-pop">
+            <b>{reached.toLocaleString()}</b> population
+          </div>
+          {next ? (
+            <>
+              <div className="ms-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(next.progress * 100)} aria-label={`Progress to ${next.milestone.name}`}>
+                <i style={{ width: `${Math.max(3, next.progress * 100)}%` }} />
+              </div>
+              <p className="ms-next">
+                {next.milestone.emoji} <b>{next.left.toLocaleString()}</b> more {next.left === 1 ? "task" : "tasks"} done until <b>{next.milestone.name.toLowerCase()}</b> ({next.milestone.at.toLocaleString()})
+              </p>
+            </>
+          ) : (
+            <p className="ms-next">Every milestone reached. Your city is complete — and still growing.</p>
+          )}
+        </div>
+
+        <div className="ms-rules">
+          <h3>The rules</h3>
+          <ul>
+            {MILESTONE_RULES.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+
+        <ol className="ms-list">
+          {MILESTONES.map((m) => {
+            const got = reached >= m.at;
+            return (
+              <li key={m.id} className={got ? "got" : ""}>
+                <span className="ms-emoji" aria-hidden>
+                  {got ? m.emoji : "🔒"}
+                </span>
+                <span className="ms-text">
+                  <b>{m.name}</b>
+                  <span>{m.what}</span>
+                </span>
+                <span className="ms-at">{got ? "Built ✓" : m.at.toLocaleString()}</span>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="story-foot">
+          <span />
+          <button type="button" className="story-btn" onClick={onClose}>
+            Keep building
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A milestone was just reached: show what the city gained. */
+function Celebration({ name, fresh, onClose }: { name: string; fresh: Milestone[]; onClose: () => void }) {
+  const top = fresh[fresh.length - 1];
+  return (
+    <div className="story-sheet" role="dialog" aria-label="Milestone reached" onClick={onClose}>
+      <div className="story-card ms-card ms-cheer" onClick={(e) => e.stopPropagation()}>
+        <p className="story-kicker">New in {name}</p>
+        <div className="story-art">{top.emoji}</div>
+        <h2>Population {top.at.toLocaleString()}!</h2>
+        <p className="story-text">{top.story}</p>
+        {fresh.length > 1 && (
+          <ul className="ms-fresh">
+            {fresh.map((m) => (
+              <li key={m.id}>
+                {m.emoji} {m.name}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="story-foot">
+          <span />
+          <button type="button" className="story-btn" onClick={onClose} autoFocus>
+            Go see it
           </button>
         </div>
       </div>

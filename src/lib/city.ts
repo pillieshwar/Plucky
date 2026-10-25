@@ -78,6 +78,8 @@ export interface City {
   buildings: Building[];
   /** Finished tasks, all of them: the population. */
   total: number;
+  /** The highest population ever reached, for milestones (defaults to `total`). */
+  reached?: number;
   /** Someday ideas, shown as Coming soon plots. */
   comingSoon: { id: number; title: string; project: string | null }[];
   founded: string | null;

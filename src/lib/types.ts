@@ -154,6 +154,10 @@ export interface AppSettings {
   city_corner: boolean;
   /** What the city calls its mayor (the user). */
   mayor_name: string | null;
+  /** Highest population reached (milestones stay built); only goes up. */
+  city_peak?: number;
+  /** The milestone (its population) last celebrated. */
+  city_seen?: number;
   /** Once a day, open the menu-bar dropdown on tasks that have no date. */
   undated_nudge: boolean;
   /** When, `HH:MM` local time. */
