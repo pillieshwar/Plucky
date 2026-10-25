@@ -868,7 +868,7 @@ const full = (o = {}) =>
 const DARK = { ...SETTINGS, theme: "dark" };
 const LIGHT = { ...SETTINGS, theme: "light" };
 const side = (name) => async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name }).first().click();
+  await p.locator(".sidebar button:not(.sb-chev)").filter({ hasText: name }).first().click();
   await p.waitForTimeout(250);
 };
 await shot("full-today", FULL, full({ settings: DARK }));

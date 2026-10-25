@@ -53,14 +53,14 @@ describe("the city", () => {
   });
 
   it("makes floors wider with more rooms, and taller past a point", () => {
-    expect(floorShape(4).per).toBe(1);
-    expect(floorShape(20).per).toBe(5);
+    expect(floorShape(2).per).toBe(1);
+    expect(floorShape(20).per).toBe(4);
     expect(floorShape(20).size).toBeGreaterThan(floorShape(4).size);
     expect(floorShape(200).levels).toBeGreaterThan(1);
   });
 
   it("puts rooms round each storey, side by side", () => {
-    const f = { name: "A", label: "", rooms: [], ...floorShape(12) };
+    const f = { name: "A", label: "", rooms: [], ...floorShape(18) };
     expect(roomSpot(f, 0)).toEqual({ level: 0, side: 0, slot: 0 });
     expect(roomSpot(f, 4)).toEqual({ level: 0, side: 1, slot: 1 });
   });

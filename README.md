@@ -41,25 +41,31 @@ Everything runs on your Mac. There's no account, no cloud and no tracking.
 
 <img src="docs/screenshots/city.png" alt="A city at night in 3D: towers for each project with lit windows, rooftop lights on finished projects and street lamps" width="860">
 
-Plucky turns your work into a place. The idea is simple:
+Plucky turns your work into a place — and **you're its mayor**. The idea is simple:
 
 | In your city | In Plucky | What you see |
 | --- | --- | --- |
 | **The city** | All your tasks | You name it — "Lumen Bay", "Harbor Lights", anything you like. |
+| **The mayor** | You | Your badge sits in the sidebar ("Mayor Sam"), and a small mayor in a top hat stands by Main Street. |
 | **A building** | A project | Each project is a tower. The oldest ones stand downtown, in the middle. |
-| **A floor** | A heading in a project | "Travel" and "Program" are floors of the Offsite 2026 building. |
-| **A room** | A task | "New room" adds a task. "3 rooms open · 2 lit" means three to do, two done. |
-| **A lit window** | A finished task | Tick a task and its window lights up. Windows fill from the ground floor up, so a building grows as you finish its work. This week's windows glow brightest. |
-| **Main Street** | Tasks in no project | Every finished task counts somewhere. |
-| **A rooftop light** | A finished project | Everything done, nothing left open. |
-| **A crane on an empty lot** | A project with nothing done yet | Planned, waiting for its first window. |
+| **A floor** | A heading in a project | Named by you and numbered from the ground: "1st Floor: Travel", "2nd Floor: Program". |
+| **The lobby** | Tasks in a project but on no floor yet | New rooms wait here until you move them to a floor. |
+| **A room** | A task | A **dark** room is still to do; a **lit** room is done. "3 rooms open · 2 lit" means three to do, two done. |
+| **Main Street** | Tasks in no project | Every task has a place. |
+| **A rooftop light** | A finished project | Every room lit. |
+| **A billboard** | Today's timed tasks | Shown on the building's roof, in time order. |
+| **A crane and trucks** | A building going up | A crane over an empty lot, trucks circling buildings with nothing lit yet. |
 
-**Nothing ever goes dark.** Your city is made only of work you've finished, so it can only grow — a late or skipped task never takes anything away.
+**The shape of a building.** Each floor is as wide as its rooms need — a floor with 20 rooms is wider than one with 4. Floors are stacked with the most rooms at the bottom, so every building narrows as it rises; when a floor outgrows the one below, Plucky restacks them (their names go with them).
+
+**Lights never go out.** A finished room stays lit for good, so your city only ever gets brighter. This week's windows glow brightest.
+
+**The city is alive.** Cars drive every street, trucks come and go around buildings under construction, and a few luxury cars circle your tallest tower. (They stay parked if your Mac is set to reduce motion.)
 
 **Explore it.** In full screen your city sits in the bottom-right corner and glows whenever a new window lights up. Click it to open the city in 3D:
 
 - **Drag** to turn it to any angle and tilt it, **scroll** to zoom, **double-click** to reset (arrow keys, <kbd>+</kbd> <kbd>−</kbd> and <kbd>0</kbd> work too).
-- **Hover** a building to see how many rooms are lit and open; hover a lit window to see which task it was and when you finished it.
+- **Hover** a building to see its floor and how many rooms are lit and dark; hover a **dark** window to see what's still to do, or a lit one to see what you finished and when.
 - **Click a building** and Plucky glides to it and opens that project.
 - See the last **7 days**, **30 days** or **all time**, with your busiest day, tallest tower and finished projects.
 
@@ -117,11 +123,14 @@ Today shows what's due, late and planned for **This evening**. Switch to **Hours
 
 Click a task to open it: notes with clickable links, **steps** (a checklist), **When** (a day, a time, this evening or someday), a separate **deadline**, its **project** and **repeat**. Snooze, skip one repeat, pause a series or delete — everything saves as you go.
 
-### Projects (buildings) with floors and steps
+### Buildings, floors and rooms
 
-<img src="docs/screenshots/building.png" alt="A project with tasks grouped under headings" width="860">
+<img src="docs/screenshots/building.png" alt="A building in the sidebar opened to its floors, and its rooms in the list" width="860">
 
-Group tasks into projects, split a project into headings, and see each project's progress at a glance. Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Someday**.
+- **Put up a building** with the **+** next to **Buildings** in the sidebar — even before it has any rooms.
+- **Open a building** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Lobby"), with how many dark rooms each has. Click a floor to jump to it; **+ Floor** adds one.
+- **Add a room** with **New room**: pick its **building**, **floor**, **date** and **time** right in the form — or leave the floor and it waits in the lobby until you move it.
+- Rooms keep their **steps** (a checklist), notes, deadline and repeat. Finished rooms go to the **Logbook**; ideas you're not ready for wait in **Someday**.
 
 ### Reminders and check-ins
 

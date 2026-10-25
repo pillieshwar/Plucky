@@ -406,7 +406,7 @@ function addBillboard(scene: THREE.Scene, b: Building, x: number, h: number, z: 
   const tex = keep(new THREE.CanvasTexture(c));
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  const w = Math.max(1.4, Math.min(2.4, size + 0.4));
+  const w = Math.max(0.9, Math.min(1.4, size * 0.9));
   const panel = new THREE.Mesh(keep(new THREE.PlaneGeometry(w, w / 2)), keep(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false })));
   const group = new THREE.Group();
   panel.position.set(0, 0.55 + w / 4, 0);

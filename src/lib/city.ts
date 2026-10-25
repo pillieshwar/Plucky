@@ -76,7 +76,7 @@ export const MAIN_STREET = "Main Street";
 /** Lot spacing and storey height, in world units. */
 export const LOT = 3.6;
 export const FLOOR = 0.36;
-const MAX_PER = 7;
+const MAX_PER = 5;
 /** Width of one room along a side. */
 export const ROOM = 0.36;
 
@@ -104,7 +104,9 @@ export function lots(n: number): [number, number][] {
 
 /** How a floor with `n` rooms is laid out: rooms per side, storeys, footprint. */
 export function floorShape(n: number): { per: number; levels: number; size: number } {
-  const per = Math.min(MAX_PER, Math.max(1, Math.ceil(n / 4)));
+  // Wider with more rooms, but towers rather than slabs: width grows with
+  // the square root, the rest goes up in storeys.
+  const per = Math.min(MAX_PER, Math.max(1, Math.ceil(Math.sqrt(n / 2))));
   const levels = Math.max(1, Math.ceil(n / (per * 4)));
   return { per, levels, size: 0.3 + per * ROOM };
 }
