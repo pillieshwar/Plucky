@@ -502,8 +502,10 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   moon.target.position.set(mid, 0, mid);
   scene.add(moon, moon.target);
 
-  const center = new THREE.Vector3(mid, Math.min(tallest * 0.3, 3), mid);
-  const radius = Math.max(span * 0.75, tallest * 0.9, grown.extent * 0.62, 6);
+  // Frame the city and everything grown round it.
+  const [bx0, bx1, bz0, bz1] = grown.bounds;
+  const center = new THREE.Vector3((bx0 + bx1) / 2, Math.min(tallest * 0.3, 3), (bz0 + bz1) / 2);
+  const radius = Math.max(span * 0.75, tallest * 0.9, Math.hypot(bx1 - bx0, bz1 - bz0) * 0.42, 6);
   // `key` is a building's key, or "key#n" for one house.
   const setHover = (key: string | null) => {
     for (const body of bodies) {
@@ -732,14 +734,20 @@ function addMilestones(
   keep: Keep,
   labels: CSS2DObject[] | null,
   still: boolean,
-): { extent: number; tick: ((dt: number) => boolean) | null } {
+): { extent: number; bounds: [number, number, number, number]; tick: ((dt: number) => boolean) | null } {
   const has = (id: Parameters<typeof isUnlocked>[0]) => isUnlocked(id, reached);
   const mid = (g0 + g1) / 2;
   const W = g0 - 0.7;
   const E = g1 + 0.7;
   let extent = 0;
+  // Everything grown, as [minX, maxX, minZ, maxZ], to frame the camera.
+  const bounds: [number, number, number, number] = [g0, g1, g0, g1];
   const reach = (x: number, z: number) => {
     extent = Math.max(extent, Math.hypot(x - mid, z - mid));
+    bounds[0] = Math.min(bounds[0], x);
+    bounds[1] = Math.max(bounds[1], x);
+    bounds[2] = Math.min(bounds[2], z);
+    bounds[3] = Math.max(bounds[3], z);
   };
   const anims: ((t: number) => void)[] = [];
   let seed = 41;
@@ -816,6 +824,8 @@ function addMilestones(
     lampPost(mid - 0.3, parkZ - 0.3);
     lampPost(mid + 0.3, parkZ + 0.3);
     label("Park", mid - pw / 2 + 0.4, 0.7, parkZ + 1.2);
+    reach(mid - pw / 2, parkZ + 1.5);
+    reach(mid + pw / 2, parkZ + 1.5);
   }
 
   // 50 — the fountain in the middle of the park: the town square.
@@ -1032,6 +1042,7 @@ function addMilestones(
       }
     }
     reach(ix + 2.5, mid + 2.5);
+    reach(ix + 2.5, mid - 2.5);
     label("The island", ix, 2.9, mid);
   }
 
@@ -1039,6 +1050,7 @@ function addMilestones(
   let t = 0;
   return {
     extent,
+    bounds,
     tick: moving
       ? (dt) => {
           if (document.documentElement.dataset.cityMotion === "off") return false;
