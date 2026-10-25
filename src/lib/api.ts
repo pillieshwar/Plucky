@@ -45,6 +45,12 @@ export const api = {
   createProject: (name: string) => invoke<string | null>("create_project", { name }),
   addFloor: (project: string, name: string) => invoke<string | null>("add_floor", { project, name }),
   renameFloor: (project: string, from: string, to: string) => invoke<number>("rename_floor", { project, from, to }),
+  /** Every task in a project, done ones too. */
+  projectTasks: (project: string) => invoke<Task[]>("project_tasks", { project }),
+  /** Take down an empty project (false while it has tasks). */
+  deleteProject: (name: string) => invoke<boolean>("delete_project", { name }),
+  /** Take down an empty floor (false while it has tasks). */
+  deleteFloor: (project: string, name: string) => invoke<boolean>("delete_floor", { project, name }),
   /** Save a PNG of the city to Downloads and show it; returns the path. */
   saveCityImage: (name: string, png: Uint8Array) => invoke<string>("save_city_image", { name, png: Array.from(png) }),
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),

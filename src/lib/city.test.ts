@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCity, cityStats, floorShape, heightOf, initials, lots, MAIN_STREET, ordinal, roomSpot } from "./city";
+import { buildCity, cityStats, floorShape, heightOf, HOUSES, initials, lots, ordinal, roomSpot, SOMEDAY_KEY } from "./city";
 import type { CityWindow, Task } from "./types";
 
 let id = 0;
@@ -65,30 +65,48 @@ describe("the city", () => {
     expect(roomSpot(f, 4)).toEqual({ level: 0, side: 1, slot: 1 });
   });
 
-  it("stacks floors by size, lobby first, never wider going up", () => {
+  it("stacks floors by size, ground floor first, never wider going up", () => {
     const city = buildCity(
-      [win("B", "2026-10-02T10:00:00Z", "Small"), win("B", "2026-10-03T10:00:00Z", "Big"), win("B", "2026-10-04T10:00:00Z", "Big")],
-      [open("B", { heading: "Big", checklist: [{ text: "a", done: true }, { text: "b", done: false }] }), open("B", { heading: "Big" }), open("B"), open("C", { someday: true })],
+      [win("B", "2026-10-02T10:00:00Z", "Small"), win("B", "2026-10-03T10:00:00Z", "Big"), win("B", "2026-10-04T10:00:00Z", "Big"), win(null, "2026-10-05T10:00:00Z")],
+      [
+        open("B", { heading: "Big", checklist: [{ text: "a", done: true }, { text: "b", done: false }] }),
+        open("B", { heading: "Big", due_date: "2026-10-01" }),
+        open("B"),
+        open("C"),
+        open("C", { someday: true, title: "idea" }),
+        open(null),
+      ],
       [{ name: "D", open: 0, done: 0 }],
       [{ project: "B", name: "Empty", open: 0, done: 0 }],
+      "2026-10-24",
     );
-    expect(city.buildings.map((b) => b.name)).toEqual([MAIN_STREET, "B", "C", "D"]);
-    const b = city.buildings[1];
-    expect(b.floors.map((f) => f.label)).toEqual(["Lobby", "1st Floor: Big", "2nd Floor: Small", "3rd Floor: Empty"]);
+    expect(city.buildings.map((b) => b.name)).toEqual(["B", "C", "D", HOUSES, "Coming soon"]);
+    const b = city.buildings[0];
+    expect(b.floors.map((f) => f.label)).toEqual(["Ground floor", "1st Floor: Big", "2nd Floor: Small", "3rd Floor: Empty"]);
     expect(b.floors[1].rooms.map((r) => r.lit)).toEqual([true, true, false, false]);
-    expect(b.floors[1].rooms[2].drawers).toEqual({ done: 1, total: 2 });
-    expect(b.floors[1].rooms[3].drawers).toBeNull();
+    expect(b.floors[1].rooms[2].readying).toEqual({ done: 1, total: 2 });
+    expect(b.floors[1].rooms[3].readying).toBeNull();
+    expect(b.floors[1].rooms[3].late).toBe(true);
+    expect(b.floors[1].rooms[2].late).toBe(false);
     for (let i = 1; i < b.floors.length; i++) expect(b.floors[i].size).toBeLessThanOrEqual(b.floors[i - 1].size);
     expect(b.open).toBe(3);
     expect(b.done).toBe(3);
-    expect(city.buildings[2].building).toBe(true);
-    expect(city.buildings[3].planned).toBe(true);
-    expect(heightOf(b)).toBeGreaterThan(heightOf(city.buildings[3]));
+    expect(city.buildings[1].building).toBe(true);
+    expect(city.buildings[1].open).toBe(1);
+    expect(city.buildings[2].planned).toBe(true);
+    expect(heightOf(b)).toBeGreaterThan(heightOf(city.buildings[2]));
+    // Tasks in no project are houses; Someday ideas are Coming soon plots.
+    const houses = city.buildings[3];
+    expect(houses.kind).toBe("houses");
+    expect(houses.floors[0].rooms.map((r) => r.lit)).toEqual([true, false]);
+    expect(city.buildings[4].key).toBe(SOMEDAY_KEY);
+    expect(city.comingSoon.map((c) => c.title)).toEqual(["idea"]);
+    expect(city.total).toBe(4);
   });
 
   it("puts today's timed rooms on the building's billboard, in time order", () => {
     const city = buildCity([], [open("A", { due_date: "2026-10-24", due_time: "15:00", title: "b" }), open("A", { due_date: "2026-10-24", due_time: "09:30", title: "a" })], [], [], "2026-10-24");
-    expect(city.buildings[1].today).toEqual([
+    expect(city.buildings[0].today).toEqual([
       { time: "09:30", title: "a" },
       { time: "15:00", title: "b" },
     ]);

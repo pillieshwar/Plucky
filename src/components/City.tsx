@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { CITY_NAMES, MAIN_STREET, cityStats, initials, type City, type CityRange } from "../lib/city";
+import { CITY_NAMES, SOMEDAY_KEY, cityStats, initials, type City, type CityRange } from "../lib/city";
 import { api } from "../lib/api";
 import type { Picked } from "./CityScene";
 
@@ -144,7 +144,7 @@ export function CityCard({
         <div className="city-card-text">
           <span className="city-card-name">{name ?? "Name your city"}</span>
           <span className="city-card-sub">
-            {stats.inRange} this week · {city.total} rooms lit
+            +{stats.inRange} this week · population {city.total}
           </span>
         </div>
         {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
@@ -183,8 +183,10 @@ export function CityView({
   mayor: string | null;
   onName: (name: string) => void;
   onMayor: (name: string) => void;
-  /** Open a building's project (null: Main Street, the tasks in no project). */
+  /** Open a building's project (null: the houses, tasks in no project). */
   onOpenProject: (project: string | null) => void;
+  /** Open Someday (the Coming soon plots). */
+  onOpenSomeday: () => void;
   onClose: () => void;
   onError: (e: unknown) => void;
   onSaved: (path: string) => void;
@@ -195,6 +197,7 @@ export function CityView({
   const [hint, setHint] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [sharing, setSharing] = useState(!!startSharing && !!name);
+  const [story, setStory] = useState(false);
   const dark = useDark();
   const stats = useMemo(() => cityStats(city, range, now, locale), [city, range, now, locale]);
   const byKey = useMemo(() => new Map(city.buildings.map((b) => [b.key, b] as const)), [city]);
@@ -206,12 +209,13 @@ export function CityView({
       e.preventDefault();
       e.stopImmediatePropagation();
       if (sharing) setSharing(false);
+      else if (story) setStory(false);
       else if (renaming) setRenaming(false);
       else onClose();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [sharing, renaming, onClose]);
+  }, [sharing, story, renaming, onClose]);
 
   if (!name)
     return (
@@ -228,6 +232,9 @@ export function CityView({
     );
 
   const hb = hover ? byKey.get(hover.key) : undefined;
+  const towers = city.buildings.filter((b) => b.kind === "tower").length;
+  const when = (iso: string | null) =>
+    new Date(iso ?? "").toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const delta = stats.before === null ? null : stats.inRange - stats.before;
   return (
     <div className={dark ? "city-view" : "city-view light"} role="dialog" aria-label={`${name}: your city`}>
@@ -238,7 +245,7 @@ export function CityView({
           now={now}
           labels
           mayor={mayor}
-          onPick={(key) => onOpenProject(byKey.get(key)?.project ?? null)}
+          onPick={(key) => (key === SOMEDAY_KEY ? onOpenSomeday() : onOpenProject(byKey.get(key)?.project ?? null))}
           onHover={setHover}
           onInteract={() => setHint(false)}
         />
@@ -282,7 +289,7 @@ export function CityView({
         )}
         <span className="cv-sub" data-tauri-drag-region>
           {city.founded ? `Founded ${new Date(city.founded).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })} · ` : ""}
-          {city.buildings.length} {city.buildings.length === 1 ? "building" : "buildings"}
+          Population {city.total} · {towers} {towers === 1 ? "building" : "buildings"}
         </span>
         <span className="cv-gap" data-tauri-drag-region />
         <div className="cv-seg" role="radiogroup" aria-label="Show">
@@ -298,6 +305,9 @@ export function CityView({
             </button>
           ))}
         </div>
+        <button type="button" className="cv-story" onClick={() => setStory(true)} title="How your city works">
+          <BookIcon /> Story
+        </button>
         <button type="button" className="cv-share" onClick={() => setSharing(true)}>
           <ShareIcon /> Share
         </button>
@@ -317,26 +327,30 @@ export function CityView({
               <strong>{hover.room.title}</strong>
               <span>
                 {hover.room.lit
-                  ? `Lit · done ${new Date(hover.room.at ?? "").toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-                  : "Dark · still to do"}
+                  ? `Lights on · moved in ${when(hover.room.at)}`
+                  : hover.room.late
+                    ? "Overdue · someone's waiting at the door"
+                    : hover.room.readying && hover.room.readying.done > 0
+                      ? "Being readied · lights not on yet"
+                      : "Empty home · still to do"}
               </span>
-              {hover.room.drawers && (
+              {hover.room.readying && (
                 <span>
-                  {hover.room.drawers.done} of {hover.room.drawers.total} {hover.room.drawers.total === 1 ? "drawer" : "drawers"} done
+                  {hover.room.readying.done} of {hover.room.readying.total} sub-tasks done
                 </span>
               )}
-              <span>
-                {hb.name}
-                {hover.floor && hb.key ? ` · ${hover.floor}` : ""}
-              </span>
+              <span>{hb.kind === "houses" ? "A house · no project" : `${hb.name}${hover.floor ? ` · ${hover.floor}` : ""}`}</span>
             </>
           ) : (
             <>
               <strong>{hb.name}</strong>
-              {hover.floor && hb.key && <span>{hover.floor}</span>}
+              {hover.floor && hb.kind === "tower" && <span>{hover.floor}</span>}
               <span>
-                {hb.planned ? "Planned: no rooms yet" : `${hb.done} ${hb.done === 1 ? "room" : "rooms"} lit`}
-                {hb.open ? ` · ${hb.open} ${hb.open === 1 ? "room" : "rooms"} still open` : hb.finished ? " · every room lit" : ""}
+                {hb.kind === "plots"
+                  ? `${hb.open} ${hb.open === 1 ? "idea" : "ideas"} for someday`
+                  : hb.planned
+                    ? "An empty lot · no tasks yet"
+                    : `${hb.done} lived in · ${hb.open} still empty${hb.finished ? " · every light on" : ""}`}
               </span>
               <span className="cv-tip-go">Click to open</span>
             </>
@@ -345,24 +359,27 @@ export function CityView({
       )}
 
       <footer className="cv-stats">
-        <Stat big={String(stats.inRange)} small={`rooms lit ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
-        <Stat big={String(city.total)} small="lit since the city began" />
-        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.floors.length} ${stats.tallest.floors.length === 1 ? "floor" : "floors"} · ${stats.tallest.done + stats.tallest.open} rooms`} />}
-        <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="buildings finished" />
-        {stats.brightest && <Stat big={stats.brightest.day} small="brightest day" note={`${stats.brightest.count} done`} />}
+        <Stat big={`+${stats.inRange}`} small={`new residents ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
+        <Stat big={String(city.total)} small="population" note="every task you've finished" />
+        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.floors.length} ${stats.tallest.floors.length === 1 ? "floor" : "floors"} · ${stats.tallest.done + stats.tallest.open} homes`} />}
+        <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="projects complete" />
+        {stats.brightest && <Stat big={stats.brightest.day} small="busiest moving day" note={`${stats.brightest.count} moved in`} />}
         <span className="cv-gap" />
         <div className="cv-legend" aria-label="Legend">
           <span>
-            <i className="lg-fresh" /> Room lit {range === "all" ? "today" : rangeLabel}
+            <i className="lg-fresh" /> Moved in {range === "all" ? "today" : rangeLabel}
           </span>
           <span>
-            <i className="lg-lit" /> Room lit earlier
+            <i className="lg-lit" /> Lived in
           </span>
           <span>
-            <i className="lg-beacon" /> Building finished
+            <i className="lg-ready" /> Being readied
           </span>
           <span>
-            <i className="lg-plan" /> Planned: no rooms lit yet
+            <i className="lg-late" /> Overdue
+          </span>
+          <span>
+            <i className="lg-dark" /> Empty: still to do
           </span>
         </div>
       </footer>
@@ -370,13 +387,14 @@ export function CityView({
       <ul className="sr-only" aria-label="Buildings">
         {city.buildings.map((b) => (
           <li key={b.key}>
-            <button type="button" onClick={() => onOpenProject(b.project)}>
-              {b.name}: {b.done} rooms lit, {b.open} dark. Open {b.project ? "this building" : "rooms in no building"}.
+            <button type="button" onClick={() => (b.key === SOMEDAY_KEY ? onOpenSomeday() : onOpenProject(b.project))}>
+              {b.name}: {b.done} lived in, {b.open} still empty. Open it.
             </button>
           </li>
         ))}
       </ul>
 
+      {story && <StorySheet name={name} mayor={mayor} onClose={() => setStory(false)} />}
       {sharing && (
         <ShareSheet
           city={city}
@@ -461,11 +479,11 @@ function NameCity({
         Back
       </button>
       <div className="nc-card">
-        <p className="nc-kicker">{city.total ? "Your windows are lit" : "Your city starts here"}</p>
-        <h2>You're the mayor. Every task you finish lights up your city.</h2>
+        <p className="nc-kicker">{city.total ? `Population ${city.total}` : "Your city starts here"}</p>
+        <h2>Every task is a home. Finish it, someone moves in, and the lights come on.</h2>
         <p className="nc-text">
-          Each project is a building, its headings are floors and every task is a room. Rooms stay dark until they're done, then their window lights up —
-          and once lit, it never goes out. What should we call your city, Mayor?
+          Every project is an apartment building, and its sections are floors. A new task is an empty home with a dark window; when you finish it, someone
+          moves in and the lights stay on for good. You're the mayor — what should we call your city?
         </p>
         <input
           className="nc-input"
@@ -634,4 +652,87 @@ function PencilIcon() {
   );
 }
 
-export { MAIN_STREET };
+
+function BookIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 3.2c2-.9 3.9-.9 5.5.4v9.2c-1.6-1.3-3.5-1.3-5.5-.4V3.2ZM13.5 3.2c-2-.9-3.9-.9-5.5.4v9.2c1.6-1.3 3.5-1.3 5.5-.4V3.2Z" />
+    </svg>
+  );
+}
+
+/** The story of the city, one page at a time: how tasks become a lit skyline. */
+const STORY: { title: string; text: string; art: string }[] = [
+  {
+    title: "Welcome, Mayor",
+    text: "This city is quiet and dark when it begins. Your job is to fill it with people — and the only way anyone moves in is when you get something done.",
+    art: "🌃",
+  },
+  {
+    title: "Every project is a building",
+    text: "Start a project and an apartment building goes up. Its sections are floors you name: “1st Floor: Travel”, “2nd Floor: Program”. Tasks on no floor live on the ground floor. The older the project, the closer to downtown it stands.",
+    art: "🏢",
+  },
+  {
+    title: "Every task is a home",
+    text: "A new task is an empty home with a dark window. Finish it, someone moves in, and the lights come on — and they stay on for good. Every lit window is something you did.",
+    art: "💡",
+  },
+  {
+    title: "Sub-tasks get a home ready",
+    text: "Paint the walls, fix the boiler, hand over the keys. Tick sub-tasks off and the window starts to glow behind the curtains. When the task is done, the lights come fully on.",
+    art: "🪟",
+  },
+  {
+    title: "Houses, plots and the street",
+    text: "Tasks in no project are little houses on the edge of town — their porch lights come on when they're done. Someday ideas wait on “Coming soon” plots. An amber window blinking means a task is overdue: someone's waiting at the door.",
+    art: "🏡",
+  },
+  {
+    title: "Your city grows with you",
+    text: "Today's timed tasks go up on the rooftop “Moving in today” billboard. Trucks circle buildings still under construction; a rooftop light switches on when every home is lived in; luxury cars come to the tallest tower. Your population is every task you've finished.",
+    art: "🌆",
+  },
+];
+
+function StorySheet({ name, mayor, onClose }: { name: string; mayor: string | null; onClose: () => void }) {
+  const [page, setPage] = useState(0);
+  const p = STORY[page];
+  const last = page === STORY.length - 1;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") setPage((n) => Math.min(STORY.length - 1, n + 1));
+      if (e.key === "ArrowLeft") setPage((n) => Math.max(0, n - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <div className="story-sheet" role="dialog" aria-label="The story of your city" onClick={onClose}>
+      <div className="story-card" onClick={(e) => e.stopPropagation()}>
+        <p className="story-kicker">
+          The story of {name}
+          {mayor ? ` · Mayor ${mayor}` : ""}
+        </p>
+        <div className="story-art" aria-hidden key={page}>
+          {p.art}
+        </div>
+        <h2 key={`t${page}`}>{p.title}</h2>
+        <p className="story-text">{p.text}</p>
+        <div className="story-dots" role="tablist" aria-label="Pages">
+          {STORY.map((s, i) => (
+            <button key={s.title} type="button" role="tab" aria-selected={i === page} aria-label={s.title} className={i === page ? "on" : ""} onClick={() => setPage(i)} />
+          ))}
+        </div>
+        <div className="story-foot">
+          <button type="button" className="story-btn quiet" onClick={() => (page ? setPage(page - 1) : onClose())}>
+            {page ? "Back" : "Close"}
+          </button>
+          <button type="button" className="story-btn" onClick={() => (last ? onClose() : setPage(page + 1))} autoFocus>
+            {last ? "Start building" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

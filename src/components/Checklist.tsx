@@ -4,7 +4,7 @@ import { useWords } from "../lib/words";
 import type { ChecklistItem } from "../lib/types";
 
 /**
- * A task's steps. Tick, edit (click the text), remove, and add — Enter adds
+ * A task's sub-tasks. Tick, edit (click the text), remove, and add — Enter adds
  * the next one; pasting several lines adds them all.
  */
 export function Checklist({
@@ -12,11 +12,14 @@ export function Checklist({
   onChange,
   autoFocusAdd,
   readOnly,
+  noAdd,
 }: {
   items: ChecklistItem[];
   onChange: (items: ChecklistItem[]) => void;
   autoFocusAdd?: boolean;
   readOnly?: boolean;
+  /** Just the list (shown under a task's row): tick, edit and remove, no add field. */
+  noAdd?: boolean;
 }) {
   const w = useWords();
   const [draft, setDraft] = useState("");
@@ -79,7 +82,7 @@ export function Checklist({
           </li>
         ))}
       </ul>
-      {!readOnly && (
+      {!readOnly && !noAdd && (
         <input
           ref={addRef}
           className="step-add"

@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api, onCalendarChanged } from "../lib/api";
 import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { holidaysByDay } from "../lib/holidays";
@@ -261,6 +261,7 @@ export function WeekSide({
   locale,
   drag,
   onOpen,
+  month,
 }: {
   tasks: Task[];
   days: string[];
@@ -269,6 +270,8 @@ export function WeekSide({
   locale: string;
   drag: TaskDrag;
   onOpen: (task: Task) => void;
+  /** The month at a glance, above the rest. */
+  month?: ReactNode;
 }) {
   const undated = tasks.filter((t) => !t.done && !t.due_date && !t.someday && !t.paused);
   const deadlines = tasks
@@ -276,6 +279,7 @@ export function WeekSide({
     .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""));
   return (
     <aside className="side-pane week-side" aria-label="Not planned yet">
+      {month}
       <div className="sp-head">
         <span className="sp-title">No date yet</span>
         <span className="sp-count">{undated.length}</span>

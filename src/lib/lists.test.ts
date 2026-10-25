@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulletSteps, effectiveDay, groupByHeading, isDeadlinePhrase, linesToSteps, tasksForList } from "./lists";
+import { bulletSteps, effectiveDay, groupByHeading, isDeadlinePhrase, isOverdue, linesToSteps, tasksForList } from "./lists";
 import { groupTasks } from "./grouping";
 import { atProject } from "../components/AddTaskForm";
 import type { Task } from "./types";
@@ -106,5 +106,25 @@ describe("@project in a new task", () => {
   });
   it("leaves emails alone", () => {
     expect(atProject("Email sam@example.com", []).project).toBeNull();
+  });
+});
+
+describe("overdue and floors", () => {
+  const base = (over: Partial<Task>): Task =>
+    ({ id: Math.random(), title: "t", done: false, someday: false, paused: false, due_date: null, due_time: null, deadline: null, heading: null, project: "P", created_at: "2026-10-01T00:00:00Z", completed_at: null, checklist: [], ...over }) as Task;
+  it("finds overdue tasks: past days, past deadlines, and today's passed times", () => {
+    const today = "2026-10-25";
+    expect(isOverdue(base({ due_date: "2026-10-24" }), today)).toBe(true);
+    expect(isOverdue(base({ deadline: "2026-10-20", due_date: "2026-10-30" }), today)).toBe(true);
+    expect(isOverdue(base({ due_date: today, due_time: "09:00" }), today, "10:00")).toBe(true);
+    expect(isOverdue(base({ due_date: today, due_time: "11:00" }), today, "10:00")).toBe(false);
+    expect(isOverdue(base({ due_date: today }), today, "23:00")).toBe(false);
+    expect(isOverdue(base({ due_date: "2026-10-24", done: true }), today)).toBe(false);
+    expect(isOverdue(base({ due_date: "2026-10-24", someday: true }), today)).toBe(false);
+  });
+  it("keeps done tasks on their own floor when asked", () => {
+    const g = groupByHeading([base({ heading: "A" }), base({ heading: "A", done: true, completed_at: "2026-10-02T00:00:00Z" })], true);
+    expect(g.map((x) => [x.key, x.tasks.length])).toEqual([["h:A", 2]]);
+    expect(groupByHeading([base({ heading: "A" }), base({ heading: "A", done: true })]).map((x) => x.key)).toEqual(["h:A", "done"]);
   });
 });

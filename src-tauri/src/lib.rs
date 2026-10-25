@@ -163,6 +163,36 @@ fn add_floor(app: AppHandle, project: String, name: String) -> CmdResult<Option<
     Ok(made)
 }
 
+/// Every task in a project, done ones too.
+#[tauri::command]
+fn project_tasks(state: State<'_, AppState>, project: String) -> CmdResult<Vec<Task>> {
+    state.store.lock().map_err(err)?.project_tasks(&project).map_err(err)
+}
+
+/// Take down an empty building; false while it still has homes.
+#[tauri::command]
+fn delete_project(app: AppHandle, name: String) -> CmdResult<bool> {
+    let gone = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.delete_project(&name).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(gone)
+}
+
+/// Take down an empty floor; false while it still has homes.
+#[tauri::command]
+fn delete_floor(app: AppHandle, project: String, name: String) -> CmdResult<bool> {
+    let gone = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.delete_floor(&project, &name).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(gone)
+}
+
 #[tauri::command]
 fn rename_floor(app: AppHandle, project: String, from: String, to: String) -> CmdResult<usize> {
     let n = {
@@ -1464,6 +1494,9 @@ pub fn run() {
             create_project,
             add_floor,
             rename_floor,
+            project_tasks,
+            delete_project,
+            delete_floor,
             skip_occurrence,
             rename_project,
             add_task,

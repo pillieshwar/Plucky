@@ -724,6 +724,50 @@ impl Store {
         )?)
     }
 
+    /// Every task in a project, done ones too (a building with all its homes).
+    pub fn project_tasks(&self, project: &str) -> Result<Vec<Task>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("{SELECT} WHERE project = ?1 ORDER BY {ORDER}"))?;
+        let rows = stmt.query_map([project], map_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Take down an empty project (a building with no homes, done or not).
+    /// Returns false, and changes nothing, while any task is still in it.
+    pub fn delete_project(&self, name: &str) -> Result<bool, StoreError> {
+        let used: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM tasks WHERE project = ?1",
+            [name],
+            |r| r.get(0),
+        )?;
+        if used > 0 {
+            return Ok(false);
+        }
+        self.conn
+            .execute("DELETE FROM floors WHERE project = ?1", [name])?;
+        self.conn
+            .execute("DELETE FROM projects WHERE name = ?1", [name])?;
+        Ok(true)
+    }
+
+    /// Take down an empty floor (a heading with no tasks, done or not).
+    pub fn delete_floor(&self, project: &str, name: &str) -> Result<bool, StoreError> {
+        let used: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM tasks WHERE project = ?1 AND heading = ?2",
+            params![project, name],
+            |r| r.get(0),
+        )?;
+        if used > 0 {
+            return Ok(false);
+        }
+        self.conn.execute(
+            "DELETE FROM floors WHERE project = ?1 AND name = ?2",
+            params![project, name],
+        )?;
+        Ok(true)
+    }
+
     /// Rename a project on every task in it (done ones too).
     pub fn rename_project(&self, from: &str, to: &str) -> Result<usize, StoreError> {
         let Some(to) = clean_name(Some(to.to_string())) else {
@@ -1655,15 +1699,14 @@ mod tests {
             .unwrap()
             .iter()
             .any(|f| f.project == "Garden" && f.name == "Beds"));
-        s.conn
-            .execute("DELETE FROM projects WHERE name = 'Garden'", [])
-            .unwrap();
-        s.conn
-            .execute(
-                "DELETE FROM floors WHERE project = 'Garden' OR name = 'Later'",
-                [],
-            )
-            .unwrap();
+        // Empty floors and buildings can be taken down; ones with homes can't.
+        assert_eq!(s.project_tasks("P").unwrap().len(), 4);
+        assert!(!s.delete_project("P").unwrap());
+        assert!(s.delete_floor("Garden", "Beds").unwrap());
+        assert!(s.delete_project("Garden").unwrap());
+        assert!(s.delete_floor("P", "Later").unwrap());
+        assert!(!s.projects().unwrap().iter().any(|p| p.name == "Garden"));
+        assert!(s.floors().unwrap().is_empty());
         let city = s.city_windows(10).unwrap();
         assert_eq!(
             city.iter().map(|w| w.title.as_str()).collect::<Vec<_>>(),

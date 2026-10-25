@@ -250,6 +250,9 @@ function mockTauri(s) {
     city_windows: () => s.cityWindows ?? [],
     list_floors: () => s.floors ?? [],
     create_project: (a) => a.name,
+    project_tasks: (a) => [...s.tasks, ...(s.logbook ?? [])].filter((t) => t.project === a.project),
+    delete_project: () => true,
+    delete_floor: () => true,
     add_floor: (a) => a.name,
     save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
     set_panel_full: (a) => {
@@ -874,8 +877,13 @@ const side = (name) => async (p) => {
 await shot("full-today", FULL, full({ settings: DARK }));
 await shot("full-today-light", FULL, full({ settings: LIGHT }));
 await shot("full-today-hours", FULL, full({ settings: DARK }), async (p) => {
-  await p.getByRole("radio", { name: "List + Hours" }).click();
-  await p.waitForTimeout(250);
+  // Today always shows its hours beside the list; there's no switch any more.
+  if (await p.getByRole("radio", { name: "List + Hours" }).count()) throw new Error("the List / List + Hours switch is still there");
+  if (!(await p.locator(".mcal").count())) throw new Error("no month calendar on the right");
+});
+await shot("full-overdue", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Overdue/)(p);
+  if (await p.locator(".due-strip, .full-due").count()) throw new Error("the due bar is still showing in full screen");
 });
 await shot("full-task-open", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();
@@ -975,7 +983,7 @@ await shot("full-building-floors", FULL, full({ settings: DARK }), async (p) => 
 });
 await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).click();
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
   await p.keyboard.type("Book the venue fri 2pm");
 });
 const openFloor = async (p) => {
@@ -987,12 +995,12 @@ const openFloor = async (p) => {
 await shot("full-floor-page", FULL, full({ settings: DARK }), openFloor);
 await shot("full-floor-add", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
-  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).first().click();
+  await p.getByRole("button", { name: /^Add Task$/ }).first().click();
   await p.keyboard.type("Book the airport taxi");
 });
 await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
-  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).first().click();
+  await p.getByRole("button", { name: /^Add Task$/ }).first().click();
   await p.keyboard.type("Book the airport taxi");
   await p.keyboard.press("Enter");
   await p.waitForTimeout(300);
@@ -1002,10 +1010,23 @@ await shot("full-room-drawers", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
-  if (!(await p.getByRole("button", { name: "Done" }).count())) throw new Error("no Done button on the open room");
+  if (!(await p.locator(".task.open .sp-done").count())) throw new Error("the task didn't open in place with a Done button");
+});
+await shot("full-floor-menu", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.locator(".sb-b", { hasText: "Offsite 2026" }).hover();
+  await p.getByRole("button", { name: "More for Offsite 2026" }).click();
+});
+await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(600);
+  await p.getByRole("button", { name: /Story/ }).click();
+  await p.getByRole("button", { name: "Next" }).click();
+  await p.getByRole("button", { name: "Next" }).click();
+  await p.waitForTimeout(350);
 });
 await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
-  await p.getByRole("button", { name: "New building" }).click();
+  await p.getByRole("button", { name: "New project" }).click();
   await p.keyboard.type("Garden reno");
 });
 await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
@@ -1015,7 +1036,7 @@ await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
   for (const [dx, dy] of [[0, 40], [60, 20], [-80, 30], [120, -40], [-140, 60]]) {
     await p.mouse.move(c.x + c.width / 2 + dx, c.y + c.height / 2 + dy, { steps: 2 });
     await p.waitForTimeout(80);
-    if (await p.locator(".cv-tip", { hasText: "still to do" }).count()) break;
+    if (await p.locator(".cv-tip", { hasText: /still to do|Overdue|readied/ }).count()) break;
   }
 });
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {

@@ -12,8 +12,9 @@ import { CityCard, CityView } from "./components/City";
 import { buildCity } from "./lib/city";
 import { CITY, PLAIN, WordsContext } from "./lib/words";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
+import { MonthCalendar } from "./components/MonthCalendar";
 import { Toasts, useToasts } from "./components/Toasts";
-import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
+import { ClockIcon, GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
 import { WeekView } from "./components/WeekView";
 import { WeekStrip } from "./components/WeekStrip";
@@ -95,7 +96,7 @@ const KEYS: [string, string][] = [
   ["N", "Description"],
   ["A", "Add a task"],
   ["F", "Today ↔ Anytime"],
-  ["C", "Steps (checklist)"],
+  ["C", "Sub-tasks (checklist)"],
   ["P", "Move to a project"],
   ["V", "Today as a list or in hours"],
   ["← →", "Day before / after (Calendar)"],
@@ -168,7 +169,8 @@ export default function App() {
   const [todayMode, setTodayMode] = useState<TodayMode>(() => saved("pluck.todayMode", ["list", "hours"], "list"));
   useEffect(() => remember("pluck.todayMode", todayMode), [todayMode]);
   const upcoming = list === "upcoming";
-  const todayHours = list === "today" && todayMode === "hours";
+  // Full screen always shows Today with its hours beside the list.
+  const todayHours = list === "today" && (full || todayMode === "hours");
   // The task list shows except in the week — and in full screen, Today's
   // hours sit beside it rather than replacing it.
   const showList = !upcoming && (!todayHours || full);
@@ -177,6 +179,8 @@ export default function App() {
   // The task opened as a card.
   const [openId, setOpenId] = useState<number | null>(null);
   const [planDay, setPlanDay] = useState(() => toISODate(new Date()));
+  // Full screen's right side: the day picked in the month calendar.
+  const [sideDay, setSideDay] = useState(() => toISODate(new Date()));
   const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
@@ -319,10 +323,32 @@ export default function App() {
     };
   }, [handleCapture, refresh]);
 
-  const visible = useMemo(
-    () => tasksForList(tasks, list, today).filter((t) => !query.trim() || matchesQuery(t, query)),
-    [tasks, query, list, today],
-  );
+  const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  // Full screen, a project: every task in it, done ones too (they stay on their floor, crossed out).
+  const [projectAll, setProjectAll] = useState<Task[]>([]);
+  const viewing = projectOf(list);
+  useEffect(() => {
+    if (!full || viewing === null) {
+      setProjectAll([]);
+      return;
+    }
+    let live = true;
+    api
+      .projectTasks(viewing)
+      .then((t) => live && setProjectAll(t))
+      .catch(() => live && setProjectAll([]));
+    return () => {
+      live = false;
+    };
+  }, [full, viewing, tasks]);
+  const visible = useMemo(() => {
+    let base = tasksForList(tasks, list, today, nowTime);
+    if (viewing !== null && projectAll.length) {
+      const have = new Set(base.map((t) => t.id));
+      base = [...base, ...projectAll.filter((t) => t.done && !have.has(t.id) && t.project === viewing)];
+    }
+    return base.filter((t) => !query.trim() || matchesQuery(t, query));
+  }, [tasks, query, list, today, nowTime, viewing, projectAll]);
   const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
   const viewedProject = projectOf(list);
   const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
@@ -332,17 +358,18 @@ export default function App() {
   const groups = useMemo(() => {
     if (list === "logbook") return [];
     if (viewedProject === null) return groupTasks(visible, now, LOCALE);
-    const all = groupByHeading(visible);
-    // A floor's page: just that floor's rooms.
+    const all = groupByHeading(visible, full);
+    // A floor's page: just that floor's tasks.
     return floorOpen ? all.filter((g) => g.key === `h:${floorOpen.floor ?? ""}`) : all;
-  }, [visible, now, list, viewedProject, floorOpen]);
+  }, [visible, now, list, viewedProject, floorOpen, full]);
   const listCounts = useMemo(
     () => ({
       all: tasksForList(tasks, "all", today).filter((t) => !t.done).length,
       today: tasksForList(tasks, "today", today).filter((t) => !t.done).length,
       someday: tasks.filter((t) => !t.done && t.someday).length,
+      overdue: tasksForList(tasks, "overdue", today, nowTime).length,
     }),
-    [tasks, today],
+    [tasks, today, nowTime],
   );
   const projectInfos: ProjectInfo[] = useMemo(() => {
     const names = new Set([...projectStats.map((p) => p.name), ...tasks.flatMap((t) => (t.project ? [t.project] : []))]);
@@ -700,7 +727,7 @@ export default function App() {
   }
 
   const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
-  // Full screen tells the city story: projects are buildings, tasks are rooms.
+  // Full screen: plain words, with floors for a project's sections.
   const w = full ? CITY : PLAIN;
   const floorShown = floorOpen ? city.buildings.find((b) => b.project === floorOpen.project)?.floors.find((f) => f.name === floorOpen.floor) : undefined;
   const floorTitle = floorShown?.label ?? (floorOpen?.floor ? floorOpen.floor : CITY.looseHeading);
@@ -734,6 +761,10 @@ export default function App() {
             : "Your week, hour by hour"
           : list === "all"
             ? w.open(listCounts.all)
+            : list === "overdue"
+              ? listCounts.overdue
+                ? `${listCounts.overdue} past their day, time or deadline`
+                : "All caught up"
             : list === "someday"
               ? "Ideas and paused repeats, out of the way"
               : list === "logbook"
@@ -823,11 +854,11 @@ export default function App() {
     <>
       {showList && floorOpen && (
         <div className="floor-head">
-          <button type="button" className="fh-btn floor-back" onClick={() => setFloorView(null)} title={`Back to the whole ${viewedProject} building`}>
+          <button type="button" className="fh-btn floor-back" onClick={() => setFloorView(null)} title={`Back to all of ${viewedProject}`}>
             ‹ {viewedProject}
           </button>
           <span className="floor-head-text">
-            {floorOpen.floor ? "Rooms on this floor" : "Rooms waiting in the lobby — open one and pick its floor"}
+            {floorOpen.floor ? "Tasks on this floor — done ones stay, crossed out" : "Tasks in this project on no floor yet"}
           </span>
         </div>
       )}
@@ -873,7 +904,7 @@ export default function App() {
           onAdd={async (task) => {
             try {
               await api.addTask(task);
-              show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : full ? "Room added" : "Task added");
+              show(task.due_date ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}` : "Task added");
               // Added: the form closes; the add button opens it again.
               setAdding(false);
               setAddHeading(null);
@@ -913,16 +944,22 @@ export default function App() {
           drag={drag}
           openId={openId}
           onOpenTask={setOpenId}
-          detail={full}
+          detail={false}
+          rich={full}
           emptyNote={
-            list === "someday" && !query.trim() ? (
+            list === "overdue" && !query.trim() ? (
+              <>
+                <p className="empty-big">Nothing overdue</p>
+                <p>Tasks whose day, time or deadline has passed gather here, so nothing slips by.</p>
+              </>
+            ) : list === "someday" && !query.trim() ? (
               <>
                 <p className="empty-big">Nothing in Someday</p>
                 <p>Park ideas here from a task's date menu — they stay out of Today and the calendar.</p>
               </>
             ) : floorOpen && !query.trim() ? (
               <>
-                <p className="empty-big">{floorOpen.floor ? "No rooms on this floor yet" : "The lobby is empty"}</p>
+                <p className="empty-big">{floorOpen.floor ? "No tasks on this floor yet" : "Nothing on the ground floor"}</p>
                 <p>
                   <button type="button" className="primary floor-add" onClick={() => setAdding(true)}>
                     <PlusIcon /> {w.addButton}
@@ -980,7 +1017,7 @@ export default function App() {
               <dt>
                 <kbd>{k}</kbd>
               </dt>
-              <dd>{full ? v.replace("Steps", "Drawers").replace("Add a task", "Add a room") : v}</dd>
+              <dd>{v}</dd>
             </div>
           ))}
         </dl>
@@ -1014,7 +1051,10 @@ export default function App() {
     const crumbs = openTask
       ? [openTask.project ?? listTitle(list), ...(openTask.project && openTask.heading ? [openTask.heading] : [])]
       : [];
-    const sidePane = !tasksShown ? null : openTask ? (
+    // A task opens in place in the list; one that isn't in it (picked from the
+    // calendar or the hours) opens in the detail pane.
+    const inList = openTask ? flat.some((t) => t.id === openTask.id) && !upcoming : false;
+    const sidePane = !tasksShown ? null : openTask && !inList ? (
       <TaskDetail
         task={openTask}
         actions={actions}
@@ -1027,20 +1067,35 @@ export default function App() {
         onStep={ids.includes(openTask.id) ? stepTask : undefined}
       />
     ) : upcoming ? (
-      <WeekSide tasks={tasks} days={weekDays} today={today} now={now} locale={LOCALE} drag={drag} onOpen={(t) => setOpenId(t.id)} />
-    ) : todayHours ? (
-      <aside className="side-pane plan-pane" aria-label="Today's schedule">
+      <WeekSide
+        tasks={tasks}
+        days={weekDays}
+        today={today}
+        now={now}
+        locale={LOCALE}
+        drag={drag}
+        onOpen={(t) => setOpenId(t.id)}
+        month={
+          <MonthCalendar tasks={tasks} today={today} selected={planDay} locale={LOCALE} weekStart={weekStart} drag={drag} onSelect={setPlanDay} />
+        }
+      />
+    ) : list !== "logbook" ? (
+      // Every list: the month at a glance, and the picked day's hours below it.
+      <aside className="side-pane plan-pane month-pane" aria-label="Calendar">
+        <MonthCalendar tasks={tasks} today={today} selected={sideDay} locale={LOCALE} weekStart={weekStart} drag={drag} onSelect={setSideDay} />
         <div className="sp-head">
-          <span className="sp-title">Schedule</span>
+          <span className="sp-title">
+            {sideDay === today ? "Today" : parseISODate(sideDay).toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })}
+          </span>
           <span className="sp-count">Drag a task onto an hour</span>
         </div>
         <DayPlan
           tasks={tasks}
-          day={today}
+          day={sideDay}
           today={today}
           now={now}
           locale={LOCALE}
-          events={todayEvents}
+          events={sideDay === today ? todayEvents : []}
           actions={actions}
           drag={drag}
           onAdd={addFromPlan}
@@ -1123,7 +1178,7 @@ export default function App() {
                   if (made) {
                     setTab("tasks");
                     setList(projectList(made));
-                    show(`Put up a new building: ${made}`);
+                    show(`Started ${made} — a new building in your city`);
                   }
                 })
                 .catch((e) => setError(String(e)))
@@ -1132,6 +1187,54 @@ export default function App() {
               void api
                 .addFloor(project, name)
                 .then(() => refresh())
+                .catch((e) => setError(String(e)))
+            }
+            onRenameBuilding={(from, to) =>
+              void api
+                .renameProject(from, to)
+                .then(() => {
+                  void refresh();
+                  if (projectOf(list) === from) setList(projectList(to));
+                  show(`Renamed ${from} to ${to}`);
+                })
+                .catch((e) => setError(String(e)))
+            }
+            onDeleteBuilding={(name) =>
+              void api
+                .deleteProject(name)
+                .then((gone) => {
+                  void refresh();
+                  if (!gone) {
+                    show(`${name} still has tasks — delete or move them first`);
+                    return;
+                  }
+                  if (projectOf(list) === name) setList("today");
+                  show(`Took down ${name}`);
+                })
+                .catch((e) => setError(String(e)))
+            }
+            onRenameFloor={(project, from, to) =>
+              void api
+                .renameFloor(project, from, to)
+                .then(() => {
+                  void refresh();
+                  setFloorView((f) => (f && f.project === project && f.floor === from ? { project, floor: to } : f));
+                  show(`Renamed the floor to ${to}`);
+                })
+                .catch((e) => setError(String(e)))
+            }
+            onDeleteFloor={(project, name) =>
+              void api
+                .deleteFloor(project, name)
+                .then((gone) => {
+                  void refresh();
+                  if (!gone) {
+                    show(`${name} still has tasks — delete or move them first`);
+                    return;
+                  }
+                  setFloorView((f) => (f && f.project === project && f.floor === name ? null : f));
+                  show(`Removed the ${name} floor`);
+                })
                 .catch((e) => setError(String(e)))
             }
             updateReady={update.state === "ready"}
@@ -1175,17 +1278,6 @@ export default function App() {
               </div>
             )}
             <span className="topbar-gap" data-tauri-drag-region />
-            {tab === "tasks" && list === "today" && !onboarding && (
-              <ViewSwitch
-                value={todayMode}
-                options={[
-                  ["list", "List"],
-                  ["hours", "List + Hours"],
-                ]}
-                onChange={setTodayMode}
-                label="Show today as (V)"
-              />
-            )}
             {tasksShown && (
               <button
                 type="button"
@@ -1215,11 +1307,6 @@ export default function App() {
 
           {banners}
           {tourEl && <div className="full-tour">{tourEl}</div>}
-          {tasksShown && !capture && firing.length > 0 && (
-            <div className="full-due">
-              <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
-            </div>
-          )}
           {captureEl && <div className="full-capture">{captureEl}</div>}
           {searchEl && <div className="full-search">{searchEl}</div>}
 
@@ -1318,6 +1405,13 @@ export default function App() {
               setQuery("");
               setSearchOpen(false);
               setList(project ? projectList(project) : "all");
+            }}
+            onOpenSomeday={() => {
+              setCityOpen(null);
+              setTab("tasks");
+              setQuery("");
+              setSearchOpen(false);
+              setList("someday");
             }}
             onClose={() => setCityOpen(null)}
             onError={actions.fail}
@@ -1538,6 +1632,7 @@ function ListIcon({ list, stats }: { list: ListId; stats?: ProjectSummary }) {
   if (list === "upcoming") return <CalIcon />;
   if (list === "someday") return <CloudIcon />;
   if (list === "logbook") return <LogIcon />;
+  if (list === "overdue") return <ClockIcon />;
   return <LinesIcon />;
 }
 

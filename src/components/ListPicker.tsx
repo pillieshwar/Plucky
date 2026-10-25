@@ -1,6 +1,7 @@
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { listTitle, projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
+import { ClockIcon } from "./icons";
 
 /**
  * The panel's title, which is also the list menu: Today, Calendar, Anytime,
@@ -16,7 +17,7 @@ export function ListPicker({
 }: {
   value: ListId;
   onChange: (id: ListId) => void;
-  counts: { all: number; today: number; someday: number };
+  counts: { all: number; today: number; someday: number; overdue?: number };
   projects: ProjectSummary[];
   tags: string[];
   onTag: (tag: string) => void;
@@ -92,6 +93,7 @@ export function ListPicker({
           {item("today", "Today", counts.today, <StarIcon />)}
           {item("upcoming", "Calendar", null, <CalIcon />, "week · hours")}
           {item("all", "Anytime", counts.all, <LinesIcon />)}
+          {item("overdue", "Overdue", counts.overdue ?? 0, <ClockIcon />)}
           {item("someday", "Someday", counts.someday, <CloudIcon />)}
           {item("logbook", "Logbook", null, <LogIcon />)}
           <div className="lp-sep">Projects</div>
