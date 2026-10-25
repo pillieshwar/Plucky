@@ -10,7 +10,7 @@ export type ListId = "all" | "today" | "upcoming" | "someday" | "logbook" | `pro
 
 /** A list's name as its title ("all" is shown as Anytime). */
 export function listTitle(id: ListId): string {
-  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Upcoming", someday: "Someday", logbook: "Logbook" }[id as "all"];
+  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Calendar", someday: "Someday", logbook: "Logbook" }[id as "all"];
 }
 
 export const projectList = (name: string): ListId => `project:${name}`;

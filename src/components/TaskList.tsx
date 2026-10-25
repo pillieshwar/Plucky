@@ -71,7 +71,7 @@ export function TaskList(props: Props) {
       <div className="empty">
         <EmptyArt />
         <p className="empty-big">Nothing left for today</p>
-        <p>Open Upcoming in the list menu to see what’s next.</p>
+        <p>Open Calendar in the list menu to see what’s next.</p>
       </div>
     );
   }

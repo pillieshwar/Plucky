@@ -41,7 +41,7 @@ interface Props {
 }
 
 /**
- * Full screen's sidebar: search, the lists (Today, Upcoming, Anytime,
+ * Full screen's sidebar: search, the lists (Today, Calendar, Anytime,
  * Someday, Logbook), projects with their progress, tags, and — at the
  * bottom — what's reading captures and Settings.
  */
@@ -122,7 +122,7 @@ export function Sidebar(p: Props) {
       </button>
       <nav className="sb-nav" aria-label="Lists">
         {item("today", "Today", <StarIcon />, p.counts.today, "t-today")}
-        {item("upcoming", "Upcoming", <CalIcon />, undefined, "t-upcoming")}
+        {item("upcoming", "Calendar", <CalIcon />, undefined, "t-upcoming")}
         {item("all", "Anytime", <LinesIcon />, p.counts.all, "t-anytime")}
         {item("someday", "Someday", <CloudIcon />, p.counts.someday, "t-someday")}
         {item("logbook", "Logbook", <LogIcon />, undefined, "t-logbook")}
