@@ -1021,8 +1021,8 @@ await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".city-card-art").click();
   await p.waitForTimeout(600);
   await p.getByRole("button", { name: /Story/ }).click();
-  await p.getByRole("button", { name: "Next" }).click();
-  await p.getByRole("button", { name: "Next" }).click();
+  await p.locator(".story-card").getByRole("button", { name: "Next", exact: true }).click();
+  await p.locator(".story-card").getByRole("button", { name: "Next", exact: true }).click();
   await p.waitForTimeout(350);
 });
 await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
