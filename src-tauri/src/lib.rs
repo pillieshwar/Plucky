@@ -14,6 +14,7 @@ mod data;
 mod double_copy;
 mod engine;
 mod greet;
+mod login_item;
 mod models;
 mod notifications;
 mod panel;
@@ -732,11 +733,18 @@ fn open_notification_settings() -> CmdResult<()> {
 
 #[tauri::command]
 fn autostart_enabled(app: AppHandle) -> bool {
+    if login_item::available() {
+        return login_item::enabled();
+    }
     app.autolaunch().is_enabled().unwrap_or(false)
 }
 
 #[tauri::command]
 fn set_autostart(app: AppHandle, enabled: bool) -> CmdResult<bool> {
+    if login_item::available() {
+        login_item::set(enabled)?;
+        return Ok(login_item::enabled());
+    }
     let al = app.autolaunch();
     if enabled {
         al.enable().map_err(err)?;
@@ -1509,14 +1517,34 @@ pub fn run() {
             // Todo City lives in the menu bar, so open it at login — once, by
             // default; after that it's the user's switch in Settings.
             let settings = app.state::<Settings>();
-            migrate_login_item(app.handle());
-            if !settings.get().autostart_initialized {
-                if let Err(e) = app.autolaunch().enable() {
-                    log::warn!("could not enable open at login: {e}");
+            if login_item::available() {
+                // macOS 13+: the app is its own login item, listed as Todo
+                // City. Earlier versions used a launch agent (listed under
+                // the developer's name): move over, keeping the user's choice.
+                let legacy = login_item::legacy_agents();
+                let was_on = !legacy.is_empty() || app.autolaunch().is_enabled().unwrap_or(false);
+                if was_on {
+                    let _ = app.autolaunch().disable();
+                    for p in &legacy {
+                        let _ = std::fs::remove_file(p);
+                    }
+                }
+                if was_on || !settings.get().autostart_initialized {
+                    if let Err(e) = login_item::set(true) {
+                        log::warn!("could not enable open at login: {e}");
+                    }
                 }
                 settings.update(|s| s.autostart_initialized = true);
+            } else {
+                migrate_login_item(app.handle());
+                if !settings.get().autostart_initialized {
+                    if let Err(e) = app.autolaunch().enable() {
+                        log::warn!("could not enable open at login: {e}");
+                    }
+                    settings.update(|s| s.autostart_initialized = true);
+                }
+                associate_login_item(app.handle());
             }
-            associate_login_item(app.handle());
 
             // Show the panel at launch (always on a first run, for the tour),
             // and again on the first wake of each day.
