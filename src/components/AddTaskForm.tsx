@@ -21,6 +21,7 @@ export function AddTaskForm({
   projects,
   onAdd,
   onCancel,
+  places,
 }: {
   locale: string;
   /** Day used when the title has no date (null: no date). */
@@ -34,6 +35,11 @@ export function AddTaskForm({
   context?: string;
   /** Existing project names, so "@off" files the task in "Offsite 2026". */
   projects?: string[];
+  /**
+   * Full screen: choose the building and floor, and the date and time,
+   * right in the form. Floors are each building's headings.
+   */
+  places?: { name: string; floors: string[] }[];
   /** Save the task. */
   onAdd: (task: NewTask) => Promise<void>;
   onCancel: () => void;
@@ -45,6 +51,13 @@ export function AddTaskForm({
   const [stepsText, setStepsText] = useState("");
   const [showSteps, setShowSteps] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Full screen's pickers (undefined: not touched, follow the typed text / the list).
+  const [pickBuilding, setPickBuilding] = useState<string | null | undefined>(undefined);
+  const [pickFloor, setPickFloor] = useState<string | null | undefined>(undefined);
+  const [newBuilding, setNewBuilding] = useState<string | null>(null);
+  const [newFloor, setNewFloor] = useState<string | null>(null);
+  const [pickDate, setPickDate] = useState("");
+  const [pickTime, setPickTime] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const now = useMemo(() => new Date(), []);
@@ -66,6 +79,11 @@ export function AddTaskForm({
     const clean = (typed?.title || at.rest).trim();
     if (!clean || busy) return;
     setBusy(true);
+    // Where it goes and when, from the pickers (full screen) over the typed text.
+    const building = newBuilding?.trim() || (pickBuilding === undefined ? (at.project ?? extra?.project ?? null) : pickBuilding);
+    const floor = building ? newFloor?.trim() || (pickFloor === undefined ? (extra?.heading ?? null) : pickFloor) : null;
+    const placed = places ? { project: building, heading: floor } : {};
+    const timed = places && pickDate ? { due_date: pickDate, due_time: pickTime || null, someday: false } : places && pickTime ? { due_time: pickTime } : {};
     try {
       await onAdd({
         due_date: typed?.date ?? defaultDay,
@@ -79,7 +97,13 @@ export function AddTaskForm({
         notes: notes.trim() || null,
         checklist: linesToSteps(stepsText).map((text) => ({ text, done: false })),
         ...(at.project ? { project: at.project, heading: null } : {}),
+        ...placed,
+        ...timed,
       });
+      setPickDate("");
+      setPickTime("");
+      setNewBuilding(null);
+      setNewFloor(null);
       setTitle("");
       setNotes("");
       setShowNotes(false);
@@ -156,6 +180,39 @@ export function AddTaskForm({
           aria-label="Checklist steps"
         />
       )}
+      {places && (
+        <PlacePicker
+          places={places}
+          building={newBuilding !== null ? "__new" : pickBuilding === undefined ? (at.project ?? extra?.project ?? null) : pickBuilding}
+          floor={newFloor !== null ? "__new" : pickFloor === undefined ? (extra?.heading ?? null) : pickFloor}
+          newBuilding={newBuilding}
+          newFloor={newFloor}
+          date={pickDate}
+          time={pickTime}
+          onBuilding={(b) => {
+            if (b === "__new") {
+              setNewBuilding("");
+              return;
+            }
+            setNewBuilding(null);
+            setPickBuilding(b);
+            setPickFloor(null);
+            setNewFloor(null);
+          }}
+          onFloor={(f) => {
+            if (f === "__new") {
+              setNewFloor("");
+              return;
+            }
+            setNewFloor(null);
+            setPickFloor(f);
+          }}
+          onNewBuilding={setNewBuilding}
+          onNewFloor={setNewFloor}
+          onDate={setPickDate}
+          onTime={setPickTime}
+        />
+      )}
       <div className="add-task-foot">
         <span className={typed?.date ? "add-task-when on" : "add-task-when"}>
           {when}
@@ -204,4 +261,69 @@ export function atProject(title: string, projects: string[]): { project: string 
   const start = m.index + m[1].length;
   const rest = (title.slice(0, start) + title.slice(start + 1 + used.length)).replace(/\s+/g, " ").trim();
   return { project: project.trim() || null, rest };
+}
+
+/** Building, floor, date and time pickers for a new room (full screen). */
+function PlacePicker(p: {
+  places: { name: string; floors: string[] }[];
+  building: string | null;
+  floor: string | null;
+  newBuilding: string | null;
+  newFloor: string | null;
+  date: string;
+  time: string;
+  onBuilding: (b: string | null) => void;
+  onFloor: (f: string | null) => void;
+  onNewBuilding: (n: string) => void;
+  onNewFloor: (n: string) => void;
+  onDate: (d: string) => void;
+  onTime: (t: string) => void;
+}) {
+  const floors = p.places.find((x) => x.name === p.building)?.floors ?? [];
+  const known = p.building === null || p.building === "__new" || p.places.some((x) => x.name === p.building);
+  return (
+    <div className="add-place">
+      <label className="ap-field">
+        <span>Building</span>
+        {p.newBuilding !== null ? (
+          <input autoFocus value={p.newBuilding} maxLength={60} placeholder="New building's name" onChange={(e) => p.onNewBuilding(e.target.value)} />
+        ) : (
+          <select value={p.building ?? ""} onChange={(e) => p.onBuilding(e.target.value || null)}>
+            <option value="">Main Street (no building)</option>
+            {!known && p.building && <option value={p.building}>{p.building} (new)</option>}
+            {p.places.map((x) => (
+              <option key={x.name} value={x.name}>
+                {x.name}
+              </option>
+            ))}
+            <option value="__new">+ New building…</option>
+          </select>
+        )}
+      </label>
+      <label className="ap-field">
+        <span>Floor</span>
+        {p.newFloor !== null ? (
+          <input autoFocus value={p.newFloor} maxLength={60} placeholder="New floor's name" onChange={(e) => p.onNewFloor(e.target.value)} />
+        ) : (
+          <select value={p.floor ?? ""} disabled={!p.building} onChange={(e) => p.onFloor(e.target.value || null)}>
+            <option value="">Lobby (choose a floor later)</option>
+            {floors.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+            {p.building && <option value="__new">+ New floor…</option>}
+          </select>
+        )}
+      </label>
+      <label className="ap-field">
+        <span>Date</span>
+        <input type="date" value={p.date} onChange={(e) => p.onDate(e.target.value)} />
+      </label>
+      <label className="ap-field">
+        <span>Time</span>
+        <input type="time" value={p.time} onChange={(e) => p.onTime(e.target.value)} />
+      </label>
+    </div>
+  );
 }

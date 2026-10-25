@@ -103,7 +103,7 @@ export function TaskList(props: Props) {
   return (
     <div className={props.openId !== null && !props.detail ? "groups has-open" : "groups"}>
       {groups.map((g) => (
-        <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label}>
+        <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label} data-group={g.key}>
           <h2 className="day">
             {g.label}
             <span className="count">{g.tasks.length}</span>

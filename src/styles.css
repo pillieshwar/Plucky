@@ -1933,3 +1933,70 @@ html[data-full="1"] body { background: var(--paper); }
 .city-view.light .cv-back { background: rgba(255, 255, 255, 0.7); }
 .cv-back:hover { background: rgba(127, 127, 150, 0.25); }
 .nc-back { position: absolute; top: 16px; left: 18px; z-index: 2; }
+
+/* The side panel's window buttons */
+.topbar > .traffic { margin-right: 8px; padding-left: 4px; }
+.mini > .traffic { margin-right: 2px; }
+
+/* Buildings and floors in the sidebar */
+.sb-head-row { display: flex; align-items: center; justify-content: space-between; }
+.sb-add {
+  width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent;
+  color: var(--faint); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.sb-add:hover { background: var(--teal-soft); color: var(--teal); }
+.sb-new {
+  width: calc(100% - 12px); margin: 2px 6px 6px; height: 28px; padding: 0 9px; border-radius: 7px;
+  border: 1.5px solid var(--teal); background: var(--paper); color: var(--ink); font: inherit; font-size: 12.5px; outline: none; user-select: text;
+}
+.sb-b { padding: 0 4px 0 2px; gap: 0; }
+.sb-b-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 100%; padding: 0 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sb-chev { display: grid; place-items: center; width: 18px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--faint); cursor: pointer; border-radius: 5px; transition: transform 120ms; }
+.sb-chev.open { transform: rotate(90deg); }
+.sb-chev:hover { color: var(--ink); }
+.sb-floors { display: flex; flex-direction: column; margin: 0 0 4px 28px; padding-left: 8px; border-left: 1px solid var(--line); }
+.sb-floor {
+  display: flex; align-items: center; gap: 8px; height: 25px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); font-size: 12px; text-align: left; cursor: pointer;
+}
+.sb-floor:hover { background: color-mix(in srgb, var(--line) 70%, transparent); color: var(--ink); }
+.sb-floor-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-floor-count { font-size: 11.5px; color: var(--faint); }
+.sb-floor-add { color: var(--faint); }
+.sb-floor-add:hover { color: var(--teal); }
+
+/* The mayor */
+.mayor-badge {
+  display: inline-grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, #a29bff, #5249d9); color: #fff; font-size: 12px; font-weight: 750; letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ffd27a 70%, transparent);
+}
+.sb-mayor {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 6px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink); text-align: left;
+}
+.sb-mayor:hover { border-color: color-mix(in srgb, var(--teal) 45%, var(--line)); }
+.sb-mayor-text { display: flex; flex-direction: column; min-width: 0; }
+.sb-mayor-title { font-size: 13px; font-weight: 650; }
+.sb-mayor-sub { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-mayor {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 3px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(127, 127, 150, 0.35); background: rgba(21, 22, 29, 0.55); color: inherit; font-size: 13px; font-weight: 600;
+}
+.city-view.light .cv-mayor { background: rgba(255, 255, 255, 0.7); }
+.cv-mayor .mayor-badge { width: 26px; height: 26px; font-size: 11px; }
+.city3d-label.mayor { background: linear-gradient(135deg, #a29bff, #5249d9); color: #fff; border-color: #ffd27a; font-weight: 650; }
+.nc-mayor { margin-top: 10px; font-weight: 500; font-size: 15px; height: 40px; border-width: 1px; }
+.city3d-none { display: grid; place-items: center; color: var(--faint); font-size: 13px; padding: 20px; text-align: center; }
+
+/* Building, floor, date and time when adding a room (full screen) */
+.add-place { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.ap-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ap-field > span { font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: 0.02em; }
+.ap-field select, .ap-field input {
+  height: 30px; min-width: 0; padding: 0 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--paper);
+  color: var(--ink); font: inherit; font-size: 12.5px; outline: none; user-select: text;
+}
+.ap-field select:focus, .ap-field input:focus { border-color: var(--teal); }
+.ap-field select:disabled { opacity: 0.55; }
+@media (max-width: 1100px) { .add-place { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

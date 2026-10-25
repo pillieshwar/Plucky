@@ -1,10 +1,10 @@
 import { useWords } from "../lib/words";
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
 import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
 import { GearIcon, SearchIcon } from "./icons";
-import { BuildingIcon } from "./City";
+import { initials, type Building } from "../lib/city";
 
 interface Props {
   list: ListId;
@@ -22,6 +22,15 @@ interface Props {
   /** Open the city. */
   onCity: () => void;
   cityName: string | null;
+  mayor: string | null;
+  /** Rooms lit in all (finished tasks). */
+  lit: number;
+  /** The city's buildings (projects), with their floors stacked as drawn. */
+  buildings: Building[];
+  /** Open a building at one of its floors (null: the lobby). */
+  onFloor: (project: string, floor: string | null) => void;
+  onNewBuilding: (name: string) => void;
+  onNewFloor: (project: string, name: string) => void;
   updateReady: boolean;
   model: string | null;
   captureHint: ReactElement;
@@ -37,6 +46,47 @@ interface Props {
 export function Sidebar(p: Props) {
   const w = useWords();
   const project = projectOf(p.list);
+  // Buildings opened to show their floors; the one being viewed opens itself.
+  const [openB, setOpenB] = useState<Set<string>>(() => new Set());
+  const [adding, setAdding] = useState<{ kind: "building" } | { kind: "floor"; project: string } | null>(null);
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (project) setOpenB((s) => (s.has(project) ? s : new Set(s).add(project)));
+  }, [project]);
+  const toggle = (name: string) =>
+    setOpenB((s) => {
+      const n = new Set(s);
+      if (n.has(name)) n.delete(name);
+      else n.add(name);
+      return n;
+    });
+  const done = () => {
+    const v = text.trim();
+    if (v && adding?.kind === "building") p.onNewBuilding(v);
+    if (v && adding?.kind === "floor") p.onNewFloor(adding.project, v);
+    setText("");
+    setAdding(null);
+  };
+  const field = (placeholder: string) => (
+    <input
+      className="sb-new"
+      autoFocus
+      value={text}
+      maxLength={60}
+      placeholder={placeholder}
+      aria-label={placeholder}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") done();
+        if (e.key === "Escape") {
+          setText("");
+          setAdding(null);
+        }
+      }}
+      onBlur={done}
+    />
+  );
   const item = (id: ListId, text: string, icon: ReactElement, count?: number, tone?: string) => {
     const on = !p.inSettings && p.list === id;
     return (
@@ -77,28 +127,65 @@ export function Sidebar(p: Props) {
       </nav>
 
       <div className="sb-scroll">
-        <h2 className="sb-head">{w.projects}</h2>
-        {p.projects.length === 0 && (
+        <h2 className="sb-head sb-head-row">
+          {w.projects}
+          <button type="button" className="sb-add" onClick={() => setAdding({ kind: "building" })} aria-label={`New ${w.project.toLowerCase()}`} title={`New ${w.project.toLowerCase()}`}>
+            +
+          </button>
+        </h2>
+        {adding?.kind === "building" && field(`New ${w.project.toLowerCase()}'s name`)}
+        {p.buildings.length === 0 && !adding && (
           <p className="sb-empty">
-            Type “@Name” in a {w.task}, or open one and pick {w.project}.
+            Press + to put up your first {w.project.toLowerCase()}, or type “@Name” in a {w.task}.
           </p>
         )}
-        {p.projects.map((pr) => {
-          const on = !p.inSettings && project === pr.name;
+        {p.buildings.map((b) => {
+          const name = b.project!;
+          const on = !p.inSettings && project === name;
+          const expanded = openB.has(name);
+          const pr = p.projects.find((x) => x.name === name);
           return (
-            <button
-              key={pr.name}
-              type="button"
-              className={on ? "sb-item on" : "sb-item"}
-              aria-current={on ? "page" : undefined}
-              onClick={() => p.onList(projectList(pr.name))}
-            >
-              <span className="sb-icon t-project" aria-hidden>
-                <Pie done={pr.done} total={pr.open + pr.done} />
-              </span>
-              <span className="sb-text">{pr.name}</span>
-              {pr.open > 0 && <span className="sb-count">{pr.open}</span>}
-            </button>
+            <div key={name} className="sb-building">
+              <div className={on ? "sb-item sb-b on" : "sb-item sb-b"}>
+                <button
+                  type="button"
+                  className={expanded ? "sb-chev open" : "sb-chev"}
+                  onClick={() => toggle(name)}
+                  aria-label={expanded ? `Hide ${name}'s floors` : `Show ${name}'s floors`}
+                  aria-expanded={expanded}
+                >
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+                    <path d="M6 3.5 10.5 8 6 12.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button type="button" className="sb-b-main" aria-current={on ? "page" : undefined} onClick={() => p.onList(projectList(name))}>
+                  <span className="sb-icon t-project" aria-hidden>
+                    <Pie done={pr?.done ?? b.done} total={(pr?.open ?? b.open) + (pr?.done ?? b.done)} />
+                  </span>
+                  <span className="sb-text">{name}</span>
+                  {b.open > 0 && <span className="sb-count">{b.open}</span>}
+                </button>
+              </div>
+              {expanded && (
+                <div className="sb-floors">
+                  {[...b.floors].reverse().map((f) => (
+                    <button key={f.label} type="button" className="sb-floor" onClick={() => p.onFloor(name, f.name)} title={f.name ? f.label : "Rooms not on a floor yet"}>
+                      <span className="sb-floor-name">{f.label}</span>
+                      <span className="sb-floor-count" title={`${f.rooms.filter((r) => !r.lit).length} dark · ${f.rooms.filter((r) => r.lit).length} lit`}>
+                        {f.rooms.filter((r) => !r.lit).length || ""}
+                      </span>
+                    </button>
+                  ))}
+                  {adding?.kind === "floor" && adding.project === name ? (
+                    field(`New ${w.heading.toLowerCase()}'s name`)
+                  ) : (
+                    <button type="button" className="sb-floor sb-floor-add" onClick={() => setAdding({ kind: "floor", project: name })}>
+                      {w.newHeading}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           );
         })}
 
@@ -132,11 +219,16 @@ export function Sidebar(p: Props) {
             {p.captureHint}
           </span>
         </div>
-        <button type="button" className="sb-item sb-city" onClick={p.onCity} title="Your city: every finished task lights a window">
-          <span className="sb-icon" aria-hidden>
-            <BuildingIcon />
+        <button type="button" className="sb-mayor" onClick={p.onCity} title="Open your city">
+          <span className="mayor-badge" aria-hidden>
+            {initials(p.mayor)}
           </span>
-          <span className="sb-text">{p.cityName ?? "Your city"}</span>
+          <span className="sb-mayor-text">
+            <span className="sb-mayor-title">{p.mayor ? `Mayor ${p.mayor}` : "The mayor"}</span>
+            <span className="sb-mayor-sub">
+              {p.cityName ?? "Name your city"} · {p.lit} {p.lit === 1 ? "room" : "rooms"} lit
+            </span>
+          </span>
         </button>
         <div className="sb-foot-row">
           <button type="button" className={p.inSettings ? "sb-item on" : "sb-item"} onClick={p.onSettings} title="Settings (⌘,)">
