@@ -14,6 +14,7 @@ import type {
   CalendarInfo,
   CalendarStatus,
   CityWindow,
+  FloorSummary,
   CaptureResult,
   CustomModelInfo,
   DownloadEvent,
@@ -40,6 +41,10 @@ export const api = {
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
   logbook: (before: string | null, limit = 80) => invoke<Task[]>("logbook", { before, limit }),
   cityWindows: () => invoke<CityWindow[]>("city_windows"),
+  listFloors: () => invoke<FloorSummary[]>("list_floors"),
+  createProject: (name: string) => invoke<string | null>("create_project", { name }),
+  addFloor: (project: string, name: string) => invoke<string | null>("add_floor", { project, name }),
+  renameFloor: (project: string, from: string, to: string) => invoke<number>("rename_floor", { project, from, to }),
   /** Save a PNG of the city to Downloads and show it; returns the path. */
   saveCityImage: (name: string, png: Uint8Array) => invoke<string>("save_city_image", { name, png: Array.from(png) }),
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),

@@ -53,6 +53,8 @@ pub struct AppSettings {
     pub city_name: Option<String>,
     /// Show the city in the corner of full screen.
     pub city_corner: bool,
+    /// What the city calls its mayor (the user).
+    pub mayor_name: Option<String>,
     /// Once a day, open the menu-bar dropdown to plan tasks that have no date.
     pub undated_nudge: bool,
     /// When to do that, `HH:MM` local time.
@@ -173,6 +175,7 @@ impl Default for AppSettings {
             double_copy: true,
             city_name: None,
             city_corner: true,
+            mayor_name: None,
             undated_nudge: true,
             undated_time: "16:00".into(),
             last_undated_nudge: None,

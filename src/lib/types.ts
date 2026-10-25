@@ -150,6 +150,8 @@ export interface AppSettings {
   city_name: string | null;
   /** Show the city in the corner of full screen. */
   city_corner: boolean;
+  /** What the city calls its mayor (the user). */
+  mayor_name: string | null;
   /** Once a day, open the menu-bar dropdown on tasks that have no date. */
   undated_nudge: boolean;
   /** When, `HH:MM` local time. */
@@ -408,5 +410,14 @@ export interface CityWindow {
   id: number;
   title: string;
   project: string | null;
+  heading: string | null;
   completed_at: string;
+}
+
+/** A project's heading (a floor of its building) and its task counts. */
+export interface FloorSummary {
+  project: string;
+  name: string;
+  open: number;
+  done: number;
 }

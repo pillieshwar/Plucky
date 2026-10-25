@@ -50,7 +50,7 @@ import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
 import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
-import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
+import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, FloorSummary, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
@@ -159,6 +159,8 @@ export default function App() {
   const setFocusToday = (f: boolean | ((v: boolean) => boolean)) =>
     setList((l) => ((typeof f === "function" ? f(l === "today") : f) ? "today" : "all"));
   const [projectStats, setProjectStats] = useState<ProjectSummary[]>([]);
+  // Each project's headings: the floors of its building.
+  const [floorList, setFloorList] = useState<FloorSummary[]>([]);
   // Tasks selected for batch actions, and where a Shift-click range starts.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const anchor = useRef<number | null>(null);
@@ -205,6 +207,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     try {
       api.listProjects().then(setProjectStats, () => undefined);
+      api.listFloors().then(setFloorList, () => undefined);
       if (fullRef.current) api.cityWindows().then(setCityWins, () => undefined);
       setTasks(await api.listTasks(today));
     } catch (e) {
@@ -423,7 +426,12 @@ export default function App() {
   };
   const selectedTasks = useMemo(() => flat.filter((t) => selected.has(t.id)), [flat, selected]);
   const tags = useMemo(() => topTags(tasks), [tasks]);
-  const city = useMemo(() => buildCity(cityWins, tasks), [cityWins, tasks]);
+  const city = useMemo(() => buildCity(cityWins, tasks, projectStats, floorList, today), [cityWins, tasks, projectStats, floorList, today]);
+  // Full screen's add form picks the building and floor.
+  const places = useMemo(
+    () => city.buildings.filter((b) => b.project).map((b) => ({ name: b.project!, floors: b.floors.filter((f) => f.name).map((f) => f.name!) })),
+    [city],
+  );
 
   // Keyboard: Esc, undo, search and list navigation.
   const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen });
@@ -596,6 +604,21 @@ export default function App() {
     void checkStatus();
   }
 
+  // Settings changes one after another, each on top of the last (so two quick
+  // changes — the city's name and the mayor's — don't overwrite each other).
+  const settingsChain = useRef<Promise<void>>(Promise.resolve());
+  function patchSettings(patch: Partial<AppSettings>) {
+    settingsChain.current = settingsChain.current.then(async () => {
+      try {
+        const cur = await api.getSettings();
+        setSettings(await api.setSettings({ ...cur, ...patch }));
+      } catch (e) {
+        setError(String(e));
+      }
+    });
+    return settingsChain.current;
+  }
+
   async function saveSettings(next: AppSettings) {
     try {
       setSettings(await api.setSettings(next));
@@ -622,21 +645,30 @@ export default function App() {
     api.setPanelCollapsed(next).catch((e) => setError(String(e)));
   }
 
+  // The side panel's window buttons, top left as on every Mac window: close
+  // (hide), minimize (to the slim bar) and zoom (full screen).
   const controls = (
-    <div className="win-controls">
-      <button className="icon" onClick={toggleFull} aria-label="Open full screen" title="Full screen (⌃⌘F)">
-        <FullIcon />
+    <div className="traffic" data-tauri-drag-region>
+      <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (Esc)">
+        <svg viewBox="0 0 12 12" aria-hidden>
+          <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" />
+        </svg>
       </button>
       <button
-        className="icon"
+        type="button"
+        className="tl min"
         onClick={() => minimize(!collapsed)}
         aria-label={collapsed ? "Expand panel" : "Minimize panel"}
-        title={collapsed ? "Expand" : "Minimize"}
+        title={collapsed ? "Expand" : "Minimize to a slim bar"}
       >
-        {collapsed ? <ExpandIcon /> : <MinimizeIcon />}
+        <svg viewBox="0 0 12 12" aria-hidden>
+          <path d="M3 6h6" />
+        </svg>
       </button>
-      <button className="icon" onClick={() => void api.hidePanel()} aria-label="Hide panel" title="Hide (Esc)">
-        <CloseIcon />
+      <button type="button" className="tl zoom" onClick={toggleFull} aria-label="Open full screen" title="Full screen (⌃⌘F)">
+        <svg viewBox="0 0 12 12" aria-hidden>
+          <path d="M3.2 6.6V8.8h2.2M8.8 5.4V3.2H6.6" />
+        </svg>
       </button>
     </div>
   );
@@ -645,14 +677,13 @@ export default function App() {
     return (
       <div className="panel collapsed">
         <header className="mini" data-tauri-drag-region onDoubleClick={() => minimize(false)}>
-          <DragGrip />
+          {controls}
           <span className="mini-title" data-tauri-drag-region>
             Plucky
           </span>
           <span className="mini-meta" data-tauri-drag-region>
             {open} open{dueToday ? ` · ${dueToday} due` : ""}
           </span>
-          {controls}
         </header>
       </div>
     );
@@ -780,6 +811,8 @@ export default function App() {
           name={viewedProject}
           stats={projectStats.find((p) => p.name === viewedProject) ?? null}
           onAddUnder={(heading) => {
+            // A new heading (floor) stays even before a task is on it.
+            if (heading) void api.addFloor(viewedProject, heading).then(() => refresh(), () => undefined);
             setAddHeading(heading);
             setAdding(true);
           }}
@@ -795,6 +828,7 @@ export default function App() {
       )}
       {showList && adding && list !== "logbook" && (
         <AddTaskForm
+          places={full ? places : undefined}
           locale={LOCALE}
           defaultDay={list === "today" ? today : null}
           projects={projectInfos.map((p) => p.name)}
@@ -1026,6 +1060,37 @@ export default function App() {
             onKeys={() => setShowKeys(true)}
             onCity={() => setCityOpen("view")}
             cityName={settings?.city_name ?? null}
+            mayor={settings?.mayor_name ?? null}
+            lit={city.total}
+            buildings={city.buildings.filter((b) => b.project)}
+            onFloor={(project, floor) => {
+              setTab("tasks");
+              setQuery("");
+              setList(projectList(project));
+              window.setTimeout(() => {
+                const key = `h:${floor ?? ""}`;
+                document.querySelector(`[data-group="${CSS.escape(key)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
+              }, 120);
+            }}
+            onNewBuilding={(name) =>
+              void api
+                .createProject(name)
+                .then((made) => {
+                  void refresh();
+                  if (made) {
+                    setTab("tasks");
+                    setList(projectList(made));
+                    show(`Put up a new building: ${made}`);
+                  }
+                })
+                .catch((e) => setError(String(e)))
+            }
+            onNewFloor={(project, name) =>
+              void api
+                .addFloor(project, name)
+                .then(() => refresh())
+                .catch((e) => setError(String(e)))
+            }
             updateReady={update.state === "ready"}
             model={status?.active_model ?? null}
             captureHint={<>{captureHint} to capture</>}
@@ -1121,6 +1186,7 @@ export default function App() {
                 <main className="full-content week">
                   {adding && (
                     <AddTaskForm
+                      places={places}
                       locale={LOCALE}
                       defaultDay={planDay}
                       projects={projectInfos.map((p) => p.name)}
@@ -1187,7 +1253,7 @@ export default function App() {
               onOpen={() => setCityOpen("view")}
               onShare={() => setCityOpen("share")}
               onHide={() => {
-                if (settings) void saveSettings({ ...settings, city_corner: false });
+                void patchSettings({ city_corner: false });
                 show("Your city is hidden. Open it from the sidebar, or bring it back in Preferences.");
               }}
             />
@@ -1200,9 +1266,9 @@ export default function App() {
             now={now}
             locale={LOCALE}
             startSharing={cityOpen === "share"}
-            onName={(n) => {
-              if (settings) void saveSettings({ ...settings, city_name: n });
-            }}
+            mayor={settings?.mayor_name ?? null}
+            onName={(n) => void patchSettings({ city_name: n })}
+            onMayor={(m) => void patchSettings({ mayor_name: m || null })}
             onOpenProject={(project) => {
               setCityOpen(null);
               setTab("tasks");
@@ -1226,7 +1292,7 @@ export default function App() {
   return (
     <div className={drag.drag ? "panel dragging" : "panel"}>
       <header className="topbar" data-tauri-drag-region>
-        <DragGrip />
+        {controls}
         {tab === "tasks" ? (
           <ListPicker
             value={list}
@@ -1295,7 +1361,6 @@ export default function App() {
           <GearIcon />
           {update.state === "ready" && <span className="icon-dot" aria-label="Update ready" />}
         </button>
-        {controls}
       </header>
 
       {tab === "tasks" ? (
@@ -1454,55 +1519,6 @@ function Banner({
   );
 }
 
-function DragGrip() {
-  return (
-    <span className="grip" data-tauri-drag-region title="Drag to move" aria-hidden>
-      <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" style={{ pointerEvents: "none" }}>
-        <circle cx="2" cy="2" r="1.2" />
-        <circle cx="6" cy="2" r="1.2" />
-        <circle cx="2" cy="7" r="1.2" />
-        <circle cx="6" cy="7" r="1.2" />
-        <circle cx="2" cy="12" r="1.2" />
-        <circle cx="6" cy="12" r="1.2" />
-      </svg>
-    </span>
-  );
-}
-
-function MinimizeIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <path d="M2.5 6h7" />
-    </svg>
-  );
-}
-
-function ExpandIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      aria-hidden
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 7.5 6 4.5l3 3" />
-    </svg>
-  );
-}
-
-function FullIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.5 6V2.5H6M10 2.5h3.5V6M2.5 10v3.5H6M13.5 10v3.5H10" />
-    </svg>
-  );
-}
-
 function SidebarIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1512,10 +1528,3 @@ function SidebarIcon() {
   );
 }
 
-function CloseIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <path d="M3 3l6 6M9 3l-6 6" />
-    </svg>
-  );
-}

@@ -100,6 +100,7 @@ const SETTINGS = {
   double_copy: true,
   city_name: "Lumen Bay",
   city_corner: true,
+  mayor_name: "Sam",
   undated_nudge: true,
   undated_time: "16:00",
   last_undated_nudge: null,
@@ -247,6 +248,9 @@ function mockTauri(s) {
     autostart_enabled: () => true,
     panel_full: () => !!s.full,
     city_windows: () => s.cityWindows ?? [],
+    list_floors: () => s.floors ?? [],
+    create_project: (a) => a.name,
+    add_floor: (a) => a.name,
     save_city_image: () => "/Users/sam/Downloads/Lumen Bay.png",
     set_panel_full: (a) => {
       s.full = a.full;
@@ -851,13 +855,16 @@ const CITY_WINDOWS = (() => {
       const d = new Date();
       d.setDate(d.getDate() - daysAgo);
       d.setHours(9 + (i % 9), (i * 13) % 60, 0, 0);
-      out.push({ id: n++, title: `${project ?? "Errand"} task ${i + 1}`, project, completed_at: d.toISOString() });
+      const heading = project === "Offsite 2026" ? (i % 3 ? "Travel" : "Program") : project === "Q4 launch" ? ["Design", "Launch day", "Design", "Docs"][i % 4] : null;
+      out.push({ id: n++, title: `${project ?? "Errand"} task ${i + 1}`, project, heading, completed_at: d.toISOString() });
     }
   }
-  out.push({ id: n++, title: "Sent Q3 numbers to Priya", project: "Q4 launch", completed_at: new Date().toISOString() });
+  out.push({ id: n++, title: "Sent Q3 numbers to Priya", project: "Q4 launch", heading: "Docs", completed_at: new Date().toISOString() });
   return out.sort((a, b) => a.completed_at.localeCompare(b.completed_at));
 })();
-const full = (o = {}) => scenario({ tasks: FULL_TASKS, logbook: LOGBOOK, events: FULL_EVENTS, calendar: CAL_ON, full: true, cityWindows: CITY_WINDOWS, ...o });
+const FULL_FLOORS = [{ project: "Garden reno", name: "Beds", open: 0, done: 0 }];
+const full = (o = {}) =>
+  scenario({ tasks: FULL_TASKS, logbook: LOGBOOK, events: FULL_EVENTS, calendar: CAL_ON, full: true, cityWindows: CITY_WINDOWS, floors: FULL_FLOORS, ...o });
 const DARK = { ...SETTINGS, theme: "dark" };
 const LIGHT = { ...SETTINGS, theme: "light" };
 const side = (name) => async (p) => {
@@ -961,6 +968,29 @@ await shot("full-city-named", FULL, full({ settings: { ...DARK, city_name: null 
 await shot("full-city-empty", FULL, full({ settings: DARK, cityWindows: [] }));
 await shot("full-project-building", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
+});
+await shot("full-building-floors", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.getByRole("button", { name: "Show Q4 launch's floors" }).click();
+});
+await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.getByRole("button", { name: /New room/ }).click();
+  await p.keyboard.type("Book the venue fri 2pm");
+});
+await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "New building" }).click();
+  await p.keyboard.type("Garden reno");
+});
+await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".city-card-art").click();
+  await p.waitForTimeout(800);
+  const c = await p.locator(".city-view canvas").first().boundingBox();
+  for (const [dx, dy] of [[0, 40], [60, 20], [-80, 30], [120, -40], [-140, 60]]) {
+    await p.mouse.move(c.x + c.width / 2 + dx, c.y + c.height / 2 + dy, { steps: 2 });
+    await p.waitForTimeout(80);
+    if (await p.locator(".cv-tip", { hasText: "still to do" }).count()) break;
+  }
 });
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();

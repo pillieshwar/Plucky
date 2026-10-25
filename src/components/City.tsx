@@ -1,20 +1,7 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import {
-  CITY_NAMES,
-  DEFAULT_CAMERA,
-  DUSK,
-  MAIN_STREET,
-  NIGHT,
-  cityStats,
-  drawCity,
-  pick,
-  type City,
-  type CityCamera,
-  type CityHit,
-  type CityRange,
-} from "../lib/city";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { CITY_NAMES, MAIN_STREET, cityStats, initials, type City, type CityRange } from "../lib/city";
 import { api } from "../lib/api";
-import type { CityWindow } from "../lib/types";
+import type { Picked } from "./CityScene";
 
 // three.js loads only when the city is first shown (full screen).
 const CityScene = lazy(() => import("./CityScene").then((m) => ({ default: m.CityScene })));
@@ -34,19 +21,20 @@ const hasWebGL = (() => {
   };
 })();
 
-/** The city in 3D (three.js), or drawn flat where WebGL isn't available. */
+/** The city in 3D (three.js). */
 function City3D(props: {
   city: City;
   range: CityRange;
   now: Date;
   still?: boolean;
   labels?: boolean;
+  mayor?: string | null;
   onPick?: (key: string) => void;
-  onHover?: (h: Hover | null) => void;
+  onHover?: (h: Picked | null) => void;
   onInteract?: () => void;
 }) {
   const dark = useDark();
-  if (!hasWebGL()) return <CityCanvas {...props} padTop={props.labels ? 64 : 0} padBottom={props.labels ? 110 : 0} />;
+  if (!hasWebGL()) return <div className="city3d city3d-none">Your city needs 3D graphics, which aren't available on this Mac right now.</div>;
   return (
     <Suspense fallback={<div className="city3d" />}>
       <CityScene {...props} dark={dark} />
@@ -60,7 +48,6 @@ const isDark = () => {
   if (t === "light") return false;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
 };
-const reduceMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 /** Follow the theme as it changes. */
 function useDark(): boolean {
@@ -79,176 +66,6 @@ function useDark(): boolean {
   return dark;
 }
 
-interface Hover {
-  key: string;
-  window: CityWindow | null;
-  x: number;
-  y: number;
-}
-
-/**
- * The city in 3D on a canvas. Drag to turn it, scroll to zoom, double-click
- * to reset; click a building to open its project. `still` draws once with
- * no interaction (the corner card).
- */
-function CityCanvas({
-  city,
-  range,
-  now,
-  still,
-  labels,
-  padTop = 0,
-  padBottom = 0,
-  onPick,
-  onHover,
-  onInteract,
-}: {
-  city: City;
-  range: CityRange;
-  now: Date;
-  still?: boolean;
-  labels?: boolean;
-  padTop?: number;
-  padBottom?: number;
-  onPick?: (key: string) => void;
-  onHover?: (h: Hover | null) => void;
-  onInteract?: () => void;
-}) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const [size, setSize] = useState<[number, number]>([0, 0]);
-  // The corner card is wide and short: come in closer there.
-  const [cam, setCam] = useState<CityCamera>(still ? { ...DEFAULT_CAMERA, zoom: 1.25 } : DEFAULT_CAMERA);
-  const [hoverKey, setHoverKey] = useState<string | null>(null);
-  const hits = useRef<CityHit[]>([]);
-  const drag = useRef<{ x: number; y: number; cam: CityCamera; moved: boolean } | null>(null);
-  const spinning = useRef(!still && !reduceMotion());
-  const dark = useDark();
-
-  useEffect(() => {
-    const el = ref.current?.parentElement;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setSize([el.clientWidth, el.clientHeight]));
-    ro.observe(el);
-    setSize([el.clientWidth, el.clientHeight]);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const c = ref.current;
-    if (!c || !size[0] || !size[1]) return;
-    const dpr = window.devicePixelRatio || 1;
-    c.width = Math.round(size[0] * dpr);
-    c.height = Math.round(size[1] * dpr);
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    hits.current = drawCity(ctx, size[0], size[1], city, cam, {
-      palette: dark ? NIGHT : DUSK,
-      range,
-      now,
-      labels: !!labels,
-      hover: hoverKey,
-      padTop,
-      padBottom,
-    });
-  }, [city, cam, size, dark, range, now, labels, hoverKey, padTop, padBottom]);
-
-  // A slow turn while nobody's touching it (not for reduced motion).
-  useEffect(() => {
-    if (still) return;
-    let raf = 0;
-    let last = performance.now();
-    const tick = (t: number) => {
-      if (spinning.current) setCam((c) => ({ ...c, yaw: c.yaw + ((t - last) / 1000) * 0.07 }));
-      last = t;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [still]);
-
-  const stop = useCallback(() => {
-    if (spinning.current) {
-      spinning.current = false;
-      onInteract?.();
-    }
-  }, [onInteract]);
-
-  if (still) return <canvas ref={ref} className="city-canvas" aria-hidden />;
-
-  const at = (e: { clientX: number; clientY: number }) => {
-    const r = ref.current!.getBoundingClientRect();
-    return [e.clientX - r.left, e.clientY - r.top] as [number, number];
-  };
-
-  return (
-    <canvas
-      ref={ref}
-      className="city-canvas live"
-      tabIndex={0}
-      aria-label="Your city in 3D. Arrow keys turn it, plus and minus zoom, 0 resets."
-      onPointerDown={(e: ReactPointerEvent<HTMLCanvasElement>) => {
-        stop();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        drag.current = { x: e.clientX, y: e.clientY, cam, moved: false };
-      }}
-      onPointerMove={(e) => {
-        const d = drag.current;
-        if (d) {
-          const dx = e.clientX - d.x;
-          const dy = e.clientY - d.y;
-          if (!d.moved && Math.hypot(dx, dy) < 4) return;
-          d.moved = true;
-          setCam({ ...d.cam, yaw: d.cam.yaw - dx * 0.008, pitch: clamp(d.cam.pitch + dy * 0.005, 0.22, 1.25) });
-          onHover?.(null);
-          return;
-        }
-        const p = at(e);
-        const hit = pick(hits.current, p);
-        setHoverKey(hit?.key ?? null);
-        onHover?.(hit ? { ...hit, x: p[0], y: p[1] } : null);
-      }}
-      onPointerUp={(e) => {
-        const d = drag.current;
-        drag.current = null;
-        if (d && !d.moved) {
-          const hit = pick(hits.current, at(e));
-          if (hit) onPick?.(hit.key);
-        }
-      }}
-      onPointerLeave={() => {
-        if (!drag.current) {
-          setHoverKey(null);
-          onHover?.(null);
-        }
-      }}
-      onWheel={(e) => {
-        stop();
-        setCam((c) => ({ ...c, zoom: clamp(c.zoom * Math.exp(-e.deltaY * 0.0015), 0.6, 4) }));
-      }}
-      onDoubleClick={() => setCam(DEFAULT_CAMERA)}
-      onKeyDown={(e) => {
-        const step = Math.PI / 12;
-        let next: CityCamera | null = null;
-        if (e.key === "ArrowLeft") next = { ...cam, yaw: cam.yaw + step };
-        else if (e.key === "ArrowRight") next = { ...cam, yaw: cam.yaw - step };
-        else if (e.key === "ArrowUp") next = { ...cam, pitch: clamp(cam.pitch + 0.1, 0.22, 1.25) };
-        else if (e.key === "ArrowDown") next = { ...cam, pitch: clamp(cam.pitch - 0.1, 0.22, 1.25) };
-        else if (e.key === "+" || e.key === "=") next = { ...cam, zoom: clamp(cam.zoom * 1.2, 0.6, 4) };
-        else if (e.key === "-") next = { ...cam, zoom: clamp(cam.zoom / 1.2, 0.6, 4) };
-        else if (e.key === "0") next = DEFAULT_CAMERA;
-        if (next) {
-          e.preventDefault();
-          e.stopPropagation();
-          stop();
-          setCam(next);
-        }
-      }}
-    />
-  );
-}
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** The city in the corner of full screen: a still picture, its name and this week's count. */
 export function CityCard({
@@ -349,7 +166,9 @@ export function CityView({
   now,
   locale,
   startSharing,
+  mayor,
   onName,
+  onMayor,
   onOpenProject,
   onClose,
   onError,
@@ -360,7 +179,10 @@ export function CityView({
   now: Date;
   locale: string;
   startSharing?: boolean;
+  /** The mayor's (the user's) name. */
+  mayor: string | null;
   onName: (name: string) => void;
+  onMayor: (name: string) => void;
   /** Open a building's project (null: Main Street, the tasks in no project). */
   onOpenProject: (project: string | null) => void;
   onClose: () => void;
@@ -368,7 +190,8 @@ export function CityView({
   onSaved: (path: string) => void;
 }) {
   const [range, setRange] = useState<CityRange>("week");
-  const [hover, setHover] = useState<Hover | null>(null);
+  const [hover, setHover] = useState<Picked | null>(null);
+  const [renamingMayor, setRenamingMayor] = useState(false);
   const [hint, setHint] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [sharing, setSharing] = useState(!!startSharing && !!name);
@@ -390,7 +213,19 @@ export function CityView({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [sharing, renaming, onClose]);
 
-  if (!name) return <NameCity city={city} now={now} onName={onName} onLater={onClose} />;
+  if (!name)
+    return (
+      <NameCity
+        city={city}
+        now={now}
+        mayor={mayor}
+        onName={(n, m) => {
+          if (m !== (mayor ?? "")) onMayor(m);
+          onName(n);
+        }}
+        onLater={onClose}
+      />
+    );
 
   const hb = hover ? byKey.get(hover.key) : undefined;
   const delta = stats.before === null ? null : stats.inRange - stats.before;
@@ -402,6 +237,7 @@ export function CityView({
           range={range}
           now={now}
           labels
+          mayor={mayor}
           onPick={(key) => onOpenProject(byKey.get(key)?.project ?? null)}
           onHover={setHover}
           onInteract={() => setHint(false)}
@@ -426,6 +262,22 @@ export function CityView({
           <button type="button" className="cv-name" onClick={() => setRenaming(true)} title="Rename your city">
             {name}
             <PencilIcon />
+          </button>
+        )}
+        {renamingMayor ? (
+          <RenameField
+            name={mayor ?? ""}
+            onDone={(n) => {
+              setRenamingMayor(false);
+              if (n !== (mayor ?? "")) onMayor(n);
+            }}
+          />
+        ) : (
+          <button type="button" className="cv-mayor" onClick={() => setRenamingMayor(true)} title="What should the city call you?">
+            <span className="mayor-badge" aria-hidden>
+              {initials(mayor)}
+            </span>
+            {mayor ? `Mayor ${mayor}` : "Your name, Mayor?"}
           </button>
         )}
         <span className="cv-sub" data-tauri-drag-region>
@@ -460,19 +312,25 @@ export function CityView({
 
       {hover && hb && (
         <div className="cv-tip" style={{ left: Math.min(hover.x + 16, window.innerWidth - 300), top: Math.min(hover.y + 12, window.innerHeight - 200) }}>
-          {hover.window ? (
+          {hover.room ? (
             <>
-              <strong>{hover.window.title}</strong>
+              <strong>{hover.room.title}</strong>
               <span>
-                {hb.name} · done{" "}
-                {new Date(hover.window.completed_at).toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                {hover.room.lit
+                  ? `Lit · done ${new Date(hover.room.at ?? "").toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+                  : "Dark · still to do"}
+              </span>
+              <span>
+                {hb.name}
+                {hover.floor && hb.key ? ` · ${hover.floor}` : ""}
               </span>
             </>
           ) : (
             <>
               <strong>{hb.name}</strong>
+              {hover.floor && hb.key && <span>{hover.floor}</span>}
               <span>
-                {hb.planned ? "Being planned" : `${hb.windows.length} ${hb.windows.length === 1 ? "room" : "rooms"} lit`}
+                {hb.planned ? "Planned: no rooms yet" : `${hb.done} ${hb.done === 1 ? "room" : "rooms"} lit`}
                 {hb.open ? ` · ${hb.open} ${hb.open === 1 ? "room" : "rooms"} still open` : hb.finished ? " · every room lit" : ""}
               </span>
               <span className="cv-tip-go">Click to open</span>
@@ -484,7 +342,7 @@ export function CityView({
       <footer className="cv-stats">
         <Stat big={String(stats.inRange)} small={`rooms lit ${rangeLabel}`} note={delta === null ? undefined : delta >= 0 ? `+${delta} on the ${range === "week" ? "week" : "month"} before` : `${delta} on the ${range === "week" ? "week" : "month"} before`} />
         <Stat big={String(city.total)} small="lit since the city began" />
-        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.windows.length} rooms lit`} />}
+        {stats.tallest && <Stat big={stats.tallest.name} small="tallest building" note={`${stats.tallest.floors.length} ${stats.tallest.floors.length === 1 ? "floor" : "floors"} · ${stats.tallest.done + stats.tallest.open} rooms`} />}
         <Stat big={String(stats.finished)} small={stats.finished === 1 ? "rooftop lit" : "rooftops lit"} note="buildings finished" />
         {stats.brightest && <Stat big={stats.brightest.day} small="brightest day" note={`${stats.brightest.count} done`} />}
         <span className="cv-gap" />
@@ -508,7 +366,7 @@ export function CityView({
         {city.buildings.map((b) => (
           <li key={b.key}>
             <button type="button" onClick={() => onOpenProject(b.project)}>
-              {b.name}: {b.windows.length} rooms lit, {b.open} open. Open {b.project ? "this building" : "rooms in no building"}.
+              {b.name}: {b.done} rooms lit, {b.open} dark. Open {b.project ? "this building" : "rooms in no building"}.
             </button>
           </li>
         ))}
@@ -567,9 +425,23 @@ function RenameField({ name, onDone }: { name: string; onDone: (name: string) =>
 }
 
 /** The first time: what the city is, and what to call it. */
-function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onName: (n: string) => void; onLater: () => void }) {
+function NameCity({
+  city,
+  now,
+  mayor,
+  onName,
+  onLater,
+}: {
+  city: City;
+  now: Date;
+  mayor: string | null;
+  onName: (city: string, mayor: string) => void;
+  onLater: () => void;
+}) {
   const dark = useDark();
   const [text, setText] = useState(CITY_NAMES[0]);
+  const [who, setWho] = useState(mayor ?? "");
+  const found = () => text.trim() && onName(text.trim(), who.trim());
   const [offset, setOffset] = useState(0);
   const picks = [0, 1, 2, 3].map((i) => CITY_NAMES[(i + offset) % CITY_NAMES.length]);
   return (
@@ -585,8 +457,11 @@ function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onNam
       </button>
       <div className="nc-card">
         <p className="nc-kicker">{city.total ? "Your windows are lit" : "Your city starts here"}</p>
-        <h2>Every task you finish lights up your city.</h2>
-        <p className="nc-text">Each project is a building and each task a room in it. Finish one and its window lights up — the building grows as you go, and nothing ever goes dark. What should we call your city?</p>
+        <h2>You're the mayor. Every task you finish lights up your city.</h2>
+        <p className="nc-text">
+          Each project is a building, its headings are floors and every task is a room. Rooms stay dark until they're done, then their window lights up —
+          and once lit, it never goes out. What should we call your city, Mayor?
+        </p>
         <input
           className="nc-input"
           autoFocus
@@ -596,7 +471,19 @@ function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onNam
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === "Enter" && text.trim()) onName(text.trim());
+            if (e.key === "Enter") found();
+          }}
+        />
+        <input
+          className="nc-input nc-mayor"
+          value={who}
+          maxLength={40}
+          placeholder="Your name (optional): “Mayor …”"
+          aria-label="Your name, Mayor"
+          onChange={(e) => setWho(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") found();
           }}
         />
         <div className="nc-picks">
@@ -613,53 +500,13 @@ function NameCity({ city, now, onName, onLater }: { city: City; now: Date; onNam
           <button type="button" className="nc-later" onClick={onLater}>
             Later
           </button>
-          <button type="button" className="primary" disabled={!text.trim()} onClick={() => onName(text.trim())}>
+          <button type="button" className="primary" disabled={!text.trim()} onClick={found}>
             Found the city
           </button>
         </div>
       </div>
     </div>
   );
-}
-
-/** Draw the share picture: the city, its name and (optionally) this week's count. */
-export function renderShareImage(
-  city: City,
-  name: string,
-  opts: { count: number | null; names: boolean; now: Date; dark: boolean },
-): HTMLCanvasElement {
-  const W = 1200;
-  const H = 630;
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const ctx = c.getContext("2d")!;
-  drawCity(ctx, W, H, city, { yaw: 0.72, pitch: 0.55, zoom: 1.2 }, {
-    palette: opts.dark ? NIGHT : DUSK,
-    range: "week",
-    now: opts.now,
-    labels: opts.names,
-    hover: null,
-    padTop: 110,
-    padBottom: 40,
-  });
-  const ink = opts.dark ? "#ffffff" : "#2d2226";
-  const sub = opts.dark ? "rgba(214, 216, 230, 0.9)" : "rgba(61, 47, 53, 0.8)";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = ink;
-  ctx.font = '750 46px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif';
-  ctx.fillText(name, 48, 84);
-  if (opts.count !== null) {
-    ctx.fillStyle = sub;
-    ctx.font = '500 22px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
-    ctx.fillText(`${opts.count} ${opts.count === 1 ? "thing" : "things"} done this week`, 48, 118);
-  }
-  ctx.textAlign = "right";
-  ctx.fillStyle = sub;
-  ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
-  ctx.fillText("Built with Plucky", W - 32, H - 26);
-  return c;
 }
 
 function ShareSheet({
@@ -688,11 +535,9 @@ function ShareSheet({
   useEffect(() => {
     let live = true;
     const opts = { count: showCount ? count : null, names, now, dark };
-    if (!hasWebGL()) setCanvas(renderShareImage(city, name, opts));
-    else
-      import("./CityScene")
-        .then((m) => live && setCanvas(m.renderCityPicture(city, name, opts)))
-        .catch(() => live && setCanvas(renderShareImage(city, name, opts)));
+    import("./CityScene")
+      .then((m) => live && setCanvas(m.renderCityPicture(city, name, opts)))
+      .catch(() => undefined);
     return () => {
       live = false;
     };

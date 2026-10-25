@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildCity, cityStats, inside, lots, MAIN_STREET, pick, shape, windowSpot } from "./city";
+import { buildCity, cityStats, floorShape, heightOf, initials, lots, MAIN_STREET, ordinal, roomSpot } from "./city";
 import type { CityWindow, Task } from "./types";
 
 let id = 0;
-const win = (project: string | null, completed_at: string, title = "t"): CityWindow => ({ id: ++id, title, project, completed_at });
+const win = (project: string | null, completed_at: string, heading: string | null = null, title = "t"): CityWindow => ({
+  id: ++id,
+  title,
+  project,
+  heading,
+  completed_at,
+});
 const open = (project: string | null, extra: Partial<Task> = {}): Task =>
   ({
     id: ++id,
@@ -42,60 +48,65 @@ describe("the city", () => {
     expect(l.every(([x, y]) => Math.abs(x) <= 1 && Math.abs(y) <= 1)).toBe(true);
   });
 
-  it("grows buildings wider and taller with more windows", () => {
-    expect(shape(0).floors).toBe(1);
-    expect(shape(10).per).toBe(2);
-    expect(shape(60).floors).toBeGreaterThan(5);
-    expect(shape(200).per).toBeGreaterThan(shape(10).per);
-    expect(shape(5000).floors).toBeLessThanOrEqual(72);
+  it("names floors 1st, 2nd, 3rd…", () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]);
   });
 
-  it("fills windows floor by floor, all round", () => {
-    expect(windowSpot(0, 3)).toEqual({ floor: 1, side: 0, slot: 0 });
-    expect(windowSpot(4, 3)).toEqual({ floor: 1, side: 1, slot: 1 });
-    expect(windowSpot(12, 3)).toEqual({ floor: 2, side: 0, slot: 0 });
+  it("makes floors wider with more rooms, and taller past a point", () => {
+    expect(floorShape(4).per).toBe(1);
+    expect(floorShape(20).per).toBe(5);
+    expect(floorShape(20).size).toBeGreaterThan(floorShape(4).size);
+    expect(floorShape(200).levels).toBeGreaterThan(1);
   });
 
-  it("makes a building per project, Main Street first, oldest downtown", () => {
+  it("puts rooms round each storey, side by side", () => {
+    const f = { name: "A", label: "", rooms: [], ...floorShape(12) };
+    expect(roomSpot(f, 0)).toEqual({ level: 0, side: 0, slot: 0 });
+    expect(roomSpot(f, 4)).toEqual({ level: 0, side: 1, slot: 1 });
+  });
+
+  it("stacks floors by size, lobby first, never wider going up", () => {
     const city = buildCity(
-      [win("B", "2026-10-02T10:00:00Z"), win("A", "2026-10-05T10:00:00Z"), win(null, "2026-10-06T10:00:00Z"), win("B", "2026-10-07T10:00:00Z")],
-      [open("A"), open("C", { someday: true }), { ...open("B"), done: true }],
+      [win("B", "2026-10-02T10:00:00Z", "Small"), win("B", "2026-10-03T10:00:00Z", "Big"), win("B", "2026-10-04T10:00:00Z", "Big")],
+      [open("B", { heading: "Big" }), open("B", { heading: "Big" }), open("B"), open("C", { someday: true })],
+      [{ name: "D", open: 0, done: 0 }],
+      [{ project: "B", name: "Empty", open: 0, done: 0 }],
     );
-    expect(city.buildings.map((b) => b.name)).toEqual([MAIN_STREET, "B", "A", "C"]);
-    expect(city.buildings[0].gx).toBe(0);
-    const [, b, a, c] = city.buildings;
-    expect(b.windows.length).toBe(2);
-    expect(b.finished).toBe(true);
-    expect(a.finished).toBe(false);
-    expect(c.planned).toBe(true);
-    expect(city.total).toBe(4);
-    expect(city.founded).toBe("2026-10-02T10:00:00Z");
+    expect(city.buildings.map((b) => b.name)).toEqual([MAIN_STREET, "B", "C", "D"]);
+    const b = city.buildings[1];
+    expect(b.floors.map((f) => f.label)).toEqual(["Lobby", "1st Floor: Big", "2nd Floor: Small", "3rd Floor: Empty"]);
+    expect(b.floors[1].rooms.map((r) => r.lit)).toEqual([true, true, false, false]);
+    for (let i = 1; i < b.floors.length; i++) expect(b.floors[i].size).toBeLessThanOrEqual(b.floors[i - 1].size);
+    expect(b.open).toBe(3);
+    expect(b.done).toBe(3);
+    expect(city.buildings[2].building).toBe(true);
+    expect(city.buildings[3].planned).toBe(true);
+    expect(heightOf(b)).toBeGreaterThan(heightOf(city.buildings[3]));
+  });
+
+  it("puts today's timed rooms on the building's billboard, in time order", () => {
+    const city = buildCity([], [open("A", { due_date: "2026-10-24", due_time: "15:00", title: "b" }), open("A", { due_date: "2026-10-24", due_time: "09:30", title: "a" })], [], [], "2026-10-24");
+    expect(city.buildings[1].today).toEqual([
+      { time: "09:30", title: "a" },
+      { time: "15:00", title: "b" },
+    ]);
   });
 
   it("counts the week, today and the week before", () => {
     const now = new Date(2026, 9, 24, 15, 0);
     const iso = (d: number, h = 12) => new Date(2026, 9, d, h).toISOString();
-    const city = buildCity([win("A", iso(24)), win("A", iso(22)), win("A", iso(14)), win(null, iso(1))], []);
+    const city = buildCity([win("A", iso(24)), win("A", iso(22)), win("A", iso(14)), win(null, iso(1))], [open("A")]);
     const s = cityStats(city, "week", now, "en-US");
     expect(s.inRange).toBe(2);
     expect(s.today).toBe(1);
     expect(s.before).toBe(1);
-    expect(s.tallest?.name).toBe("A");
+    expect(s.open).toBe(1);
     expect(cityStats(city, "all", now).inRange).toBe(4);
   });
 
-  it("finds what's under the pointer", () => {
-    const sq: [number, number][] = [
-      [0, 0],
-      [10, 0],
-      [10, 10],
-      [0, 10],
-    ];
-    expect(inside([5, 5], sq)).toBe(true);
-    expect(inside([15, 5], sq)).toBe(false);
-    const w = win("A", "2026-10-01T00:00:00Z", "Sent the deck");
-    const hits = [{ key: "A", polys: [sq], windows: [{ w, poly: sq }], top: [5, 0] as [number, number] }];
-    expect(pick(hits, [5, 5])).toEqual({ key: "A", window: w });
-    expect(pick(hits, [50, 5])).toBeNull();
+  it("makes the mayor's initials", () => {
+    expect(initials("Sam Rivera")).toBe("SR");
+    expect(initials("maya")).toBe("M");
+    expect(initials(null)).toBe("M");
   });
 });

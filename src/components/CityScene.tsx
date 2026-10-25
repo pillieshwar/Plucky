@@ -6,8 +6,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { FLOOR, LOT, heightOf, rangeStart, startOfToday, type Building, type City, type CityRange } from "../lib/city";
-import type { CityWindow } from "../lib/types";
+import { FLOOR, LOT, MAIN_STREET, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
 
 /**
  * The city in real 3D (three.js): towers with lit windows that glow, street
@@ -80,7 +79,10 @@ export const DUSK_3D: SceneTheme = {
 
 export interface Picked {
   key: string;
-  window: CityWindow | null;
+  /** The room (task) under the pointer, lit or dark. */
+  room: Room | null;
+  /** Which floor it's on ("1st Floor: Travel"). */
+  floor: string | null;
   x: number;
   y: number;
 }
@@ -89,23 +91,32 @@ interface Built {
   scene: THREE.Scene;
   /** Outline (tint) the building under the pointer. */
   setHover: (key: string | null) => void;
-  /** Building bodies, for picking (userData.key). */
+  /** Building floors, for picking (userData.key, userData.floor). */
   bodies: THREE.Mesh[];
-  /** Lit windows: the instanced meshes and which window each instance is. */
-  windowMeshes: { mesh: THREE.InstancedMesh; wins: { w: CityWindow; key: string }[] }[];
+  /** Rooms (windows): the instanced meshes and which room each instance is. */
+  windowMeshes: { mesh: THREE.InstancedMesh; rooms: { room: Room; key: string; floor: string }[] }[];
   labels: CSS2DObject[];
   radius: number;
   center: THREE.Vector3;
+  /** Move the traffic along by `dt` seconds. False when nothing moves. */
+  tick: (dt: number) => boolean;
   dispose: () => void;
 }
 
-const SIDES: { n: [number, number] }[] = [{ n: [0, -1] }, { n: [1, 0] }, { n: [0, 1] }, { n: [-1, 0] }];
+const SIDES: [number, number][] = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+
+type Keep = <T extends { dispose: () => void }>(x: T) => T;
 
 /** Build the whole city as a three.js scene. */
-export function buildScene(city: City, theme: SceneTheme, range: CityRange, now: Date, opts: { labels: boolean }): Built {
+export function buildScene(city: City, theme: SceneTheme, range: CityRange, now: Date, opts: { labels: boolean; mayor?: string | null; still?: boolean }): Built {
   const scene = new THREE.Scene();
   const disposables: { dispose: () => void }[] = [];
-  const keep = <T extends { dispose: () => void }>(x: T) => {
+  const keep: Keep = (x) => {
     disposables.push(x);
     return x;
   };
@@ -148,7 +159,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   moon.shadow.mapSize.set(2048, 2048);
   moon.shadow.bias = -0.0008;
 
-  // Ground and streets.
+  // Ground and streets: a street on every lot line, round the edge too.
   let gMin = 0;
   let gMax = 0;
   for (const b of city.buildings) {
@@ -159,32 +170,32 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   const g1 = gMax * LOT + LOT / 2;
   const span = g1 - g0;
   const mid = (g0 + g1) / 2;
-  const groundGeo = keep(new THREE.BoxGeometry(span + 1.2, 0.3, span + 1.2));
+  const groundGeo = keep(new THREE.BoxGeometry(span + 1.4, 0.3, span + 1.4));
   const groundMat = keep(new THREE.MeshStandardMaterial({ color: theme.ground, roughness: 0.95 }));
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.position.set(mid, -0.15, mid);
   ground.receiveShadow = true;
   scene.add(ground);
   const streetMat = keep(new THREE.MeshStandardMaterial({ color: theme.street, roughness: 0.9 }));
-  const lampGeo = keep(new THREE.SphereGeometry(0.07, 8, 6));
-  const lampMat = keep(new THREE.MeshBasicMaterial({ color: theme.lamp }));
-  const postGeo = keep(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6));
-  const postMat = keep(new THREE.MeshStandardMaterial({ color: theme.crane }));
-  for (let gi = gMin; gi <= gMax + 1; gi++) {
-    const s = (gi - 0.5) * LOT;
-    if (s <= g0 + 0.01 || s >= g1 - 0.01) continue;
+  const lines: number[] = [];
+  for (let gi = gMin; gi <= gMax + 1; gi++) lines.push((gi - 0.5) * LOT);
+  for (const s of lines) {
     for (const along of [true, false]) {
-      const geo = keep(new THREE.BoxGeometry(along ? 0.42 : span, 0.02, along ? span : 0.42));
+      const geo = keep(new THREE.BoxGeometry(along ? 0.46 : span + 0.46, 0.02, along ? span + 0.46 : 0.46));
       const st = new THREE.Mesh(geo, streetMat);
       st.position.set(along ? s : mid, 0.011, along ? mid : s);
       st.receiveShadow = true;
       scene.add(st);
     }
   }
-  for (let gi = gMin; gi <= gMax + 1; gi++) {
-    for (let gj = gMin; gj <= gMax + 1; gj++) {
-      const x = (gi - 0.5) * LOT + 0.3;
-      const z = (gj - 0.5) * LOT + 0.3;
+  const lampGeo = keep(new THREE.SphereGeometry(0.07, 8, 6));
+  const lampMat = keep(new THREE.MeshBasicMaterial({ color: theme.lamp }));
+  const postGeo = keep(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6));
+  const postMat = keep(new THREE.MeshStandardMaterial({ color: theme.crane }));
+  for (const x0 of lines) {
+    for (const z0 of lines) {
+      const x = x0 + 0.34;
+      const z = z0 + 0.34;
       const post = new THREE.Mesh(postGeo, postMat);
       post.position.set(x, 0.25, z);
       scene.add(post);
@@ -194,80 +205,115 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     }
   }
 
-  // Buildings.
+  // Buildings: floors stacked lobby-up, each as wide as its rooms need.
   const wallMat = keep(new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.75, metalness: 0.08 }));
   const hoverMat = keep(new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.75, metalness: 0.08, emissive: "#6a62ea", emissiveIntensity: 0.35 }));
   const roofMat = keep(new THREE.MeshStandardMaterial({ color: theme.roof, roughness: 0.8 }));
+  const ledgeMat = keep(new THREE.MeshStandardMaterial({ color: theme.roof, roughness: 0.6, metalness: 0.2 }));
   const planMat = keep(new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.9, transparent: true, opacity: 0.45 }));
   const bodies: THREE.Mesh[] = [];
   const from = rangeStart(range, now);
-  const today = startOfToday(now);
-  type Slot = { m: THREE.Matrix4; w?: CityWindow; key: string };
+  const todayStart = startOfToday(now);
+  type Slot = { m: THREE.Matrix4; room: Room; key: string; floor: string };
   const dark: Slot[] = [];
   const lit: Slot[] = [];
   const fresh: Slot[] = [];
   const labels: CSS2DObject[] = [];
   let tallest = 1;
+  let tallestKey = "";
   const tmp = new THREE.Object3D();
 
   for (const b of city.buildings) {
     const H = heightOf(b);
-    tallest = Math.max(tallest, H);
+    if (H > tallest) {
+      tallest = H;
+      tallestKey = b.key;
+    }
     const cx = b.gx * LOT;
     const cz = b.gy * LOT;
-    const geo = keep(new THREE.BoxGeometry(b.size, H, b.size));
-    const body = new THREE.Mesh(geo, b.planned ? planMat : [wallMat, wallMat, roofMat, wallMat, wallMat, wallMat]);
-    body.position.set(cx, H / 2, cz);
-    body.castShadow = !b.planned;
-    body.receiveShadow = true;
-    body.userData.key = b.key;
-    scene.add(body);
-    bodies.push(body);
-    // A slim parapet on the roof.
-    if (!b.planned) {
-      const capGeo = keep(new THREE.BoxGeometry(b.size * 0.55, FLOOR * 0.35, b.size * 0.55));
-      const cap = new THREE.Mesh(capGeo, roofMat);
-      cap.position.set(cx, H + FLOOR * 0.17, cz);
+    if (b.planned) {
+      const geo = keep(new THREE.BoxGeometry(1.6, H, 1.6));
+      const lot = new THREE.Mesh(geo, planMat);
+      lot.position.set(cx, H / 2, cz);
+      lot.userData.key = b.key;
+      lot.userData.floor = "Planned";
+      scene.add(lot);
+      bodies.push(lot);
+      addCrane(scene, cx, H, cz, theme, keep);
+    } else {
+      let y = 0;
+      b.floors.forEach((f, fi) => {
+        const h = f.levels * FLOOR;
+        const geo = keep(new THREE.BoxGeometry(f.size, h, f.size));
+        const body = new THREE.Mesh(geo, [wallMat, wallMat, fi === b.floors.length - 1 ? roofMat : wallMat, wallMat, wallMat, wallMat]);
+        body.position.set(cx, y + h / 2, cz);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        body.userData.key = b.key;
+        body.userData.floor = b.key ? f.label : MAIN_STREET;
+        scene.add(body);
+        bodies.push(body);
+        // A thin ledge where a floor steps in from the one below.
+        if (fi > 0 && b.floors[fi - 1].size > f.size + 0.01) {
+          const ledge = new THREE.Mesh(keep(new THREE.BoxGeometry(b.floors[fi - 1].size + 0.04, 0.04, b.floors[fi - 1].size + 0.04)), ledgeMat);
+          ledge.position.set(cx, y + 0.02, cz);
+          scene.add(ledge);
+        }
+        placeRooms(f, cx, cz, y, tmp, (m, room) => {
+          const slot = { m, room, key: b.key, floor: b.key ? f.label : MAIN_STREET };
+          if (!room.lit) dark.push(slot);
+          else {
+            const t = Date.parse(room.at ?? "");
+            const isFresh = range === "all" ? t >= todayStart : t >= from;
+            (isFresh ? fresh : lit).push(slot);
+          }
+        });
+        y += h;
+      });
+      // A slim parapet on the roof.
+      const top = b.floors[b.floors.length - 1];
+      const cap = new THREE.Mesh(keep(new THREE.BoxGeometry(top.size * 0.55, FLOOR * 0.35, top.size * 0.55)), roofMat);
+      cap.position.set(cx, H - FLOOR * 0.6 + FLOOR * 0.17, cz);
       cap.castShadow = true;
       scene.add(cap);
+      if (b.finished) addBeacon(scene, cx, H - FLOOR * 0.6, cz, theme, keep);
+      if (b.today.length) addBillboard(scene, b, cx, H - FLOOR * 0.6, cz, top.size, theme, keep);
     }
-    if (!b.planned) placeWindows(b, cx, cz, (m, w) => {
-      if (!w) dark.push({ m, key: b.key });
-      else {
-        const t = Date.parse(w.completed_at);
-        const isFresh = range === "all" ? t >= today : t >= from;
-        (isFresh ? fresh : lit).push({ m, w, key: b.key });
-      }
-    }, tmp);
-    if (b.finished) addBeacon(scene, cx, H, cz, theme, keep);
-    if (b.planned) addCrane(scene, cx, H, cz, theme, keep);
     if (opts.labels) {
       const el = document.createElement("div");
       el.className = "city3d-label";
       el.dataset.key = b.key;
       el.textContent = b.name;
       const label = new CSS2DObject(el);
-      label.position.set(cx, H + (b.finished ? 1.1 : b.planned ? 2.6 : 0.45), cz);
+      label.position.set(cx, H + (b.today.length ? 1.9 : b.finished ? 1.1 : b.planned ? 2.6 : 0.45), cz);
       label.center.set(0.5, 1);
       scene.add(label);
       labels.push(label);
     }
   }
 
-  // Windows as three instanced meshes: dark, lit earlier, and lit recently (glowing).
+  // Rooms as instanced windows: dark (open), lit earlier, and lit recently (glowing).
   const winGeo = keep(new THREE.PlaneGeometry(1, 1));
   const windowMeshes: Built["windowMeshes"] = [];
-  const instanced = (slots: Slot[], mat: THREE.Material, pickable: boolean) => {
+  const instanced = (slots: Slot[], mat: THREE.Material) => {
     if (!slots.length) return;
     const mesh = new THREE.InstancedMesh(winGeo, mat, slots.length);
     slots.forEach((s, i) => mesh.setMatrixAt(i, s.m));
     mesh.instanceMatrix.needsUpdate = true;
     scene.add(mesh);
-    if (pickable) windowMeshes.push({ mesh, wins: slots.map((s) => ({ w: s.w!, key: s.key })) });
+    windowMeshes.push({ mesh, rooms: slots.map((s) => ({ room: s.room, key: s.key, floor: s.floor })) });
   };
-  instanced(dark, keep(new THREE.MeshStandardMaterial({ color: theme.dark, roughness: 0.4, metalness: 0.3 })), false);
-  instanced(lit, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.lit).multiplyScalar(0.95), fog: true })), true);
-  instanced(fresh, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fresh).multiplyScalar(1.6), toneMapped: false })), true);
+  instanced(dark, keep(new THREE.MeshStandardMaterial({ color: theme.dark, roughness: 0.35, metalness: 0.4 })));
+  instanced(lit, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.lit).multiplyScalar(0.95), fog: true })));
+  instanced(fresh, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fresh).multiplyScalar(1.6), toneMapped: false })));
+
+  // The mayor, by Main Street.
+  const main = city.buildings.find((b) => b.key === "");
+  if (main) addMayor(scene, main, opts.mayor ?? null, opts.labels, keep, labels);
+
+  // Traffic: cars on every street, trucks round buildings going up, and
+  // a few luxury cars round the tallest tower.
+  const traffic = opts.still ? null : addTraffic(scene, city, lines, g0, g1, tallestKey, keep);
 
   // Shadows cover the city.
   const r = Math.max(span, tallest) * 0.8 + 4;
@@ -285,8 +331,9 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     for (const body of bodies) {
       const b = city.buildings.find((x) => x.key === body.userData.key);
       if (!b || b.planned) continue;
+      const mats = body.material as THREE.Material[];
       const side = body.userData.key === key ? hoverMat : wallMat;
-      body.material = [side, side, roofMat, wallMat, side, side];
+      body.material = [side, side, mats[2] === roofMat ? roofMat : side, side, side, side];
     }
     for (const l of labels) l.element.classList.toggle("on", l.element.dataset.key === key);
   };
@@ -298,6 +345,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
     labels,
     radius,
     center,
+    tick: (dt) => traffic?.(dt) ?? false,
     dispose: () => {
       for (const d of disposables) d.dispose();
       for (const l of labels) l.element.remove();
@@ -305,27 +353,260 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
   };
 }
 
-function placeWindows(b: Building, cx: number, cz: number, put: (m: THREE.Matrix4, w?: CityWindow) => void, tmp: THREE.Object3D) {
-  const half = b.size / 2;
-  const cell = b.size / b.per;
-  for (let f = 1; f <= b.floors; f++) {
-    const y = f * FLOOR + FLOOR * 0.47;
-    for (let side = 0; side < 4; side++) {
-      const [nx, nz] = SIDES[side].n;
-      // Along the face, left to right seen from outside.
-      const tx = -nz;
-      const tz = nx;
-      for (let slot = 0; slot < b.per; slot++) {
-        const u = -half + (slot + 0.5) * cell;
-        tmp.position.set(cx + nx * (half + 0.004) + tx * u, y, cz + nz * (half + 0.004) + tz * u);
-        tmp.rotation.set(0, Math.atan2(nx, nz), 0);
-        tmp.scale.set(cell * 0.52, FLOOR * 0.5, 1);
-        tmp.updateMatrix();
-        const i = (f - 1) * b.per * 4 + side * b.per + slot;
-        put(tmp.matrix.clone(), b.windows[i]);
-      }
-    }
+/** Rooms round a floor, storey by storey; every slot used is a window. */
+function placeRooms(f: Floor, cx: number, cz: number, y0: number, tmp: THREE.Object3D, put: (m: THREE.Matrix4, room: Room) => void) {
+  const half = f.size / 2;
+  const cell = (f.size - 0.12) / f.per;
+  f.rooms.forEach((room, i) => {
+    const { level, side, slot } = roomSpot(f, i);
+    const [nx, nz] = SIDES[side];
+    const tx = -nz;
+    const tz = nx;
+    const u = -half + 0.06 + (slot + 0.5) * cell;
+    const y = y0 + level * FLOOR + FLOOR * 0.5;
+    tmp.position.set(cx + nx * (half + 0.004) + tx * u, y, cz + nz * (half + 0.004) + tz * u);
+    tmp.rotation.set(0, Math.atan2(nx, nz), 0);
+    tmp.scale.set(cell * 0.62, FLOOR * 0.52, 1);
+    tmp.updateMatrix();
+    put(tmp.matrix.clone(), room);
+  });
+}
+
+/** Today's timed rooms on a billboard on the roof, in time order. */
+function addBillboard(scene: THREE.Scene, b: Building, x: number, h: number, z: number, size: number, theme: SceneTheme, keep: Keep) {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = "#11131c";
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.strokeStyle = "#a29bff";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, 504, 248);
+  ctx.fillStyle = "#a29bff";
+  ctx.font = "700 30px -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif";
+  ctx.fillText("TODAY", 26, 48);
+  ctx.font = "600 26px -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif";
+  const rows = b.today.slice(0, 4);
+  rows.forEach((r, i) => {
+    const y = 96 + i * 44;
+    ctx.fillStyle = "#ffd27a";
+    ctx.fillText(timeText(r.time), 26, y);
+    ctx.fillStyle = "#f2f1ee";
+    let t = r.title;
+    while (ctx.measureText(t).width > 330 && t.length > 4) t = `${t.slice(0, -2).trimEnd()}…`;
+    ctx.fillText(t, 160, y);
+  });
+  if (b.today.length > 4) {
+    ctx.fillStyle = "#9aa0a6";
+    ctx.font = "500 22px -apple-system, system-ui, sans-serif";
+    ctx.fillText(`+${b.today.length - 4} more`, 400, 48);
   }
+  const tex = keep(new THREE.CanvasTexture(c));
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const w = Math.max(1.4, Math.min(2.4, size + 0.4));
+  const panel = new THREE.Mesh(keep(new THREE.PlaneGeometry(w, w / 2)), keep(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false })));
+  const group = new THREE.Group();
+  panel.position.set(0, 0.55 + w / 4, 0);
+  group.add(panel);
+  const legMat = keep(new THREE.MeshStandardMaterial({ color: theme.crane, metalness: 0.5, roughness: 0.4 }));
+  for (const lx of [-w / 3, w / 3]) {
+    const leg = new THREE.Mesh(keep(new THREE.BoxGeometry(0.05, 0.6, 0.05)), legMat);
+    leg.position.set(lx, 0.3, 0);
+    group.add(leg);
+  }
+  group.position.set(x, h, z);
+  // Face the usual viewing direction (south-east).
+  group.rotation.y = 0.78;
+  scene.add(group);
+}
+
+function timeText(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const d = new Date(2000, 0, 1, h, m);
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/** The mayor: a small figure in a dark suit with a purple sash and a top hat. */
+function addMayor(scene: THREE.Scene, main: Building, name: string | null, label: boolean, keep: Keep, labels: CSS2DObject[]) {
+  const size = main.floors[0]?.size ?? 1;
+  const off = Math.min(size / 2 + 0.18, LOT / 2 - 0.32);
+  const x = main.gx * LOT + off;
+  const z = main.gy * LOT + off;
+  const g = new THREE.Group();
+  const suit = keep(new THREE.MeshStandardMaterial({ color: "#1d2033", roughness: 0.6 }));
+  const skin = keep(new THREE.MeshStandardMaterial({ color: "#e0b48f", roughness: 0.7 }));
+  const sash = keep(new THREE.MeshStandardMaterial({ color: "#a29bff", emissive: "#5249d9", emissiveIntensity: 0.4 }));
+  const gold = keep(new THREE.MeshStandardMaterial({ color: "#ffd27a", metalness: 0.8, roughness: 0.3 }));
+  const podium = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.16, 0.18, 0.06, 20)), gold);
+  podium.position.y = 0.03;
+  const legs = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.035, 0.04, 0.16, 10)), suit);
+  legs.position.y = 0.14;
+  const body = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.055, 0.07, 0.18, 14)), suit);
+  body.position.y = 0.3;
+  const band = new THREE.Mesh(keep(new THREE.TorusGeometry(0.062, 0.012, 6, 18)), sash);
+  band.position.y = 0.31;
+  band.rotation.set(Math.PI / 2.6, 0, 0.5);
+  const head = new THREE.Mesh(keep(new THREE.SphereGeometry(0.05, 16, 12)), skin);
+  head.position.y = 0.44;
+  const brim = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 18)), suit);
+  brim.position.y = 0.48;
+  const hat = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.042, 0.045, 0.09, 18)), suit);
+  hat.position.y = 0.53;
+  const hatBand = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.046, 0.046, 0.018, 18)), sash);
+  hatBand.position.y = 0.5;
+  for (const m of [podium, legs, body, head, hat]) m.castShadow = true;
+  g.add(podium, legs, body, band, head, brim, hat, hatBand);
+  g.position.set(x, 0.02, z);
+  g.rotation.y = 0.78;
+  g.scale.setScalar(1.4);
+  scene.add(g);
+  if (label) {
+    const el = document.createElement("div");
+    el.className = "city3d-label mayor";
+    el.textContent = name ? `Mayor ${name}` : "The mayor";
+    const l = new CSS2DObject(el);
+    l.position.set(x, 1.05, z);
+    l.center.set(0.5, 1);
+    scene.add(l);
+    labels.push(l);
+  }
+}
+
+type Vehicle = { obj: THREE.Object3D; path: THREE.Vector3[]; length: number; t: number; speed: number };
+
+/** Cars, trucks and luxury cars, each driving its own loop. */
+function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number, g1: number, tallestKey: string, keep: Keep): ((dt: number) => boolean) | null {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return null;
+  const vehicles: Vehicle[] = [];
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const headMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3c9").multiplyScalar(2), toneMapped: false }));
+  const tailMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff4a3d").multiplyScalar(1.6), toneMapped: false }));
+  const glassMat = keep(new THREE.MeshStandardMaterial({ color: "#1b2233", metalness: 0.6, roughness: 0.2 }));
+
+  const make = (kind: "car" | "truck" | "luxury", color: string) => {
+    const g = new THREE.Group();
+    const paint = keep(new THREE.MeshStandardMaterial({ color, metalness: kind === "luxury" ? 0.9 : 0.4, roughness: kind === "luxury" ? 0.15 : 0.45 }));
+    const L = kind === "truck" ? 0.42 : kind === "luxury" ? 0.36 : 0.28;
+    const W = kind === "truck" ? 0.16 : 0.14;
+    const H = kind === "truck" ? 0.16 : kind === "luxury" ? 0.06 : 0.08;
+    const body = new THREE.Mesh(keep(new THREE.BoxGeometry(L, H, W)), paint);
+    body.position.y = H / 2 + 0.03;
+    body.castShadow = true;
+    g.add(body);
+    if (kind === "truck") {
+      const cab = new THREE.Mesh(keep(new THREE.BoxGeometry(0.12, 0.13, W)), keep(new THREE.MeshStandardMaterial({ color: "#f2b632", roughness: 0.5 })));
+      cab.position.set(L / 2 + 0.06, 0.1, 0);
+      g.add(cab);
+      const bed = new THREE.Mesh(keep(new THREE.BoxGeometry(L * 0.8, 0.05, W * 0.9)), keep(new THREE.MeshStandardMaterial({ color: "#8a6a4a" })));
+      bed.position.set(-0.02, H + 0.055, 0);
+      g.add(bed);
+    } else {
+      const cabin = new THREE.Mesh(keep(new THREE.BoxGeometry(L * (kind === "luxury" ? 0.45 : 0.55), kind === "luxury" ? 0.05 : 0.06, W * 0.86)), glassMat);
+      cabin.position.set(kind === "luxury" ? -0.03 : -0.02, H + 0.055, 0);
+      g.add(cabin);
+    }
+    const front = kind === "truck" ? L / 2 + 0.12 : L / 2;
+    for (const s of [-1, 1]) {
+      const hl = new THREE.Mesh(keep(new THREE.BoxGeometry(0.012, 0.022, 0.03)), headMat);
+      hl.position.set(front + 0.006, 0.07, s * (W / 2 - 0.025));
+      const tl = new THREE.Mesh(keep(new THREE.BoxGeometry(0.012, 0.02, 0.03)), tailMat);
+      tl.position.set(-L / 2 - 0.006, 0.07, s * (W / 2 - 0.025));
+      g.add(hl, tl);
+    }
+    scene.add(g);
+    return g;
+  };
+  const loop = (pts: [number, number][]) => pts.map(([x, z]) => new THREE.Vector3(x, 0, z));
+  const add = (obj: THREE.Object3D, path: THREE.Vector3[], speed: number) => {
+    let length = 0;
+    for (let i = 0; i < path.length; i++) length += path[i].distanceTo(path[(i + 1) % path.length]);
+    vehicles.push({ obj, path, length, t: rnd() * length, speed });
+  };
+  // A lane round a lot's four streets (clockwise), kept to its inner side.
+  const around = (gx: number, gy: number, inset: number) => {
+    const cx = gx * LOT;
+    const cz = gy * LOT;
+    const h = LOT / 2 - inset;
+    return loop([
+      [cx - h, cz - h],
+      [cx + h, cz - h],
+      [cx + h, cz + h],
+      [cx - h, cz + h],
+    ]);
+  };
+
+  // Everyday cars on the grid: straight runs across the city, both ways.
+  const colors = ["#d94f4f", "#3f7fd9", "#e8e4dc", "#3a3d48", "#4caf7a", "#d9a441", "#7a5cd6"];
+  const runs = Math.min(18, lines.length * 3);
+  for (let i = 0; i < runs; i++) {
+    const s = lines[Math.floor(rnd() * lines.length)];
+    const dir = rnd() < 0.5 ? 1 : -1;
+    const lane = 0.1 * dir;
+    const alongX = rnd() < 0.5;
+    const a = g0 - 0.2;
+    const b = g1 + 0.2;
+    const path = alongX
+      ? loop([
+          [dir > 0 ? a : b, s + lane],
+          [dir > 0 ? b : a, s + lane],
+        ])
+      : loop([
+          [s - lane, dir > 0 ? a : b],
+          [s - lane, dir > 0 ? b : a],
+        ]);
+    add(make("car", colors[i % colors.length]), path, 0.7 + rnd() * 0.5);
+  }
+  // Trucks round buildings under construction.
+  for (const b of city.buildings) {
+    if (!(b.planned || b.building)) continue;
+    add(make("truck", "#f2b632"), around(b.gx, b.gy, 0.1), 0.45);
+    if (b.planned) add(make("truck", "#e07b39"), around(b.gx, b.gy, 0.1), 0.4);
+  }
+  // Luxury cars round the tallest tower.
+  const top = city.buildings.find((b) => b.key === tallestKey);
+  if (top && !top.planned) {
+    for (const c of ["#111216", "#c9a24a", "#e9e6df"]) add(make("luxury", c), around(top.gx, top.gy, 0.1), 0.8);
+  }
+  if (!vehicles.length) return null;
+
+  const place = (v: Vehicle) => {
+    let d = v.t % v.length;
+    if (v.path.length === 2) {
+      // A straight run across the city: back to the start at the end.
+      const [p, q] = v.path;
+      const k = d / v.length;
+      v.obj.position.set(p.x + (q.x - p.x) * k, 0.012, p.z + (q.z - p.z) * k);
+      v.obj.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x);
+      return;
+    }
+    for (let i = 0; i < v.path.length; i++) {
+      const p = v.path[i];
+      const q = v.path[(i + 1) % v.path.length];
+      const seg = p.distanceTo(q);
+      if (d <= seg) {
+        const k = seg ? d / seg : 0;
+        v.obj.position.set(p.x + (q.x - p.x) * k, 0.012, p.z + (q.z - p.z) * k);
+        v.obj.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x);
+        return;
+      }
+      d -= seg;
+    }
+  };
+  for (const v of vehicles) {
+    if (v.path.length === 2) v.length = v.path[0].distanceTo(v.path[1]);
+    place(v);
+  }
+  return (dt: number) => {
+    for (const v of vehicles) {
+      v.t += v.speed * dt;
+      place(v);
+    }
+    return true;
+  };
 }
 
 function addBeacon(scene: THREE.Scene, x: number, h: number, z: number, theme: SceneTheme, keep: <T extends { dispose: () => void }>(x: T) => T) {
@@ -381,6 +662,7 @@ export function CityScene({
   dark,
   still,
   labels,
+  mayor,
   onPick,
   onHover,
   onInteract,
@@ -391,6 +673,8 @@ export function CityScene({
   dark: boolean;
   still?: boolean;
   labels?: boolean;
+  /** The mayor's name, shown by their figure. */
+  mayor?: string | null;
   onPick?: (key: string) => void;
   onHover?: (p: Picked | null) => void;
   onInteract?: () => void;
@@ -400,8 +684,8 @@ export function CityScene({
   cb.current = { onPick, onHover, onInteract };
   // Swap in a new city without rebuilding the renderer (set by the effect below).
   const setCity = useRef<((city: City, range: CityRange, now: Date) => void) | null>(null);
-  const latest = useRef({ city, range, now });
-  latest.current = { city, range, now };
+  const latest = useRef({ city, range, now, mayor });
+  latest.current = { city, range, now, mayor };
   const day = now.toDateString();
 
   useEffect(() => {
@@ -409,7 +693,7 @@ export function CityScene({
     if (!el) return;
     const theme = dark ? NIGHT_3D : DUSK_3D;
     const first = latest.current;
-    let built = buildScene(first.city, theme, first.range, first.now, { labels: !!labels });
+    let built = buildScene(first.city, theme, first.range, first.now, { labels: !!labels, mayor: first.mayor, still: !!still });
     let hoverKey: string | null = null;
     let flyTo: { from: THREE.Vector3; to: THREE.Vector3; start: number; key: string } | null = null;
     let dirty = true;
@@ -485,7 +769,7 @@ export function CityScene({
 
     setCity.current = (c, r, n) => {
       const old = built;
-      built = buildScene(c, theme, r, n, { labels: !!labels });
+      built = buildScene(c, theme, r, n, { labels: !!labels, mayor: latest.current.mayor, still: !!still });
       renderPass.scene = built.scene;
       built.setHover(hoverKey);
       old.dispose();
@@ -505,15 +789,15 @@ export function CityScene({
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       const hitB = ray.intersectObjects(built.bodies, false)[0];
-      let best: { d: number; w: CityWindow; key: string } | null = null;
+      let best: { d: number; room: Room; key: string; floor: string } | null = null;
       for (const wm of built.windowMeshes) {
         const h = ray.intersectObject(wm.mesh, false)[0];
-        if (h && h.instanceId !== undefined && (!best || h.distance < best.d)) best = { d: h.distance, ...wm.wins[h.instanceId] };
+        if (h && h.instanceId !== undefined && (!best || h.distance < best.d)) best = { d: h.distance, ...wm.rooms[h.instanceId] };
       }
       const x = clientX - r.left;
       const y = clientY - r.top;
-      if (best && (!hitB || best.d <= hitB.distance + 0.05)) return { key: best.key, window: best.w, x, y };
-      if (hitB) return { key: hitB.object.userData.key as string, window: null, x, y };
+      if (best && (!hitB || best.d <= hitB.distance + 0.05)) return { key: best.key, room: best.room, floor: best.floor, x, y };
+      if (hitB) return { key: hitB.object.userData.key as string, room: null, floor: (hitB.object.userData.floor as string) ?? null, x, y };
       return null;
     };
 
@@ -600,7 +884,11 @@ export function CityScene({
 
     // Draw only when something changed (turning, hovering, a new window).
     let raf = 0;
+    let last = performance.now();
     const loop = (t: number) => {
+      const dt = Math.min(0.1, (t - last) / 1000);
+      last = t;
+      if (built.tick(dt)) dirty = true;
       if (flyTo && controls) {
         const k = Math.min(1, (t - flyTo.start) / 450);
         const ease = 1 - Math.pow(1 - k, 3);
@@ -644,7 +932,7 @@ export function CityScene({
     }
     const { city: c, range: r, now: n } = latest.current;
     setCity.current?.(c, r, n);
-  }, [city, range, day]);
+  }, [city, range, day, mayor]);
 
   return <div ref={host} className="city3d" />;
 }
@@ -654,7 +942,7 @@ export function renderCityPicture(city: City, name: string, opts: { count: numbe
   const W = 1200;
   const H = 630;
   const theme = opts.dark ? NIGHT_3D : DUSK_3D;
-  const built = buildScene(city, theme, "week", opts.now, { labels: false });
+  const built = buildScene(city, theme, "week", opts.now, { labels: false, still: true });
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);

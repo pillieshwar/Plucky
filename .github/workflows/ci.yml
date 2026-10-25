@@ -67,7 +67,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # Windows builds are paused: Plucky is focusing on macOS for now.
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read

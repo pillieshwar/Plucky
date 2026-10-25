@@ -216,6 +216,22 @@ ALTER TABLE tasks ADD COLUMN series_date TEXT;
 ALTER TABLE tasks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX tasks_completed ON tasks (done, completed_at);
 "#,
+    // Projects and their headings ("buildings" and "floors") can exist
+    // before any task is in them.
+    r#"
+CREATE TABLE projects (name TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+CREATE TABLE floors (
+    project    TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (project, name)
+);
+INSERT OR IGNORE INTO projects (name, created_at)
+    SELECT project, MIN(created_at) FROM tasks WHERE project IS NOT NULL GROUP BY project;
+INSERT OR IGNORE INTO floors (project, name, created_at)
+    SELECT project, heading, MIN(created_at) FROM tasks
+    WHERE project IS NOT NULL AND heading IS NOT NULL GROUP BY project, heading;
+"#,
 ];
 
 /// A Plucky task linked to an external reminder, with the state both sides
@@ -236,7 +252,17 @@ pub struct CityWindow {
     pub id: i64,
     pub title: String,
     pub project: Option<String>,
+    pub heading: Option<String>,
     pub completed_at: String,
+}
+
+/// A heading in a project (a floor of its building) and its task counts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FloorSummary {
+    pub project: String,
+    pub name: String,
+    pub open: i64,
+    pub done: i64,
 }
 
 /// A project and how far along it is.
@@ -595,8 +621,8 @@ impl Store {
     /// the windows of the city.
     pub fn city_windows(&self, limit: u32) -> Result<Vec<CityWindow>, StoreError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, title, project, completed_at FROM (
-                 SELECT id, title, project, completed_at FROM tasks
+            "SELECT id, title, project, heading, completed_at FROM (
+                 SELECT id, title, project, heading, completed_at FROM tasks
                  WHERE done = 1 AND completed_at IS NOT NULL
                  ORDER BY completed_at DESC, id DESC LIMIT ?1
              ) ORDER BY completed_at, id",
@@ -606,7 +632,8 @@ impl Store {
                 id: r.get(0)?,
                 title: r.get(1)?,
                 project: r.get(2)?,
-                completed_at: r.get(3)?,
+                heading: r.get(3)?,
+                completed_at: r.get(4)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -615,8 +642,10 @@ impl Store {
     /// Every project with its open and completed task counts, by name.
     pub fn projects(&self) -> Result<Vec<ProjectSummary>, StoreError> {
         let mut stmt = self.conn.prepare(
-            "SELECT project, SUM(done = 0), SUM(done = 1) FROM tasks WHERE project IS NOT NULL
-             GROUP BY project ORDER BY project COLLATE NOCASE",
+            "SELECT p.name, COALESCE(SUM(t.done = 0), 0), COALESCE(SUM(t.done = 1), 0)
+             FROM (SELECT name FROM projects UNION SELECT project FROM tasks WHERE project IS NOT NULL) p
+             LEFT JOIN tasks t ON t.project = p.name
+             GROUP BY p.name ORDER BY p.name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(ProjectSummary {
@@ -628,11 +657,90 @@ impl Store {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Every heading of every project (floors), with task counts.
+    pub fn floors(&self) -> Result<Vec<FloorSummary>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT f.project, f.name, COALESCE(SUM(t.done = 0), 0), COALESCE(SUM(t.done = 1), 0)
+             FROM (SELECT project, name FROM floors
+                   UNION SELECT project, heading FROM tasks WHERE project IS NOT NULL AND heading IS NOT NULL) f
+             LEFT JOIN tasks t ON t.project = f.project AND t.heading = f.name
+             GROUP BY f.project, f.name ORDER BY f.project COLLATE NOCASE, f.name COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(FloorSummary {
+                project: r.get(0)?,
+                name: r.get(1)?,
+                open: r.get(2)?,
+                done: r.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Start a project (a building) with no tasks yet. Returns its name as
+    /// stored, or `None` for a blank name.
+    pub fn create_project(&self, name: &str) -> Result<Option<String>, StoreError> {
+        let Some(name) = clean_name(Some(name.to_string())) else {
+            return Ok(None);
+        };
+        self.conn.execute(
+            "INSERT OR IGNORE INTO projects (name, created_at) VALUES (?1, ?2)",
+            params![name, now()],
+        )?;
+        Ok(Some(name))
+    }
+
+    /// Add a heading (a floor) to a project, creating the project if needed.
+    pub fn add_floor(&self, project: &str, name: &str) -> Result<Option<String>, StoreError> {
+        let Some(project) = self.create_project(project)? else {
+            return Ok(None);
+        };
+        let Some(name) = clean_name(Some(name.to_string())) else {
+            return Ok(None);
+        };
+        self.conn.execute(
+            "INSERT OR IGNORE INTO floors (project, name, created_at) VALUES (?1, ?2, ?3)",
+            params![project, name, now()],
+        )?;
+        Ok(Some(name))
+    }
+
+    /// Rename a heading (floor) in a project, on its tasks too.
+    pub fn rename_floor(&self, project: &str, from: &str, to: &str) -> Result<usize, StoreError> {
+        let Some(to) = clean_name(Some(to.to_string())) else {
+            return Ok(0);
+        };
+        self.conn.execute(
+            "UPDATE OR IGNORE floors SET name = ?3 WHERE project = ?1 AND name = ?2",
+            params![project, from, to],
+        )?;
+        self.conn.execute(
+            "DELETE FROM floors WHERE project = ?1 AND name = ?2",
+            params![project, from],
+        )?;
+        Ok(self.conn.execute(
+            "UPDATE tasks SET heading = ?3 WHERE project = ?1 AND heading = ?2",
+            params![project, from, to],
+        )?)
+    }
+
     /// Rename a project on every task in it (done ones too).
     pub fn rename_project(&self, from: &str, to: &str) -> Result<usize, StoreError> {
         let Some(to) = clean_name(Some(to.to_string())) else {
             return Ok(0);
         };
+        self.conn.execute(
+            "UPDATE OR IGNORE projects SET name = ?2 WHERE name = ?1",
+            params![from, to],
+        )?;
+        self.conn
+            .execute("DELETE FROM projects WHERE name = ?1", params![from])?;
+        self.conn.execute(
+            "UPDATE OR IGNORE floors SET project = ?2 WHERE project = ?1",
+            params![from, to],
+        )?;
+        self.conn
+            .execute("DELETE FROM floors WHERE project = ?1", params![from])?;
         Ok(self.conn.execute(
             "UPDATE tasks SET project = ?2 WHERE project = ?1",
             params![from, to],
@@ -1511,6 +1619,51 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
+        // A building and a floor can exist before any task is in them.
+        assert_eq!(
+            s.create_project("  Garden  reno ").unwrap().as_deref(),
+            Some("Garden reno")
+        );
+        s.add_floor("Garden reno", "Beds").unwrap();
+        s.add_floor("P", "Later").unwrap();
+        let names: Vec<_> = s
+            .projects()
+            .unwrap()
+            .into_iter()
+            .map(|p| (p.name, p.open, p.done))
+            .collect();
+        assert_eq!(
+            names,
+            vec![("Garden reno".to_string(), 0, 0), ("P".to_string(), 1, 3)]
+        );
+        let floors: Vec<_> = s
+            .floors()
+            .unwrap()
+            .into_iter()
+            .map(|f| (f.project, f.name))
+            .collect();
+        assert_eq!(
+            floors,
+            vec![
+                ("Garden reno".to_string(), "Beds".to_string()),
+                ("P".to_string(), "Later".to_string())
+            ]
+        );
+        assert_eq!(s.rename_project("Garden reno", "Garden").unwrap(), 0);
+        assert!(s
+            .floors()
+            .unwrap()
+            .iter()
+            .any(|f| f.project == "Garden" && f.name == "Beds"));
+        s.conn
+            .execute("DELETE FROM projects WHERE name = 'Garden'", [])
+            .unwrap();
+        s.conn
+            .execute(
+                "DELETE FROM floors WHERE project = 'Garden' OR name = 'Later'",
+                [],
+            )
+            .unwrap();
         let city = s.city_windows(10).unwrap();
         assert_eq!(
             city.iter().map(|w| w.title.as_str()).collect::<Vec<_>>(),

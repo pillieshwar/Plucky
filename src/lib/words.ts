@@ -69,7 +69,7 @@ export const CITY: Words = {
   progress: (o, d) => `${n(o, "room", "rooms")} open · ${d} lit`,
   toDo: (k) => `${n(k, "room", "rooms")} to do`,
   open: (k) => `${n(k, "open room", "open rooms")}`,
-  looseHeading: "Rooms",
+  looseHeading: "Lobby",
   emptyProject: (p) => `No rooms in ${p} yet`,
 };
 

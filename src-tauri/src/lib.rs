@@ -133,6 +133,47 @@ fn list_projects(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::Projec
     state.store.lock().map_err(err)?.projects().map_err(err)
 }
 
+/// Every project's headings: the floors of each building.
+#[tauri::command]
+fn list_floors(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::FloorSummary>> {
+    state.store.lock().map_err(err)?.floors().map_err(err)
+}
+
+/// Start an empty project (a building).
+#[tauri::command]
+fn create_project(app: AppHandle, name: String) -> CmdResult<Option<String>> {
+    let made = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.create_project(&name).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(made)
+}
+
+/// Add a heading (a floor) to a project.
+#[tauri::command]
+fn add_floor(app: AppHandle, project: String, name: String) -> CmdResult<Option<String>> {
+    let made = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.add_floor(&project, &name).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(made)
+}
+
+#[tauri::command]
+fn rename_floor(app: AppHandle, project: String, from: String, to: String) -> CmdResult<usize> {
+    let n = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.rename_floor(&project, &from, &to).map_err(err)?
+    };
+    let _ = app.emit("tasks-changed", ());
+    Ok(n)
+}
+
 #[tauri::command]
 fn rename_project(app: AppHandle, from: String, to: String) -> CmdResult<usize> {
     let n = {
@@ -600,6 +641,7 @@ fn set_settings(app: AppHandle, settings: State<'_, Settings>, value: AppSetting
         v.double_copy = value.double_copy;
         v.city_name = clean_city_name(value.city_name.as_deref());
         v.city_corner = value.city_corner;
+        v.mayor_name = clean_city_name(value.mayor_name.as_deref());
     });
     // Every window follows the theme (and other preferences) right away.
     let _ = app.emit("settings-changed", &next);
@@ -1418,6 +1460,10 @@ pub fn run() {
             city_windows,
             save_city_image,
             list_projects,
+            list_floors,
+            create_project,
+            add_floor,
+            rename_floor,
             skip_occurrence,
             rename_project,
             add_task,
