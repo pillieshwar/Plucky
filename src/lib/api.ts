@@ -3,6 +3,10 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ShortcutAction, ShortcutSettings, ShortcutSpec } from "./shortcuts";
 import type {
+  ImportReport,
+  ThingsOptions,
+  ThingsPreview,
+  ThingsSource,
   AgentsStatus,
   WatchStatus,
   EmailTasksStatus,
@@ -157,6 +161,16 @@ export const api = {
   restoreBackup: (name: string) => invoke<void>("restore_backup", { name }),
   revealBackups: () => invoke<void>("reveal_backups"),
   exportTasks: (format: "csv" | "json") => invoke<string>("export_tasks", { format }),
+  /** Things 3 libraries on this Mac, newest first. */
+  thingsFind: () => invoke<ThingsSource[]>("things_find"),
+  /** Pick a Things database with the macOS file picker (null if cancelled). */
+  thingsPick: () => invoke<string | null>("things_pick"),
+  /** What moving in from Things would bring. Changes nothing. */
+  thingsPreview: (path: string | null, options: ThingsOptions) =>
+    invoke<ThingsPreview>("things_preview", { path, options }),
+  /** Bring Things 3 to-dos in (backs up first, skips earlier imports). */
+  thingsImport: (path: string | null, options: ThingsOptions) =>
+    invoke<ImportReport>("things_import", { path, options }),
   showQuickAdd: () => invoke<void>("show_quick_add"),
   hideQuickAdd: () => invoke<void>("hide_quick_add"),
 };

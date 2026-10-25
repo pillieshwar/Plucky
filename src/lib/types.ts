@@ -438,3 +438,53 @@ export interface FloorSummary {
   open: number;
   done: number;
 }
+
+/** Mirrors `pluck_core::things::Options`. */
+export interface ThingsOptions {
+  include_done: boolean;
+  include_canceled: boolean;
+  /** Building keys to leave behind. */
+  skip: string[];
+}
+
+/** Mirrors `pluck_core::things::BuildingPreview`. */
+export interface ThingsBuilding {
+  key: string;
+  name: string;
+  kind: "project" | "area" | "loose";
+  area: string | null;
+  open: number;
+  done: number;
+  floors: number;
+}
+
+/** Mirrors `pluck_core::things::Preview`. */
+export interface ThingsPreviewData {
+  buildings: ThingsBuilding[];
+  open: number;
+  done: number;
+  someday: number;
+  repeating: number;
+  subtasks: number;
+  canceled: number;
+  unmapped_repeats: number;
+  already: number;
+}
+
+export interface ThingsSource {
+  path: string;
+  modified: string | null;
+}
+
+export interface ThingsPreview {
+  source: ThingsSource;
+  preview: ThingsPreviewData;
+}
+
+/** Mirrors `pluck_core::ImportReport`. */
+export interface ImportReport {
+  added: number;
+  done: number;
+  skipped: number;
+  failed: number;
+}

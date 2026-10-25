@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { ModelsTab } from "./components/ModelsTab";
 import { ConnectorsTab } from "./components/ConnectorsTab";
+import { DataTransferTab } from "./components/DataTransferTab";
 import { Onboarding } from "./components/Onboarding";
 import { processCapture } from "./lib/capture";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -57,12 +58,13 @@ import { safeLocale } from "./lib/locale";
 
 const LOCALE = safeLocale();
 
-type Tab = "tasks" | "connectors" | "models" | "settings";
+type Tab = "tasks" | "connectors" | "models" | "transfer" | "settings";
 const TABS: { id: Tab; label: string }[] = [
   { id: "tasks", label: "Tasks" },
   { id: "settings", label: "Preferences" },
   { id: "connectors", label: "Connectors" },
   { id: "models", label: "Models" },
+  { id: "transfer", label: "Data transfer" },
 ];
 const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
 
@@ -764,7 +766,9 @@ export default function App() {
     tab !== "tasks"
       ? tab === "connectors"
         ? "Work with apps on this Mac"
-        : tab === "models"
+        : tab === "transfer"
+          ? "Move in from Things 3"
+          : tab === "models"
           ? status?.active_model
             ? `Using ${status.active_model}`
             : "No model yet"
@@ -1005,6 +1009,7 @@ export default function App() {
     <>
       {tab === "connectors" && <ConnectorsTab />}
       {tab === "models" && <ModelsTab onChanged={checkStatus} />}
+      {tab === "transfer" && <DataTransferTab onFinished={() => setTab("tasks")} />}
       {tab === "settings" && (
         <SettingsTab
           shortcuts={shortcuts}

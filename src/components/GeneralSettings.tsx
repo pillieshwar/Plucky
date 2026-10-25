@@ -533,6 +533,7 @@ export function DataSection({ onError }: { onError: (message: string) => void })
               <span className="backup-name">
                 {new Date(`${b.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                 {b.name.includes("before-restore") && <span className="backup-tag">before restore</span>}
+                {b.name.includes("before-import") && <span className="backup-tag">before import</span>}
                 {b.name.includes("manual") && <span className="backup-tag">manual</span>}
               </span>
               <span className="backup-size">{Math.max(1, Math.round(b.size / 1024))} KB</span>

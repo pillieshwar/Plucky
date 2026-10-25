@@ -14,6 +14,7 @@ mod data;
 mod double_copy;
 mod engine;
 mod greet;
+mod import;
 mod login_item;
 mod models;
 mod notifications;
@@ -802,7 +803,7 @@ fn restore_backup(app: AppHandle, state: State<'_, AppState>, name: String) -> C
     drop(Store::open(&staged).map_err(|e| format!("That backup can't be read: {e}"))?);
     {
         let mut store = state.store.lock().map_err(err)?;
-        data::safety_copy(&store, &state.data_dir)?;
+        data::safety_copy(&store, &state.data_dir, "restore")?;
         // Close the live database before swapping files.
         *store = Store::open_in_memory().map_err(err)?;
         for ext in ["-wal", "-shm"] {
@@ -1592,6 +1593,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             extract,
+            import::things_find,
+            import::things_pick,
+            import::things_preview,
+            import::things_import,
             list_tasks,
             logbook,
             city_windows,

@@ -15,6 +15,7 @@
 //! * [`recurrence`] — repeating tasks.
 //! * [`notify`] — when to show due-time notifications.
 //! * [`reminders_sync`] — merge rules for two-way Apple Reminders sync.
+//! * [`things`] — reading a Things 3 database to move into Todo City.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
@@ -29,6 +30,7 @@ pub mod prompt;
 pub mod recurrence;
 pub mod reminders_sync;
 pub mod store;
+pub mod things;
 pub mod transcript;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};
@@ -36,6 +38,6 @@ pub use llm::{
     extract_task, find_actions, LlamaServerClient, LlmBackend, LlmError, OllamaClient, OllamaConfig,
 };
 pub use store::{
-    ChecklistItem, CityWindow, FloorSummary, NewTask, ProjectSummary, ReminderLink, Store,
-    StoreError, Task, TaskPatch, UpdateEffects,
+    ChecklistItem, CityWindow, FloorSummary, ImportReport, Imported, NewTask, ProjectSummary,
+    ReminderLink, Store, StoreError, Task, TaskPatch, UpdateEffects,
 };
