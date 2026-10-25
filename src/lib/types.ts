@@ -449,6 +449,8 @@ export interface ThingsOptions {
   include_canceled: boolean;
   /** Building keys to leave behind. */
   skip: string[];
+  /** Todoist: priorities 1–3 become #p1–#p3. */
+  priority_tags?: boolean;
 }
 
 /** Mirrors `pluck_core::things::BuildingPreview`. */
@@ -482,6 +484,11 @@ export interface ThingsSource {
 
 export interface ThingsPreview {
   source: ThingsSource;
+  preview: ThingsPreviewData;
+}
+
+export interface TodoistPreview {
+  source: { kind: "api" | "csv"; label: string };
   preview: ThingsPreviewData;
 }
 

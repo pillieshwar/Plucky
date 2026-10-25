@@ -16,6 +16,7 @@
 //! * [`notify`] — when to show due-time notifications.
 //! * [`reminders_sync`] — merge rules for two-way Apple Reminders sync.
 //! * [`things`] — reading a Things 3 database to move into Todo City.
+//! * [`todoist`] — reading Todoist (its API or CSV exports) to move in.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
@@ -31,6 +32,7 @@ pub mod recurrence;
 pub mod reminders_sync;
 pub mod store;
 pub mod things;
+pub mod todoist;
 pub mod transcript;
 
 pub use extraction::{DateConfidence, Extraction, ExtractionError};

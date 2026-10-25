@@ -7,6 +7,7 @@ import type {
   ThingsOptions,
   ThingsPreview,
   ThingsSource,
+  TodoistPreview,
   AgentsStatus,
   WatchStatus,
   EmailTasksStatus,
@@ -171,6 +172,16 @@ export const api = {
   /** Bring Things 3 to-dos in (backs up first, skips earlier imports). */
   thingsImport: (path: string | null, options: ThingsOptions) =>
     invoke<ImportReport>("things_import", { path, options }),
+  /** Choose exported Todoist CSV files (empty if cancelled). */
+  todoistPickFiles: () => invoke<string[]>("todoist_pick_files"),
+  /**
+   * Read Todoist (with a token, or from CSV files) and show what would move
+   * in; with neither, re-plan what was read last. Changes nothing.
+   */
+  todoistPreview: (source: { token?: string; files?: string[] } | null, options: ThingsOptions) =>
+    invoke<TodoistPreview>("todoist_preview", { token: source?.token ?? null, files: source?.files ?? null, options }),
+  /** Bring in what the last Todoist preview read (backs up first). */
+  todoistImport: (options: ThingsOptions) => invoke<ImportReport>("todoist_import", { options }),
   showQuickAdd: () => invoke<void>("show_quick_add"),
   hideQuickAdd: () => invoke<void>("hide_quick_add"),
 };
@@ -226,6 +237,11 @@ export function onPopoverShown(handler: () => void): Promise<UnlistenFn> {
 }
 
 /** Reminders sync status changed (a pass finished, settings changed…). */
+/** Progress while reading Todoist ("Reading completed tasks… 2023"). */
+export function onTodoistProgress(handler: (line: string) => void): Promise<UnlistenFn> {
+  return listen<string>("todoist-progress", (e) => handler(e.payload));
+}
+
 export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("reminders-changed", () => handler());
 }
