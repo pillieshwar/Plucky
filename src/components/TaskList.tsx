@@ -333,6 +333,7 @@ function RowMeta({
   onOpenProject: (name: string) => void;
   onError: (e: unknown) => void;
 }) {
+  const w = useWords();
   const parts: ReactNode[] = [];
   const when = whenText(task, now, locale);
   if (when) parts.push(<span key="w" className={when.late ? "late" : when.soon ? "soon" : undefined}>{when.text}</span>);
@@ -340,7 +341,7 @@ function RowMeta({
   if (dl) parts.push(<span key="dl" className={dl.tone === "overdue" ? "late" : undefined}>{dl.label}</span>);
   if (task.paused && !task.done) parts.push(<span key="p">Paused</span>);
   const steps = task.checklist ?? [];
-  if (steps.length) parts.push(<span key="s">{stepsLabel(steps)} steps</span>);
+  if (steps.length) parts.push(<span key="s">{stepsLabel(steps)} {w.steps}</span>);
   const link = firstLink(task.notes);
   if (link) {
     parts.push(
@@ -620,7 +621,7 @@ function TaskCard({
             From {source} ↗
           </button>
         ) : (
-          <span className="tc-hint">{detail ? "Saves as you go" : "Esc to close · saves as you go"}</span>
+          <span className="tc-hint">{detail ? "Saves as you go · Done when you’re finished" : "Esc to close · saves as you go"}</span>
         )}
         <span className="tc-gap" />
         {!task.done && (
@@ -718,8 +719,15 @@ export function TaskDetail({
             </button>
           </>
         )}
-        <button type="button" className="sp-close" onClick={onClose} title="Close (Esc)">
-          Close <kbd>Esc</kbd>
+        <button
+          type="button"
+          className="sp-done"
+          // Finish any edit in progress (it saves on blur) before closing.
+          onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
+          onClick={onClose}
+          title="Done (Esc)"
+        >
+          Done
         </button>
       </div>
       <div className="sp-body">

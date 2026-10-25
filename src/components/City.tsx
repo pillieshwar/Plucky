@@ -320,6 +320,11 @@ export function CityView({
                   ? `Lit · done ${new Date(hover.room.at ?? "").toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
                   : "Dark · still to do"}
               </span>
+              {hover.room.drawers && (
+                <span>
+                  {hover.room.drawers.done} of {hover.room.drawers.total} {hover.room.drawers.total === 1 ? "drawer" : "drawers"} done
+                </span>
+              )}
               <span>
                 {hb.name}
                 {hover.floor && hb.key ? ` · ${hover.floor}` : ""}

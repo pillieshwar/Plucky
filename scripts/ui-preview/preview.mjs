@@ -975,8 +975,34 @@ await shot("full-building-floors", FULL, full({ settings: DARK }), async (p) => 
 });
 await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.getByRole("button", { name: /New room/ }).click();
+  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).click();
   await p.keyboard.type("Book the venue fri 2pm");
+});
+const openFloor = async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.locator(".sb-floor", { hasText: "Floor: Travel" }).click();
+  await p.waitForTimeout(250);
+  if (!(await p.locator(".fh-title", { hasText: "Floor: Travel" }).count())) throw new Error("the floor's page didn't open");
+};
+await shot("full-floor-page", FULL, full({ settings: DARK }), openFloor);
+await shot("full-floor-add", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).first().click();
+  await p.keyboard.type("Book the airport taxi");
+});
+await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.getByRole("button", { name: /Add Task \(aka Room\)/ }).first().click();
+  await p.keyboard.type("Book the airport taxi");
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(300);
+  if (await p.locator(".add-task").count()) throw new Error("the add form stayed open after adding");
+});
+await shot("full-room-drawers", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+  await p.waitForTimeout(200);
+  if (!(await p.getByRole("button", { name: "Done" }).count())) throw new Error("no Done button on the open room");
 });
 await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "New building" }).click();

@@ -51,9 +51,11 @@ Plucky turns your work into a place — and **you're its mayor**. The idea is si
 | **A floor** | A heading in a project | Named by you and numbered from the ground: "1st Floor: Travel", "2nd Floor: Program". |
 | **The lobby** | Tasks in a project but on no floor yet | New rooms wait here until you move them to a floor. |
 | **A room** | A task | A **dark** room is still to do; a **lit** room is done. "3 rooms open · 2 lit" means three to do, two done. |
+| **A drawer** | A step in a task | The little checklist inside a room: "1 of 3 drawers done". |
 | **Main Street** | Tasks in no project | Every task has a place. |
 | **A rooftop light** | A finished project | Every room lit. |
 | **A billboard** | Today's timed tasks | Shown on the building's roof, in time order. |
+| **Trees and traffic** | Just for fun | A few trees and bushes line the streets; cars drive by with soft headlights. |
 | **A crane and trucks** | A building going up | A crane over an empty lot, trucks circling buildings with nothing lit yet. |
 
 **The shape of a building.** Each floor is as wide as its rooms need — a floor with 20 rooms is wider than one with 4. Floors are stacked with the most rooms at the bottom, so every building narrows as it rises; when a floor outgrows the one below, Plucky restacks them (their names go with them).
@@ -128,11 +130,11 @@ Click a task to open it: notes with clickable links, **steps** (a checklist), **
 <img src="docs/screenshots/building.png" alt="A building in the sidebar opened to its floors, and its rooms in the list" width="860">
 
 - **Put up a building** with the **+** next to **Buildings** in the sidebar — even before it has any rooms.
-- **Open a building** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Lobby"), with how many dark rooms each has. Click a floor to jump to it; **+ Floor** adds one.
-- **Add a room** with **New room**: pick its **building**, **floor**, **date** and **time** right in the form — or leave the floor and it waits in the lobby until you move it.
+- **Open a building** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Lobby"), with how many dark rooms each has. Click a floor to open its own page with just its rooms — **Add Task (aka Room)** there puts the new room straight on that floor. **+ Floor** adds one.
+- **Add a room** with **Add Task (aka Room)** at the top right: pick its **building**, **floor**, **date** and **time** right in the form — or leave the floor and it waits in the lobby until you move it. The form closes once the room is added; click the button again for the next one.
 
 <img src="docs/screenshots/add-room.png" alt="Adding a room with building, floor, date and time pickers" width="860">
-- Rooms keep their **steps** (a checklist), notes, deadline and repeat. Finished rooms go to the **Logbook**; ideas you're not ready for wait in **Someday**.
+- Click a room to open it beside the list. Rooms keep their **drawers** (a checklist), notes, deadline and repeat; everything saves as you go, and **Done** closes it. Finished rooms go to the **Logbook**; ideas you're not ready for wait in **Someday**.
 
 ### Reminders and check-ins
 

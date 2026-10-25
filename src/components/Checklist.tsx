@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { linesToSteps } from "../lib/lists";
+import { useWords } from "../lib/words";
 import type { ChecklistItem } from "../lib/types";
 
 /**
@@ -17,6 +18,7 @@ export function Checklist({
   autoFocusAdd?: boolean;
   readOnly?: boolean;
 }) {
+  const w = useWords();
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
   const addRef = useRef<HTMLInputElement>(null);
@@ -68,7 +70,7 @@ export function Checklist({
                 type="button"
                 className="step-remove"
                 aria-label={`Remove “${it.text}”`}
-                title="Remove step"
+                title={`Remove ${w.step}`}
                 onClick={() => onChange(items.filter((_, j) => j !== i))}
               >
                 ×
@@ -84,8 +86,8 @@ export function Checklist({
           autoFocus={autoFocusAdd}
           value={draft}
           maxLength={200}
-          placeholder={items.length ? "Add a step…" : "First step… (paste a list to add several)"}
-          aria-label="Add a step"
+          placeholder={items.length ? `Add a ${w.step}…` : `First ${w.step}… (paste a list to add several)`}
+          aria-label={`Add a ${w.step}`}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={(e) => {
             const text = e.clipboardData.getData("text");
@@ -125,7 +127,7 @@ function StepEditor({ initial, onDone }: { initial: string; onDone: (text: strin
       autoFocus
       value={value}
       maxLength={200}
-      aria-label="Edit step"
+      aria-label="Edit"
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => finish(value)}
       onKeyDown={(e) => {

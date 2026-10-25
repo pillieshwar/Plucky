@@ -174,10 +174,10 @@ export function AddTaskForm({
           value={stepsText}
           autoFocus
           onChange={(e) => setStepsText(e.target.value)}
-          placeholder={"Steps, one per line\n- or paste a list"}
+          placeholder={`${cap(w.steps)}, one per line\n- or paste a list`}
           rows={compact ? 2 : 3}
           maxLength={4000}
-          aria-label="Checklist steps"
+          aria-label={cap(w.steps)}
         />
       )}
       {places && (
@@ -229,7 +229,7 @@ export function AddTaskForm({
         )}
         {!showSteps && (
           <button type="button" className="add-task-link" onClick={() => setShowSteps(true)}>
-            + Steps
+            + {cap(w.steps)}
           </button>
         )}
         <button type="button" className="add-task-link quiet" onClick={onCancel}>
@@ -239,6 +239,8 @@ export function AddTaskForm({
     </form>
   );
 }
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Pull "@Name" out of a title: the existing project it starts (case
