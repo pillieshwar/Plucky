@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ProjectSummary } from "../lib/types";
 import { Pie } from "./ListPicker";
+import { useWords } from "../lib/words";
 
 /** A project's title, progress, and its actions: add a heading, rename. */
 export function ProjectHeader({
@@ -15,6 +16,7 @@ export function ProjectHeader({
   onAddUnder: (heading: string | null) => void;
   onRename: (to: string) => Promise<void>;
 }) {
+  const w = useWords();
   const [mode, setMode] = useState<"heading" | "rename" | null>(null);
   const [text, setText] = useState("");
   const total = (stats?.open ?? 0) + (stats?.done ?? 0);
@@ -36,7 +38,8 @@ export function ProjectHeader({
           <h2 title={name}>{name}</h2>
           {stats && (
             <span className="ph-count">
-              {stats.open} open · {stats.done} done
+              {w.city ? `${w.project} · ` : ""}
+              {w.progress(stats.open, stats.done)}
             </span>
           )}
         </div>
@@ -47,8 +50,8 @@ export function ProjectHeader({
           autoFocus
           value={text}
           maxLength={60}
-          placeholder={mode === "heading" ? "Heading name, e.g. “Travel”" : "Project name"}
-          aria-label={mode === "heading" ? "New heading" : "Rename project"}
+          placeholder={mode === "heading" ? `${w.heading} name, e.g. “Travel”` : `${w.project} name`}
+          aria-label={mode === "heading" ? `New ${w.heading.toLowerCase()}` : `Rename ${w.project.toLowerCase()}`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation();
@@ -63,7 +66,7 @@ export function ProjectHeader({
       ) : (
         <div className="ph-actions">
           <button type="button" className="ph-btn" onClick={() => setMode("heading")}>
-            + Heading
+            {w.newHeading}
           </button>
           <button
             type="button"

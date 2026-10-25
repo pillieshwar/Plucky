@@ -57,6 +57,8 @@ export const api = {
   setPanelCollapsed: (collapsed: boolean) => invoke<void>("set_panel_collapsed", { collapsed }),
   /** Open the panel as a full-screen window, or put it back at the side. */
   setPanelFull: (full: boolean) => invoke<void>("set_panel_full", { full }),
+  /** Full screen: minimize the window to the Dock. */
+  minimizePanel: () => invoke<void>("minimize_panel"),
   panelFull: () => invoke<boolean>("panel_full"),
   snapPanelToEdge: () => invoke<void>("snap_panel_to_edge"),
   listLocalModels: () => invoke<LocalModels>("list_local_models"),

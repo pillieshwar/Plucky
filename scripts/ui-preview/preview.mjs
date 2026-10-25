@@ -959,6 +959,9 @@ await shot("full-city-named", FULL, full({ settings: { ...DARK, city_name: null 
   if (!(await p.locator(".cv-name", { hasText: "Harbor Lights" }).count())) throw new Error("the city didn't open after naming it");
 });
 await shot("full-city-empty", FULL, full({ settings: DARK, cityWindows: [] }));
+await shot("full-project-building", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+});
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
 });
