@@ -799,6 +799,15 @@ function MilestonesSheet({ name, reached, onClose }: { name: string; reached: nu
           )}
         </div>
 
+        <div className="ms-rules">
+          <h3>The rules</h3>
+          <ul>
+            {MILESTONE_RULES.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+
         <ol className="ms-list">
           {MILESTONES.map((m) => {
             const got = reached >= m.at;
@@ -817,18 +826,9 @@ function MilestonesSheet({ name, reached, onClose }: { name: string; reached: nu
           })}
         </ol>
 
-        <div className="ms-rules">
-          <h3>The rules</h3>
-          <ul>
-            {MILESTONE_RULES.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
-
         <div className="story-foot">
           <span />
-          <button type="button" className="story-btn" onClick={onClose} autoFocus>
+          <button type="button" className="story-btn" onClick={onClose}>
             Keep building
           </button>
         </div>
