@@ -46,6 +46,8 @@ export interface ProjectSummary {
   name: string;
   open: number;
   done: number;
+  /** The color the user picked for it (`#rrggbb`). */
+  color?: string | null;
 }
 
 /** Mirrors `pluck_core::NewTask` (created_tz is filled in by Rust). */
@@ -275,7 +277,7 @@ export interface AgentApp {
   name: string;
   installed: boolean;
   connected: boolean;
-  /** Connected to a copy of Plucky that has moved. */
+  /** Connected to a copy of Todo City that has moved. */
   stale: boolean;
   restart_hint: string;
 }
@@ -315,7 +317,7 @@ export interface ModelInfo {
   approx_size_mb: number;
   min_ram_gb: number;
   recommended: boolean;
-  /** Quality for Plucky (1 = best). */
+  /** Quality for Todo City (1 = best). */
   rank: number;
   installed: boolean;
   active: boolean;
@@ -386,7 +388,7 @@ export interface RemindersStatus {
 /** Mirrors `calendar::CalendarInfo`. */
 export interface CalendarInfo {
   id: string;
-  /** "Account / Title" — how Plucky remembers which calendars to hide. */
+  /** "Account / Title" — how Todo City remembers which calendars to hide. */
   key: string;
   title: string;
   source: string;
@@ -414,7 +416,7 @@ export interface CalendarStatus {
 }
 
 export interface RemindersEnableRequest {
-  /** null = create a list called "Plucky". */
+  /** null = create a list called "Todo City". */
   list_id: string | null;
   include_notes: boolean;
   push_existing: boolean;

@@ -72,7 +72,7 @@ export default function Popover() {
   const [mode, setMode] = useState<Mode>(savedMode);
   const rootRef = useRef<HTMLDivElement>(null);
   const { toasts, show, dismiss, undoLast } = useToasts();
-  // A selection captured with the shortcut (or Add to Plucky), reviewed
+  // A selection captured with the shortcut (or Add to Todo City), reviewed
   // right here under the menu-bar icon.
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const captureSeq = useRef(0);
@@ -88,7 +88,7 @@ export default function Popover() {
     if (patch) void actions.reschedule(task, patch);
   });
   const drag = taskDrag.drag;
-  // Opened by Plucky itself: a task's time came, or the undated check-in.
+  // Opened by Todo City itself: a task's time came, or the undated check-in.
   const [focus, setFocus] = useState<Focus | null>(null);
   // Tasks AI agents sent, waiting for review.
   const [inbox, setInbox] = useState<InboxItem[]>([]);
@@ -368,7 +368,7 @@ export default function Popover() {
     return (
       <div ref={rootRef} className="pop pop-capture" key={openKey} onKeyDown={onKey} tabIndex={-1}>
         <header className="pop-capture-head">
-          <span className="pop-capture-title">Add to Plucky</span>
+          <span className="pop-capture-title">Add to Todo City</span>
           <IconButton label="Discard (Esc)" onClick={endCapture}>
             <path d="M4 4l8 8M12 4l-8 8" />
           </IconButton>
@@ -400,7 +400,7 @@ export default function Popover() {
     >
       {update.state === "ready" && (
         <button type="button" className="pop-update" onClick={() => void api.installUpdate().catch((e) => setError(String(e)))}>
-          Plucky {update.version} is ready · <strong>Restart to update</strong>
+          Todo City {update.version} is ready · <strong>Restart to update</strong>
         </button>
       )}
       <header className="pop-head">
@@ -456,7 +456,7 @@ export default function Popover() {
               )}
             </IconButton>
           )}
-          <IconButton label="Open Plucky" onClick={() => void api.openMain(null, null)}>
+          <IconButton label="Open Todo City" onClick={() => void api.openMain(null, null)}>
             <rect x="2.5" y="3" width="11" height="10" rx="2" />
             <path d="M9.5 3v10" />
           </IconButton>
@@ -753,7 +753,7 @@ function Row({
           type="button"
           className="pop-body"
           onClick={() => onOpen(task)}
-          title="Open in Plucky · drag onto a day to move it"
+          title="Open in Todo City · drag onto a day to move it"
         >
           <span className="pop-title">{task.title}</span>
           {(chip || meta || deadline) && (

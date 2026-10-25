@@ -136,7 +136,7 @@ pub fn send_test(app: &AppHandle) {
         Note {
             id: "pluck-test".into(),
             title: "Notifications are on".into(),
-            body: "Plucky will remind you like this when a task is due.".into(),
+            body: "Todo City will remind you like this when a task is due.".into(),
             actions: false,
         },
     );
@@ -202,7 +202,7 @@ fn tick(app: &AppHandle) {
                         } else {
                             format!("{count} tasks have no date")
                         },
-                        body: "Open Plucky to plan them.".into(),
+                        body: "Open Todo City to plan them.".into(),
                         actions: false,
                     },
                 );
@@ -286,7 +286,7 @@ fn tick(app: &AppHandle) {
                     Note {
                         id: SUMMARY_ID.into(),
                         title: "Good morning".into(),
-                        body: format!("{} — open Plucky to plan your day.", summary.text()),
+                        body: format!("{} — open Todo City to plan your day.", summary.text()),
                         actions: false,
                     },
                 );

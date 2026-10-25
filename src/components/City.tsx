@@ -316,11 +316,6 @@ export function CityView({
         <button type="button" className="cv-share" onClick={() => setSharing(true)}>
           <ShareIcon /> Share
         </button>
-        <button type="button" className="cv-close" onClick={onClose} aria-label="Close your city" title="Close (Esc)">
-          <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-            <path d="M3 3l6 6M9 3l-6 6" />
-          </svg>
-        </button>
       </header>
 
       {hint && <p className="cv-hint">Drag to turn · scroll to zoom · click a building to open it</p>}

@@ -361,15 +361,15 @@ function Notice({
   const copy = {
     nothing_selected: {
       title: "No selected text found",
-      body: "Select some text in any app, then press the shortcut again. Password fields and some secure apps can’t be read. Tip: you can also right-click selected text and choose Add to Plucky.",
+      body: "Select some text in any app, then press the shortcut again. Password fields and some secure apps can’t be read. Tip: you can also right-click selected text and choose Add to Todo City.",
     },
     permission_needed: {
-      title: "Plucky needs Accessibility access",
+      title: "Todo City needs Accessibility access",
       body: "macOS only lets apps read selected text with your permission. Grant access in System Settings → Privacy & Security → Accessibility, then try again.",
     },
     clipboard_busy: {
       title: "Couldn’t read this selection safely",
-      body: "Your clipboard holds something very large (like a big image) that Plucky can’t safely set aside. Copy the text yourself (⌘C), then press the shortcut again.",
+      body: "Your clipboard holds something very large (like a big image) that Todo City can’t safely set aside. Copy the text yourself (⌘C), then press the shortcut again.",
     },
     failed: {
       title: "Couldn’t read the selection",

@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api, onCalendarChanged } from "../lib/api";
+import { useProjectColors } from "../lib/colors";
 import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { holidaysByDay } from "../lib/holidays";
 import { eventsForDay, hourLabel, planFor } from "../lib/plan";
@@ -38,6 +39,7 @@ type AddAt = { iso: string; hour: number | "any" } | null;
  * a task to another day or hour, click an empty hour to add one there.
  */
 export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd, onOpen, openId }: Props) {
+  const colors = useProjectColors();
   const days = sevenDays(day);
   const from = days[0];
   const to = days[6];
@@ -118,6 +120,7 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
         ]
           .filter(Boolean)
           .join(" ")}
+        style={t.project && colors[t.project] ? ({ "--pc": colors[t.project] } as CSSProperties) : undefined}
         onPointerDown={(e) => drag.start(e, t)}
       >
         <button type="button" className="plan-check" data-nodrag onClick={() => complete(t)} aria-label={`Mark “${t.title}” done`}>

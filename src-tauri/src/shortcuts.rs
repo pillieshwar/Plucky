@@ -173,7 +173,7 @@ impl ShortcutSpec {
     pub fn to_shortcut(&self) -> Result<Shortcut, String> {
         self.validate()?;
         let code = parse_code(&self.code)
-            .ok_or_else(|| format!("Plucky can't use the key “{}” in a shortcut.", self.code))?;
+            .ok_or_else(|| format!("Todo City can't use the key “{}” in a shortcut.", self.code))?;
         let mut mods = Modifiers::empty();
         if self.meta {
             mods |= Modifiers::SUPER;
@@ -341,7 +341,7 @@ fn check_distinct(s: &ShortcutSettings) -> Result<(), String> {
         a.to_shortcut()?;
         if all[..i].iter().any(|(_, b)| b == a) {
             return Err(format!(
-                "{} is already used by another Plucky shortcut.",
+                "{} is already used by another Todo City shortcut.",
                 a.label()
             ));
         }

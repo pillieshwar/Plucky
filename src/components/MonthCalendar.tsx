@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { monthGrid, monthLabel, shiftMonth, weekdayLabels } from "../lib/calendar";
 import { parseISODate } from "../lib/dates";
+import { useProjectColors } from "../lib/colors";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { Task } from "../lib/types";
 
@@ -17,6 +18,7 @@ export function MonthCalendar({
   weekStart,
   drag,
   onSelect,
+  scope,
 }: {
   tasks: Task[];
   today: string;
@@ -26,7 +28,10 @@ export function MonthCalendar({
   weekStart: number;
   drag: TaskDrag;
   onSelect: (iso: string) => void;
+  /** Showing one project's (or floor's) tasks only: named in a small chip. */
+  scope?: { label: string; color?: string } | null;
 }) {
+  const colors = useProjectColors();
   const sel = parseISODate(selected);
   const [ym, setYm] = useState({ year: sel.getFullYear(), month: sel.getMonth() });
   // Follow the picked day into its month.
@@ -38,22 +43,29 @@ export function MonthCalendar({
   const labels = useMemo(() => weekdayLabels(locale, weekStart), [locale, weekStart]);
   // Open tasks per day (planned day, or deadline), and whether any is late.
   const byDay = useMemo(() => {
-    const m = new Map<string, { n: number; late: boolean }>();
+    const m = new Map<string, { n: number; late: boolean; color?: string }>();
     for (const t of tasks) {
       if (t.done || t.someday || t.paused) continue;
       for (const d of new Set([t.due_date, t.deadline].filter((x): x is string => !!x))) {
         const v = m.get(d) ?? { n: 0, late: false };
         v.n += 1;
+        if (!v.color && t.project && colors[t.project]) v.color = colors[t.project];
         if (d < today) v.late = true;
         m.set(d, v);
       }
     }
     return m;
-  }, [tasks, today]);
+  }, [tasks, today, colors]);
   const over = drag.drag?.over;
 
   return (
-    <div className="mcal" aria-label="Month">
+    <div className="mcal" aria-label="Month" style={scope?.color ? ({ "--pc": scope.color } as CSSProperties) : undefined}>
+      {scope && (
+        <p className="mcal-scope" title="The calendar and hours here show only this project's tasks">
+          <i aria-hidden />
+          <span>Only {scope.label}</span>
+        </p>
+      )}
       <div className="mcal-head">
         <span className="mcal-title">{monthLabel(locale, ym.year, ym.month)}</span>
         <button type="button" className="mcal-nav" onClick={() => setYm((v) => shiftMonth(v.year, v.month, -1))} aria-label="Previous month">
@@ -103,7 +115,11 @@ export function MonthCalendar({
               aria-pressed={c.iso === selected}
             >
               <span className="mcal-num">{c.day}</span>
-              <span className={info ? (info.late ? "mcal-dot late" : "mcal-dot") : "mcal-dot none"} aria-hidden />
+              <span
+                className={info ? (info.late ? "mcal-dot late" : "mcal-dot") : "mcal-dot none"}
+                style={info?.color && !info.late ? { background: info.color } : undefined}
+                aria-hidden
+              />
             </button>
           );
         })}

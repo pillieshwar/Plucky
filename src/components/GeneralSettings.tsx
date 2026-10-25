@@ -64,7 +64,7 @@ export function updateText(u: UpdateStatus): string {
     case "downloading":
       return `Downloading ${u.version}${u.percent !== null ? ` · ${u.percent}%` : "…"}`;
     case "ready":
-      return `Plucky ${u.version} is ready to install.`;
+      return `Todo City ${u.version} is ready to install.`;
     case "failed":
       return `Couldn't check for updates (${u.message}).`;
     default:
@@ -99,14 +99,14 @@ export function GeneralSection(
       <h2 className="settings-h">General</h2>
       <div className="card-stack">
         <Toggle
-          label="Open Plucky when I log in"
+          label="Open Todo City when I log in"
           hint="Keeps capture and reminders working after a restart."
           checked={!!login}
           disabled={login === null}
           onChange={(v) => void setLoginItem(v)}
         />
         <Toggle
-          label="Show Plucky when my Mac starts or wakes"
+          label="Show Todo City when my Mac starts or wakes"
           hint="Opens this panel at login and the first time you open your Mac each day."
           checked={settings?.show_on_start ?? true}
           disabled={!settings}
@@ -114,7 +114,7 @@ export function GeneralSection(
         />
         <Toggle
           label="Press ⌘C twice to capture"
-          hint="Copy as usual; press ⌘C again within a moment and Plucky turns what you copied into a task."
+          hint="Copy as usual; press ⌘C again within a moment and Todo City turns what you copied into a task."
           checked={settings?.double_copy ?? true}
           disabled={!settings}
           onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
@@ -128,7 +128,7 @@ export function GeneralSection(
         />
         <Toggle
           label="Review captures under the menu-bar icon"
-          hint="A card drops down from the Plucky icon. Off: captures open in this panel."
+          hint="A card drops down from the Todo City icon. Off: captures open in this panel."
           checked={settings?.capture_in_menu_bar ?? true}
           disabled={!settings}
           onChange={(v) => void save((s) => ({ ...s, capture_in_menu_bar: v }))}
@@ -149,7 +149,7 @@ export function GeneralSection(
         />
         <div className="update-line">
           <span>
-            Plucky {status?.version ?? ""}
+            Todo City {status?.version ?? ""}
             {update.state !== "idle" && <span className="update-state"> — {updateText(update)}</span>}
           </span>
           {update.state === "ready" ? (
@@ -169,7 +169,7 @@ export function GeneralSection(
         </div>
         {onTour && (
           <div className="update-line">
-            <span>New to Plucky, or forgot something?</span>
+            <span>New to Todo City, or forgot something?</span>
             <button type="button" className="ghost small" onClick={onTour}>
               Take the tour again
             </button>
@@ -186,7 +186,7 @@ const THEMES: { id: Theme; label: string; hint: string }[] = [
   { id: "system", label: "System", hint: "Match macOS" },
 ];
 
-/** Light, dark, or follow macOS — for every Plucky window. */
+/** Light, dark, or follow macOS — for every Todo City window. */
 export function AppearanceSection(props: SettingsProps) {
   const save = useSave(props);
   const current = props.settings?.theme ?? "dark";
@@ -292,7 +292,7 @@ export function CustomizeSection(props: SettingsProps) {
       <div className="card-stack">
         <Choice
           label="Open to"
-          hint="The list Plucky shows when it starts."
+          hint="The list Todo City shows when it starts."
           value={look.start_list}
           disabled={off}
           options={[
@@ -366,7 +366,7 @@ export function MenuBarNudgesSection(props: SettingsProps) {
     <section className="settings-section">
       <h2 className="settings-h">Menu bar check-ins</h2>
       <p className="settings-intro">
-        Plucky can open its menu-bar dropdown on its own, showing just what needs you. It never takes over your
+        Todo City can open its menu-bar dropdown on its own, showing just what needs you. It never takes over your
         keyboard — keep typing, and answer when you're ready.
       </p>
       <div className="card-stack">
@@ -426,11 +426,11 @@ export function NotificationsSection(props: SettingsProps) {
     <section className="settings-section">
       <h2 className="settings-h">Notifications</h2>
       <p className="settings-intro">
-        Plucky reminds you when a task is due, right on this Mac. Each reminder has Done, Snooze and Tomorrow buttons.
+        Todo City reminds you when a task is due, right on this Mac. Each reminder has Done, Snooze and Tomorrow buttons.
       </p>
       {permission === "denied" && (
         <div className="rem-note error">
-          <p>Notifications for Plucky are turned off in System Settings.</p>
+          <p>Notifications for Todo City are turned off in System Settings.</p>
           <button type="button" className="ghost" onClick={() => void api.openNotificationSettings().catch(() => undefined)}>
             Open Notification settings
           </button>
@@ -512,7 +512,7 @@ export function DataSection({ onError }: { onError: (message: string) => void })
     <section className="settings-section">
       <h2 className="settings-h">Your data</h2>
       <p className="settings-intro">
-        Tasks live in one file on this Mac. Plucky keeps a backup for each of the last 7 days.
+        Tasks live in one file on this Mac. Todo City keeps a backup for each of the last 7 days.
       </p>
       <div className="row-actions">
         <button type="button" className="ghost" onClick={() => void run(() => api.exportTasks("csv"), "Saved a CSV to Downloads.")}>

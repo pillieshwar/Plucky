@@ -81,7 +81,7 @@ pub fn backup_path(data_dir: &Path, name: &str) -> Result<PathBuf, String> {
         && !name.contains(['/', '\\'])
         && !name.contains("..");
     if !ok {
-        return Err("That isn't a Plucky backup.".into());
+        return Err("That isn't a Todo City backup.".into());
     }
     let path = backup_dir(data_dir).join(name);
     if !path.is_file() {
@@ -220,9 +220,9 @@ mod tests {
     #[test]
     fn free_names_count_up() {
         let dir = tempfile::tempdir().unwrap();
-        let a = free_name(dir.path(), "Plucky tasks", "csv");
+        let a = free_name(dir.path(), "Todo City tasks", "csv");
         std::fs::write(&a, "").unwrap();
-        let b = free_name(dir.path(), "Plucky tasks", "csv");
-        assert!(b.ends_with("Plucky tasks 2.csv"));
+        let b = free_name(dir.path(), "Todo City tasks", "csv");
+        assert!(b.ends_with("Todo City tasks 2.csv"));
     }
 }

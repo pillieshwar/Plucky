@@ -46,7 +46,7 @@ pub const ALWAYS_SKIP: &[(&str, &str)] = &[
     ("com.googlecode.iterm2", "iTerm"),
     ("dev.warp.Warp-Stable", "Warp"),
     ("com.mitchellh.ghostty", "Ghostty"),
-    ("app.pluck.desktop", "Plucky"),
+    ("app.pluck.desktop", "Todo City"),
 ];
 
 /// Should this app's windows be left alone?
@@ -683,14 +683,14 @@ async fn check_now_mac(
         Ok(r) => r,
         Err(Some((_, name))) => {
             return Err(format!(
-                "Plucky doesn't read {name}. Remove it from the skipped apps to check it."
+                "Todo City doesn't read {name}. Remove it from the skipped apps to check it."
             ))
         }
-        Err(None) => return Err("Plucky couldn't read the window in front.".into()),
+        Err(None) => return Err("Todo City couldn't read the window in front.".into()),
     };
     let Some((earlier, new)) = recent(&read.lines) else {
         return Err(format!(
-            "Plucky couldn't read any messages in {}.",
+            "Todo City couldn't read any messages in {}.",
             read.app
         ));
     };

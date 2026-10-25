@@ -359,15 +359,29 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       roof.scale.set(1, 1, 0.92);
       roof.castShadow = true;
       scene.add(roof);
+      // The front faces the street: houses on the block's edges look out
+      // at the road beside them; the one in the middle can face any way.
+      const col = k % 3;
+      const row = Math.floor(k / 3);
+      const out: [number, number][] = [];
+      if (col === 0) out.push([-1, 0]);
+      if (col === 2) out.push([1, 0]);
+      if (row === 0) out.push([0, -1]);
+      if (row === 2) out.push([0, 1]);
+      const [nx, nz] = out.length ? out[i % out.length] : SIDES[(i * 7 + 3) % 4];
+      // Along the front (to the house's right, looking at it).
+      const tx = nz;
+      const tz = -nx;
+      const half = nx ? 0.312 : 0.282;
       // One window on the front, and a porch light by the door once someone lives here.
-      tmp.position.set(x - 0.12, 0.22, z + 0.282);
-      tmp.rotation.set(0, 0, 0);
+      tmp.position.set(x + nx * half - tx * 0.12, 0.22, z + nz * half - tz * 0.12);
+      tmp.rotation.set(0, Math.atan2(nx, nz), 0);
       tmp.scale.set(0.2, 0.16, 1);
       tmp.updateMatrix();
       sort({ m: tmp.matrix.clone(), room, key: b.key, floor: HOUSES });
       if (room.lit) {
         const porch = new THREE.Mesh(porchGeo, porchMat);
-        porch.position.set(x + 0.16, 0.3, z + 0.3);
+        porch.position.set(x + nx * (half + 0.02) + tx * 0.16, 0.3, z + nz * (half + 0.02) + tz * 0.16);
         scene.add(porch);
       }
     });
@@ -1204,7 +1218,7 @@ export function renderCityPicture(city: City, name: string, opts: { count: numbe
   ctx.textAlign = "right";
   ctx.fillStyle = sub;
   ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
-  ctx.fillText("Built with Plucky", W - 32, H - 26);
+  ctx.fillText("Built with Todo City", W - 32, H - 26);
 
   built.dispose();
   composer.dispose();

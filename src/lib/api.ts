@@ -45,6 +45,8 @@ export const api = {
   createProject: (name: string) => invoke<string | null>("create_project", { name }),
   addFloor: (project: string, name: string) => invoke<string | null>("add_floor", { project, name }),
   renameFloor: (project: string, from: string, to: string) => invoke<number>("rename_floor", { project, from, to }),
+  /** Give a project its own color (`#rrggbb`), or clear it with null. */
+  setProjectColor: (name: string, color: string | null) => invoke<void>("set_project_color", { name, color }),
   /** Every task in a project, done ones too. */
   projectTasks: (project: string) => invoke<Task[]>("project_tasks", { project }),
   /** Take down an empty project (false while it has tasks). */

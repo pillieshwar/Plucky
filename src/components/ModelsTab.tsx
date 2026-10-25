@@ -56,7 +56,7 @@ export function ModelsTab({ onChanged }: Props) {
   }
 
   const anyInstalled = models.some((m) => m.installed) || local.added.some((m) => m.available);
-  // Plucky picks the best downloaded model by itself, unless a file you
+  // Todo City picks the best downloaded model by itself, unless a file you
   // added is in use.
   const catalogInUse = models.some((m) => m.active);
   const best = models.find((m) => m.recommended);
@@ -65,14 +65,14 @@ export function ModelsTab({ onChanged }: Props) {
     <div className="models">
       <p className="models-intro">
         {anyInstalled
-          ? "Runs entirely on this Mac. Plucky always uses the best model you've downloaded."
-          : "Plucky needs one model. It downloads once, then runs entirely on this Mac."}
+          ? "Runs entirely on this Mac. Todo City always uses the best model you've downloaded."
+          : "Todo City needs one model. It downloads once, then runs entirely on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
       {best && !best.installed && (
         <div className="model-best">
           <p>
-            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). Plucky switches to it by
+            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). Todo City switches to it by
             itself once it's downloaded.
           </p>
           {best.progress === null && (
@@ -138,7 +138,7 @@ export function ModelsTab({ onChanged }: Props) {
                 )}
                 {m.installed && !m.active && !catalogInUse && (
                   <button className="primary" onClick={() => void run(m.id, () => api.setActiveModel(m.id))}>
-                    Use Plucky's models
+                    Use Todo City's models
                   </button>
                 )}
                 {m.installed &&
@@ -265,10 +265,10 @@ function LocalModelsSection({
                 )}
                 <button
                   className="ghost"
-                  title="Plucky forgets this file; the file itself stays where it is."
+                  title="Todo City forgets this file; the file itself stays where it is."
                   onClick={() => void run(m.id, () => api.removeModelFile(m.id))}
                 >
-                  Remove from Plucky
+                  Remove from Todo City
                 </button>
               </div>
             </li>
