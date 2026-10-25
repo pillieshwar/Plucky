@@ -166,7 +166,12 @@ fn add_floor(app: AppHandle, project: String, name: String) -> CmdResult<Option<
 /// Every task in a project, done ones too.
 #[tauri::command]
 fn project_tasks(state: State<'_, AppState>, project: String) -> CmdResult<Vec<Task>> {
-    state.store.lock().map_err(err)?.project_tasks(&project).map_err(err)
+    state
+        .store
+        .lock()
+        .map_err(err)?
+        .project_tasks(&project)
+        .map_err(err)
 }
 
 /// Take down an empty building; false while it still has homes.

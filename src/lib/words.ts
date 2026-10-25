@@ -34,7 +34,6 @@ export interface Words {
   emptyProject: (project: string) => string;
 }
 
-const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
 
 export const PLAIN: Words = {
   city: false,

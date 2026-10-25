@@ -170,6 +170,7 @@ export function CityView({
   onName,
   onMayor,
   onOpenProject,
+  onOpenSomeday,
   onClose,
   onError,
   onSaved,

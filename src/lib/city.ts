@@ -207,9 +207,9 @@ export function buildCity(
   const houseRooms = houses ? houses.lobby.length : 0;
   const houseLots = houseRooms ? Math.ceil(houseRooms / HOUSES_PER_LOT) : 0;
   const places = lots(sorted.length + houseLots + (comingSoon.length ? 1 : 0));
+  // Lit homes first (in the order people moved in), then the empty ones.
+  const order = (rooms: Room[]) => [...rooms.filter((r) => r.lit).sort((x, y) => (x.at ?? "").localeCompare(y.at ?? "")), ...rooms.filter((r) => !r.lit)];
   const buildings: Building[] = sorted.map(([key, b], i) => {
-    // Lit rooms first (in the order they were finished), then the open ones.
-    const order = (rooms: Room[]) => [...rooms.filter((r) => r.lit).sort((x, y) => (x.at ?? "").localeCompare(y.at ?? "")), ...rooms.filter((r) => !r.lit)];
     const floors = stack(
       order(b.lobby),
       [...b.floors.entries()].map(([name, rooms]) => ({ name, rooms: order(rooms) })),
