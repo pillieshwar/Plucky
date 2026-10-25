@@ -202,7 +202,7 @@ There's nothing else to install. Todo City opens at login and updates itself —
 gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/Plucky
 ```
 
-Each release also lists SHA-256 checksums in `SHA256SUMS.txt`.
+
 
 ## Keyboard shortcuts
 
