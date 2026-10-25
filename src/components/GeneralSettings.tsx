@@ -309,7 +309,7 @@ export function CustomizeSection(props: SettingsProps) {
           value={look.week_start}
           disabled={off}
           options={[
-            ["auto", "From my Mac's region"],
+            ["auto", "Automatic"],
             ["sun", "Sunday"],
             ["mon", "Monday"],
             ["sat", "Saturday"],
@@ -321,7 +321,7 @@ export function CustomizeSection(props: SettingsProps) {
           value={look.clock}
           disabled={off}
           options={[
-            ["auto", "From my Mac"],
+            ["auto", "Automatic"],
             ["12", "12-hour (3:30 PM)"],
             ["24", "24-hour (15:30)"],
           ]}
