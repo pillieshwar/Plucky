@@ -721,7 +721,7 @@ export function TaskDetail({
         )}
         <button
           type="button"
-          className="sp-done"
+          className="primary sp-done"
           // Finish any edit in progress (it saves on blur) before closing.
           onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
           onClick={onClose}
