@@ -130,6 +130,8 @@ Click a task to open it: notes with clickable links, **steps** (a checklist), **
 - **Put up a building** with the **+** next to **Buildings** in the sidebar — even before it has any rooms.
 - **Open a building** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Lobby"), with how many dark rooms each has. Click a floor to jump to it; **+ Floor** adds one.
 - **Add a room** with **New room**: pick its **building**, **floor**, **date** and **time** right in the form — or leave the floor and it waits in the lobby until you move it.
+
+<img src="docs/screenshots/add-room.png" alt="Adding a room with building, floor, date and time pickers" width="860">
 - Rooms keep their **steps** (a checklist), notes, deadline and repeat. Finished rooms go to the **Logbook**; ideas you're not ready for wait in **Someday**.
 
 ### Reminders and check-ins
