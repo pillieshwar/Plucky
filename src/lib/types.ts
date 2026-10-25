@@ -163,6 +163,21 @@ export interface AppSettings {
   agents_proactive: boolean;
   email: EmailSchedule;
   watch: WatchSettings;
+  /** Personal touches (missing in older settings files). */
+  look?: LookSettings;
+}
+
+/** Mirrors `settings::LookSettings`. */
+export interface LookSettings {
+  week_start: "auto" | "sun" | "mon" | "sat";
+  clock: "auto" | "12" | "24";
+  start_list: "last" | "today" | "upcoming" | "all";
+  /** Notes and sub-tasks under each task in full screen. */
+  details: boolean;
+  accent: "purple" | "blue" | "green" | "orange" | "pink";
+  city_sky: "auto" | "night" | "dusk";
+  city_motion: boolean;
+  compact: boolean;
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */

@@ -915,6 +915,20 @@ await shot("full-settings", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
   await p.waitForTimeout(200);
 });
+await shot("full-customize", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await p.waitForTimeout(200);
+  await p.getByRole("radio", { name: "Green" }).click();
+  await p.waitForTimeout(150);
+  await p.locator(".settings-h", { hasText: "Customize" }).scrollIntoViewIfNeeded();
+  if ((await p.evaluate(() => document.documentElement.dataset.accent)) !== "green") throw new Error("the accent color didn't change");
+});
+await shot("full-compact-blue", FULL, full({ settings: { ...DARK, look: { week_start: "mon", clock: "24", start_list: "last", details: false, accent: "blue", city_sky: "auto", city_motion: true, compact: true } } }), async (p) => {
+  if (!(await p.locator(".app-full.compact").count())) throw new Error("compact rows didn't apply");
+  if (await p.locator(".task-extra").count()) throw new Error("notes still show under tasks with details off");
+  const dow = await p.locator(".mcal-dow").first().textContent();
+  if (dow !== "M") throw new Error(`week doesn't start on Monday (${dow})`);
+});
 await shot("full-search", FULL, full({ settings: DARK }), async (p) => {
   await p.keyboard.press("Meta+k");
   await p.keyboard.type("offsite");

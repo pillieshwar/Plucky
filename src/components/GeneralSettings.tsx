@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
-import type { AppSettings, Theme, BackupInfo, NotificationPermission, Status, UpdateStatus } from "../lib/types";
+import type { AppSettings, Theme, BackupInfo, LookSettings, NotificationPermission, Status, UpdateStatus } from "../lib/types";
+import { lookOf } from "../lib/look";
 
 interface SettingsProps {
   settings: AppSettings | null;
@@ -216,6 +217,142 @@ export function AppearanceSection(props: SettingsProps) {
             <span className="theme-hint">{t.hint}</span>
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** A choice from a short list, as one row of a card stack. */
+function Choice<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  hint?: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={disabled ? "toggle-row disabled" : "toggle-row"}>
+      <span className="toggle-text">
+        <span className="toggle-label">{label}</span>
+        {hint && <span className="toggle-hint">{hint}</span>}
+      </span>
+      <select className="email-select" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map(([v, t]) => (
+          <option key={v} value={v}>
+            {t}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const ACCENTS: [LookSettings["accent"], string, string][] = [
+  ["purple", "Purple", "#7d74f0"],
+  ["blue", "Blue", "#4a86f0"],
+  ["green", "Green", "#34b27a"],
+  ["orange", "Orange", "#ef8a45"],
+  ["pink", "Pink", "#e8679f"],
+];
+
+/** Personal touches: the calendar, the clock, colors, density and the city. */
+export function CustomizeSection(props: SettingsProps) {
+  const look = lookOf(props.settings);
+  const save = useSave(props);
+  const set = (patch: Partial<LookSettings>) => void save((s) => ({ ...s, look: { ...lookOf(s), ...patch } }));
+  const off = !props.settings;
+  return (
+    <section className="settings-section">
+      <h2 className="settings-h">Customize</h2>
+      <div className="accent-picker" role="radiogroup" aria-label="Accent color">
+        {ACCENTS.map(([id, name, color]) => (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={look.accent === id}
+            aria-label={name}
+            title={name}
+            className={look.accent === id ? "accent-dot on" : "accent-dot"}
+            style={{ background: color }}
+            disabled={off}
+            onClick={() => set({ accent: id })}
+          />
+        ))}
+        <span className="accent-name">Accent: {ACCENTS.find((a) => a[0] === look.accent)?.[1]}</span>
+      </div>
+      <div className="card-stack">
+        <Choice
+          label="Open to"
+          hint="The list Plucky shows when it starts."
+          value={look.start_list}
+          disabled={off}
+          options={[
+            ["last", "Where I left off"],
+            ["today", "Today"],
+            ["upcoming", "Calendar"],
+            ["all", "Anytime"],
+          ]}
+          onChange={(v) => set({ start_list: v })}
+        />
+        <Choice
+          label="First day of the week"
+          hint="For the calendar, the month and the week strip."
+          value={look.week_start}
+          disabled={off}
+          options={[
+            ["auto", "From my Mac's region"],
+            ["sun", "Sunday"],
+            ["mon", "Monday"],
+            ["sat", "Saturday"],
+          ]}
+          onChange={(v) => set({ week_start: v })}
+        />
+        <Choice
+          label="Clock"
+          value={look.clock}
+          disabled={off}
+          options={[
+            ["auto", "From my Mac"],
+            ["12", "12-hour (3:30 PM)"],
+            ["24", "24-hour (15:30)"],
+          ]}
+          onChange={(v) => set({ clock: v })}
+        />
+        <Toggle
+          label="Show notes and sub-tasks under each task"
+          hint="In full screen. Turn off for a cleaner list; they're still there when you open a task."
+          checked={look.details}
+          disabled={off}
+          onChange={(v) => set({ details: v })}
+        />
+        <Toggle label="Compact rows" hint="Fit more tasks on screen in full screen." checked={look.compact} disabled={off} onChange={(v) => set({ compact: v })} />
+        <Choice
+          label="City sky"
+          value={look.city_sky}
+          disabled={off}
+          options={[
+            ["auto", "Follow Appearance"],
+            ["night", "Always night"],
+            ["dusk", "Always dusk"],
+          ]}
+          onChange={(v) => set({ city_sky: v })}
+        />
+        <Toggle
+          label="Moving cars and blinking windows"
+          hint="Traffic, the slow turn and overdue blinking in your city."
+          checked={look.city_motion}
+          disabled={off}
+          onChange={(v) => set({ city_motion: v })}
+        />
       </div>
     </section>
   );

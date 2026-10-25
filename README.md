@@ -170,8 +170,18 @@ Finished tasks go to the **Logbook**; ideas you're not ready for wait in **Somed
 
 - **Search and tags** — <kbd>/</kbd> or <kbd>⌘K</kbd> to search, `#tags` to filter, <kbd>⌘Z</kbd> undoes anything.
 - **Select several** with <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click and complete, move or delete them together.
-- **Dark by default**, light or following your Mac, with a purple accent.
+- **Dark by default**, light or following your Mac.
 - **Your data, your files** — one SQLite file on your Mac, daily backups, export to CSV or JSON.
+
+### Make it yours
+
+**Preferences → Customize** lets you pick:
+
+- an **accent color** (purple, blue, green, orange or pink);
+- which list Plucky **opens to** (where you left off, Today, Calendar or Anytime);
+- the **first day of the week** and a **12- or 24-hour clock**;
+- whether notes and sub-tasks show **under each task**, and **compact rows**;
+- your city's **sky** (follow Appearance, always night or always dusk) and whether its **cars and blinking windows** move.
 
 ## Install
 

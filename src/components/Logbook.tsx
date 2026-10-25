@@ -5,6 +5,7 @@ import type { TaskActions } from "../lib/taskActions";
 import { matchesQuery, sourceLabel } from "../lib/taskText";
 import type { Task } from "../lib/types";
 import { FolderIcon } from "./ProjectPicker";
+import { clockHour12 } from "../lib/schedule";
 
 const PAGE = 80;
 
@@ -106,7 +107,7 @@ export function Logbook({
                     <span className="task-title">{t.title}</span>
                     <div className="task-meta">
                       {t.completed_at && (
-                        <span>{new Date(t.completed_at).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })}</span>
+                        <span>{new Date(t.completed_at).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: clockHour12() })}</span>
                       )}
                       {t.project && (
                         <button type="button" className="meta-project" onClick={() => onOpenProject(t.project!)}>

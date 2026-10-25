@@ -299,11 +299,18 @@ export function findSchedule(text: string, reference: Date, order: DayOrder = "M
 }
 
 /** "5:00 PM" in the user's locale (12/24-hour as they prefer). */
+/** The clock the user picked: 12- or 24-hour, or undefined for the Mac's own. */
+let hour12: boolean | undefined;
+export function setClock(clock: "auto" | "12" | "24") {
+  hour12 = clock === "12" ? true : clock === "24" ? false : undefined;
+}
+export const clockHour12 = () => hour12;
+
 export function timeLabel(time: string, locale?: string): string {
   const [h, m] = time.split(":").map(Number);
   const d = new Date(2000, 0, 1, h, m);
   try {
-    return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12 });
   } catch {
     return time;
   }

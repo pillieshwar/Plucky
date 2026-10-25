@@ -13,6 +13,7 @@ import { buildCity } from "./lib/city";
 import { CITY, PLAIN, WordsContext } from "./lib/words";
 import { WeekGrid, WeekSide, sevenDays } from "./components/WeekGrid";
 import { MonthCalendar } from "./components/MonthCalendar";
+import { applyLook, lookOf, weekStartOf } from "./lib/look";
 import { Toasts, useToasts } from "./components/Toasts";
 import { ClockIcon, GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
@@ -22,7 +23,6 @@ import { DayPlan } from "./components/DayPlan";
 import { DragGhost } from "./components/DragGhost";
 import { useTaskDrag } from "./lib/useTaskDrag";
 import { dropPatch } from "./lib/plan";
-import { weekStartForLocale } from "./lib/calendar";
 import {
   api,
   onCalendarChanged,
@@ -181,7 +181,18 @@ export default function App() {
   const [planDay, setPlanDay] = useState(() => toISODate(new Date()));
   // Full screen's right side: the day picked in the month calendar.
   const [sideDay, setSideDay] = useState(() => toISODate(new Date()));
-  const weekStart = useMemo(() => weekStartForLocale(LOCALE), []);
+  // The user's own touches: clock, accent, first day of the week, the city.
+  const look = lookOf(settings);
+  applyLook(look);
+  const weekStart = useMemo(() => weekStartOf(look, LOCALE), [look.week_start]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Open on the list picked in Preferences (once, when settings first load).
+  const startApplied = useRef(false);
+  useEffect(() => {
+    if (!settings || startApplied.current) return;
+    startApplied.current = true;
+    const s = lookOf(settings).start_list;
+    if (s !== "last") setList(s);
+  }, [settings]);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -922,7 +933,8 @@ export default function App() {
       {list === "logbook" && <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />}
       {showList && list !== "logbook" && (
         <TaskList
-          groups={full && viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
+          groups={viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
+          plain={!!floorOpen}
           actions={actions}
           now={now}
           locale={LOCALE}
@@ -946,6 +958,7 @@ export default function App() {
           onOpenTask={setOpenId}
           detail={false}
           rich={full}
+          details={look.details}
           emptyNote={
             list === "overdue" && !query.trim() ? (
               <>
@@ -1012,7 +1025,7 @@ export default function App() {
       <div className="keys-card" onClick={(e) => e.stopPropagation()}>
         <h2>Keyboard</h2>
         <dl>
-          {KEYS.map(([k, v]) => (
+          {KEYS.filter(([k]) => !full || k !== "V").map(([k, v]) => (
             <div key={k}>
               <dt>
                 <kbd>{k}</kbd>
@@ -1127,7 +1140,7 @@ export default function App() {
     );
     return (
       <WordsContext.Provider value={CITY}>
-      <div className={["app-full", drag.drag ? "dragging" : ""].filter(Boolean).join(" ")}>
+      <div className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}>
         {sideOpen && (
           <Sidebar
             list={list}
@@ -1550,7 +1563,10 @@ export default function App() {
       {banners}
       {tourEl}
 
-      {tasksShown && !capture && <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />}
+      {/* Due-now reminders show where they belong — Today and Overdue — not on every list. */}
+      {tasksShown && !capture && (list === "today" || list === "overdue") && (
+        <DueNowCard tasks={firing} actions={actions} now={now} locale={LOCALE} compact />
+      )}
 
       {captureEl}
       {searchEl}

@@ -5,7 +5,7 @@
  */
 
 import { daysBetween, parseISODate, startOfDay } from "./dates";
-import { timeLabel } from "./schedule";
+import { clockHour12, timeLabel } from "./schedule";
 import type { Task } from "./types";
 
 export type DueTone = "overdue" | "soon" | "today" | "later" | "done";
@@ -55,7 +55,7 @@ export function dueChip(t: Task, now: Date, locale?: string): DueChip | null {
 
   const snooze = t.snoozed_until ? parseLocal(t.snoozed_until) : null;
   if (snooze && snooze > now) {
-    return { tone: "soon", label: `Snoozed · ${snooze.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })}` };
+    return { tone: "soon", label: `Snoozed · ${snooze.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: clockHour12() })}` };
   }
   if (!t.due_date) return null;
 

@@ -1,5 +1,6 @@
 import { addDays, parseISODate, toISODate } from "./dates";
 import type { CalendarEvent, Task, TaskPatch } from "./types";
+import { clockHour12 } from "./schedule";
 
 /**
  * The day plan: a day's open tasks laid out by hour, so a task can sit in a
@@ -113,7 +114,7 @@ export function dropPatch(task: Task, to: DropTarget): TaskPatch | null {
 export function hourLabel(hour: number, locale?: string): string {
   const d = new Date(2000, 0, 1, hour, 0);
   try {
-    return d.toLocaleTimeString(locale, { hour: "numeric" });
+    return d.toLocaleTimeString(locale, { hour: "numeric", hour12: clockHour12() });
   } catch {
     return `${hour}:00`;
   }

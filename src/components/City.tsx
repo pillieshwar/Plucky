@@ -43,6 +43,10 @@ function City3D(props: {
 }
 
 const isDark = () => {
+  // The city's own sky, when one is picked in Preferences.
+  const sky = document.documentElement.dataset.citySky;
+  if (sky === "night") return true;
+  if (sky === "dusk") return false;
   const t = document.documentElement.dataset.theme;
   if (t === "dark") return true;
   if (t === "light") return false;
@@ -54,7 +58,7 @@ function useDark(): boolean {
   const [dark, setDark] = useState(isDark);
   useEffect(() => {
     const obs = new MutationObserver(() => setDark(isDark()));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-city-sky"] });
     const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
     const on = () => setDark(isDark());
     mq?.addEventListener?.("change", on);
@@ -144,7 +148,7 @@ export function CityCard({
         <div className="city-card-text">
           <span className="city-card-name">{name ?? "Name your city"}</span>
           <span className="city-card-sub">
-            +{stats.inRange} this week · population {city.total}
+            Population {city.total} · +{stats.inRange} this week
           </span>
         </div>
         {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
