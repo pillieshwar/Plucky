@@ -285,7 +285,7 @@ export function buildScene(city: City, theme: SceneTheme, range: CityRange, now:
       el.dataset.key = b.key;
       el.textContent = b.name;
       const label = new CSS2DObject(el);
-      label.position.set(cx, H + (b.today.length ? 1.9 : b.finished ? 1.1 : b.planned ? 2.6 : 0.45), cz);
+      label.position.set(cx, H + (b.today.length ? 1.25 : b.finished ? 1.0 : b.planned ? 1.6 : 0.45), cz);
       label.center.set(0.5, 1);
       scene.add(label);
       labels.push(label);
@@ -517,6 +517,7 @@ function addTraffic(scene: THREE.Scene, city: City, lines: number[], g0: number,
       tl.position.set(-L / 2 - 0.006, 0.07, s * (W / 2 - 0.025));
       g.add(hl, tl);
     }
+    g.scale.setScalar(1.5);
     scene.add(g);
     return g;
   };
@@ -620,12 +621,12 @@ function addBeacon(scene: THREE.Scene, x: number, h: number, z: number, theme: S
 
 function addCrane(scene: THREE.Scene, x: number, h: number, z: number, theme: SceneTheme, keep: <T extends { dispose: () => void }>(x: T) => T) {
   const mat = keep(new THREE.MeshStandardMaterial({ color: theme.crane, metalness: 0.4, roughness: 0.5 }));
-  const mast = new THREE.Mesh(keep(new THREE.BoxGeometry(0.08, 2.4, 0.08)), mat);
-  mast.position.set(x, h + 1.2, z);
-  const jib = new THREE.Mesh(keep(new THREE.BoxGeometry(2.4, 0.07, 0.07)), mat);
-  jib.position.set(x + 0.5, h + 2.3, z);
-  const cable = new THREE.Mesh(keep(new THREE.BoxGeometry(0.015, 0.9, 0.015)), mat);
-  cable.position.set(x + 1.4, h + 1.85, z);
+  const mast = new THREE.Mesh(keep(new THREE.BoxGeometry(0.06, 1.5, 0.06)), mat);
+  mast.position.set(x, h + 0.75, z);
+  const jib = new THREE.Mesh(keep(new THREE.BoxGeometry(1.4, 0.05, 0.05)), mat);
+  jib.position.set(x + 0.3, h + 1.45, z);
+  const cable = new THREE.Mesh(keep(new THREE.BoxGeometry(0.012, 0.55, 0.012)), mat);
+  cable.position.set(x + 0.85, h + 1.18, z);
   scene.add(mast, jib, cable);
 }
 
