@@ -578,7 +578,7 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.45"
+version = "0.4.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
@@ -4924,7 +4924,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "todocity"
-version = "0.4.45"
+version = "0.4.46"
 dependencies = [
  "arboard",
  "block2",
@@ -4963,7 +4963,7 @@ dependencies = [
 
 [[package]]
 name = "todocity-core"
-version = "0.4.45"
+version = "0.4.46"
 dependencies = [
  "chrono",
  "log",

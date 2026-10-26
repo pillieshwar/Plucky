@@ -2,14 +2,18 @@ import { useWords } from "../lib/words";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { dayOrderForLocale, relativeLabel } from "../lib/dates";
 import { findSchedule, repeatLabel, timeLabel } from "../lib/schedule";
-import { isDeadlinePhrase, linesToSteps } from "../lib/lists";
-import type { NewTask } from "../lib/types";
+import { isDeadlinePhrase } from "../lib/lists";
+import { Checklist } from "./Checklist";
+import { DateEditor, type DateTab } from "./DateEditor";
+import { CalendarIcon, RepeatIcon } from "./icons";
+import { FlagIcon } from "./ProjectPicker";
+import type { ChecklistItem, NewTask, TaskPatch } from "../lib/types";
 
 /**
  * Add a task: a title (dates typed in it are understood — "dentist fri
- * 3pm") and an optional description. Used in the panel and the menu-bar
- * dropdown. Return in the title adds; ⌘Return adds from the description;
- * Esc cancels.
+ * 3pm"), notes and sub-tasks, and pills for when, deadline and repeat that
+ * open the same small date card used everywhere. Return in the title adds;
+ * ⌘Return adds from anywhere; Esc closes a picker, then cancels.
  */
 export function AddTaskForm({
   locale,
@@ -36,8 +40,8 @@ export function AddTaskForm({
   /** Existing project names, so "@off" files the task in "Offsite 2026". */
   projects?: string[];
   /**
-   * Full screen: choose the building and floor, and the date and time,
-   * right in the form. Floors are each building's headings.
+   * Full screen: choose the building and floor right in the form. Floors
+   * are each building's headings.
    */
   places?: { name: string; floors: string[] }[];
   /** Save the task. */
@@ -45,19 +49,21 @@ export function AddTaskForm({
   onCancel: () => void;
 }) {
   const w = useWords();
+  const roomy = !!places;
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [showNotes, setShowNotes] = useState(false);
-  const [stepsText, setStepsText] = useState("");
-  const [showSteps, setShowSteps] = useState(false);
+  const [showNotes, setShowNotes] = useState(roomy);
+  const [steps, setSteps] = useState<ChecklistItem[]>([]);
+  const [showSteps, setShowSteps] = useState(roomy);
   const [busy, setBusy] = useState(false);
   // Full screen's pickers (undefined: not touched, follow the typed text / the list).
   const [pickBuilding, setPickBuilding] = useState<string | null | undefined>(undefined);
   const [pickFloor, setPickFloor] = useState<string | null | undefined>(undefined);
   const [newBuilding, setNewBuilding] = useState<string | null>(null);
   const [newFloor, setNewFloor] = useState<string | null>(null);
-  const [pickDate, setPickDate] = useState("");
-  const [pickTime, setPickTime] = useState("");
+  // When, picked by hand (null: follow what's typed in the title).
+  const [picked, setPicked] = useState<When | null>(null);
+  const [dateTab, setDateTab] = useState<DateTab | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const now = useMemo(() => new Date(), []);
@@ -67,48 +73,82 @@ export function AddTaskForm({
     titleRef.current?.focus();
   }, []);
   useEffect(() => {
-    if (showNotes) notesRef.current?.focus();
-  }, [showNotes]);
+    if (showNotes && !roomy) notesRef.current?.focus();
+  }, [showNotes, roomy]);
+  // Grow the notes box with its text.
+  useEffect(() => {
+    const el = notesRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [notes, showNotes]);
 
   // "@Project" anywhere in the title files the task there.
   const at = useMemo(() => atProject(title, projects ?? []), [title, projects]);
   const typed = useMemo(() => (at.rest.trim() ? findSchedule(at.rest, now, order) : null), [at.rest, now, order]);
+
+  // What the task will get: picked by hand, else typed, else the list's day.
+  const fromTyped: When = {
+    date: typed?.date ?? (extra?.someday ? null : (extra?.due_date ?? defaultDay)),
+    time: typed?.date ? typed.time : null,
+    repeat: typed?.repeat ?? null,
+    deadline: typed?.date && isDeadlinePhrase(typed.matched) ? typed.date : (extra?.deadline ?? null),
+    someday: !typed?.date && !!extra?.someday,
+    evening: false,
+  };
+  const when = picked ?? fromTyped;
+
+  function applyWhen(patch: TaskPatch) {
+    setPicked((cur) => {
+      const w0 = { ...(cur ?? fromTyped) };
+      if (patch.someday) Object.assign(w0, { someday: true, date: null, time: null, evening: false });
+      if (patch.due_date !== undefined) {
+        Object.assign(w0, { date: patch.due_date, someday: false });
+        if (patch.due_date === null) Object.assign(w0, { time: null, evening: false, repeat: null });
+      }
+      if (patch.someday === false) w0.someday = false;
+      if (patch.due_time !== undefined) w0.time = patch.due_time;
+      if (patch.evening !== undefined) w0.evening = patch.evening;
+      if (patch.recurrence !== undefined) w0.repeat = patch.recurrence;
+      if (patch.deadline !== undefined) w0.deadline = patch.deadline;
+      return w0;
+    });
+  }
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
     const clean = (typed?.title || at.rest).trim();
     if (!clean || busy) return;
     setBusy(true);
-    // Where it goes and when, from the pickers (full screen) over the typed text.
+    // Where it goes, from the pickers (full screen) over the typed text.
     const building = newBuilding?.trim() || (pickBuilding === undefined ? (at.project ?? extra?.project ?? null) : pickBuilding);
     const floor = building ? newFloor?.trim() || (pickFloor === undefined ? (extra?.heading ?? null) : pickFloor) : null;
     const placed = places ? { project: building, heading: floor } : {};
-    const timed = places && pickDate ? { due_date: pickDate, due_time: pickTime || null, someday: false } : places && pickTime ? { due_time: pickTime } : {};
     try {
       await onAdd({
-        due_date: typed?.date ?? defaultDay,
         ...extra,
         title: clean,
-        ...(typed?.date ? { due_date: typed.date, due_time: typed.time, someday: false } : {}),
-        // "by Friday": Friday is the deadline too.
-        deadline: typed?.date && isDeadlinePhrase(typed.matched) ? typed.date : (extra?.deadline ?? null),
-        recurrence: typed?.repeat ?? null,
+        due_date: when.someday ? null : when.date,
+        due_time: when.date ? when.time : null,
+        evening: !!when.date && when.evening,
+        someday: when.someday,
+        deadline: when.deadline,
+        recurrence: when.date || !when.someday ? when.repeat : null,
         source_text: null,
         notes: notes.trim() || null,
-        checklist: linesToSteps(stepsText).map((text) => ({ text, done: false })),
+        checklist: steps.filter((s) => s.text.trim()),
         ...(at.project ? { project: at.project, heading: null } : {}),
         ...placed,
-        ...timed,
       });
-      setPickDate("");
-      setPickTime("");
       setNewBuilding(null);
       setNewFloor(null);
+      setPicked(null);
+      setDateTab(null);
       setTitle("");
       setNotes("");
-      setShowNotes(false);
-      setStepsText("");
-      setShowSteps(false);
+      setShowNotes(roomy);
+      setSteps([]);
+      setShowSteps(roomy);
       titleRef.current?.focus();
     } catch {
       // The caller showed the error; keep what was typed.
@@ -121,33 +161,28 @@ export function AddTaskForm({
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      onCancel();
+      if (dateTab) setDateTab(null);
+      else onCancel();
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void submit();
     }
   }
 
-  const when = typed?.date
-    ? [
-        relativeLabel(typed.date, now, locale),
-        typed.time && timeLabel(typed.time, locale),
-        typed.repeat && repeatLabel(typed.repeat)?.toLowerCase(),
-        isDeadlinePhrase(typed.matched) && "deadline",
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : defaultDay
-      ? relativeLabel(defaultDay, now, locale)
-      : extra?.someday
-        ? "Someday"
-        : "No date — type one, like “fri 3pm”";
+  const whenText = when.someday
+    ? "Someday"
+    : when.date
+      ? [relativeLabel(when.date, now, locale), when.time && timeLabel(when.time, locale), when.evening && "evening"].filter(Boolean).join(", ")
+      : "No date";
+  const toggleTab = (t: DateTab) => setDateTab((cur) => (cur === t ? null : t));
+  const where = at.project ? w.inProject(at.project) : context;
 
   return (
-    <form className={compact ? "add-task compact" : "add-task"} onSubmit={(e) => void submit(e)} onKeyDown={onKey}>
+    <form className={[compact ? "add-task compact" : "add-task", roomy ? "roomy" : ""].filter(Boolean).join(" ")} onSubmit={(e) => void submit(e)} onKeyDown={onKey}>
       <div className="add-task-row">
         <input
           ref={titleRef}
+          className="add-task-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={placeholder}
@@ -158,28 +193,73 @@ export function AddTaskForm({
           Add
         </button>
       </div>
-      {showNotes ? (
+      {typed?.date && !picked && (
+        <p className="add-task-understood">
+          <CalendarIcon /> {whenText}
+          {typed.repeat && ` · ${repeatLabel(typed.repeat)?.toLowerCase()}`}
+          {isDeadlinePhrase(typed.matched) && " · deadline"}
+          <span> — from “{typed.matched}”</span>
+        </p>
+      )}
+      {showNotes && (
         <textarea
           ref={notesRef}
+          className="add-task-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Description, links… (⌘↩ to add)"
-          rows={compact ? 2 : 3}
+          placeholder="Notes — details, links… (⌘↩ adds the task)"
+          rows={1}
           maxLength={2000}
-          aria-label="Description"
-        />
-      ) : null}
-      {showSteps && (
-        <textarea
-          value={stepsText}
-          autoFocus
-          onChange={(e) => setStepsText(e.target.value)}
-          placeholder={`${cap(w.steps)}, one per line\n- or paste a list`}
-          rows={compact ? 2 : 3}
-          maxLength={4000}
-          aria-label={cap(w.steps)}
+          aria-label="Notes"
         />
       )}
+      {showSteps && (
+        <div className="add-task-steps">
+          <Checklist items={steps} onChange={setSteps} autoFocusAdd={!roomy} />
+        </div>
+      )}
+
+      <div className="add-task-pills">
+        <button type="button" className={pillClass(dateTab === "when", !!when.date || when.someday)} onClick={() => toggleTab("when")}>
+          <CalendarIcon /> {whenText}
+        </button>
+        <button type="button" className={pillClass(dateTab === "deadline", !!when.deadline)} onClick={() => toggleTab("deadline")}>
+          <FlagIcon /> {when.deadline ? `Due ${relativeLabel(when.deadline, now, locale)}` : "Deadline"}
+        </button>
+        <button type="button" className={pillClass(dateTab === "repeat", !!when.repeat)} onClick={() => toggleTab("repeat")}>
+          <RepeatIcon /> {when.repeat ? repeatLabel(when.repeat) : "Repeat"}
+        </button>
+        {!roomy && !showNotes && (
+          <button type="button" className="tc-pill" onClick={() => setShowNotes(true)}>
+            + Notes
+          </button>
+        )}
+        {!roomy && !showSteps && (
+          <button type="button" className="tc-pill" onClick={() => setShowSteps(true)}>
+            + {cap(w.steps)}
+          </button>
+        )}
+      </div>
+
+      {dateTab && (
+        <DateEditor
+          tab={dateTab}
+          date={when.someday ? null : when.date}
+          time={when.time}
+          repeat={when.repeat}
+          evening={when.evening}
+          someday={when.someday}
+          deadline={when.deadline}
+          now={now}
+          locale={locale}
+          onApply={applyWhen}
+          onClose={() => {
+            setDateTab(null);
+            titleRef.current?.focus();
+          }}
+        />
+      )}
+
       {places && (
         <PlacePicker
           places={places}
@@ -187,8 +267,6 @@ export function AddTaskForm({
           floor={newFloor !== null ? "__new" : pickFloor === undefined ? (extra?.heading ?? null) : pickFloor}
           newBuilding={newBuilding}
           newFloor={newFloor}
-          date={pickDate}
-          time={pickTime}
           onBuilding={(b) => {
             if (b === "__new") {
               setNewBuilding("");
@@ -209,35 +287,31 @@ export function AddTaskForm({
           }}
           onNewBuilding={setNewBuilding}
           onNewFloor={setNewFloor}
-          onDate={setPickDate}
-          onTime={setPickTime}
         />
       )}
+
       <div className="add-task-foot">
-        <span className={typed?.date ? "add-task-when on" : "add-task-when"}>
-          {when}
-          {at.project ? (
-            <span className="add-task-context"> · {w.inProject(at.project)}</span>
-          ) : (
-            context && <span className="add-task-context"> · {context}</span>
-          )}
-        </span>
-        {!showNotes && (
-          <button type="button" className="add-task-link" onClick={() => setShowNotes(true)}>
-            + Description
-          </button>
-        )}
-        {!showSteps && (
-          <button type="button" className="add-task-link" onClick={() => setShowSteps(true)}>
-            + {cap(w.steps)}
-          </button>
-        )}
+        <span className="add-task-when">{where ? <span className="add-task-context">{where}</span> : roomy ? "Return adds · Esc cancels" : ""}</span>
         <button type="button" className="add-task-link quiet" onClick={onCancel}>
           Cancel
         </button>
       </div>
     </form>
   );
+}
+
+/** When a new task is planned, as the form holds it. */
+interface When {
+  date: string | null;
+  time: string | null;
+  repeat: string | null;
+  deadline: string | null;
+  someday: boolean;
+  evening: boolean;
+}
+
+function pillClass(open: boolean, set: boolean): string {
+  return ["tc-pill", set ? "set" : "", open ? "on" : ""].filter(Boolean).join(" ");
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -265,21 +339,17 @@ export function atProject(title: string, projects: string[]): { project: string 
   return { project: project.trim() || null, rest };
 }
 
-/** Building, floor, date and time pickers for a new room (full screen). */
+/** Building and floor pickers for a new task (full screen). */
 function PlacePicker(p: {
   places: { name: string; floors: string[] }[];
   building: string | null;
   floor: string | null;
   newBuilding: string | null;
   newFloor: string | null;
-  date: string;
-  time: string;
   onBuilding: (b: string | null) => void;
   onFloor: (f: string | null) => void;
   onNewBuilding: (n: string) => void;
   onNewFloor: (n: string) => void;
-  onDate: (d: string) => void;
-  onTime: (t: string) => void;
 }) {
   const floors = p.places.find((x) => x.name === p.building)?.floors ?? [];
   const known = p.building === null || p.building === "__new" || p.places.some((x) => x.name === p.building);
@@ -317,14 +387,6 @@ function PlacePicker(p: {
             {p.building && <option value="__new">+ New floor…</option>}
           </select>
         )}
-      </label>
-      <label className="ap-field">
-        <span>Date</span>
-        <input type="date" value={p.date} onChange={(e) => p.onDate(e.target.value)} />
-      </label>
-      <label className="ap-field">
-        <span>Time</span>
-        <input type="time" value={p.time} onChange={(e) => p.onTime(e.target.value)} />
       </label>
     </div>
   );
