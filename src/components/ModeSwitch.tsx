@@ -56,7 +56,7 @@ export function ModeSwitch({
   };
 
   return (
-    <div className={`mode-switch ${variant}${mode ? " on" : ""}`} ref={box}>
+    <div className={`mode-switch mode-${variant}${mode ? " on" : ""}`} ref={box}>
       <button
         type="button"
         className="mode-btn"

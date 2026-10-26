@@ -1011,7 +1011,7 @@ const IN_WORK = { ...LIGHT, modes: WORK_MODES, mode: "work" };
 await shot("full-mode-work", FULL, full({ settings: IN_WORK }));
 await shot("full-mode-work-dark", FULL, full({ settings: { ...IN_WORK, theme: "dark" } }), async () => {}, true);
 await shot("full-mode-menu", FULL, full({ settings: IN_WORK }), async (p) => {
-  await p.locator(".mode-switch.side .mode-btn").click();
+  await p.locator(".mode-switch.mode-side .mode-btn").click();
 });
 await shot("full-mode-others", FULL, full({ settings: IN_WORK }), async (p) => {
   await p.locator(".sb-others").click();
@@ -1020,10 +1020,10 @@ await shot("full-mode-peek", FULL, full({ settings: IN_WORK }), async (p) => {
   await p.locator(".mode-hidden .link").click();
 });
 await shot("full-mode-switch", FULL, full({ settings: { ...LIGHT, modes: WORK_MODES } }), async (p) => {
-  await p.locator(".mode-switch.side .mode-btn").click();
+  await p.locator(".mode-switch.mode-side .mode-btn").click();
   await p.getByRole("menuitemradio", { name: /Personal/ }).click();
   await p.waitForTimeout(300);
-  if (!(await p.locator(".mode-switch.side.on").count())) throw new Error("the mode didn't switch");
+  if (!(await p.locator(".mode-switch.mode-side.on").count())) throw new Error("the mode didn't switch");
 });
 await shot("full-settings-modes", FULL, full({ settings: IN_WORK }), async (p) => {
   await p.locator(".sidebar button").filter({ hasText: "Settings" }).last().click();
