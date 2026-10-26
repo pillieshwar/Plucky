@@ -34,6 +34,7 @@ import {
   onOpenTab,
   onPanelCollapsed,
   onPanelFull,
+  onSettingsChanged,
   onShortcutsChanged,
   onTasksChanged,
   onUpdateStatus,
@@ -56,6 +57,8 @@ import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
 import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, FloorSummary, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
+import { activeMode, showsTask } from "./lib/modes";
+import { ModeSwitch } from "./components/ModeSwitch";
 
 const LOCALE = safeLocale();
 
@@ -116,10 +119,17 @@ function typingIn(target: EventTarget | null): boolean {
 
 export default function App() {
   const [now, setNow] = useState(() => new Date());
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setTasks] = useState<Task[]>([]);
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  // The mode this Mac is in (Work, Personal…): lists show only its projects.
+  // "Show everything for now" lifts it until the mode changes.
+  const [peek, setPeek] = useState(false);
+  const realMode = activeMode(settings);
+  const mode = peek ? null : realMode;
+  useEffect(() => setPeek(false), [realMode?.id]);
+  const tasks = useMemo(() => (mode ? allTasks.filter((t) => showsTask(mode, t)) : allTasks), [allTasks, mode]);
   const [update, setUpdate] = useState<UpdateStatus>({ state: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("tasks");
@@ -322,6 +332,8 @@ export default function App() {
       onTasksChanged(() => void refresh()),
       onOpenTab((t) => setTab(isTab(t) ? t : "tasks")),
       onShortcutsChanged(setShortcuts),
+      // A mode switched from the menu bar (or another window) shows here too.
+      onSettingsChanged(setSettings),
       onHighlightTask((id) => {
         setTab("tasks");
         setList("all");
@@ -357,13 +369,14 @@ export default function App() {
     };
   }, [full, viewing, tasks]);
   const visible = useMemo(() => {
-    let base = tasksForList(tasks, list, today, nowTime);
+    // A project's page and search see every task, whatever the mode.
+    let base = tasksForList(viewing !== null || query.trim() ? allTasks : tasks, list, today, nowTime);
     if (viewing !== null && projectAll.length) {
       const have = new Set(base.map((t) => t.id));
       base = [...base, ...projectAll.filter((t) => t.done && !have.has(t.id) && t.project === viewing)];
     }
     return base.filter((t) => !query.trim() || matchesQuery(t, query));
-  }, [tasks, query, list, today, nowTime, viewing, projectAll]);
+  }, [tasks, allTasks, query, list, today, nowTime, viewing, projectAll]);
   const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
   const viewedProject = projectOf(list);
   const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
@@ -387,9 +400,14 @@ export default function App() {
     [tasks, today, nowTime],
   );
   const projectInfos: ProjectInfo[] = useMemo(() => {
-    const names = new Set([...projectStats.map((p) => p.name), ...tasks.flatMap((t) => (t.project ? [t.project] : []))]);
-    return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, headings: headingsOf(tasks, name) }));
-  }, [projectStats, tasks]);
+    const names = new Set([...projectStats.map((p) => p.name), ...allTasks.flatMap((t) => (t.project ? [t.project] : []))]);
+    return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, headings: headingsOf(allTasks, name) }));
+  }, [projectStats, allTasks]);
+  // In a mode: today's tasks it leaves out, for the "N more" line.
+  const hiddenToday = useMemo(
+    () => (realMode ? tasksForList(allTasks, "today", today).filter((t) => !t.done && !showsTask(realMode, t)) : []),
+    [allTasks, realMode, today],
+  );
   // Today's calendar events, for Today in hours.
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [eventsKey, setEventsKey] = useState(0);
@@ -477,12 +495,12 @@ export default function App() {
     });
   };
   const selectedTasks = useMemo(() => flat.filter((t) => selected.has(t.id)), [flat, selected]);
-  const tags = useMemo(() => topTags(tasks), [tasks]);
+  const tags = useMemo(() => topTags(allTasks), [allTasks]);
   const projectColors = useMemo(
     () => Object.fromEntries(projectStats.flatMap((p) => (p.color ? [[p.name, p.color] as [string, string]] : []))),
     [projectStats],
   );
-  const city = useMemo(() => buildCity(cityWins, tasks, projectStats, floorList, today), [cityWins, tasks, projectStats, floorList, today]);
+  const city = useMemo(() => buildCity(cityWins, allTasks, projectStats, floorList, today), [cityWins, allTasks, projectStats, floorList, today]);
   // Milestones: the highest population ever reached keeps what's built.
   const peak = settings?.city_peak ?? 0;
   const reached = Math.max(city.total, peak);
@@ -512,11 +530,26 @@ export default function App() {
   );
 
   // Keyboard: Esc, undo, search and list navigation.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const keyState = useRef({ flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen });
   keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = keyState.current;
+      // ⌃⌥1…9 switch mode; ⌃⌥0 shows everything.
+      if (e.ctrlKey && e.altKey && !e.metaKey && /^Digit[0-9]$/.test(e.code)) {
+        const n = Number(e.code.slice(5));
+        const modes = settingsRef.current?.modes ?? [];
+        if (n === 0 || modes[n - 1]) {
+          e.preventDefault();
+          void api
+            .setViewMode(n === 0 ? null : modes[n - 1].id)
+            .then(setSettings)
+            .catch(() => undefined);
+        }
+        return;
+      }
       // The city has its own keys.
       if (s.cityOpen) return;
       const mod = e.metaKey || e.ctrlKey;
@@ -1020,6 +1053,28 @@ export default function App() {
           }
         />
       )}
+      {realMode && list === "today" && !query.trim() && (peek || hiddenToday.length > 0) && (
+        <div className="mode-hidden">
+          {peek ? (
+            <>
+              <span>Showing everything for now</span>
+              <button type="button" className="link" onClick={() => setPeek(false)}>
+                Back to {realMode.name}
+              </button>
+            </>
+          ) : (
+            <>
+              <span>
+                {hiddenToday.length} more today outside {realMode.name}
+                {hiddenToday.length <= 3 ? ` — ${hiddenToday.map((t) => t.title).join(", ")}` : ""}
+              </span>
+              <button type="button" className="link" onClick={() => setPeek(true)}>
+                Show
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {list === "all" && listCounts.someday > 0 && !query.trim() && (
         <button type="button" className="someday-link" onClick={() => setList("someday")}>
           {listCounts.someday} in Someday →
@@ -1082,12 +1137,12 @@ export default function App() {
     );
 
   if (full) {
-    const openTask = openId !== null ? (tasks.find((t) => t.id === openId) ?? null) : null;
+    const openTask = openId !== null ? (allTasks.find((t) => t.id === openId) ?? null) : null;
     // The right side follows the page: a project's tasks, a floor's, or all of them.
     const sideTasks =
       viewedProject === null
         ? tasks
-        : tasks.filter((t) => t.project === viewedProject && (!floorOpen || (t.heading ?? null) === floorOpen.floor));
+        : allTasks.filter((t) => t.project === viewedProject && (!floorOpen || (t.heading ?? null) === floorOpen.floor));
     const ids = flat.map((t) => t.id);
     const stepTask = (d: -1 | 1) => {
       const i = ids.indexOf(openId ?? -1);
@@ -1206,6 +1261,9 @@ export default function App() {
             }}
             counts={listCounts}
             projects={projectStats}
+            modeSwitch={<ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} variant="side" />}
+            inMode={mode ? (name) => showsTask(mode, { project: name }) : undefined}
+            modeName={mode?.name}
             tags={tags}
             activeTags={query.toLowerCase().split(/\s+/).filter(Boolean)}
             onTag={(t) => {
@@ -1347,6 +1405,7 @@ export default function App() {
             <span className="fh-sub" data-tauri-drag-region>
               {tab === "tasks" && floorOpen ? floorSub : subText}
             </span>
+            {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} />}
             {tab === "tasks" && upcoming && (
               <div className="fh-week">
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), -7)))} aria-label="Previous week" title="Previous week (←)">
@@ -1542,6 +1601,7 @@ export default function App() {
             Settings
           </button>
         )}
+        {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} />}
         <span className="topbar-gap" data-tauri-drag-region />
         {tab === "tasks" && !onboarding && (
           <>

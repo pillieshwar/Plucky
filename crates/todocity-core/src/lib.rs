@@ -18,6 +18,7 @@
 //! * [`things`] — reading a Things 3 database to move into Todo City.
 //! * [`todoist`] — reading Todoist (its API or CSV exports) to move in.
 //! * [`sync`] — end-to-end encrypted sync between a person's Macs.
+//! * [`modes`] — which projects a Mac shows right now (Work, Personal…).
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod clipboard_guard;
@@ -27,6 +28,7 @@ pub mod extraction;
 pub mod llm;
 pub mod local_models;
 pub mod models;
+pub mod modes;
 pub mod notify;
 pub mod prompt;
 pub mod recurrence;

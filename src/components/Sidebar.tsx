@@ -1,5 +1,5 @@
 import { useWords } from "../lib/words";
-import { useEffect, useState, type ReactElement } from "react";
+import { Fragment, useEffect, useState, type ReactElement } from "react";
 import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
 import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
@@ -46,6 +46,11 @@ interface Props {
   captureHint: ReactElement;
   /** The window's close, minimize and zoom buttons. */
   lights: ReactElement;
+  /** The mode switcher (Work, Personal…), under the title. */
+  modeSwitch?: ReactElement;
+  /** In a mode: whether it shows this project, and the mode's name. */
+  inMode?: (project: string) => boolean;
+  modeName?: string;
 }
 
 /**
@@ -58,6 +63,21 @@ export function Sidebar(p: Props) {
   const project = projectOf(p.list);
   // Buildings opened to show their floors; the one being viewed opens itself.
   const [openB, setOpenB] = useState<Set<string>>(() => new Set());
+  // In a mode: projects it hides are listed apart, folded away.
+  const [showOthers, setShowOthers] = useState(false);
+  const shownB = p.inMode ? p.buildings.filter((b) => p.inMode!(b.project!)) : p.buildings;
+  const hiddenB = p.inMode ? p.buildings.filter((b) => !p.inMode!(b.project!)) : [];
+  const othersBtn = (
+    <button type="button" className="sb-others" aria-expanded={showOthers} onClick={() => setShowOthers((v) => !v)}>
+      <svg className={showOthers ? "open" : ""} width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+        <path d="M6 3.5 10.5 8 6 12.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>
+        {hiddenB.length} other {hiddenB.length === 1 ? "project" : "projects"}
+      </span>
+      <span className="sb-others-note">not in {p.modeName ?? "this mode"}</span>
+    </button>
+  );
   const [adding, setAdding] = useState<
     | { kind: "building" }
     | { kind: "floor"; project: string }
@@ -141,6 +161,7 @@ export function Sidebar(p: Props) {
           Todo City
         </span>
       </div>
+      {p.modeSwitch}
       <button type="button" className="sb-search" onClick={p.onSearch} title="Search (/ or ⌘K)">
         <SearchIcon />
         <span>Search</span>
@@ -170,8 +191,10 @@ export function Sidebar(p: Props) {
             Press + to start your first project — a new building in your city — or type “@Name” in a task.
           </p>
         )}
-        {p.buildings.map((b) => {
+        {shownB.length === 0 && hiddenB.length > 0 && !adding && <p className="sb-empty">No projects in {p.modeName ?? "this mode"} yet.</p>}
+        {[...shownB, ...(showOthers ? hiddenB : [])].map((b, i) => {
           const name = b.project!;
+          const other = i >= shownB.length;
           const on = !p.inSettings && project === name && !(p.floorOn && p.floorOn.project === name);
           const expanded = openB.has(name);
           const pr = p.projects.find((x) => x.name === name);
@@ -184,7 +207,9 @@ export function Sidebar(p: Props) {
             );
           }
           return (
-            <div key={name} className="sb-building">
+            <Fragment key={name}>
+            {other && i === shownB.length && othersBtn}
+            <div className={other ? "sb-building sb-other" : "sb-building"}>
               <div className={on ? "sb-item sb-b on" : "sb-item sb-b"}>
                 <button
                   type="button"
@@ -355,8 +380,10 @@ export function Sidebar(p: Props) {
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
+        {hiddenB.length > 0 && !showOthers && othersBtn}
 
         {p.tags.length > 0 && (
           <>

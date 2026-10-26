@@ -25,7 +25,13 @@ pub fn on_launch(app: &AppHandle, first_run: bool) {
     let settings = app.state::<Settings>();
     if first_run || settings.get().show_on_start {
         settings.update(|s| s.last_greeted = Some(today()));
-        crate::panel::show(app);
+        // The first-run tour lives in the panel; after that, Todo City
+        // opens in full screen unless the person chose the panel.
+        if first_run {
+            crate::panel::show(app);
+        } else {
+            crate::panel::open_main_window(app);
+        }
     }
 }
 

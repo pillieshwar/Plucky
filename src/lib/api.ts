@@ -149,6 +149,8 @@ export const api = {
   inboxDiscard: (id: number) => invoke<void>("inbox_discard", { id }),
   getSettings: () => invoke<AppSettings>("get_settings"),
   setSettings: (value: AppSettings) => invoke<AppSettings>("set_settings", { value }),
+  /** Switch this Mac's mode (null: show everything). */
+  setViewMode: (id: string | null) => invoke<AppSettings>("set_view_mode", { id }),
   notificationPermission: () => invoke<NotificationPermission>("notification_permission"),
   requestNotificationPermission: () => invoke<NotificationPermission>("request_notification_permission"),
   testNotification: () => invoke<void>("test_notification"),

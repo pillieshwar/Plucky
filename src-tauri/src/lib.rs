@@ -93,16 +93,39 @@ fn add_task(app: AppHandle, task: NewTask) -> CmdResult<Task> {
 
 /// Add a task and update everything that shows tasks.
 pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
-    let task = NewTask {
+    let mut task = NewTask {
         created_tz: iana_time_zone::get_timezone().ok(),
         ..task
     };
+    // In a mode, a task added with no project goes where the mode says.
+    if task.project.is_none() {
+        task.project = active_mode(app).and_then(|m| m.new_task_project);
+    }
     let state = app.state::<AppState>();
     let t = state.store.lock().map_err(err)?.insert(task).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
     tray::refresh(app);
     nudge_reminders(app);
     Ok(t)
+}
+
+/// The mode this Mac is in (Work, Personal…), if any.
+pub(crate) fn active_mode(app: &AppHandle) -> Option<todocity_core::modes::ViewMode> {
+    let s = app.try_state::<Settings>()?.get();
+    todocity_core::modes::active(&s.modes, s.mode.as_deref()).cloned()
+}
+
+/// Switch this Mac's mode (none: show everything).
+#[tauri::command]
+fn set_view_mode(app: AppHandle, settings: State<'_, Settings>, id: Option<String>) -> AppSettings {
+    let next = settings.update(|v| {
+        v.mode = id.filter(|id| v.modes.iter().any(|m| &m.id == id));
+    });
+    let _ = app.emit("settings-changed", &next);
+    // A mode can hide calendars: everything showing events looks again.
+    let _ = app.emit("calendar-changed", ());
+    tray::refresh(&app);
+    next
 }
 
 /// Every completed task, briefly: the lit windows of the city.
@@ -614,7 +637,12 @@ async fn calendar_events(
     if !s.calendar_enabled {
         return Ok(Vec::new());
     }
-    tauri::async_runtime::spawn_blocking(move || calendar::events(&from, &to, &s.calendar_hidden))
+    // A mode can hide more calendars (e.g. personal ones in Work).
+    let mut hidden = s.calendar_hidden.clone();
+    if let Some(m) = todocity_core::modes::active(&s.modes, s.mode.as_deref()) {
+        hidden.extend(m.hidden_calendars.iter().cloned());
+    }
+    tauri::async_runtime::spawn_blocking(move || calendar::events(&from, &to, &hidden))
         .await
         .map_err(err)?
 }
@@ -698,7 +726,12 @@ fn set_settings(app: AppHandle, settings: State<'_, Settings>, value: AppSetting
         v.city_peak = v.city_peak.max(value.city_peak);
         v.city_seen = v.city_seen.max(value.city_seen);
         v.look = value.look.clean();
+        v.modes = todocity_core::modes::clean(value.modes);
+        v.mode = value.mode.filter(|id| v.modes.iter().any(|m| &m.id == id));
+        v.open_full = value.open_full;
     });
+    tray::refresh(&app);
+    let _ = app.emit("calendar-changed", ());
     // Every window follows the theme (and other preferences) right away.
     let _ = app.emit("settings-changed", &next);
     next
@@ -1607,6 +1640,7 @@ pub fn run() {
             import::todoist_pick_files,
             import::todoist_preview,
             import::todoist_import,
+            set_view_mode,
             sync::sync_status,
             sync::sync_add_mac,
             sync::sync_join,
@@ -1719,10 +1753,10 @@ pub fn run() {
             // Clicking the Dock icon (shown while full screen) brings the
             // window back, minimized or hidden.
             #[cfg(target_os = "macos")]
+            // Opening Todo City again (Finder, Spotlight, Launchpad) while
+            // it runs: bring up the window, in full screen by default.
             if let tauri::RunEvent::Reopen { .. } = event {
-                if panel::is_full(app) {
-                    panel::show(app);
-                }
+                panel::open_main_window(app);
             }
             if let tauri::RunEvent::Exit = event {
                 // try_state: a relaunch after the rename exits before setup

@@ -130,9 +130,11 @@ fn due_today(app: &AppHandle) -> Vec<Task> {
         .ok()
         .and_then(|s| s.list(None).ok())
         .unwrap_or_default();
+    let mode = crate::active_mode(app);
     tasks
         .into_iter()
         .filter(|t| !t.done && t.due_date.as_deref().is_some_and(|d| d <= today.as_str()))
+        .filter(|t| mode.as_ref().map_or(true, |m| m.shows(t)))
         .collect()
 }
 
