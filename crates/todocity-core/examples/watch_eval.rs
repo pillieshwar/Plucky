@@ -1,7 +1,7 @@
 //! Score a model on watch mode: does it find the real to-dos in new
 //! messages, and stay quiet on everything else?
 //!
-//!   cargo run -p pluck-core --example watch_eval -- \
+//!   cargo run -p todocity-core --example watch_eval -- \
 //!       http://127.0.0.1:8080 <api-key> scripts/eval/watch-cases.json "Model name"
 //!
 //! Prints one line per case and a JSON summary as the last line. Run by
@@ -9,8 +9,8 @@
 
 use std::time::{Duration, Instant};
 
-use pluck_core::{find_actions, LlamaServerClient};
 use serde::Deserialize;
+use todocity_core::{find_actions, LlamaServerClient};
 
 #[derive(Deserialize)]
 struct Case {

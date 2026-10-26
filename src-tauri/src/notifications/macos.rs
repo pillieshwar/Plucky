@@ -38,7 +38,7 @@ define_class!(
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl UNUserNotificationCenterDelegate for Delegate {
-        /// Show banners even while a Plucky window is in front.
+        /// Show banners even while a Todo City window is in front.
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
         fn will_present(
             &self,
@@ -184,7 +184,7 @@ pub fn send(note: &Note) {
         let content = UNMutableNotificationContent::new();
         content.setTitle(&ns(&note.title));
         content.setBody(&ns(&note.body));
-        content.setThreadIdentifier(&ns("pluck"));
+        content.setThreadIdentifier(&ns("todocity"));
         content.setSound(Some(&UNNotificationSound::defaultSound()));
         if note.actions {
             content.setCategoryIdentifier(&ns(TASK_CATEGORY));

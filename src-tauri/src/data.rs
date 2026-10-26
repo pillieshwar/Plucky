@@ -1,6 +1,6 @@
 //! Backups and export.
 //!
-//! * Once a day Plucky writes a copy of the task database to
+//! * Once a day Todo City writes a copy of the task database to
 //!   `backups/tasks-YYYY-MM-DD.db` and keeps the newest seven.
 //! * Settings can restore one of those copies (the current database is
 //!   backed up first) or export every task as CSV or JSON to Downloads.
@@ -8,8 +8,8 @@
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use pluck_core::{Store, Task};
 use serde::Serialize;
+use todocity_core::{Store, Task};
 
 const KEEP: usize = 7;
 
@@ -163,7 +163,7 @@ pub fn downloads_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pluck_core::NewTask;
+    use todocity_core::NewTask;
 
     #[test]
     fn csv_escapes_and_has_a_header() {

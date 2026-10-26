@@ -5,7 +5,7 @@
 //!    No side effects, so always tried first. Native apps answer here.
 //! 2. Guarded clipboard: save the clipboard, trigger Copy in the frontmost
 //!    app, read the text, put the clipboard back (see
-//!    `pluck_core::clipboard_guard`). Chrome, Slack and other Electron or web
+//!    `todocity_core::clipboard_guard`). Chrome, Slack and other Electron or web
 //!    apps usually need this path.
 //!
 //! Robustness rules, learned the hard way:
@@ -27,9 +27,9 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use pluck_core::clipboard_guard::{capture_via_clipboard, FallbackOutcome};
 use serde::Serialize;
 use tauri::AppHandle;
+use todocity_core::clipboard_guard::{capture_via_clipboard, FallbackOutcome};
 
 #[cfg(target_os = "macos")]
 pub use macos::front_window_text;
@@ -82,7 +82,7 @@ pub enum CaptureResult {
 pub enum CaptureMethod {
     Accessibility,
     Clipboard,
-    /// Right-click → Services → Add to Plucky.
+    /// Right-click → Services → Add to Todo City.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Service,
 }
@@ -95,10 +95,10 @@ const COPY_TIMEOUT: Duration = Duration::from_millis(1200);
 const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(3);
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
-/// After a capture, Plucky's own clipboard writes settle for a moment.
+/// After a capture, Todo City's own clipboard writes settle for a moment.
 static QUIET_UNTIL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
-/// Whether Plucky is using the clipboard itself (a capture, or just after
+/// Whether Todo City is using the clipboard itself (a capture, or just after
 /// one), so clipboard changes now aren't the user's.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn clipboard_busy() -> bool {

@@ -116,7 +116,7 @@ export const api = {
   /** One app by id, or "all" installed apps. Also turns agent access on. */
   agentsConnect: (id: string) => invoke<AgentsStatus>("agents_connect", { id }),
   agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),
-  /** Send a test task through `Pluck --mcp`; resolves with a message. */
+  /** Send a test task through `TodoCity --mcp`; resolves with a message. */
   agentsTest: () => invoke<string>("agents_test"),
   emailTasksStatus: () => invoke<EmailTasksStatus>("email_tasks_status"),
   emailTasksSet: (change: {

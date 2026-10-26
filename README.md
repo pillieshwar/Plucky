@@ -9,14 +9,14 @@
 Copy a message, an email or a web page and press <kbd>⌘C</kbd> once more. Todo City writes the to-do, finds the due date and reminds you on time.<br>
 A small AI model runs entirely on your own computer, so nothing you capture ever leaves it.
 
-[![Latest release](https://img.shields.io/github/v/release/pillieshwar/Plucky?label=release&color=5249d9)](https://github.com/pillieshwar/Plucky/releases/latest)
-[![CI](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/ci.yml)
-[![Security](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pillieshwar/Plucky/badge)](https://scorecard.dev/viewer/?uri=github.com/pillieshwar/Plucky)
+[![Latest release](https://img.shields.io/github/v/release/pillieshwar/TodoCity?label=release&color=5249d9)](https://github.com/pillieshwar/TodoCity/releases/latest)
+[![CI](https://github.com/pillieshwar/TodoCity/actions/workflows/ci.yml/badge.svg)](https://github.com/pillieshwar/TodoCity/actions/workflows/ci.yml)
+[![Security](https://github.com/pillieshwar/TodoCity/actions/workflows/security.yml/badge.svg)](https://github.com/pillieshwar/TodoCity/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pillieshwar/TodoCity/badge)](https://scorecard.dev/viewer/?uri=github.com/pillieshwar/TodoCity)
 [![macOS 11+](https://img.shields.io/badge/macOS-11%2B-171b1a?logo=apple)](#install)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
-<a href="https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Todo City for Mac" width="248" height="52"></a>
+<a href="https://github.com/pillieshwar/TodoCity/releases/latest/download/TodoCity-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Todo City for Mac" width="248" height="52"></a>
 
 <sub>Free and open source · Apple silicon and Intel · one model download from inside the app</sub>
 
@@ -256,19 +256,18 @@ Preferences → **Data transfer** → **Todoist** brings your Todoist into Todo 
 
 ## Install
 
-1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg).
+1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/TodoCity/releases/latest/download/TodoCity-macOS.dmg).
 2. **Open it** and drag **Todo City** into **Applications**.
 3. **Launch Todo City.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
 4. **Follow the three-step tour.** Pick the on-device model (Todo City recommends the best one for your Mac and downloads it once), choose how to capture — <kbd>⌘C</kbd> twice, or a shortcut (which needs **Accessibility** access, how macOS lets an app read selected text) — and try a capture on a sample message.
 
 There's nothing else to install. Todo City opens at login and updates itself — look for **Restart to update** when a new version is ready.
 
-> **Coming from Pluck?** Pluck is now called Todo City. It updates itself as usual, renames itself to Todo City in Applications on first launch, and keeps your tasks, models, settings and login item.
 
 **Verify your download (optional).** Every release is built by this repository's public release workflow and carries a signed build-provenance attestation. With the [GitHub CLI](https://cli.github.com):
 
 ```bash
-gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/Plucky
+gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 ```
 
 
@@ -317,9 +316,9 @@ select text ─▶ read selection ─▶ local model ─▶ resolve the date ─
 ```
 
 1. **Capture** ([`src-tauri/src/capture/`](src-tauri/src/capture)) reads the selection with macOS Accessibility (`AXSelectedText`). If an app doesn't expose it, Todo City sends Copy and restores your clipboard afterwards — only if nothing else wrote to it in the meantime, and never when it holds images or files. **Add to Todo City** in the right-click menu receives the text directly from macOS and doesn't touch the clipboard at all.
-2. **Extract** ([`src-tauri/src/engine.rs`](src-tauri/src/engine.rs), [`crates/pluck-core/src/llm.rs`](crates/pluck-core/src/llm.rs)) starts the bundled `llama-server` on demand and asks for exactly three fields — `task`, `date_text` and `date_confidence` — under a JSON Schema at temperature 0. Output is validated in Rust, with one repair retry. The runtime stops after five idle minutes to give the memory back.
+2. **Extract** ([`src-tauri/src/engine.rs`](src-tauri/src/engine.rs), [`crates/todocity-core/src/llm.rs`](crates/todocity-core/src/llm.rs)) starts the bundled `llama-server` on demand and asks for exactly three fields — `task`, `date_text` and `date_confidence` — under a JSON Schema at temperature 0. Output is validated in Rust, with one repair retry. The runtime stops after five idle minutes to give the memory back.
 3. **Resolve the date** ([`src/lib/dates.ts`](src/lib/dates.ts), [`src/lib/schedule.ts`](src/lib/schedule.ts)): the model only copies the phrase; deterministic code turns it into a day, time and repeat rule. Ambiguous phrases ("next Friday" on a Tuesday, `3/4`) offer both readings.
-4. **Store and remind** ([`crates/pluck-core/src/store.rs`](crates/pluck-core/src/store.rs), [`src-tauri/src/notifications/`](src-tauri/src/notifications)) keeps tasks in SQLite and shows native notifications with actions when they're due.
+4. **Store and remind** ([`crates/todocity-core/src/store.rs`](crates/todocity-core/src/store.rs), [`src-tauri/src/notifications/`](src-tauri/src/notifications)) keeps tasks in SQLite and shows native notifications with actions when they're due.
 
 Selected text is treated as untrusted input: it's wrapped and sanitized as data, instructions live only in the system prompt, and the strict schema means an injection can at worst produce an odd task title.
 
@@ -328,7 +327,7 @@ Selected text is treated as untrusted input: it's wrapped and sanitized as data,
 **Prerequisites:** Rust (stable), Node 20+, CMake and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (`xcode-select --install` on macOS).
 
 ```bash
-git clone https://github.com/pillieshwar/Plucky.git && cd Plucky
+git clone https://github.com/pillieshwar/TodoCity.git && cd Todo City
 npm install
 scripts/build-llama-server.sh   # build the bundled model runtime once (a few minutes)
 npm run tauri dev               # run in development
@@ -347,7 +346,7 @@ npm test                 # date, time and repeat parsing, quick add, due chips, 
 ### Project layout
 
 ```
-crates/pluck-core/   Platform-independent Rust: prompt and schema, model clients, verified downloads,
+crates/todocity-core/   Platform-independent Rust: prompt and schema, model clients, verified downloads,
                      clipboard guard, SQLite store, recurrence, Reminders sync logic
 src-tauri/           Tauri v2 shell: menu bar, shortcuts, windows, capture, notifications, updates
 src/                 React + TypeScript UI: task panel, menu-bar popover, quick add; src/lib holds the logic
@@ -368,7 +367,7 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | No reminders appear | **Preferences → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Todo City with **–**, then capture again and re-allow it. |
 | The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Todo City starts next to the battery, but never moves the icon again after that. |
-| Something else | **Preferences → Show log file** opens Todo City's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/Plucky/issues). |
+| Something else | **Preferences → Show log file** opens Todo City's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/TodoCity/issues). |
 
 ## Uninstall
 
@@ -382,7 +381,7 @@ rm -rf ~/Library/Application\ Support/app.pluck.desktop
 
 Bug reports, ideas and pull requests are welcome.
 
-1. Open an [issue](https://github.com/pillieshwar/Plucky/issues) describing the bug or idea — for bugs, attach the log from **Preferences → Show log file**.
+1. Open an [issue](https://github.com/pillieshwar/TodoCity/issues) describing the bug or idea — for bugs, attach the log from **Preferences → Show log file**.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows and runs the security checks. Commit `Cargo.lock` and `package-lock.json` changes along with the dependency change that caused them.
 
@@ -398,4 +397,4 @@ Found a vulnerability? Please report it privately — see [SECURITY.md](SECURITY
 
 > 🔒 **Source-available, non-commercial.** Todo City is free, and its code is open to read, change and share for **personal and other non-commercial use** under the [PolyForm Noncommercial License 1.0.0](LICENSE). **Commercial use is not allowed** — that includes selling the app, a modified version, or a paid service built on it. Contributions are welcome and are shared under the same terms.
 >
-> Copyright © 2026 Eshwar Pilli. All rights not granted by the license are reserved. Want to use it commercially? [Open an issue](https://github.com/pillieshwar/Plucky/issues) to ask.
+> Copyright © 2026 Eshwar Pilli. All rights not granted by the license are reserved. Want to use it commercially? [Open an issue](https://github.com/pillieshwar/TodoCity/issues) to ask.

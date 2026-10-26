@@ -23,7 +23,7 @@ pub struct CatalogModel {
     pub approx_size_mb: u64,
     /// Smallest Mac memory size we recommend for this model.
     pub min_ram_gb: u32,
-    /// Quality for Plucky, from `scripts/eval` (1 = best). The best model a
+    /// Quality for Todo City, from `scripts/eval` (1 = best). The best model a
     /// Mac has enough memory for is recommended and used.
     pub rank: u8,
 }

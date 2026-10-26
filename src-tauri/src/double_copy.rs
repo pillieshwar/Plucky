@@ -1,12 +1,12 @@
-//! Press ⌘C twice to capture (see `pluck_core::double_copy`). The clipboard
+//! Press ⌘C twice to capture (see `todocity_core::double_copy`). The clipboard
 //! is only looked at, never intercepted, so ⌘C still copies everywhere.
 
 #[cfg(target_os = "macos")]
 pub fn start(app: &tauri::AppHandle) {
     use std::time::{Duration, Instant};
 
-    use pluck_core::double_copy::DoubleCopy;
     use tauri::Manager;
+    use todocity_core::double_copy::DoubleCopy;
 
     use crate::settings::Settings;
 
@@ -23,8 +23,8 @@ pub fn start(app: &tauri::AppHandle) {
                     enabled = app.state::<Settings>().get().double_copy;
                     checked = Some(Instant::now());
                 }
-                // Off, Plucky's own clipboard use, or copying inside Plucky.
-                if !enabled || crate::capture::clipboard_busy() || plucky_focused(&app) {
+                // Off, Todo City's own clipboard use, or copying inside Todo City.
+                if !enabled || crate::capture::clipboard_busy() || app_focused(&app) {
                     detector.reset();
                     continue;
                 }
@@ -44,7 +44,7 @@ pub fn start(app: &tauri::AppHandle) {
 }
 
 #[cfg(target_os = "macos")]
-fn plucky_focused(app: &tauri::AppHandle) -> bool {
+fn app_focused(app: &tauri::AppHandle) -> bool {
     use tauri::Manager;
     app.webview_windows()
         .values()

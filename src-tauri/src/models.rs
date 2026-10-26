@@ -10,19 +10,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use pluck_core::download::{check_url, download_client, download_file, part_path, DownloadError};
-use pluck_core::local_models::{self, FoundModel};
-use pluck_core::models::{self, parse_tree_listing, CatalogModel, CATALOG};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
+use todocity_core::download::{
+    check_url, download_client, download_file, part_path, DownloadError,
+};
+use todocity_core::local_models::{self, FoundModel};
+use todocity_core::models::{self, parse_tree_listing, CatalogModel, CATALOG};
 
 use crate::engine::Engine;
 
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     active_model: Option<String>,
-    /// Model files the user pointed Plucky at instead of downloading.
+    /// Model files the user pointed Todo City at instead of downloading.
     #[serde(default)]
     custom_models: Vec<CustomModel>,
 }

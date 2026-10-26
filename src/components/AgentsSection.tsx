@@ -215,7 +215,7 @@ function AppRow({
 function ManualSetup({ command, onError }: { command: string; onError: (m: string | null) => void }) {
   const [copied, setCopied] = useState<string | null>(null);
   const quoted = `"${command}"`;
-  const generic = JSON.stringify({ mcpServers: { plucky: { command, args: ["--mcp"] } } }, null, 2);
+  const generic = JSON.stringify({ mcpServers: { todocity: { command, args: ["--mcp"] } } }, null, 2);
 
   async function copy(key: string, text: string) {
     try {
@@ -230,7 +230,7 @@ function ManualSetup({ command, onError }: { command: string; onError: (m: strin
   return (
     <details className="agent-manual">
       <summary>Set up another app by hand</summary>
-      <p className="agent-app-hint">Add a stdio MCP server named “plucky” that runs:</p>
+      <p className="agent-app-hint">Add a stdio MCP server named “todocity” that runs:</p>
       <code className="agent-cmd">{quoted} --mcp</code>
       <div className="agent-manual-actions">
         <button type="button" className="ghost small" onClick={() => void copy("json", generic)}>

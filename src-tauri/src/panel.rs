@@ -245,7 +245,7 @@ pub fn show(app: &AppHandle) {
 
 pub fn hide(app: &AppHandle) {
     // Hiding the full-screen window ends full screen (and its Dock icon);
-    // Plucky opens as the side panel next time.
+    // Todo City opens as the side panel next time.
     if is_full(app) {
         if let Err(e) = switch_full(app, false) {
             log::warn!("could not leave full screen: {e}");

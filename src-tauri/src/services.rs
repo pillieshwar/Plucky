@@ -1,5 +1,5 @@
 //! macOS Services menu: select text in any app, then right-click →
-//! Services → "Add to Plucky". The text arrives through the pasteboard macOS
+//! Services → "Add to Todo City". The text arrives through the pasteboard macOS
 //! hands us, so the user's clipboard is never touched.
 //!
 //! The menu item itself is declared in `Info.plist` (`NSServices`).

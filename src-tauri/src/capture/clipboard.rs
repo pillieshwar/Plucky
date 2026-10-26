@@ -1,4 +1,4 @@
-//! The real clipboard behind `pluck_core::clipboard_guard::ClipboardAccess`.
+//! The real clipboard behind `todocity_core::clipboard_guard::ClipboardAccess`.
 
 #[cfg(target_os = "macos")]
 pub use mac::SystemClipboard;
@@ -16,8 +16,8 @@ mod mac {
         NSPasteboard, NSPasteboardItem, NSPasteboardTypeString, NSPasteboardWriting,
     };
     use objc2_foundation::{NSArray, NSData, NSString};
-    use pluck_core::clipboard_guard::ClipboardAccess;
     use tauri::AppHandle;
+    use todocity_core::clipboard_guard::ClipboardAccess;
 
     use crate::capture::{macos, on_main};
 
@@ -141,9 +141,9 @@ mod mac {
         fn snapshot_round_trip_keeps_every_type_and_item() {
             let _guard = PASTEBOARD.lock().unwrap_or_else(|e| e.into_inner());
             let first: &[(&str, &[u8])] = &[
-                ("public.utf8-plain-text", &b"hello pluck"[..]),
-                ("public.html", &b"<b>hello</b> pluck"[..]),
-                ("com.example.pluck-test", &[0u8, 1, 2, 255][..]),
+                ("public.utf8-plain-text", &b"hello todocity"[..]),
+                ("public.html", &b"<b>hello</b> todocity"[..]),
+                ("com.example.todocity-test", &[0u8, 1, 2, 255][..]),
             ];
             let second: &[(&str, &[u8])] = &[("public.utf8-plain-text", &b"second item"[..])];
             write_items(&[first, second]);
@@ -156,12 +156,12 @@ mod mac {
 
             assert!(restore_now(saved));
             // macOS joins the text of multiple pasteboard items with newlines.
-            assert_eq!(text_now().as_deref(), Some("hello pluck\nsecond item"));
+            assert_eq!(text_now().as_deref(), Some("hello todocity\nsecond item"));
             let again = save_now().expect("snapshot after restore");
             assert_eq!(again.len(), 2);
             assert!(again[0]
                 .iter()
-                .any(|(t, b)| t == "com.example.pluck-test" && b == &[0, 1, 2, 255]));
+                .any(|(t, b)| t == "com.example.todocity-test" && b == &[0, 1, 2, 255]));
             assert!(again[0].iter().any(|(t, _)| t == "public.html"));
         }
 
@@ -187,8 +187,8 @@ mod other {
     use std::sync::Mutex;
 
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-    use pluck_core::clipboard_guard::ClipboardAccess;
     use tauri::AppHandle;
+    use todocity_core::clipboard_guard::ClipboardAccess;
 
     pub struct SystemClipboard {
         inner: Mutex<arboard::Clipboard>,

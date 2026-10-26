@@ -4,16 +4,16 @@
 //! * Right click: a menu with today's tasks and app actions.
 
 use chrono::Local;
-use pluck_core::Task;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Wry};
+use todocity_core::Task;
 
 use crate::shortcuts::Shortcuts;
 use crate::updates::{UpdateStatus, Updates};
 use crate::{panel, popover, quick, AppState};
 
-const TRAY_ID: &str = "pluck";
+const TRAY_ID: &str = "todocity";
 
 /// Where the menu-bar icon is on screen, if it's showing.
 pub fn icon_rect(app: &AppHandle) -> Option<tauri::Rect> {
@@ -31,7 +31,7 @@ const MAX_TITLE: usize = 48;
 /// distance in points from the right edge of the screen — and reads it when
 /// the item is created. Tauri doesn't let us name the item, so AppKit calls
 /// it `Item-0` (the app's first and only status item). That key lives in the
-/// `app.pluck.desktop` defaults, which the rename to Plucky kept, so a spot
+/// `app.pluck.desktop` defaults, which the rename to Todo City kept, so a spot
 /// the user picks by ⌘-dragging survives updates. Writing a small distance
 /// before the item exists places it as far right as macOS allows. After
 /// this one time the spot is left to the user.

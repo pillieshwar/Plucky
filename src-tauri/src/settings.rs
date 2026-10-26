@@ -4,8 +4,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use pluck_core::notify::NotifySettings;
 use serde::{Deserialize, Serialize};
+use todocity_core::notify::NotifySettings;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -25,7 +25,7 @@ pub struct AppSettings {
     pub last_backup: Option<String>,
     /// The "what's new" note for this version was dismissed.
     pub seen_version: Option<String>,
-    /// Open the task panel when Plucky starts and the first time the Mac
+    /// Open the task panel when Todo City starts and the first time the Mac
     /// wakes each day, so it's never out of sight for long.
     pub show_on_start: bool,
     /// Last day (`YYYY-MM-DD`) the panel was shown for that reason.
@@ -76,7 +76,7 @@ pub struct AppSettings {
     pub email: EmailSchedule,
     /// Notice to-dos in Slack and Outlook as they appear on screen.
     pub watch: WatchSettings,
-    /// How Plucky looks and behaves, as the user likes it.
+    /// How Todo City looks and behaves, as the user likes it.
     pub look: LookSettings,
 }
 
@@ -184,7 +184,7 @@ impl Default for WatchSettings {
     }
 }
 
-/// `/email-tasks` run by Plucky every `interval` minutes between `start`
+/// `/email-tasks` run by Todo City every `interval` minutes between `start`
 /// and `end`, local time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

@@ -8,11 +8,11 @@
 
 use std::path::{Path, PathBuf};
 
-use pluck_core::things::{self, Options, Preview};
-use pluck_core::todoist;
-use pluck_core::ImportReport;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+use todocity_core::things::{self, Options, Preview};
+use todocity_core::todoist;
+use todocity_core::ImportReport;
 
 use crate::{data, err, tray, AppState, CmdResult};
 

@@ -16,7 +16,7 @@ use objc2_event_kit::{
     EKAuthorizationStatus, EKCalendar, EKEntityType, EKEventStore, EKReminder, EKSourceType,
 };
 use objc2_foundation::{NSArray, NSDateComponents, NSError, NSString};
-use pluck_core::reminders_sync::{RemindersBackend, SyncState};
+use todocity_core::reminders_sync::{RemindersBackend, SyncState};
 
 use super::{Access, ListInfo};
 

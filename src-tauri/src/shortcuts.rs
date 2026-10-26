@@ -47,7 +47,7 @@ pub struct ShortcutSettings {
     pub defaults_version: u32,
 }
 
-/// 2 = "Show or hide Plucky" gained a default (0.3.1), so the panel can be
+/// 2 = "Show or hide Todo City" gained a default (0.3.1), so the panel can be
 /// opened while a full-screen app hides the menu bar.
 /// 3 = new defaults in 0.4: capture ⇧⌘S (was ⇧⌘Z, which is Redo) and
 /// show/hide ⇧⌘H (was ⌥⇧⌘P). Only shortcuts still on the old default move.
@@ -228,7 +228,7 @@ impl ShortcutSpec {
     }
 }
 
-/// The keys Plucky accepts in shortcuts, by W3C code name.
+/// The keys Todo City accepts in shortcuts, by W3C code name.
 fn parse_code(code: &str) -> Option<Code> {
     Some(match code {
         "KeyA" => Code::KeyA,

@@ -1,7 +1,7 @@
 //! Watch mode: notice to-dos in Slack and Outlook as they appear.
 //!
 //! Every few seconds, if the frontmost window belongs to a watched app,
-//! Plucky reads its visible static text through Accessibility — the same
+//! Todo City reads its visible static text through Accessibility — the same
 //! permission the capture shortcut uses. No screenshots, no recording, never
 //! text fields or password fields. When the window settles, only lines that
 //! weren't there before are considered; a cheap keyword check skips most of
@@ -28,7 +28,7 @@ use crate::models::ModelManager;
 use crate::settings::{Settings, WatchSettings};
 
 /// Never read, whatever the settings: password managers, the Keychain,
-/// System Settings, terminals (tokens and secrets) and Plucky itself.
+/// System Settings, terminals (tokens and secrets) and Todo City itself.
 pub const ALWAYS_SKIP: &[(&str, &str)] = &[
     ("com.1password.1password", "1Password"),
     ("com.agilebits.onepassword7", "1Password 7"),
@@ -63,7 +63,7 @@ const MODEL_COOLDOWN: Duration = Duration::from_secs(12);
 const RECENT_APPS: usize = 10;
 
 const POLL: Duration = Duration::from_secs(3);
-/// The window must look the same this long before Plucky reads new lines,
+/// The window must look the same this long before Todo City reads new lines,
 /// so half-loaded channels and scrolling don't count.
 const SETTLE: Duration = Duration::from_secs(4);
 const MAX_NODES: usize = 4000;
@@ -213,7 +213,7 @@ fn hash<T: Hash + ?Sized>(t: &T) -> u64 {
     h.finish()
 }
 
-/// What Plucky remembers about one window: hashes of lines it has seen
+/// What Todo City remembers about one window: hashes of lines it has seen
 /// (never the text), and what the window looked like on the last read.
 #[derive(Default)]
 struct Window {
@@ -279,7 +279,7 @@ const CONTEXT_MESSAGES: usize = 8;
 /// Split the window into earlier and new messages, each as `Speaker: text`.
 /// `None` unless a new message looks like a request, deadline or promise.
 fn conversation(lines: &[String], fresh: &[usize]) -> Option<(Vec<String>, Vec<String>)> {
-    use pluck_core::transcript::structure;
+    use todocity_core::transcript::structure;
     let fresh: HashSet<usize> = fresh.iter().copied().collect();
     let render = |speaker: &Option<String>, parts: &[&str]| -> String {
         let text = parts.join("\n");
@@ -309,7 +309,7 @@ fn conversation(lines: &[String], fresh: &[usize]) -> Option<(Vec<String>, Vec<S
             new.push(render(&m.speaker, &neu));
         }
     }
-    if !new.iter().any(|l| pluck_core::prompt::has_task_cue(l)) {
+    if !new.iter().any(|l| todocity_core::prompt::has_task_cue(l)) {
         return None;
     }
     let skip = earlier.len().saturating_sub(CONTEXT_MESSAGES);
@@ -323,7 +323,7 @@ fn user_names(s: &WatchSettings, bundle: &str) -> Vec<String> {
         .names
         .get(bundle)
         .or_else(|| s.names.get("*"))
-        .map(|n| pluck_core::transcript::split_names(n.as_str()))
+        .map(|n| todocity_core::transcript::split_names(n.as_str()))
         .unwrap_or_default();
     if typed.is_empty() {
         mac_full_name().into_iter().collect()
@@ -546,7 +546,7 @@ fn deliver(
     show: bool,
     app_name: &str,
     title: &str,
-    actions: Vec<pluck_core::Extraction>,
+    actions: Vec<todocity_core::Extraction>,
 ) -> usize {
     let agents = app.state::<Agents>();
     let mut added = 0;
@@ -588,7 +588,7 @@ const CHECK_NEW: usize = 4;
 
 /// Split a whole window into earlier and "new" messages for a manual check.
 fn recent(lines: &[String]) -> Option<(Vec<String>, Vec<String>)> {
-    let msgs: Vec<String> = pluck_core::transcript::structure(lines)
+    let msgs: Vec<String> = todocity_core::transcript::structure(lines)
         .iter()
         .map(|m| m.render())
         .collect();

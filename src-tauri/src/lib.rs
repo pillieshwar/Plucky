@@ -1,4 +1,4 @@
-//! Plucky desktop shell: tray icon, global shortcut, docked task panel.
+//! Todo City desktop shell: tray icon, global shortcut, docked task panel.
 //!
 //! Lifecycle of one capture:
 //!   shortcut released → pre-warm the bundled model runtime and capture the
@@ -35,11 +35,11 @@ mod watch;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use pluck_core::{Extraction, NewTask, Store, Task, TaskPatch};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::ShortcutState;
+use todocity_core::{Extraction, NewTask, Store, Task, TaskPatch};
 
 use crate::capture::{CaptureMethod, CaptureResult};
 use crate::engine::Engine;
@@ -106,7 +106,7 @@ pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
 
 /// Every completed task, briefly: the lit windows of the city.
 #[tauri::command]
-fn city_windows(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::CityWindow>> {
+fn city_windows(state: State<'_, AppState>) -> CmdResult<Vec<todocity_core::CityWindow>> {
     state
         .store
         .lock()
@@ -131,13 +131,13 @@ fn logbook(
 }
 
 #[tauri::command]
-fn list_projects(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::ProjectSummary>> {
+fn list_projects(state: State<'_, AppState>) -> CmdResult<Vec<todocity_core::ProjectSummary>> {
     state.store.lock().map_err(err)?.projects().map_err(err)
 }
 
 /// Every project's headings: the floors of each building.
 #[tauri::command]
-fn list_floors(state: State<'_, AppState>) -> CmdResult<Vec<pluck_core::FloorSummary>> {
+fn list_floors(state: State<'_, AppState>) -> CmdResult<Vec<todocity_core::FloorSummary>> {
     state.store.lock().map_err(err)?.floors().map_err(err)
 }
 
@@ -507,14 +507,14 @@ fn reminders_open_privacy_settings() -> CmdResult<()> {
         .map_err(err)
 }
 
-// ── plucky:// links ─────────────────────────────────────────────────────────
+// ── todocity:// links ─────────────────────────────────────────────────────────
 
-/// A `plucky://…` link opened by macOS. None are handled today (the Slack
+/// A `todocity://…` link opened by macOS. None are handled today (the Slack
 /// sign-in that used them is gone); the scheme stays registered.
 fn on_deep_link(_app: &AppHandle, url: &url::Url) {
-    if url.scheme() == "plucky" {
+    if url.scheme() == "todocity" {
         log::info!(
-            "ignored plucky:// link ({:?}{})",
+            "ignored todocity:// link ({:?}{})",
             url.host_str(),
             url.path()
         );
@@ -1052,7 +1052,7 @@ fn set_panel_full(app: AppHandle, full: bool) -> CmdResult<()> {
     panel::set_full(&app, full).map_err(err)
 }
 
-/// Full screen: minimize the window to the Dock (clicking Plucky's Dock icon
+/// Full screen: minimize the window to the Dock (clicking Todo City's Dock icon
 /// brings it back).
 #[tauri::command]
 fn minimize_panel(app: AppHandle) -> CmdResult<()> {
@@ -1164,8 +1164,7 @@ fn finish_rename(app: &AppHandle) -> bool {
     let Ok(exe) = std::env::current_exe() else {
         return false;
     };
-    // …/Pluck.app/Contents/MacOS/Pluck (the executable keeps its old name,
-    // so copies updating from Pluck can restart into the new version).
+    // …/Plucky.app/Contents/MacOS/<executable>.
     let Some(bundle) = exe.ancestors().nth(3).map(|p| p.to_path_buf()) else {
         return false;
     };
@@ -1205,7 +1204,7 @@ fn finish_rename(app: &AppHandle) -> bool {
 }
 
 /// The login item of versions called Pluck (`Pluck.plist`) points at the old
-/// app. Replace it with Plucky's, if it was on.
+/// app. Replace it with Todo City's, if it was on.
 fn migrate_login_item(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
@@ -1275,7 +1274,7 @@ fn with_associated_bundle(plist: &str, id: &str) -> Option<String> {
     ))
 }
 
-/// Text sent through Services → "Add to Plucky".
+/// Text sent through Services → "Add to Todo City".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
     deliver_text(app, text, CaptureMethod::Service);
@@ -1344,13 +1343,13 @@ fn open_store(path: &std::path::Path) -> Store {
 
 // ── Logging ─────────────────────────────────────────────────────────────────
 
-/// `~/Library/Logs/Plucky/pluck.log` on macOS; the temp folder elsewhere.
+/// `~/Library/Logs/Todo City/todocity.log` on macOS; the temp folder elsewhere.
 fn log_file_path() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         std::env::var_os("HOME")
-            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Plucky/pluck.log"))
+            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Todo City/todocity.log"))
     } else {
-        Some(std::env::temp_dir().join("Plucky").join("pluck.log"))
+        Some(std::env::temp_dir().join("Todo City").join("todocity.log"))
     }
 }
 
@@ -1377,7 +1376,7 @@ fn init_logging() {
         }
     }
     let _ = builder.try_init();
-    log::info!("Plucky {} starting", env!("CARGO_PKG_VERSION"));
+    log::info!("Todo City {} starting", env!("CARGO_PKG_VERSION"));
 
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -1413,7 +1412,7 @@ fn reveal_logs() -> CmdResult<String> {
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
-/// `Pluck --mcp`: serve the write-only MCP tool over stdio. Returns the
+/// `TodoCity --mcp`: serve the write-only MCP tool over stdio. Returns the
 /// process exit code.
 pub fn run_mcp() -> i32 {
     agents::mcp::run()
@@ -1422,7 +1421,7 @@ pub fn run_mcp() -> i32 {
 pub fn run() {
     init_logging();
     let builder = tauri::Builder::default()
-        // plucky:// links.
+        // todocity:// links.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -1508,7 +1507,7 @@ pub fn run() {
 
             app.state::<Shortcuts>().register_all(app.handle());
             tray::build(app.handle())?;
-            // Let Plucky's windows open over full-screen apps.
+            // Let Todo City's windows open over full-screen apps.
             spaces::configure_all(app.handle());
             notifications::init(app.handle());
             notifications::start_scheduler(app.handle());
@@ -1561,7 +1560,7 @@ pub fn run() {
             // Keep one warm connection to the Mac's calendars (see calendar.rs).
             calendar::start(app.handle());
 
-            // plucky:// links: while running, and the one Plucky was opened with.
+            // todocity:// links: while running, and the one Todo City was opened with.
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
@@ -1699,7 +1698,7 @@ pub fn run() {
             hide_quick_add
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Plucky")
+        .expect("error while building Todo City")
         .run(|app, event| {
             // Clicking the Dock icon (shown while full screen) brings the
             // window back, minimized or hidden.

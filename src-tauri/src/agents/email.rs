@@ -1,11 +1,11 @@
 //! Email → tasks, on a schedule.
 //!
-//! Every `interval` minutes between `start` and `end` (local time), Plucky
+//! Every `interval` minutes between `start` and `end` (local time), Todo City
 //! runs Claude Code headless with `/email-tasks` (see `apps::email_command`).
 //! Claude Code reads recent mail through the user's own mail MCP server and
-//! sends action items back to Plucky's write-only `add_task`; they land in the
+//! sends action items back to Todo City's write-only `add_task`; they land in the
 //! review inbox like any other agent task. The run may use only that mail
-//! server's tools and `add_task`. Plucky itself never reads the mail.
+//! server's tools and `add_task`. Todo City itself never reads the mail.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -106,7 +106,7 @@ fn run_once(app: &AppHandle) -> EmailRun {
         return fail("Couldn't find your home folder.".into());
     };
     let Some(claude) = apps::find_claude(&home, true) else {
-        return fail("Claude Code isn't installed, or Plucky can't find it.".into());
+        return fail("Claude Code isn't installed, or Todo City can't find it.".into());
     };
     let Some(server) = settings.email.server.clone().filter(|s| !s.is_empty()) else {
         return fail("Choose your mail connection first.".into());
@@ -327,8 +327,8 @@ mod tests {
     #[test]
     fn understands_the_result() {
         assert_eq!(
-            outcome("…\nSent 2 tasks to Plucky.\n", "outlook"),
-            (true, "Sent 2 tasks to Plucky.".into())
+            outcome("…\nSent 2 tasks to Todo City.\n", "outlook"),
+            (true, "Sent 2 tasks to Todo City.".into())
         );
         assert!(!outcome("NO_EMAIL_TOOL\n", "outlook").0);
     }

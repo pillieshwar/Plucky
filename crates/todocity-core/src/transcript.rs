@@ -3,7 +3,7 @@
 //!
 //! Slack (and most chat apps) show a sender name, a time, then one or more
 //! lines of text; follow-up messages from the same person repeat neither.
-//! Accessibility gives Plucky those as separate lines, plus noise: date
+//! Accessibility gives Todo City those as separate lines, plus noise: date
 //! dividers, reaction counts, badges. [`structure`] groups them back into
 //! `Speaker: text` messages and remembers which input lines each came from.
 

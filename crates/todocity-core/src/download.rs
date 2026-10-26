@@ -56,7 +56,7 @@ pub fn download_client() -> Result<reqwest::Client, DownloadError> {
         .redirect(policy)
         .connect_timeout(Duration::from_secs(20))
         .read_timeout(Duration::from_secs(60))
-        .user_agent(concat!("Plucky/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("Todo City/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| DownloadError::Network(e.to_string()))
 }

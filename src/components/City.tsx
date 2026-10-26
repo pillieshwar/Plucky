@@ -91,14 +91,14 @@ export function CityCard({
   const stats = useMemo(() => cityStats(city, "week", now), [city, now]);
   const [small, setSmall] = useState(() => {
     try {
-      return localStorage.getItem("pluck.cityCard") === "small";
+      return localStorage.getItem("todocity.cityCard") === "small";
     } catch {
       return false;
     }
   });
   useEffect(() => {
     try {
-      localStorage.setItem("pluck.cityCard", small ? "small" : "big");
+      localStorage.setItem("todocity.cityCard", small ? "small" : "big");
     } catch {
       // The choice lasts this session.
     }

@@ -1,7 +1,7 @@
 //! Due-time notifications and the morning summary.
 //!
 //! A scheduler checks every 15 seconds which tasks are due (the rules are in
-//! `pluck_core::notify`) and shows a notification for each. On macOS each
+//! `todocity_core::notify`) and shows a notification for each. On macOS each
 //! one has Done / Snooze / Tomorrow buttons; clicking it opens the task.
 //! Everything happens on this Mac — nothing is scheduled with a server.
 
@@ -11,17 +11,17 @@ mod macos;
 use std::time::Duration;
 
 use chrono::{Local, NaiveDateTime};
-use pluck_core::notify::{self, format_local, NotifySettings};
-use pluck_core::{Task, TaskPatch};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+use todocity_core::notify::{self, format_local, NotifySettings};
+use todocity_core::{Task, TaskPatch};
 
 use crate::settings::Settings;
 use crate::AppState;
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub const TASK_CATEGORY: &str = "pluck-task";
-const SUMMARY_ID: &str = "pluck-summary";
+pub const TASK_CATEGORY: &str = "todocity-task";
+const SUMMARY_ID: &str = "todocity-summary";
 const TICK: Duration = Duration::from_secs(15);
 /// More due at once than this become one combined notification.
 const MAX_SEPARATE: usize = 3;
@@ -108,7 +108,7 @@ fn send(app: &AppHandle, note: Note) {
     }
 }
 
-/// A plain notification without buttons; clicking it opens Plucky.
+/// A plain notification without buttons; clicking it opens Todo City.
 pub fn send_plain(app: &AppHandle, id: &str, title: String, body: String) {
     send(
         app,
@@ -134,7 +134,7 @@ pub fn send_test(app: &AppHandle) {
     send(
         app,
         Note {
-            id: "pluck-test".into(),
+            id: "todocity-test".into(),
             title: "Notifications are on".into(),
             body: "Todo City will remind you like this when a task is due.".into(),
             actions: false,
@@ -196,7 +196,7 @@ fn tick(app: &AppHandle) {
                 send(
                     app,
                     Note {
-                        id: "pluck-undated".into(),
+                        id: "todocity-undated".into(),
                         title: if count == 1 {
                             "1 task has no date".into()
                         } else {
@@ -246,7 +246,7 @@ fn tick(app: &AppHandle) {
             send(
                 app,
                 Note {
-                    id: "pluck-many".into(),
+                    id: "todocity-many".into(),
                     title: format!("{} tasks are due", due.len()),
                     body: due
                         .iter()

@@ -1,5 +1,5 @@
 [package]
-name = "pluck"
+name = "todocity"
 description = "Select text anywhere, get a private, dated task. Runs a small model locally."
 version.workspace = true
 edition.workspace = true
@@ -7,14 +7,14 @@ license.workspace = true
 rust-version.workspace = true
 
 [lib]
-name = "pluck_lib"
+name = "todocity_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-pluck-core = { path = "../crates/pluck-core" }
+todocity-core = { path = "../crates/todocity-core" }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"

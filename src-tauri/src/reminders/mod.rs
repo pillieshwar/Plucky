@@ -1,12 +1,12 @@
 //! Optional two-way sync with Apple Reminders (macOS).
 //!
 //! Off by default. When on, a single worker thread owns the EventKit store
-//! and runs a sync pass (see `pluck_core::reminders_sync::run_pass`):
-//! * soon after any change in Plucky,
+//! and runs a sync pass (see `todocity_core::reminders_sync::run_pass`):
+//! * soon after any change in Todo City,
 //! * every 30 seconds, to pick up changes made in Reminders (e.g. on iPhone),
 //! * when asked from Settings.
 //!
-//! Privacy: Plucky itself never uploads anything, but if the chosen list
+//! Privacy: Todo City itself never uploads anything, but if the chosen list
 //! belongs to iCloud (or another account), macOS syncs it — so the UI warns
 //! before turning this on and while it's on.
 
@@ -27,9 +27,9 @@ use tauri::{AppHandle, Emitter, Manager};
 const POLL: Duration = Duration::from_secs(30);
 /// Wait for a burst of local edits to finish before syncing.
 const DEBOUNCE: Duration = Duration::from_millis(400);
-pub const DEFAULT_LIST: &str = "Plucky";
-/// The app was called Pluck up to 0.4.1.
-const OLD_LIST: &str = "Pluck";
+pub const DEFAULT_LIST: &str = "Todo City";
+/// Lists made under the app's earlier names (Plucky, and Pluck up to 0.4.1).
+const OLD_LISTS: [&str; 2] = ["Plucky", "Pluck"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -87,10 +87,10 @@ pub struct Status {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnableRequest {
-    /// An existing list, or None to create a "Plucky" list.
+    /// An existing list, or None to create a "Todo City" list.
     pub list_id: Option<String>,
     pub include_notes: bool,
-    /// Also add tasks that already exist in Plucky.
+    /// Also add tasks that already exist in Todo City.
     pub push_existing: bool,
 }
 
@@ -177,14 +177,14 @@ impl Reminders {
         self.settings.lock().map(|s| s.enabled).unwrap_or(false)
     }
 
-    /// Something changed in Plucky; sync soon.
+    /// Something changed in Todo City; sync soon.
     pub fn nudge(&self) {
         if self.enabled() {
             self.send(Cmd::Sync);
         }
     }
 
-    /// A linked task was deleted in Plucky; delete its reminder too.
+    /// A linked task was deleted in Todo City; delete its reminder too.
     pub fn deleted(&self, reminder_id: String) {
         if self.enabled() {
             self.send(Cmd::Deleted(reminder_id));
@@ -378,7 +378,7 @@ impl Worker {
                     // The list versions before the rename made.
                     ek.lists()
                         .into_iter()
-                        .find(|l| l.title == OLD_LIST && l.writable)
+                        .find(|l| OLD_LISTS.contains(&l.title.as_str()) && l.writable)
                 }) {
                 Some(existing) => existing,
                 None => ek.create_list(DEFAULT_LIST)?,
@@ -403,7 +403,7 @@ impl Worker {
 
     #[cfg(target_os = "macos")]
     fn sync(&self, ek: &mut eventkit::EventKit) {
-        use pluck_core::reminders_sync::{run_pass, PassOptions};
+        use todocity_core::reminders_sync::{run_pass, PassOptions};
 
         let settings = self.settings();
         let Some(list_id) = settings.list_id.clone() else {

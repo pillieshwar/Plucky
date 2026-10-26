@@ -18,12 +18,12 @@ name: Release
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the key whose public half is in
 # tauri.conf.json → plugins.updater.pubkey). The release then also carries
 # TodoCity.app.tar.gz, its .sig and latest.json, which installed copies of
-# Todo City (and older Pluck and Plucky) check for updates.
+# Todo City checks for updates.
 #
 # Supply chain: builds use only the committed lockfiles, start from an empty
 # cache (a poisoned cache can't reach a signed release), and every .dmg and
 # update archive gets a signed build-provenance attestation that anyone can
-# check with `gh attestation verify <file> --repo pillieshwar/Plucky`.
+# check with `gh attestation verify <file> --repo pillieshwar/TodoCity`.
 
 on:
   push:
@@ -204,7 +204,6 @@ jobs:
           2. Open Todo City. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
           3. The tour walks you through the rest: permission, model download (about 2 GB, once), shortcuts and a first capture.
 
-          Already using Plucky (or Pluck)? It updates itself to Todo City — look for **Restart to update** in the menu bar. Your tasks and settings stay.
 
           **Verify your download** (optional): `gh attestation verify TodoCity-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow.
           EOF

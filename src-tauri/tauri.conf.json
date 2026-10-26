@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Todo City",
-  "mainBinaryName": "Pluck",
-  "version": "0.4.44",
+  "mainBinaryName": "TodoCity",
+  "version": "0.4.45",
   "identifier": "app.pluck.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -91,13 +91,13 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["plucky"]
+        "schemes": ["todocity"]
       }
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBMURFNDEwOTAwOTU3ODYKUldTR1Z3bVFFT1FkdXBEdXBONFRFVTVlcXdqSjRkeVhNdWhQbk8zV3A1REZ5RmZONnlEd3dydDAK",
       "endpoints": [
-        "https://github.com/pillieshwar/Plucky/releases/latest/download/latest.json"
+        "https://github.com/pillieshwar/TodoCity/releases/latest/download/latest.json"
       ]
     }
   }

@@ -126,8 +126,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   // Full screen: the panel as a big window with a sidebar and a detail pane.
   const [full, setFull] = useState(false);
-  const [sideOpen, setSideOpen] = useState(() => saved("pluck.sidebar", ["open", "closed"], "open") === "open");
-  useEffect(() => remember("pluck.sidebar", sideOpen ? "open" : "closed"), [sideOpen]);
+  const [sideOpen, setSideOpen] = useState(() => saved("todocity.sidebar", ["open", "closed"], "open") === "open");
+  useEffect(() => remember("todocity.sidebar", sideOpen ? "open" : "closed"), [sideOpen]);
   // The side panel's window is see-through around its rounded card; full
   // screen paints the whole window.
   useEffect(() => {
@@ -146,16 +146,16 @@ export default function App() {
   // Which list: All, Today, Someday, Logbook or a project. Remembered per Mac.
   const [list, setList] = useState<ListId>(() => {
     try {
-      const saved = localStorage.getItem("pluck.list");
+      const saved = localStorage.getItem("todocity.list");
       if (saved) return saved as ListId;
-      return localStorage.getItem("pluck.view") === "week" ? "upcoming" : "today";
+      return localStorage.getItem("todocity.view") === "week" ? "upcoming" : "today";
     } catch {
       return "today";
     }
   });
   useEffect(() => {
     try {
-      localStorage.setItem("pluck.list", list);
+      localStorage.setItem("todocity.list", list);
     } catch {
       // Storage unavailable: the choice lasts this session.
     }
@@ -170,8 +170,8 @@ export default function App() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const anchor = useRef<number | null>(null);
   // Today as a list, or in hour blocks. Remembered per Mac.
-  const [todayMode, setTodayMode] = useState<TodayMode>(() => saved("pluck.todayMode", ["list", "hours"], "list"));
-  useEffect(() => remember("pluck.todayMode", todayMode), [todayMode]);
+  const [todayMode, setTodayMode] = useState<TodayMode>(() => saved("todocity.todayMode", ["list", "hours"], "list"));
+  useEffect(() => remember("todocity.todayMode", todayMode), [todayMode]);
   const upcoming = list === "upcoming";
   // Full screen always shows Today with its hours beside the list.
   const todayHours = list === "today" && (full || todayMode === "hours");

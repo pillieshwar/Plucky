@@ -56,7 +56,7 @@ jobs:
       - name: Build llama-server
         run: scripts/build-llama-server.sh
       - name: Build the eval
-        run: cargo build --locked -p pluck-core --example watch_eval --release
+        run: cargo build --locked -p todocity-core --example watch_eval --release
       - name: Evaluate
         env:
           MODEL_NAME: ${{ matrix.name }}

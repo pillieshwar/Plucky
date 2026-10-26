@@ -1,6 +1,6 @@
 //! "Press ⌘C twice to capture": spot two copies of the same text in quick
 //! succession by watching the clipboard's change count. The first ⌘C copies
-//! as usual; the second, within a moment, sends that text to Plucky.
+//! as usual; the second, within a moment, sends that text to Todo City.
 //!
 //! Nothing is intercepted, so ⌘C keeps working everywhere.
 
@@ -26,7 +26,7 @@ impl DoubleCopy {
         }
     }
 
-    /// Forget what was seen (e.g. while Plucky itself uses the clipboard);
+    /// Forget what was seen (e.g. while Todo City itself uses the clipboard);
     /// the next look starts afresh.
     pub fn reset(&mut self) {
         self.last_count = None;
@@ -106,7 +106,7 @@ mod tests {
         d.observe(t0, 1, None);
         d.observe(ms(t0, 100), 2, Some("x"));
         d.reset();
-        // Plucky's own clipboard use bumped the count; that's a new baseline.
+        // Todo City's own clipboard use bumped the count; that's a new baseline.
         assert_eq!(d.observe(ms(t0, 200), 4, Some("x")), None);
         assert_eq!(d.observe(ms(t0, 300), 5, Some("x")), None);
         assert_eq!(d.observe(ms(t0, 400), 6, Some("x")), Some("x".into()));

@@ -40,7 +40,7 @@ type Mode = "list" | "hours";
 
 function savedMode(): Mode {
   try {
-    return localStorage.getItem("pluck.popMode") === "hours" ? "hours" : "list";
+    return localStorage.getItem("todocity.popMode") === "hours" ? "hours" : "list";
   } catch {
     return "list";
   }
@@ -97,7 +97,7 @@ export default function Popover() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("pluck.popMode", mode);
+      localStorage.setItem("todocity.popMode", mode);
     } catch {
       // Storage unavailable: the choice lasts this session.
     }

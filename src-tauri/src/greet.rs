@@ -1,4 +1,4 @@
-//! Keep the task panel in sight: open it when Plucky starts (at login too)
+//! Keep the task panel in sight: open it when Todo City starts (at login too)
 //! and the first time the Mac wakes up each day.
 //!
 //! Waking is noticed without any OS hooks: a background thread ticks every
@@ -34,7 +34,7 @@ pub fn on_launch(app: &AppHandle, first_run: bool) {
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     std::thread::Builder::new()
-        .name("pluck-wake".into())
+        .name("todocity-wake".into())
         .spawn(move || {
             let mut last = SystemTime::now();
             loop {

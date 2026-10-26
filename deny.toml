@@ -2,7 +2,7 @@
 # https://embarkstudios.github.io/cargo-deny/
 
 [graph]
-# Plucky ships for macOS and Windows; ignore crates only Linux builds use.
+# Todo City ships for macOS and Windows; ignore crates only Linux builds use.
 targets = [
   "aarch64-apple-darwin",
   "x86_64-apple-darwin",
@@ -12,7 +12,7 @@ targets = [
 [advisories]
 version = 2
 # Known vulnerabilities always fail. Crates marked unmaintained fail only when
-# Plucky depends on them directly; deeper ones are reported as warnings.
+# Todo City depends on them directly; deeper ones are reported as warnings.
 unmaintained = "workspace"
 yanked = "deny"
 # Each ignored advisory needs a reason and is reviewed when it changes.
@@ -22,7 +22,7 @@ ignore = [
   # unpack update packages. Fixed in zip 9, which the updater can't use yet.
   # The bugs are in extracting attacker-controlled archives; the updater
   # only unpacks packages whose signature it has already verified against
-  # Plucky's public key, and zip isn't compiled into the macOS app at all.
+  # Todo City's public key, and zip isn't compiled into the macOS app at all.
   # Revisit when Tauri's updater moves to zip >= 9.
   { id = "RUSTSEC-2026-0367", reason = "zip 4 via tauri-plugin-updater (Windows only); only signature-verified update packages are extracted" },
   { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater (Windows only); only signature-verified update packages are extracted" },

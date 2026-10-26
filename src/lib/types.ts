@@ -1,4 +1,4 @@
-/** Mirrors `pluck_core::Task`. */
+/** Mirrors `todocity_core::Task`. */
 export interface Task {
   id: number;
   title: string;
@@ -41,7 +41,7 @@ export interface ChecklistItem {
   done: boolean;
 }
 
-/** Mirrors `pluck_core::ProjectSummary`. */
+/** Mirrors `todocity_core::ProjectSummary`. */
 export interface ProjectSummary {
   name: string;
   open: number;
@@ -50,7 +50,7 @@ export interface ProjectSummary {
   color?: string | null;
 }
 
-/** Mirrors `pluck_core::NewTask` (created_tz is filled in by Rust). */
+/** Mirrors `todocity_core::NewTask` (created_tz is filled in by Rust). */
 export interface NewTask {
   title: string;
   due_date: string | null;
@@ -69,7 +69,7 @@ export interface NewTask {
   checklist?: ChecklistItem[];
 }
 
-/** Mirrors `pluck_core::TaskPatch`. Omit a key to leave it unchanged. */
+/** Mirrors `todocity_core::TaskPatch`. Omit a key to leave it unchanged. */
 export interface TaskPatch {
   title?: string;
   due_date?: string | null;
@@ -89,7 +89,7 @@ export interface TaskPatch {
   only_this?: boolean;
 }
 
-/** Mirrors `pluck_core::Extraction`. */
+/** Mirrors `todocity_core::Extraction`. */
 export interface Extraction {
   task: string;
   date_text: string | null;
@@ -122,7 +122,7 @@ export interface Status {
   platform: string;
 }
 
-/** Mirrors `pluck_core::notify::NotifySettings`. */
+/** Mirrors `todocity_core::notify::NotifySettings`. */
 export interface NotifySettings {
   enabled: boolean;
   /** `HH:MM` — when to remind about tasks with a day but no time. */
@@ -443,7 +443,7 @@ export interface FloorSummary {
   done: number;
 }
 
-/** Mirrors `pluck_core::things::Options`. */
+/** Mirrors `todocity_core::things::Options`. */
 export interface ThingsOptions {
   include_done: boolean;
   include_canceled: boolean;
@@ -453,7 +453,7 @@ export interface ThingsOptions {
   priority_tags?: boolean;
 }
 
-/** Mirrors `pluck_core::things::BuildingPreview`. */
+/** Mirrors `todocity_core::things::BuildingPreview`. */
 export interface ThingsBuilding {
   key: string;
   name: string;
@@ -464,7 +464,7 @@ export interface ThingsBuilding {
   floors: number;
 }
 
-/** Mirrors `pluck_core::things::Preview`. */
+/** Mirrors `todocity_core::things::Preview`. */
 export interface ThingsPreviewData {
   buildings: ThingsBuilding[];
   open: number;
@@ -492,7 +492,7 @@ export interface TodoistPreview {
   preview: ThingsPreviewData;
 }
 
-/** Mirrors `pluck_core::ImportReport`. */
+/** Mirrors `todocity_core::ImportReport`. */
 export interface ImportReport {
   added: number;
   done: number;

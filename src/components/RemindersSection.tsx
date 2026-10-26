@@ -51,7 +51,7 @@ export function RemindersSection({ embedded = false }: { embedded?: boolean }) {
       const found = (await api.remindersLists()).filter((l) => l.writable);
       setLists(found);
       // Reuse the list made before the app was renamed from Pluck.
-      const existing = found.find((l) => l.title === "Todo City") ?? found.find((l) => l.title === "Pluck");
+      const existing = found.find((l) => l.title === "Todo City") ?? found.find((l) => l.title === "Plucky" || l.title === "Pluck");
       setChoice(existing ? existing.id : NEW_LIST);
       setAcknowledged(false);
       setSetup(true);
