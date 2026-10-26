@@ -782,6 +782,10 @@ await shot("panel-connectors-sync-on", PANEL, scenario({ sync: SYNC_ON }), async
   await syncOpen(p);
   await p.locator(".connector-subhead", { hasText: "Your Macs" }).scrollIntoViewIfNeeded();
 });
+await shot("panel-connectors-sync-local", PANEL, scenario({ sync: SYNC_ON, tasks: RICH_TASKS }), async (p) => {
+  await syncOpen(p);
+  await p.locator(".sync-leave").scrollIntoViewIfNeeded();
+});
 await shot("panel-connectors-sync-join", PANEL, scenario({ sync: SYNC_BASE }), async (p) => {
   await syncOpen(p);
   await p.getByRole("button", { name: "I have a code" }).click();
