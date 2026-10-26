@@ -37,12 +37,7 @@ jobs:
         # (npm 10 can't resolve it next to vitest's optional Playwright
         # integration).
         run: |
-          if [ -f scripts/ui-preview/package-lock.json ]; then
-            npm ci --prefix scripts/ui-preview --no-audit --no-fund
-          else
-            npm install --prefix scripts/ui-preview --no-audit --no-fund
-            echo "::notice title=lockfile::$(gzip -9c scripts/ui-preview/package-lock.json | base64 | tr -d "\n")"
-          fi
+          npm ci --prefix scripts/ui-preview --no-audit --no-fund
           scripts/ui-preview/node_modules/.bin/playwright install chromium
       - name: Screenshots
         run: |
