@@ -17,7 +17,7 @@
   ],
   // Per network address, per minute.
   "ratelimits": [
-    { "name": "PER_IP", "namespace_id": "4101", "simple": { "limit": 600, "period": 60 } },
+    { "name": "PER_IP", "namespace_id": "4101", "simple": { "limit": 1200, "period": 60 } },
     { "name": "PAIR_IP", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
   ],
   // No request logs: the relay keeps nothing it doesn't need.

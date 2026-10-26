@@ -370,6 +370,31 @@ fn forget(app: &AppHandle, removed: bool) {
     let _ = app.emit("sync-changed", ());
 }
 
+/// A backup replaced the tasks. With sync on, the restored copy is what
+/// counts from now on: it goes out as new, and the other Macs are asked for
+/// anything it doesn't have.
+pub fn after_restore(app: &AppHandle) {
+    let svc = app.state::<SyncService>();
+    let Some(me) = svc.membership() else {
+        return;
+    };
+    {
+        let state = app.state::<AppState>();
+        if let Ok(store) = state.store.lock() {
+            if let Err(e) = store.sync_reset() {
+                log::warn!("sync: couldn't reset after restoring: {e}");
+            }
+        }
+    }
+    let relay = svc.relay();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = sync::ask_resync(&relay, &me).await {
+            log::warn!("sync: couldn't ask the other Macs for a copy: {e}");
+        }
+    });
+    svc.nudge();
+}
+
 // ── What the UI shows ──────────────────────────────────────────────────────
 
 #[derive(Serialize)]

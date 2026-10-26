@@ -55,8 +55,8 @@ const PAGE = 100;
 const KEEP_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Per mailbox, per minute.
-const CALLS_PER_MIN = 240;
-const PUTS_PER_MIN = 120;
+const CALLS_PER_MIN = 600;
+const PUTS_PER_MIN = 300;
 
 const ROOM_MS = 10 * 60 * 1000;
 const ROOM_MSGS = 12;

@@ -206,8 +206,10 @@ impl Store {
     /// Forget everything sync knew (leaving a group, or joining a new one).
     /// Tasks stay as they are.
     pub fn sync_reset(&self) -> Result<(), StoreError> {
-        self.conn
-            .execute_batch("DELETE FROM sync_shadow; DELETE FROM sync_state;")?;
+        // The change counter and the clock carry on.
+        self.conn.execute_batch(
+            "DELETE FROM sync_shadow; DELETE FROM sync_state WHERE key NOT IN ('dirty', 'hlc');",
+        )?;
         Ok(())
     }
 
@@ -292,6 +294,16 @@ impl Store {
         name: &str,
         local_only: &HashSet<String>,
     ) -> Result<usize, StoreError> {
+        // Nothing changed since the last look (same tables, name and
+        // rules): skip comparing everything.
+        let dirty = self.sync_get("dirty")?.unwrap_or_default();
+        let mut rules: Vec<&str> = local_only.iter().map(String::as_str).collect();
+        rules.sort_unstable();
+        let mark = format!("{dirty}|{name}|{}", rules.join("\u{1f}"));
+        if !dirty.is_empty() && self.sync_get("collected")?.as_deref() == Some(mark.as_str()) {
+            return Ok(0);
+        }
+
         let tx = self.conn.unchecked_transaction()?;
         let mut clock = self.clock()?;
         let now = now_ms();
@@ -354,6 +366,7 @@ impl Store {
             put(&me, "name", &name_json, &mut clock)?;
         }
         self.save_clock(&clock)?;
+        self.sync_put("collected", &mark)?;
         tx.commit()?;
         Ok(changed)
     }
@@ -420,6 +433,8 @@ impl Store {
     /// Fold in changes from other Macs: each field keeps its newest value,
     /// and tasks, projects and headings are written to match.
     pub fn sync_apply(&self, device: &str, changes: &[Change]) -> Result<Applied, StoreError> {
+        let dirty_before = self.sync_get("dirty")?;
+        let collected = self.sync_get("collected")?;
         let tx = self.conn.unchecked_transaction()?;
         let mut clock = self.clock()?;
         let mut touched = BTreeSet::<String>::new();
@@ -496,6 +511,14 @@ impl Store {
             }
         }
         self.save_clock(&clock)?;
+        // The tables were in step with the shadow before, and what was just
+        // written matches it too: still in step.
+        if let (Some(before), Some(c)) = (dirty_before, collected) {
+            if let Some(rest) = c.strip_prefix(&format!("{before}|")) {
+                let after = self.sync_get("dirty")?.unwrap_or_default();
+                self.sync_put("collected", &format!("{after}|{rest}"))?;
+            }
+        }
         tx.commit()?;
         Ok(out)
     }
@@ -958,6 +981,39 @@ mod tests {
             .unwrap();
         let r = a.sync_apply("A", &b.sync_pending(10).unwrap()).unwrap();
         assert!(r.removed_here);
+    }
+
+    #[test]
+    fn unchanged_tables_are_not_compared_again() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let t = a.insert(new("One")).unwrap();
+        assert!(a.sync_collect("A", "A", &none()).unwrap() > 0);
+        assert_eq!(a.sync_collect("A", "A", &none()).unwrap(), 0);
+        // Taking in changes keeps it in step: no full compare, nothing echoed.
+        b.insert(new("Two")).unwrap();
+        b.sync_collect("B", "B", &none()).unwrap();
+        a.sync_apply("A", &b.sync_pending(100).unwrap()).unwrap();
+        assert_eq!(
+            a.sync_get("collected").unwrap().unwrap().split('|').next(),
+            a.sync_get("dirty").unwrap().as_deref()
+        );
+        assert_eq!(a.sync_collect("A", "A", &none()).unwrap(), 0);
+        // A real edit, a new name or a new rule is noticed.
+        a.update(
+            t.id,
+            TaskPatch {
+                title: Some("One!".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(a.sync_collect("A", "A", &none()).unwrap(), 1);
+        assert_eq!(a.sync_collect("A", "Renamed", &none()).unwrap(), 1);
+        let rule: HashSet<String> = ["Home".to_string()].into();
+        assert_eq!(a.sync_collect("A", "Renamed", &rule).unwrap(), 0);
+        a.sync_reset().unwrap();
+        assert!(a.sync_collect("A", "Renamed", &rule).unwrap() > 0);
     }
 
     #[test]

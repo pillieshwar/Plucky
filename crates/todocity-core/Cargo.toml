@@ -19,6 +19,8 @@ sha2.workspace = true
 tokio.workspace = true
 # Sync: end-to-end encryption (already used by rustls, so no new code).
 ring = "0.17"
+# Sync: compress boxes before sealing them (already used by Tauri).
+miniz_oxide = "0.9"
 
 [dev-dependencies]
 tempfile = "3"

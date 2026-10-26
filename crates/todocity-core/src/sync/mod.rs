@@ -45,8 +45,43 @@ pub enum Kind {
     Resync,
 }
 
-/// The most plaintext in one box, so a sealed box fits the relay's limit.
-pub const BOX_PLAIN_MAX: usize = 200 * 1024;
+/// The most a sealed box may be (the relay takes up to 256 KB).
+pub const BOX_MAX: usize = 250_000;
+/// How much JSON goes into one box before compressing.
+const BATCH_RAW: usize = 1024 * 1024;
+/// The most a box may unpack to.
+const UNPACK_MAX: usize = 16 * 1024 * 1024;
+
+/// Compress and seal one payload; split the batch in two if it won't fit.
+fn seal_batch(
+    key: &GroupKey,
+    from: &str,
+    kind: Kind,
+    batch: &[Change],
+    out: &mut Vec<Vec<u8>>,
+) -> Result<(), crypto::CryptoError> {
+    let p = Payload {
+        v: 1,
+        from: from.to_string(),
+        kind,
+        changes: batch.to_vec(),
+    };
+    let z = miniz_oxide::deflate::compress_to_vec(&serde_json::to_vec(&p).unwrap_or_default(), 6);
+    if z.len() + 64 > BOX_MAX {
+        if batch.len() > 1 {
+            let (a, b) = batch.split_at(batch.len() / 2);
+            seal_batch(key, from, kind, a, out)?;
+            return seal_batch(key, from, kind, b, out);
+        }
+        log::warn!(
+            "sync: skipping one field too big to send ({} KB)",
+            z.len() / 1024
+        );
+        return Ok(());
+    }
+    out.push(key.seal(&z)?);
+    Ok(())
+}
 
 /// Seal `changes` into as many boxes as they need.
 pub fn pack(
@@ -55,50 +90,46 @@ pub fn pack(
     changes: &[Change],
 ) -> Result<Vec<Vec<u8>>, crypto::CryptoError> {
     let mut boxes = Vec::new();
-    let mut batch: Vec<Change> = Vec::new();
+    let mut start = 0;
     let mut size = 0;
-    let seal = |batch: Vec<Change>| -> Result<Vec<u8>, crypto::CryptoError> {
-        let p = Payload {
-            v: 1,
-            from: from.to_string(),
-            kind: Kind::Changes,
-            changes: batch,
-        };
-        key.seal(&serde_json::to_vec(&p).unwrap_or_default())
-    };
-    for c in changes {
+    for (i, c) in changes.iter().enumerate() {
         let n = serde_json::to_vec(c).map(|v| v.len()).unwrap_or(0) + 1;
-        if n > BOX_PLAIN_MAX - 200 {
-            log::warn!("sync: skipping one field too big to send ({} KB)", n / 1024);
-            continue;
-        }
-        if size + n > BOX_PLAIN_MAX - 200 && !batch.is_empty() {
-            boxes.push(seal(std::mem::take(&mut batch))?);
+        if size + n > BATCH_RAW && i > start {
+            seal_batch(key, from, Kind::Changes, &changes[start..i], &mut boxes)?;
+            start = i;
             size = 0;
         }
         size += n;
-        batch.push(c.clone());
     }
-    if !batch.is_empty() {
-        boxes.push(seal(batch)?);
+    if start < changes.len() {
+        seal_batch(key, from, Kind::Changes, &changes[start..], &mut boxes)?;
     }
     Ok(boxes)
 }
 
 /// A box asking the others for a full copy.
 pub fn resync_box(key: &GroupKey, from: &str) -> Result<Vec<u8>, crypto::CryptoError> {
-    let p = Payload {
-        v: 1,
-        from: from.to_string(),
-        kind: Kind::Resync,
-        changes: vec![],
-    };
-    key.seal(&serde_json::to_vec(&p).unwrap_or_default())
+    let mut out = Vec::new();
+    seal_batch(key, from, Kind::Resync, &[], &mut out)?;
+    out.pop().ok_or(crypto::CryptoError::Random)
 }
 
 pub fn unpack(key: &GroupKey, data: &[u8]) -> Option<Payload> {
-    let plain = key.open(data).ok()?;
+    let z = key.open(data).ok()?;
+    let plain = miniz_oxide::inflate::decompress_to_vec_with_limit(&z, UNPACK_MAX).ok()?;
     serde_json::from_slice(&plain).ok()
+}
+
+/// Ask the others for a full copy (after restoring a backup, say).
+pub async fn ask_resync(relay: &Relay, me: &Membership) -> Result<(), SyncError> {
+    relay
+        .put(
+            &me.key.mailbox_id(),
+            &me.key.mailbox_token(),
+            resync_box(&me.key, &me.device)?,
+        )
+        .await?;
+    Ok(())
 }
 
 /// This Mac's place in a group.
@@ -266,22 +297,46 @@ pub async fn send_snapshot(
 mod tests {
     use super::*;
 
-    fn change(i: usize, size: usize) -> Change {
+    /// Text that barely compresses, like real notes in bulk.
+    fn noise(n: usize, seed: u64) -> String {
+        let mut x = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (0..n)
+            .map(|_| {
+                x = x
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+                    [(x >> 58) as usize] as char
+            })
+            .collect()
+    }
+
+    fn change(i: usize, text: String) -> Change {
         Change {
             entity: format!("t:{i}"),
             field: "notes".into(),
-            value: serde_json::Value::from("x".repeat(size)),
+            value: serde_json::Value::from(text),
             hlc: format!("{:013}-000000-A", i),
         }
     }
 
     #[test]
-    fn pack_splits_big_batches_and_unpacks() {
+    fn pack_compresses_splits_and_unpacks() {
         let key = GroupKey::generate().unwrap();
-        let changes: Vec<Change> = (0..30).map(|i| change(i, 20_000)).collect();
+        // Repetitive text shrinks a lot: many fields in one box.
+        let plain: Vec<Change> = (0..300)
+            .map(|i| change(i, "Call Maya about the offsite ".repeat(20)))
+            .collect();
+        assert_eq!(pack(&key, "A", &plain).unwrap().len(), 1);
+
+        let changes: Vec<Change> = (0..40)
+            .map(|i| change(i, noise(20_000, i as u64)))
+            .collect();
         let boxes = pack(&key, "A", &changes).unwrap();
         assert!(boxes.len() >= 3, "{}", boxes.len());
-        assert!(boxes.iter().all(|b| b.len() < 256 * 1024));
+        assert!(boxes.iter().all(|b| b.len() <= BOX_MAX));
         let back: Vec<Change> = boxes
             .iter()
             .flat_map(|b| unpack(&key, b).unwrap().changes)
@@ -290,7 +345,13 @@ mod tests {
         // Another group's key can't read them.
         assert!(unpack(&GroupKey::generate().unwrap(), &boxes[0]).is_none());
         // Far too big for one box: left out rather than stopping everything.
-        let huge = pack(&key, "A", &[change(1, 300_000), change(2, 10)]).unwrap();
+        let huge = pack(
+            &key,
+            "A",
+            &[change(1, noise(400_000, 9)), change(2, "x".into())],
+        )
+        .unwrap();
+        assert_eq!(huge.len(), 1);
         assert_eq!(unpack(&key, &huge[0]).unwrap().changes.len(), 1);
     }
 

@@ -268,6 +268,17 @@ CREATE TABLE sync_shadow (
 ) WITHOUT ROWID;
 CREATE INDEX sync_shadow_pending ON sync_shadow (pending) WHERE pending = 1;
 CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- A counter that moves whenever tasks, projects or headings change, so sync
+-- only compares everything when something did.
+INSERT INTO sync_state (key, value) VALUES ('dirty', '1');
+CREATE TRIGGER sync_dirty_task_ins AFTER INSERT ON tasks BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_task_upd AFTER UPDATE ON tasks BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_task_del AFTER DELETE ON tasks BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_proj_ins AFTER INSERT ON projects BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_proj_upd AFTER UPDATE ON projects BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_proj_del AFTER DELETE ON projects BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_floor_ins AFTER INSERT ON floors BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
+CREATE TRIGGER sync_dirty_floor_del AFTER DELETE ON floors BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
 "#,
 ];
 

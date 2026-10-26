@@ -8,7 +8,7 @@ A small Cloudflare Worker that stores and forwards **sealed** boxes between a pe
 - **Acknowledgements.** Each Mac says which box it has read up to. A box is deleted as soon as every Mac in the group has it, and in any case after 30 days.
 - **Gaps.** A Mac that comes back after its boxes were deleted is told `gap: true`. It asks the others, through the mailbox, for a full copy.
 - **Pairing rooms.** For adding a Mac: an 8-letter code opens a room for 10 minutes that holds a few small messages (public keys and a sealed invite). The two Macs show the same six digits if, and only if, nobody swapped keys in between.
-- **Limits.** Boxes up to 256 KB; 4,000 boxes or 64 MB waiting per mailbox; 10 Macs per group; 240 calls and 120 boxes per minute per mailbox; 600 requests and 30 pairing messages per minute per network address.
+- **Limits.** Boxes up to 256 KB; 4,000 boxes or 64 MB waiting per mailbox; 10 Macs per group; 600 calls and 300 boxes per minute per mailbox; 1,200 requests and 30 pairing messages per minute per network address.
 
 The full API is at the top of [`src/index.ts`](src/index.ts). The app's side is `crates/todocity-core/src/sync/`.
 

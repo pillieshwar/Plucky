@@ -817,6 +817,7 @@ fn restore_backup(app: AppHandle, state: State<'_, AppState>, name: String) -> C
         *store = open_store(&db);
     }
     log::info!("restored tasks from {name}");
+    sync::after_restore(&app);
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
     nudge_reminders(&app);
