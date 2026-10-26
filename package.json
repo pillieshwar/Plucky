@@ -1,8 +1,8 @@
 {
   "name": "pluck",
   "private": true,
-  "license": "MIT",
-  "version": "0.4.43",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "version": "0.4.44",
   "type": "module",
   "description": "Select text anywhere, get a private, dated task. Runs a small model locally.",
   "scripts": {

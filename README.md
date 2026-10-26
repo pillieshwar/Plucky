@@ -14,7 +14,7 @@ A small AI model runs entirely on your own computer, so nothing you capture ever
 [![Security](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml/badge.svg)](https://github.com/pillieshwar/Plucky/actions/workflows/security.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pillieshwar/Plucky/badge)](https://scorecard.dev/viewer/?uri=github.com/pillieshwar/Plucky)
 [![macOS 11+](https://img.shields.io/badge/macOS-11%2B-171b1a?logo=apple)](#install)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
 <a href="https://github.com/pillieshwar/Plucky/releases/latest/download/TodoCity-macOS.dmg"><img src="docs/download-mac.svg" alt="Download Todo City for Mac" width="248" height="52"></a>
 
@@ -386,6 +386,8 @@ Bug reports, ideas and pull requests are welcome.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows and runs the security checks. Commit `Cargo.lock` and `package-lock.json` changes along with the dependency change that caused them.
 
+By opening a pull request, you agree that your contribution is shared under this project's [license](LICENSE), and that the project's author may also use it under other terms.
+
 Maintainers: releases are cut from **Actions → Release → Run workflow** after bumping `version` in `package.json`, `src-tauri/tauri.conf.json` and `Cargo.toml`. The workflow builds a universal `.dmg`, signs the update archive and publishes `latest.json` for in-app updates.
 
 ## Security
@@ -394,4 +396,6 @@ Found a vulnerability? Please report it privately — see [SECURITY.md](SECURITY
 
 ## License
 
-[MIT](LICENSE) © 2026 Eshwar Pilli
+> 🔒 **Source-available, non-commercial.** Todo City is free, and its code is open to read, change and share for **personal and other non-commercial use** under the [PolyForm Noncommercial License 1.0.0](LICENSE). **Commercial use is not allowed** — that includes selling the app, a modified version, or a paid service built on it. Contributions are welcome and are shared under the same terms.
+>
+> Copyright © 2026 Eshwar Pilli. All rights not granted by the license are reserved. Want to use it commercially? [Open an issue](https://github.com/pillieshwar/Plucky/issues) to ask.

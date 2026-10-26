@@ -3,9 +3,9 @@ resolver = "2"
 members = ["crates/pluck-core", "src-tauri"]
 
 [workspace.package]
-version = "0.4.43"
+version = "0.4.44"
 edition = "2021"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 rust-version = "1.77"
 
 [workspace.dependencies]
