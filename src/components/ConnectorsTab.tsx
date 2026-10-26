@@ -41,7 +41,7 @@ export function ConnectorsTab() {
         icon={<CalendarGlyph />}
         tone="calendar"
         name="Calendar"
-        description="See your meetings next to your tasks in the menu bar."
+        description="Your meetings beside your tasks."
         connected={!!calendar?.enabled && calendar.access === "full"}
         open={open === "calendar"}
         onToggle={() => toggle("calendar")}
@@ -53,7 +53,7 @@ export function ConnectorsTab() {
         icon={<RemindersGlyph />}
         tone="reminders"
         name="Apple Reminders"
-        description="Sync tasks both ways, and tick them off on your iPhone."
+        description="Sync both ways, and tick tasks off on your iPhone."
         connected={!!reminders?.enabled}
         open={open === "reminders"}
         onToggle={() => toggle("reminders")}
@@ -65,7 +65,7 @@ export function ConnectorsTab() {
         icon={<EyeGlyph />}
         tone="watch"
         name="Watch my screen"
-        description="Notice requests and deadlines in any app, on this Mac."
+        description="Spot to-dos in any app, on this Mac."
         connected={!!watch?.settings.enabled}
         connectedLabel="On"
         open={open === "watch"}
@@ -78,7 +78,7 @@ export function ConnectorsTab() {
         icon={<SparkGlyph />}
         tone="agents"
         name="AI agents"
-        description="Let Claude and other AI apps on this Mac add tasks — never read them."
+        description="Let AI apps add tasks — never read them."
         connected={!!agents?.enabled}
         open={open === "agents"}
         onToggle={() => toggle("agents")}

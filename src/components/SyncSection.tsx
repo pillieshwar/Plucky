@@ -76,11 +76,7 @@ export function SyncSection({ status, onStatus }: { status: SyncStatus | null; o
             </button>
           </div>
         )}
-        <p className="sync-lead">
-          Keep the same tasks on your work and personal Macs — no iCloud or account needed. Changes are locked on this Mac
-          before they leave, with a key only your Macs have. The relay in between passes sealed boxes along and can't open
-          them.
-        </p>
+        <p className="sync-lead">The same tasks on all your Macs — no iCloud or account. End-to-end encrypted.</p>
         {joining ? (
           <form
             className="sync-join"

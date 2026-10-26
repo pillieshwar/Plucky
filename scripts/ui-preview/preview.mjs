@@ -1100,10 +1100,10 @@ await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) =>
   await tab(p, "Move in");
   await p.getByRole("tab", { name: /Todoist/ }).click();
   await p.getByLabel("Todoist API token").fill("bad-token");
-  await p.getByRole("button", { name: "Connect" }).click();
+  await p.getByRole("button", { name: "Connect", exact: true }).click();
   await p.locator(".tr-error").waitFor();
   await p.getByLabel("Todoist API token").fill("good-token");
-  await p.getByRole("button", { name: "Connect" }).click();
+  await p.getByRole("button", { name: "Connect", exact: true }).click();
   await p.locator(".tr-preview").waitFor();
   const label = await p.locator(".tr-preview .primary").textContent();
   if (label !== "Move in 381 tasks") throw new Error(`move-in count wrong: ${label}`);
