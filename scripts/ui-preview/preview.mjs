@@ -738,6 +738,27 @@ await shot(
     await p.waitForTimeout(300);
   },
 );
+await shot(
+  "popover-capture-place",
+  POP,
+  scenario({
+    label: "popover",
+    extract: { task: "Send Q3 numbers to Priya", date_text: "by Friday 3pm", date_confidence: "high" },
+    tasks: RICH_TASKS,
+    floors: [
+      { project: "Offsite 2026", name: "Travel", open: 1, done: 0 },
+      { project: "Offsite 2026", name: "Program", open: 1, done: 0 },
+    ],
+  }),
+  async (p) => {
+    await p.evaluate((c) => window.__emit("capture", c), CAPTURED);
+    await p.waitForTimeout(300);
+    await p.locator(".capture .add-place select").first().selectOption("Offsite 2026");
+    const floors = await p.locator(".capture .add-place select").nth(1).locator("option").allTextContents();
+    if (!floors.includes("Travel")) throw new Error(`the floor list doesn't follow the project: ${floors.join(", ")}`);
+    await p.locator(".capture .add-place select").nth(1).selectOption("Travel");
+  },
+);
 await shot("popover-capture-reading", POP, scenario({ label: "popover", extract: "pending" }), async (p) => {
   await p.evaluate((c) => window.__emit("capture", c), CAPTURED);
 });
@@ -1203,7 +1224,7 @@ await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
 });
 const openFloor = async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.locator(".sb-floor", { hasText: "Floor: Travel" }).click();
+  await p.getByRole("button", { name: "1st Floor: Travel" }).click();
   await p.waitForTimeout(250);
   if (!(await p.locator(".fh-title", { hasText: "Floor: Travel" }).count())) throw new Error("the floor's page didn't open");
   if (!(await p.locator(".fh-crumb", { hasText: "Offsite 2026" }).count())) throw new Error("no breadcrumb back to the project");
@@ -1222,6 +1243,69 @@ await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
   await p.keyboard.press("Enter");
   await p.waitForTimeout(300);
   if (await p.locator(".add-task").count()) throw new Error("the add form stayed open after adding");
+});
+// Floors in the sidebar: a small number, then the name.
+await shot("full-sidebar-floors", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  const lvl = await p.locator(".sb-floor-row .sb-lvl").allTextContents();
+  if (!lvl.includes("G") || !lvl.includes("1")) throw new Error(`floor numbers missing: ${lvl.join(",")}`);
+  if (await p.locator(".sb-floor-name", { hasText: "Floor:" }).count()) throw new Error("floor names still carry the 'Nth Floor:' prefix");
+});
+// Drag a task from Today onto a floor of another building.
+await shot("full-drag-to-floor", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Show Offsite 2026's floors" }).click();
+  const task = p.locator(".task .task-row").first();
+  const name = (await task.locator(".task-title").first().textContent())?.trim();
+  const from = await task.boundingBox();
+  const to = await p.getByRole("button", { name: "1st Floor: Travel" }).boundingBox();
+  await p.mouse.move(from.x + 40, from.y + from.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 60, from.y + 30, { steps: 4 });
+  await p.mouse.move(to.x + 40, to.y + to.height / 2, { steps: 10 });
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".sb-floor-row.drop").count())) throw new Error("the floor doesn't light up under a dragged task");
+  if (!(await p.locator(".pop-ghost", { hasText: "Offsite 2026 › Travel" }).count())) throw new Error("the drag label doesn't say where it goes");
+  await p.mouse.up();
+  await p.waitForTimeout(300);
+  if (!(await p.locator(".toast", { hasText: "Moved to Offsite 2026 › Travel" }).count())) throw new Error(`no 'moved' note after dropping ${name}`);
+});
+// The right-hand pane: narrower, and its edge can be dragged (and the width is kept).
+await shot("full-side-resized", FULL, full({ settings: DARK }), async (p) => {
+  const pane = p.locator(".side-pane").first();
+  const before = (await pane.boundingBox()).width;
+  if (Math.abs(before - 300) > 2) throw new Error(`the pane should start at 300px, not ${before}`);
+  const edge = await p.locator(".side-resize").boundingBox();
+  await p.mouse.move(edge.x, edge.y + 300);
+  await p.mouse.down();
+  await p.mouse.move(edge.x - 120, edge.y + 300, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(300);
+  const after = (await pane.boundingBox()).width;
+  if (Math.abs(after - 420) > 3) throw new Error(`dragging the edge should make it 420px, not ${after}`);
+  const kept = await p.locator(".app-full").getAttribute("style");
+  if (!kept?.includes("--side-w: 420px")) throw new Error(`the width wasn't kept (${kept})`);
+});
+// The version dot: red with a newer version, and Update in its card.
+await shot("full-version-dot", FULL, full({ settings: DARK, update: { state: "ready", version: "0.9.9", notes: null } }), async (p) => {
+  await p.locator(".vdot").click();
+  if (!(await p.locator(".vdot.red").count())) throw new Error("the dot isn't red with a newer version out");
+  await p.locator(".vdot-pop").getByRole("button", { name: "Update" }).waitFor();
+});
+await shot("full-version-latest", FULL, full({ settings: DARK, update: { state: "up_to_date" } }), async (p) => {
+  await p.locator(".vdot").click();
+  if (!(await p.locator(".vdot.green").count())) throw new Error("the dot isn't green on the latest version");
+});
+// The mayor: a 3D figure, a man or a woman.
+await shot("full-mayor-pick", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await tab(p, "Your city");
+  await p.getByRole("radio", { name: /Woman/ }).click();
+  await p.waitForTimeout(300);
+  if (!(await p.locator(".sb-mayor .mayor-badge.figure img").count())) throw new Error("no 3D mayor in the sidebar");
+});
+await shot("full-city-mayor-woman", FULL, full({ settings: { ...DARK, look: { ...(DARK.look ?? {}), mayor_look: "woman" } } }), async (p) => {
+  await p.locator(".sb-mayor").click();
+  await p.waitForTimeout(1200);
 });
 await shot("full-room-drawers", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);

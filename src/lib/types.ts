@@ -209,6 +209,10 @@ export interface LookSettings {
   city_sky: "auto" | "night" | "dusk";
   city_motion: boolean;
   compact: boolean;
+  /** The mayor's figure in the city and the sidebar. */
+  mayor_look: "man" | "woman";
+  /** Full screen's right-hand pane width in points (0: the default). */
+  side_width: number;
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */

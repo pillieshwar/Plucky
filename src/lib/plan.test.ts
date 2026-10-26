@@ -119,6 +119,18 @@ describe("dropPatch", () => {
     expect(dropPatch(r, { iso: TODAY, hour: 10 })).toEqual({ due_time: "10:00" });
   });
 
+  it("moves a task into a building or onto a floor", () => {
+    const loose = task("Book venue", TODAY);
+    expect(dropPatch(loose, { place: { project: "Offsite" } })).toEqual({ project: "Offsite", heading: null });
+    expect(dropPatch(loose, { place: { project: "Offsite", heading: "Travel" } })).toEqual({ project: "Offsite", heading: "Travel" });
+    const placed = task("Book venue", TODAY, { project: "Offsite", heading: "Travel" });
+    // Its own building's row: stays on its floor.
+    expect(dropPatch(placed, { place: { project: "Offsite" } })).toBeNull();
+    expect(dropPatch(placed, { place: { project: "Offsite", heading: null } })).toEqual({ project: "Offsite", heading: null });
+    expect(dropPatch(placed, { place: { project: "Home" } })).toEqual({ project: "Home", heading: null });
+    expect(dropPatch(placed, { place: { project: "Offsite", heading: "Travel" } })).toBeNull();
+  });
+
   it("is a no-op when nothing changes", () => {
     expect(dropPatch(t, { iso: TODAY, hour: 12 })).toBeNull();
     expect(dropPatch(task("Loose", TODAY), { iso: TODAY, hour: null })).toBeNull();

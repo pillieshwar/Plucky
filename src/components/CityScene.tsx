@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
@@ -8,6 +8,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FLOOR, HOUSES, HOUSES_PER_LOT, LOT, heightOf, rangeStart, roomSpot, startOfToday, type Building, type City, type CityRange, type Floor, type Room } from "../lib/city";
 import { clockHour12 } from "../lib/schedule";
+import { currentMayorLook, mayorFigure } from "../lib/mayorModel";
 import { isUnlocked } from "../lib/milestones";
 
 /**
@@ -614,36 +615,21 @@ function timeText(hhmm: string): string {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: clockHour12() });
 }
 
-/** The mayor: a small figure in a dark suit with a purple sash and a top hat. */
+/** The mayor (a man or a woman, as picked in Settings) on a small gold podium. */
 function addMayor(scene: THREE.Scene, main: Building, name: string | null, label: boolean, keep: Keep, labels: CSS2DObject[]) {
   const size = main.floors[0]?.size ?? 1;
   const off = Math.min(size / 2 + 0.18, LOT / 2 - 0.32);
   const x = main.gx * LOT + off;
   const z = main.gy * LOT + off;
   const g = new THREE.Group();
-  const suit = keep(new THREE.MeshStandardMaterial({ color: "#1d2033", roughness: 0.6 }));
-  const skin = keep(new THREE.MeshStandardMaterial({ color: "#e0b48f", roughness: 0.7 }));
-  const sash = keep(new THREE.MeshStandardMaterial({ color: "#a29bff", emissive: "#5249d9", emissiveIntensity: 0.4 }));
   const gold = keep(new THREE.MeshStandardMaterial({ color: "#ffd27a", metalness: 0.8, roughness: 0.3 }));
   const podium = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.16, 0.18, 0.06, 20)), gold);
   podium.position.y = 0.03;
-  const legs = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.035, 0.04, 0.16, 10)), suit);
-  legs.position.y = 0.14;
-  const body = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.055, 0.07, 0.18, 14)), suit);
-  body.position.y = 0.3;
-  const band = new THREE.Mesh(keep(new THREE.TorusGeometry(0.062, 0.012, 6, 18)), sash);
-  band.position.y = 0.31;
-  band.rotation.set(Math.PI / 2.6, 0, 0.5);
-  const head = new THREE.Mesh(keep(new THREE.SphereGeometry(0.05, 16, 12)), skin);
-  head.position.y = 0.44;
-  const brim = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 18)), suit);
-  brim.position.y = 0.48;
-  const hat = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.042, 0.045, 0.09, 18)), suit);
-  hat.position.y = 0.53;
-  const hatBand = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.046, 0.046, 0.018, 18)), sash);
-  hatBand.position.y = 0.5;
-  for (const m of [podium, legs, body, head, hat]) m.castShadow = true;
-  g.add(podium, legs, body, band, head, brim, hat, hatBand);
+  podium.castShadow = true;
+  const figure = mayorFigure(currentMayorLook(), keep);
+  figure.position.y = 0.06;
+  figure.scale.setScalar(0.85);
+  g.add(podium, figure);
   g.position.set(x, 0.02, z);
   g.rotation.y = 0.78;
   g.scale.setScalar(1.4);
@@ -1273,6 +1259,13 @@ export function CityScene({
   const latest = useRef({ city, range, now, mayor });
   latest.current = { city, range, now, mayor };
   const day = now.toDateString();
+  // Settings → Your city can swap the mayor's figure (set on the page by applyLook).
+  const [look, setLook] = useState(currentMayorLook);
+  useEffect(() => {
+    const o = new MutationObserver(() => setLook(currentMayorLook()));
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ["data-mayor-look"] });
+    return () => o.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = host.current;
@@ -1521,7 +1514,7 @@ export function CityScene({
     }
     const { city: c, range: r, now: n } = latest.current;
     setCity.current?.(c, r, n);
-  }, [city, range, day, mayor]);
+  }, [city, range, day, mayor, look]);
 
   return <div ref={host} className="city3d" />;
 }

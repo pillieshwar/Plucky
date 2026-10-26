@@ -26,6 +26,7 @@ export function AddTaskForm({
   onAdd,
   onCancel,
   places,
+  roomy: roomyProp,
 }: {
   locale: string;
   /** Day used when the title has no date (null: no date). */
@@ -44,12 +45,14 @@ export function AddTaskForm({
    * are each building's headings.
    */
   places?: { name: string; floors: string[] }[];
+  /** Full screen: notes and sub-tasks open from the start (default: when `places` is given). */
+  roomy?: boolean;
   /** Save the task. */
   onAdd: (task: NewTask) => Promise<void>;
   onCancel: () => void;
 }) {
   const w = useWords();
-  const roomy = !!places;
+  const roomy = roomyProp ?? !!places;
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(roomy);
@@ -339,8 +342,8 @@ export function atProject(title: string, projects: string[]): { project: string 
   return { project: project.trim() || null, rest };
 }
 
-/** Building and floor pickers for a new task (full screen). */
-function PlacePicker(p: {
+/** Building and floor pickers for a new task: the floors follow the building picked. */
+export function PlacePicker(p: {
   places: { name: string; floors: string[] }[];
   building: string | null;
   floor: string | null;

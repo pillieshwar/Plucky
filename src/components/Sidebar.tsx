@@ -6,6 +6,7 @@ import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPic
 import { GearIcon, SearchIcon } from "./icons";
 import { initials, type Building } from "../lib/city";
 import { PROJECT_COLORS } from "../lib/colors";
+import { MayorAvatar } from "./MayorAvatar";
 
 interface Props {
   list: ListId;
@@ -24,6 +25,11 @@ interface Props {
   onCity: () => void;
   cityName: string | null;
   mayor: string | null;
+  /** The mayor's figure, drawn in 3D. */
+  mayorLook: "man" | "woman";
+  /** While a task is dragged: the building or floor under the pointer. */
+  dropOn: { project: string; heading?: string | null } | null;
+  dragging: boolean;
   /** The population: every finished task. */
   lit: number;
   /** The city's buildings (projects), with their floors stacked as drawn. */
@@ -96,6 +102,13 @@ export function Sidebar(p: Props) {
     document.addEventListener("pointerdown", close, true);
     return () => document.removeEventListener("pointerdown", close, true);
   }, [menu]);
+  // Hold a dragged task over a closed building and its floors open.
+  const hoverB = p.dropOn && p.dropOn.heading === undefined ? p.dropOn.project : null;
+  useEffect(() => {
+    if (!hoverB) return;
+    const t = window.setTimeout(() => setOpenB((s) => (s.has(hoverB) ? s : new Set(s).add(hoverB))), 550);
+    return () => window.clearTimeout(t);
+  }, [hoverB]);
   useEffect(() => {
     if (project) setOpenB((s) => (s.has(project) ? s : new Set(s).add(project)));
   }, [project]);
@@ -154,7 +167,7 @@ export function Sidebar(p: Props) {
     );
   };
   return (
-    <aside className="sidebar" aria-label="Lists">
+    <aside className={p.dragging ? "sidebar dragging" : "sidebar"} aria-label="Lists">
       <div className="sb-top" data-tauri-drag-region>
         {p.lights}
         <span className="sb-brand" data-tauri-drag-region>
@@ -210,7 +223,10 @@ export function Sidebar(p: Props) {
             <Fragment key={name}>
             {other && i === shownB.length && othersBtn}
             <div className={other ? "sb-building sb-other" : "sb-building"}>
-              <div className={on ? "sb-item sb-b on" : "sb-item sb-b"}>
+              <div
+                className={["sb-item sb-b", on ? "on" : "", hoverB === name ? "drop" : ""].filter(Boolean).join(" ")}
+                data-drop-project={name}
+              >
                 <button
                   type="button"
                   className={expanded ? "sb-chev open" : "sb-chev"}
@@ -232,6 +248,7 @@ export function Sidebar(p: Props) {
                 <button
                   type="button"
                   className="sb-more"
+                  aria-expanded={!!menu && menu.project === name && !menu.floor}
                   aria-label={`More for ${name}`}
                   title="Rename or delete"
                   onClick={() => setMenu(menu && menu.project === name && !menu.floor ? null : { project: name })}
@@ -313,16 +330,27 @@ export function Sidebar(p: Props) {
                     }
                     const fOn = !!p.floorOn && p.floorOn.project === name && p.floorOn.floor === fname;
                     const todo = f.rooms.filter((r) => !r.lit).length;
+                    const dropHere = !!p.dropOn && p.dropOn.project === name && p.dropOn.heading === (fname ?? null);
                     return (
-                      <div key={f.label} className={fOn ? "sb-floor-row on" : "sb-floor-row"}>
+                      <div
+                        key={f.label}
+                        className={["sb-floor-row", fOn ? "on" : "", dropHere ? "drop" : ""].filter(Boolean).join(" ")}
+                        data-drop-project={name}
+                        data-drop-floor={fname ?? ""}
+                      >
                         <button
                           type="button"
                           className={fOn ? "sb-floor on" : "sb-floor"}
                           aria-current={fOn ? "page" : undefined}
+                          aria-label={f.label}
                           onClick={() => p.onFloor(name, fname)}
                           title={fname ? f.label : "Tasks in this project on no floor"}
                         >
-                          <span className="sb-floor-name">{f.label}</span>
+                          {/* Like a lift's button: the floor's number, G for the ground floor. */}
+                          <span className={fname ? "sb-lvl" : "sb-lvl g"} aria-hidden>
+                            {f.level || "G"}
+                          </span>
+                          <span className="sb-floor-name">{fname ?? "Ground floor"}</span>
                           <span className="sb-floor-count" title={`${todo} to do · ${f.rooms.length - todo} done`}>
                             {todo || ""}
                           </span>
@@ -331,6 +359,7 @@ export function Sidebar(p: Props) {
                           <button
                             type="button"
                             className="sb-more"
+                            aria-expanded={!!menu && menu.project === name && menu.floor === fname}
                             aria-label={`More for ${f.label}`}
                             title="Rename or delete"
                             onClick={() => setMenu(menu && menu.project === name && menu.floor === fname ? null : { project: name, floor: fname })}
@@ -374,7 +403,10 @@ export function Sidebar(p: Props) {
                     field(`New ${w.heading.toLowerCase()}'s name`)
                   ) : (
                     <button type="button" className="sb-floor sb-floor-add" onClick={() => setAdding({ kind: "floor", project: name })}>
-                      {w.newHeading}
+                      <span className="sb-lvl add" aria-hidden>
+                        +
+                      </span>
+                      <span className="sb-floor-name">{w.newHeading.replace(/^\+\s*/, "")}</span>
                     </button>
                   )}
                 </div>
@@ -416,9 +448,7 @@ export function Sidebar(p: Props) {
           </span>
         </div>
         <button type="button" className="sb-mayor" onClick={p.onCity} title="Open your city">
-          <span className="mayor-badge" aria-hidden>
-            {initials(p.mayor)}
-          </span>
+          <MayorAvatar look={p.mayorLook} fallback={initials(p.mayor)} />
           <span className="sb-mayor-text">
             <span className="sb-mayor-title">{p.mayor ? `Mayor ${p.mayor}` : "The mayor"}</span>
             <span className="sb-mayor-sub">

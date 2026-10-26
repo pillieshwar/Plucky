@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
 import { Onboarding } from "./components/Onboarding";
 import { processCapture } from "./lib/capture";
@@ -21,6 +21,8 @@ import { WeekView } from "./components/WeekView";
 import { WeekStrip } from "./components/WeekStrip";
 import { DayPlan } from "./components/DayPlan";
 import { DragGhost } from "./components/DragGhost";
+import { VersionDot } from "./components/VersionDot";
+import { SideResizer, defaultSideWidth } from "./components/SideResizer";
 import { useTaskDrag } from "./lib/useTaskDrag";
 import { dropPatch } from "./lib/plan";
 import {
@@ -52,7 +54,7 @@ import { AddTaskForm } from "./components/AddTaskForm";
 import { relativeLabel } from "./lib/dates";
 import { timeLabel } from "./lib/schedule";
 import { matchesQuery, topTags } from "./lib/taskText";
-import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, FloorSummary, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
+import type { AppSettings, CalendarEvent, CaptureResult, CityWindow, FloorSummary, LookSettings, NewTask, ProjectSummary, Status, Task, UpdateStatus } from "./lib/types";
 import { safeLocale } from "./lib/locale";
 import { activeMode, showsTask } from "./lib/modes";
 import { ModeSwitch } from "./components/ModeSwitch";
@@ -196,6 +198,9 @@ export default function App() {
   const [sideDay, setSideDay] = useState(() => toISODate(new Date()));
   // The user's own touches: clock, accent, first day of the week, the city.
   const look = lookOf(settings);
+  // The right-hand pane's width: while its edge is dragged, then as saved.
+  const [liveSideW, setLiveSideW] = useState<number | null>(null);
+  const sideW = liveSideW ?? look.side_width;
   applyLook(look);
   const weekStart = useMemo(() => weekStartOf(look, LOCALE), [look.week_start]); // eslint-disable-line react-hooks/exhaustive-deps
   // Open on the list picked in Preferences (once, when settings first load).
@@ -474,9 +479,11 @@ export default function App() {
     setOpenId(null);
   }, [list, tab, todayMode]);
   // Drag a task onto a day of the week strip (or an hour, in Today's hours).
+  // Or onto a building or floor in the sidebar.
   const drag = useTaskDrag((task, to) => {
     const patch = dropPatch(task, to);
-    if (patch) void actions.reschedule(task, patch);
+    if (patch && to.place) void actions.place(task, patch);
+    else if (patch) void actions.reschedule(task, patch);
   });
   const selectTask = (id: number, mode: "toggle" | "range") => {
     setSelected((sel) => {
@@ -733,6 +740,19 @@ export default function App() {
     return settingsChain.current;
   }
 
+  /** Change some of the look (calendar, city, pane width…) on top of the latest settings. */
+  function patchLook(patch: Partial<LookSettings>) {
+    settingsChain.current = settingsChain.current.then(async () => {
+      try {
+        const cur = await api.getSettings();
+        setSettings(await api.setSettings({ ...cur, look: { ...lookOf(cur), ...patch } }));
+      } catch (e) {
+        setError(String(e));
+      }
+    });
+    return settingsChain.current;
+  }
+
   async function saveSettings(next: AppSettings) {
     try {
       setSettings(await api.setSettings(next));
@@ -949,7 +969,8 @@ export default function App() {
       )}
       {showList && adding && list !== "logbook" && (
         <AddTaskForm
-          places={full ? places : undefined}
+          places={places}
+          roomy={full}
           locale={LOCALE}
           defaultDay={list === "today" ? today : null}
           projects={projectInfos.map((p) => p.name)}
@@ -1258,7 +1279,10 @@ export default function App() {
     return (
       <ProjectColors.Provider value={projectColors}>
       <WordsContext.Provider value={CITY}>
-      <div className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}>
+      <div
+        className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}
+        style={sideW ? ({ "--side-w": `${sideW}px` } as CSSProperties) : undefined}
+      >
         {sideOpen && (
           <Sidebar
             list={list}
@@ -1292,6 +1316,9 @@ export default function App() {
             onCity={() => setCityOpen("view")}
             cityName={settings?.city_name ?? null}
             mayor={settings?.mayor_name ?? null}
+            mayorLook={look.mayor_look}
+            dropOn={drag.drag?.over?.place ?? null}
+            dragging={!!drag.drag}
             lit={city.total}
             buildings={city.buildings.filter((b) => b.project)}
             floorOn={tab === "tasks" ? floorOpen : null}
@@ -1432,6 +1459,7 @@ export default function App() {
               </div>
             )}
             <span className="topbar-gap" data-tauri-drag-region />
+            <VersionDot update={update} version={status?.version ?? null} onError={setError} />
             {tasksShown && (
               <button
                 type="button"
@@ -1499,6 +1527,16 @@ export default function App() {
                 <main className="full-content" data-autoscroll>
                   <div className="full-list">{listEl}</div>
                 </main>
+              )}
+              {sidePane && (
+                <SideResizer
+                  width={sideW || defaultSideWidth()}
+                  onLive={setLiveSideW}
+                  onCommit={(w) => {
+                    setLiveSideW(null);
+                    void patchLook({ side_width: w });
+                  }}
+                />
               )}
               {sidePane}
             </div>
@@ -1714,6 +1752,8 @@ export default function App() {
           <div className="week-view today-hours">
             {adding && (
               <AddTaskForm
+                places={places}
+                roomy={false}
                 locale={LOCALE}
                 defaultDay={today}
                 projects={projectInfos.map((p) => p.name)}
