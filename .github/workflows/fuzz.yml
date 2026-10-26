@@ -28,7 +28,7 @@ jobs:
       matrix:
         target: [model_output, todoist_csv, sync_boxes, sync_merge, pairing]
     env:
-      CARGO_FUZZ_VERSION: "0.13.1"
+      CARGO_FUZZ_VERSION: "0.13.2"
       # Seconds per target: short on pull requests, longer on the weekly run.
       SECONDS_PER_TARGET: ${{ github.event_name == 'pull_request' && '120' || '1200' }}
     steps:
@@ -41,14 +41,19 @@ jobs:
         with:
           workspaces: fuzz
       - name: Install cargo-fuzz (pinned)
-        run: cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
+        run: |
+          cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked > install.log 2>&1 || {
+            grep -m5 -E "^error" install.log | while IFS= read -r l; do echo "::error title=cargo install cargo-fuzz::$l"; done
+            tail -n 40 install.log
+            exit 1
+          }
       - name: Fuzz
         env:
           TARGET: ${{ matrix.target }}
         run: |
           set -o pipefail
           cargo fuzz run "$TARGET" -- -max_total_time="$SECONDS_PER_TARGET" -rss_limit_mb=4096 2>&1 | tail -n 200 > fuzz.log || {
-            echo "::error title=Fuzz $TARGET found a crash::$(grep -m1 -E 'panicked at|ERROR: libFuzzer|SUMMARY' fuzz.log)"
+            grep -m5 -E '^error|panicked at|ERROR: libFuzzer|SUMMARY' fuzz.log | while IFS= read -r l; do echo "::error title=Fuzz $TARGET::$l"; done
             cat fuzz.log
             exit 1
           }
