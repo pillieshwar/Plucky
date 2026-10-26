@@ -37,6 +37,7 @@ import type {
   ProjectSummary,
   TaskPatch,
   UpdateStatus,
+  SyncStatus,
 } from "./types";
 
 export const api = {
@@ -182,6 +183,23 @@ export const api = {
     invoke<TodoistPreview>("todoist_preview", { token: source?.token ?? null, files: source?.files ?? null, options }),
   /** Bring in what the last Todoist preview read (backs up first). */
   todoistImport: (options: ThingsOptions) => invoke<ImportReport>("todoist_import", { options }),
+  // Sync between your Macs.
+  syncStatus: () => invoke<SyncStatus>("sync_status"),
+  /** Show a pairing code here (turns sync on here if needed). */
+  syncAddMac: () => invoke<void>("sync_add_mac"),
+  /** Join another Mac's group with the code it shows. */
+  syncJoin: (code: string) => invoke<void>("sync_join", { code }),
+  /** The six digits match on both Macs (or they don't). */
+  syncPairConfirm: (same: boolean) => invoke<void>("sync_pair_confirm", { same }),
+  syncPairCancel: () => invoke<void>("sync_pair_cancel"),
+  syncPairDismiss: () => invoke<void>("sync_pair_dismiss"),
+  syncNow: () => invoke<void>("sync_now"),
+  syncRemove: (device: string) => invoke<void>("sync_remove", { device }),
+  /** Turn sync off on this Mac (tasks stay). */
+  syncLeave: () => invoke<void>("sync_leave"),
+  syncLocalOnly: (project: string, on: boolean) => invoke<void>("sync_local_only", { project, on }),
+  syncRename: (name: string) => invoke<void>("sync_rename", { name }),
+  syncDismissNotice: () => invoke<void>("sync_dismiss_notice"),
   showQuickAdd: () => invoke<void>("show_quick_add"),
   hideQuickAdd: () => invoke<void>("hide_quick_add"),
 };
@@ -273,6 +291,11 @@ export function onEmailTasksChanged(handler: () => void): Promise<UnlistenFn> {
 }
 
 /** Watch mode turned on/off, paused, or noticed something. */
+/** Sync ran, or its settings or a pairing changed. */
+export function onSyncChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("sync-changed", () => handler());
+}
+
 export function onWatchChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("watch-changed", () => handler());
 }

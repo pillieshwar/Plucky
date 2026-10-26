@@ -848,6 +848,59 @@ button.small { border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: p
 .calendar-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-source { flex: none; font-size: 11px; color: var(--faint); }
 .connectors-foot { margin: 14px 2px 0; font-size: 11.5px; color: var(--faint); text-align: center; }
+.connector-icon.sync { color: var(--teal); }
+
+/* Connectors → Your other Macs (sync) */
+.sync-lead { margin: 0 0 12px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.sync-start { display: flex; flex-wrap: wrap; gap: 8px; }
+.sync-start button { border-radius: 8px; padding: 7px 13px; font-size: 12.5px; cursor: pointer; }
+.sync-steps { margin: 14px 0 0; padding-left: 18px; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+.sync-join label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 600; }
+.sync-join-row { display: flex; gap: 6px; align-items: center; }
+.sync-join-row input {
+  width: 150px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  color: var(--ink); font: 600 15px var(--mono); letter-spacing: 0.08em;
+}
+.sync-join-row input:focus { outline: 2px solid color-mix(in srgb, var(--teal) 55%, transparent); outline-offset: 0; }
+.sync-pair {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 12px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--paper); text-align: center;
+}
+.sync-pair.failed { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.sync-pair.done { border-color: color-mix(in srgb, var(--teal) 45%, var(--line)); }
+.sync-pair-title { margin: 0; font-size: 13px; font-weight: 650; }
+.sync-pair-text { margin: 0; max-width: 300px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.sync-code, .sync-sas {
+  margin: 2px 0; font: 700 26px var(--mono); letter-spacing: 0.12em; color: var(--ink);
+  padding: 6px 14px; border-radius: 10px; background: var(--teal-soft); user-select: all;
+}
+.sync-sas { font-size: 30px; letter-spacing: 0.08em; }
+.sync-pair-actions { display: flex; gap: 8px; }
+.sync-devices { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.sync-device { display: flex; align-items: center; gap: 9px; padding: 8px 10px; font-size: 12.5px; }
+.sync-device + .sync-device { border-top: 1px solid var(--line); }
+.sync-mac { flex: none; color: var(--faint); }
+.sync-device.me .sync-mac { color: var(--teal); }
+.sync-device-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.sync-device.me .sync-device-name { flex-direction: row; align-items: center; gap: 6px; }
+.sync-device-tag {
+  font-size: 10.5px; font-weight: 600; color: var(--teal); background: var(--teal-soft); border-radius: 999px; padding: 1px 7px;
+}
+.sync-device-seen { font-size: 11px; color: var(--faint); }
+.sync-device .de-link + .de-link { margin-left: 10px; }
+.sync-rename { flex: 1; display: flex; gap: 6px; }
+.sync-rename input {
+  flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink);
+  font: 12.5px var(--sans);
+}
+.sync-hint { margin: 6px 2px 0; font-size: 11px; line-height: 1.45; color: var(--faint); }
+.sync-leave { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 2px 0; font-size: 11.5px; color: var(--muted); }
+.sync-leave span { flex: 1 1 200px; }
+.sync-note {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px; border-radius: 9px;
+  background: var(--amber-soft); color: var(--amber); font-size: 12px;
+}
+.sync-note span { flex: 1; }
 
 /* Preferences → Appearance */
 .theme-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

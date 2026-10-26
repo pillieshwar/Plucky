@@ -28,6 +28,7 @@ mod settings;
 mod shortcuts;
 mod slack_cleanup;
 mod spaces;
+mod sync;
 mod tray;
 mod updates;
 mod watch;
@@ -816,6 +817,7 @@ fn restore_backup(app: AppHandle, state: State<'_, AppState>, name: String) -> C
         *store = open_store(&db);
     }
     log::info!("restored tasks from {name}");
+    sync::after_restore(&app);
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
     nudge_reminders(&app);
@@ -1479,6 +1481,7 @@ pub fn run() {
             app.manage(Engine::new(&log_dir));
             app.manage(Shortcuts::new(&data_dir));
             app.manage(reminders::Reminders::start(app.handle(), &data_dir));
+            app.manage(sync::SyncService::new(&data_dir));
 
             // Every 30 s: release the model's memory when idle, and roll the
             // menu-bar list over to the new day at midnight.
@@ -1576,6 +1579,7 @@ pub fn run() {
                 }
             }
             slack_cleanup::start(app.handle());
+            sync::start(app.handle());
             agents::start(app.handle());
             watch::start(app.handle());
             double_copy::start(app.handle());
@@ -1603,6 +1607,18 @@ pub fn run() {
             import::todoist_pick_files,
             import::todoist_preview,
             import::todoist_import,
+            sync::sync_status,
+            sync::sync_add_mac,
+            sync::sync_join,
+            sync::sync_pair_confirm,
+            sync::sync_pair_cancel,
+            sync::sync_pair_dismiss,
+            sync::sync_now,
+            sync::sync_remove,
+            sync::sync_leave,
+            sync::sync_local_only,
+            sync::sync_rename,
+            sync::sync_dismiss_notice,
             list_tasks,
             logbook,
             city_windows,

@@ -499,3 +499,41 @@ export interface ImportReport {
   skipped: number;
   failed: number;
 }
+
+/** A Mac in the sync group (mirrors `sync::DeviceView`). */
+export interface SyncDevice {
+  id: string;
+  name: string;
+  me: boolean;
+  /** When this Mac last heard from it (RFC 3339). */
+  last_seen: string | null;
+}
+
+/** A pairing in progress (mirrors `sync::PairView`). */
+export interface SyncPairing {
+  role: "host" | "join";
+  /** Shown as `K7MX-4QRB`. */
+  code: string;
+  stage: "waiting" | "compare" | "finishing" | "done" | "failed";
+  /** Six digits both Macs show, e.g. `482 913`. */
+  sas: string | null;
+  confirmed: boolean;
+  error: string | null;
+}
+
+/** Mirrors `sync::SyncStatus`. */
+export interface SyncStatus {
+  on: boolean;
+  name: string;
+  devices: SyncDevice[];
+  /** Projects kept on this Mac only. */
+  local_only: string[];
+  last_ok: string | null;
+  error: string | null;
+  busy: boolean;
+  /** Changes made here not sent yet. */
+  pending: number;
+  /** Another Mac removed this one. */
+  removed_notice: boolean;
+  pairing: SyncPairing | null;
+}

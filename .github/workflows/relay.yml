@@ -67,12 +67,44 @@ jobs:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
           set -euo pipefail
-          sleep 5
-          test "$(curl -fsS "$URL/health")" = "ok"
+          # Each check says what it saw, so a failure shows in the run summary.
+          check() { if ! eval "$2"; then echo "::error::smoke test: $1 (saw: ${3:-})"; exit 1; fi; }
+          # A new version can take a few seconds to reach every location.
+          for _ in 1 2 3 4 5 6; do
+            h=$(curl -sS "$URL/health" 2>&1 || true)
+            [[ "$h" == ok ]] && break
+            sleep 5
+          done
+          check "health" '[[ "$h" == ok ]]' "$h"
+          # A mailbox: pass, put, list, ack (which deletes), and the gap a
+          # late Mac would see.
           mailbox="ci_$(openssl rand -hex 16)"
-          put=$(curl -fsS -X PUT --data-binary "smoke-test" "$URL/v1/m/$mailbox/boxes")
-          echo "put: $put"
-          echo "$put" | grep -q '"box":1'
-          got=$(curl -fsS "$URL/v1/m/$mailbox/boxes?after=0")
-          echo "$got" | grep -q "$(printf 'smoke-test' | base64)"
-          echo "::notice::Relay answers: health ok, put and get work."
+          pass="$(openssl rand -hex 24)"
+          box() { curl -sS --retry 2 -H "authorization: Bearer $pass" -H "x-device: $1" "${@:2}"; }
+          reg=$(box ci_dev_A -X PUT "$URL/v1/m/$mailbox/devices/ci_dev_B" -d '{"acked":0}')
+          check "register a device" '[[ "$reg" == *ok* ]]' "$reg"
+          put=$(box ci_dev_A -X POST --data-binary "smoke-test" "$URL/v1/m/$mailbox/boxes")
+          check "put a box" '[[ "$put" == *"\"box\":1"* ]]' "$put"
+          got=$(box ci_dev_B "$URL/v1/m/$mailbox/boxes?after=0")
+          check "list boxes" '[[ "$got" == *"$(printf smoke-test | base64)"* && "$got" == *"\"gap\":false"* ]]' "$got"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "authorization: Bearer wrong-pass-wrong-pass-wrong-pass-00" -H "x-device: ci_dev_C" "$URL/v1/m/$mailbox/boxes")
+          check "wrong pass is refused" '[[ "$code" == 401 ]]' "$code"
+          ack=$(box ci_dev_B -X POST "$URL/v1/m/$mailbox/ack" -d '{"upto":1}')
+          check "ack" '[[ "$ack" == *ok* ]]' "$ack"
+          late=$(box ci_dev_B "$URL/v1/m/$mailbox/boxes?after=0")
+          check "acked boxes are deleted, late readers see a gap" '[[ "$late" == *"\"boxes\":[]"* && "$late" == *"\"gap\":true"* ]]' "$late"
+          del=$(box ci_dev_A -X DELETE "$URL/v1/m/$mailbox")
+          check "delete the mailbox" '[[ "$del" == *ok* ]]' "$del"
+          # A pairing room.
+          # (tr | head would end tr with SIGPIPE, which pipefail treats as failure.)
+          room=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc '23456789ABCDEFGHJKMNPQRSTUVWXYZ' | cut -c1-8)
+          o=$(curl -sS -X POST --data 'hello' "$URL/v1/pair/$room?new=1")
+          check "open a room" '[[ "$o" == *ok* ]]' "$o"
+          o=$(curl -sS -X POST --data 'there' "$URL/v1/pair/$room")
+          check "post to a room" '[[ "$o" == *ok* ]]' "$o"
+          msgs=$(curl -sS "$URL/v1/pair/$room?after=1")
+          check "read a room" '[[ "$msgs" == "{\"msgs\":[\"there\"]}" ]]' "$msgs"
+          curl -sS -X DELETE "$URL/v1/pair/$room" >/dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/v1/pair/$room")
+          check "closed rooms are gone" '[[ "$code" == 404 ]]' "$code"
+          echo "::notice::Relay answers: health, mailbox (pass, put, list, ack, gap) and pairing rooms work."
