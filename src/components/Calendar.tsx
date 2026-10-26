@@ -15,13 +15,19 @@ interface Props {
   autoFocus?: boolean;
   /** Hide the Today / Tomorrow / No date row (when the parent shows its own). */
   hideQuick?: boolean;
+  /** Keep it open after a day is picked (the parent has a Done button). */
+  stayOpen?: boolean;
+  /** Another day to show with a small dot (the deadline, or the planned day). */
+  mark?: string | null;
+  /** The chosen day is a deadline: shown in the deadline color. */
+  flag?: boolean;
 }
 
 /**
  * An inline month calendar. It renders in the panel's own layout (never as a
  * floating popup), so it can't be cut off at the edge of the screen.
  */
-export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus = true, hideQuick = false }: Props) {
+export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus = true, hideQuick = false, stayOpen = false, mark = null, flag = false }: Props) {
   const today = toISODate(now);
   const start = parseISODate(value ?? today);
   const [view, setView] = useState({ year: start.getFullYear(), month: start.getMonth() });
@@ -56,7 +62,8 @@ export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus
 
   function pick(iso: string | null) {
     onChange(iso);
-    onClose();
+    if (iso) setFocus(iso);
+    if (!stayOpen) onClose();
   }
 
   function onKey(e: KeyboardEvent) {
@@ -84,7 +91,7 @@ export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus
   ];
 
   return (
-    <div className="cal" role="dialog" aria-label="Choose a date" onKeyDown={onKey}>
+    <div className={flag ? "cal flag" : "cal"} role="group" aria-label="Choose a date" onKeyDown={onKey}>
       <div className="cal-head">
         <button type="button" className="cal-nav" onClick={() => page(-1)} aria-label="Previous month">
           ‹
@@ -104,7 +111,7 @@ export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus
         ))}
         {cells.map((c) => {
           const disabled = !!min && c.iso < min;
-          const cls = ["cal-day", c.inMonth ? "" : "out", c.iso === today ? "today" : "", c.iso === value ? "on" : ""]
+          const cls = ["cal-day", c.inMonth ? "" : "out", c.iso === today ? "today" : "", c.iso === value ? "on" : "", c.iso === mark && c.iso !== value ? "mark" : ""]
             .filter(Boolean)
             .join(" ");
           return (
@@ -122,6 +129,13 @@ export function Calendar({ value, onChange, onClose, now, locale, min, autoFocus
                 day: "numeric",
               })}
               onClick={() => pick(c.iso)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  pick(c.iso);
+                }
+              }}
             >
               {c.day}
             </button>

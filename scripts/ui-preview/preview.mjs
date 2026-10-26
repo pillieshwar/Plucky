@@ -305,7 +305,15 @@ function mockTauri(s) {
     },
     list_backups: () => s.backups,
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
-    update_task: (a) => ({ ...s.tasks.find((t) => t.id === a.id), ...a.patch }),
+    update_task: (a) => {
+      const t = s.tasks.find((x) => x.id === a.id);
+      if (!t) return null;
+      const { only_this, ...patch } = a.patch ?? {};
+      Object.assign(t, patch);
+      // The app refreshes when the backend says tasks changed.
+      setTimeout(() => window.__emit?.("tasks-changed", null), 0);
+      return { ...t };
+    },
     logbook: () => s.logbook ?? [],
     list_projects: () => {
       const m = new Map();
@@ -459,7 +467,7 @@ await shot("panel-multi-select", PANEL, rich(), async (p) => {
 await shot("panel-repeat-editor", PANEL, rich(), async (p) => {
   await p.locator(".task .task-row", { hasText: "Water the plants" }).first().click();
   await p.locator(".tc-pill").nth(3).click();
-  await p.locator(".de-series").scrollIntoViewIfNeeded();
+  await p.locator(".de-series-actions").scrollIntoViewIfNeeded();
 });
 
 const PLAN_EVENTS = [
@@ -755,7 +763,7 @@ await shot("popover-add-description", POP, scenario({ label: "popover" }), async
 await shot("panel-add-task", PANEL, scenario(), async (p) => {
   await p.getByRole("button", { name: "Add a task", exact: true }).click();
   await p.keyboard.type("Book flights for the offsite next tue");
-  await p.getByRole("button", { name: "+ Description" }).click();
+  await p.getByRole("button", { name: "+ Notes" }).click();
   await p.keyboard.type("Team of 6, window seats if possible");
 });
 const focus = (f) => async (p) => {
@@ -1112,6 +1120,58 @@ await shot("full-room-drawers", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
   if (!(await p.locator(".task.open .sp-done").count())) throw new Error("the task didn't open in place with a Done button");
+});
+await shot("full-task-when", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+  await p.waitForTimeout(200);
+  await p.locator(".task.open .tc-props .tc-pill").first().click();
+  await p.locator(".date-editor").waitFor();
+  const box = await p.locator(".date-editor").boundingBox();
+  if (box.width > 580) throw new Error(`the date card is too wide: ${Math.round(box.width)}px`);
+  const cal = await p.locator(".date-editor .cal").boundingBox();
+  if (cal.height > 280) throw new Error(`the month is too tall: ${Math.round(cal.height)}px`);
+  await p.getByRole("combobox", { name: "Time" }).click();
+  await p.keyboard.type("10:30pm");
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".time-select.set").count())) throw new Error("typing a time didn't set it");
+  await p.getByRole("combobox", { name: "Time" }).click();
+  await p.waitForTimeout(150);
+});
+await shot("full-task-deadline", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+  await p.waitForTimeout(200);
+  await p.locator(".task.open .tc-props .tc-pill").nth(1).click();
+  await p.locator(".de-tab.on", { hasText: "Deadline" }).waitFor();
+  await p.locator(".date-editor .cal-quick", { hasText: "Friday" }).click();
+  await p.waitForTimeout(150);
+});
+await shot("full-task-title-date", FULL, full({ settings: DARK }), async (p) => {
+  await openFloor(p);
+  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+  await p.waitForTimeout(200);
+  await p.locator(".task.open .tc-title").click();
+  await p.keyboard.press("End");
+  await p.keyboard.type(" tomorrow 10:30 pm");
+  await p.locator(".tc-suggest").waitFor();
+});
+await shot("full-add-rich", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
+  await p.keyboard.type("Ship the update tomorrow 3pm");
+  if (!(await p.locator(".add-task-understood").count())) throw new Error("the typed date wasn't understood");
+  await p.locator(".add-task-notes").click();
+  await p.keyboard.type("Release notes are in the shared doc");
+  await p.locator(".add-task .step-add").click();
+  await p.keyboard.type("Write the notes");
+  await p.keyboard.press("Enter");
+  await p.keyboard.type("Tag the release");
+  await p.keyboard.press("Enter");
+  if ((await p.locator(".add-task .step").count()) !== 2) throw new Error("sub-tasks didn't add with Return");
+  await p.locator(".add-task-pills .tc-pill").first().click();
+  await p.locator(".add-task .date-editor").waitFor();
 });
 await shot("full-floor-menu", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);

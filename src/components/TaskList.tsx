@@ -1,5 +1,5 @@
 import { useWords } from "../lib/words";
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectColor } from "../lib/colors";
 import { DateEditor } from "./DateEditor";
 import { CalendarIcon, ClockIcon, RepeatIcon, TrashIcon } from "./icons";
@@ -10,8 +10,8 @@ import { deadlineChip } from "../lib/lists";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
 import type { DayGroup } from "../lib/grouping";
-import { repeatShort, timeLabel } from "../lib/schedule";
-import { relativeLabel, toISODate } from "../lib/dates";
+import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
+import { dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { TaskActions } from "../lib/taskActions";
 import { linkParts, sourceLabel, titleParts } from "../lib/taskText";
@@ -342,7 +342,7 @@ function TaskRow({
   );
 }
 
-type Panel = "when" | "project" | "snooze" | null;
+type Panel = "when" | "deadline" | "repeat" | "project" | "snooze" | null;
 
 /** One quiet grey line under a title; only lateness is red. */
 function RowMeta({
@@ -497,6 +497,20 @@ function TaskCard({
     if (t && t !== task.title) void actions.update(task, { title: t });
     else setTitle(task.title);
   }
+  // A date typed into the title ("call Sam tomorrow 3pm"): offer to use it.
+  const typedWhen = useMemo(() => {
+    if (task.done) return null;
+    const f = findSchedule(title, now, dayOrderForLocale(locale));
+    const differs = f.date !== task.due_date || (f.time ?? null) !== (task.due_time ?? null);
+    return f.date && f.title && f.confident && differs ? f : null;
+  }, [title, now, locale, task.done, task.due_date, task.due_time]);
+  function applyTypedWhen() {
+    if (!typedWhen) return;
+    const patch: TaskPatch = { title: typedWhen.title, due_date: typedWhen.date, due_time: typedWhen.time, someday: false };
+    if (typedWhen.repeat) patch.recurrence = typedWhen.repeat;
+    setTitle(typedWhen.title);
+    void actions.update(task, patch);
+  }
   function saveNotes() {
     const n = notes.trim();
     if (n !== (task.notes ?? "")) void actions.update(task, { notes: n || null });
@@ -554,6 +568,12 @@ function TaskCard({
           }}
         />
       </div>
+      {typedWhen && (
+        <button type="button" className="tc-suggest" onMouseDown={(e) => e.preventDefault()} onClick={applyTypedWhen}>
+          <CalendarIcon /> Set {[relativeLabel(typedWhen.date!, now, locale), typedWhen.time && timeLabel(typedWhen.time, locale), typedWhen.repeat && repeatLabel(typedWhen.repeat)?.toLowerCase()].filter(Boolean).join(", ")}
+          <span> and take “{typedWhen.matched}” out of the title</span>
+        </button>
+      )}
       <textarea
         ref={notesRef}
         className="tc-notes"
@@ -575,7 +595,7 @@ function TaskCard({
             <CalendarIcon /> {whenLabel === "When" ? "Not planned" : whenLabel}
           </button>
           <span className="tc-prop-label">Deadline</span>
-          <button type="button" className={pillClass(panel === "when", !!dl, dl?.tone === "overdue")} onClick={() => toggle("when")}>
+          <button type="button" className={pillClass(panel === "deadline", !!dl, dl?.tone === "overdue")} onClick={() => toggle("deadline")}>
             <FlagIcon /> {dl ? dl.label : "None"}
           </button>
           <span className="tc-prop-label">{w.project}</span>
@@ -583,7 +603,7 @@ function TaskCard({
             <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.city ? w.noProject : "None"}
           </button>
           <span className="tc-prop-label">Repeat</span>
-          <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
+          <button type="button" className={pillClass(panel === "repeat", !!repeat, false)} onClick={() => toggle("repeat")}>
             <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Doesn’t repeat"}
           </button>
         </div>
@@ -592,20 +612,21 @@ function TaskCard({
         <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
           <CalendarIcon /> {whenLabel}
         </button>
-        <button type="button" className={pillClass(panel === "when", !!dl, dl?.tone === "overdue")} onClick={() => toggle("when")}>
+        <button type="button" className={pillClass(panel === "deadline", !!dl, dl?.tone === "overdue")} onClick={() => toggle("deadline")}>
           <FlagIcon /> {dl ? dl.label : "Deadline"}
         </button>
         <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
           <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.project}
         </button>
-        <button type="button" className={pillClass(panel === "when", !!repeat, false)} onClick={() => toggle("when")}>
+        <button type="button" className={pillClass(panel === "repeat", !!repeat, false)} onClick={() => toggle("repeat")}>
           <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Repeat"}
         </button>
       </div>
       )}
 
-      {panel === "when" && (
+      {(panel === "when" || panel === "deadline" || panel === "repeat") && (
         <DateEditor
+          tab={panel}
           date={task.due_date}
           time={task.due_time}
           repeat={task.recurrence}
