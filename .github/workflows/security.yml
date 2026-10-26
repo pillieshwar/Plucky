@@ -6,7 +6,7 @@ name: Security
 # - cargo-deny: Rust advisories (vulnerable, yanked, unmaintained), and only
 #   crates.io as a source. Policy in deny.toml.
 # - npm audit: npm advisories for the frontend and build tools.
-# - OSV-Scanner: both lockfiles against the OSV database.
+# - OSV-Scanner: every lockfile against the OSV database.
 # - zizmor: security mistakes in these GitHub Actions workflows.
 
 on:
@@ -69,7 +69,7 @@ jobs:
       - run: npm audit --audit-level=high
 
   osv:
-    name: OSV-Scanner (both lockfiles)
+    name: OSV-Scanner (all lockfiles)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -86,6 +86,7 @@ jobs:
             --config=osv-scanner.toml
             --lockfile=Cargo.lock
             --lockfile=package-lock.json
+            --lockfile=scripts/ui-preview/package-lock.json
             --format=json
             --output=osv-results.json
       - name: Report
