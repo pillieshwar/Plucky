@@ -84,11 +84,11 @@ export function mayorFigure(look: MayorLook, keep: Keep = (x) => x): THREE.Group
 
   // Hair: short for the man, a bob for the woman.
   if (woman) {
-    add(new THREE.SphereGeometry(0.058, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, 0, headY + 0.006, -0.002);
-    const back = add(new THREE.CylinderGeometry(0.058, 0.064, 0.07, 20, 1, true, Math.PI * 0.62, Math.PI * 1.76), hair, 0, headY - 0.025, -0.002);
+    add(new THREE.SphereGeometry(0.058, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.42), hair, 0, headY + 0.006, -0.002);
+    const back = add(new THREE.CylinderGeometry(0.058, 0.064, 0.075, 20, 1, true, Math.PI * 0.3, Math.PI * 1.4), hair, 0, headY - 0.025, -0.002);
     (back.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
-    // A fringe over the forehead.
-    const fringe = add(new THREE.SphereGeometry(0.056, 16, 8, -Math.PI * 0.35, Math.PI * 0.7, Math.PI * 0.18, Math.PI * 0.16), hair, 0, headY + 0.004, 0.003);
+    // The open side of the bob faces front (theta 0 is +z); a fringe over the forehead.
+    const fringe = add(new THREE.SphereGeometry(0.056, 16, 8, Math.PI * 0.15, Math.PI * 0.7, Math.PI * 0.2, Math.PI * 0.14), hair, 0, headY + 0.004, 0.003);
     fringe.rotation.x = 0.1;
   } else {
     add(new THREE.SphereGeometry(0.055, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), hair, 0, headY + 0.004, -0.004);

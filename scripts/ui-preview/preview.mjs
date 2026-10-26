@@ -1224,7 +1224,7 @@ await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
 });
 const openFloor = async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.getByRole("button", { name: "1st Floor: Travel" }).click();
+  await p.getByRole("button", { name: "1st Floor: Travel", exact: true }).click();
   await p.waitForTimeout(250);
   if (!(await p.locator(".fh-title", { hasText: "Floor: Travel" }).count())) throw new Error("the floor's page didn't open");
   if (!(await p.locator(".fh-crumb", { hasText: "Offsite 2026" }).count())) throw new Error("no breadcrumb back to the project");
@@ -1257,7 +1257,7 @@ await shot("full-drag-to-floor", FULL, full({ settings: DARK }), async (p) => {
   const task = p.locator(".task .task-row").first();
   const name = (await task.locator(".task-title").first().textContent())?.trim();
   const from = await task.boundingBox();
-  const to = await p.getByRole("button", { name: "1st Floor: Travel" }).boundingBox();
+  const to = await p.getByRole("button", { name: "1st Floor: Travel", exact: true }).boundingBox();
   await p.mouse.move(from.x + 40, from.y + from.height / 2);
   await p.mouse.down();
   await p.mouse.move(from.x + 60, from.y + 30, { steps: 4 });
