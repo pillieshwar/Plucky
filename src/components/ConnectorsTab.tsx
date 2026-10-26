@@ -4,19 +4,22 @@ import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
 import { AgentsSection } from "./AgentsSection";
 import { WatchSection } from "./WatchSection";
+import { SyncGlyph, SyncSection, useSyncStatus } from "./SyncSection";
 import { safeLocale } from "../lib/locale";
 import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
 /**
  * Connectors: apps on this Mac that Todo City can work with. Each card shows
  * whether it's connected and opens to its settings. Everything goes through
- * macOS on this Mac; nothing signs in to a server.
+ * macOS on this Mac; nothing signs in to a server. (Sync with your other Macs
+ * passes end-to-end encrypted boxes through a relay that can't read them.)
  */
 export function ConnectorsTab() {
   const [reminders, setReminders] = useState<RemindersStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [agents, setAgents] = useState<AgentsStatus | null>(null);
   const [watch, setWatch] = useState<WatchStatus | null>(null);
+  const [sync, setSync] = useSyncStatus();
   const [open, setOpen] = useState<Id | null>(null);
 
   const refresh = useCallback(() => {
@@ -37,9 +40,22 @@ export function ConnectorsTab() {
   return (
     <div className="connectors">
       <p className="connectors-intro">
-        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Todo City server or
-        account.
+        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Todo City account, and
+        nothing leaves it unencrypted.
       </p>
+
+      <ConnectorCard
+        icon={<SyncGlyph />}
+        tone="sync"
+        name="Your other Macs"
+        description="Keep the same tasks on your work and personal Macs, end-to-end encrypted."
+        connected={!!sync?.on}
+        connectedLabel={sync?.on ? `${sync.devices.length} Mac${sync.devices.length === 1 ? "" : "s"}` : undefined}
+        open={open === "sync" || !!sync?.pairing}
+        onToggle={() => toggle("sync")}
+      >
+        <SyncSection status={sync} onStatus={setSync} />
+      </ConnectorCard>
 
       <ConnectorCard
         icon={<CalendarGlyph />}
@@ -95,7 +111,7 @@ export function ConnectorsTab() {
   );
 }
 
-type Id = "reminders" | "calendar" | "agents" | "watch";
+type Id = "sync" | "reminders" | "calendar" | "agents" | "watch";
 
 function ConnectorCard({
   icon,

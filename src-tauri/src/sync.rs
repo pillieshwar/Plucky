@@ -509,11 +509,8 @@ pub async fn sync_add_mac(app: AppHandle) -> CmdResult<()> {
         let key = GroupKey::generate().map_err(|e| e.to_string())?;
         svc.store_key(Some(&key))?;
         {
-            let store = app
-                .state::<AppState>()
-                .store
-                .lock()
-                .map_err(|e| e.to_string())?;
+            let state = app.state::<AppState>();
+            let store = state.store.lock().map_err(|e| e.to_string())?;
             store.sync_reset().map_err(|e| e.to_string())?;
         }
         svc.edit(|c| {
@@ -875,11 +872,8 @@ async fn finish_join(app: &AppHandle, inv: pair::Invite) -> Result<(), String> {
         return Err("The invite pointed somewhere unexpected.".into());
     }
     {
-        let store = app
-            .state::<AppState>()
-            .store
-            .lock()
-            .map_err(|e| e.to_string())?;
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(|e| e.to_string())?;
         store.sync_reset().map_err(|e| e.to_string())?;
         store
             .set_sync_cursor(inv.cursor)
@@ -915,11 +909,8 @@ pub async fn sync_remove(app: AppHandle, device: String) -> CmdResult<()> {
         return Err("Use “Turn off sync” to stop syncing this Mac.".into());
     }
     {
-        let store = app
-            .state::<AppState>()
-            .store
-            .lock()
-            .map_err(|e| e.to_string())?;
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(|e| e.to_string())?;
         store
             .sync_set(
                 &me.device,
@@ -948,11 +939,8 @@ pub async fn sync_leave(app: AppHandle) -> CmdResult<()> {
     if let Some(me) = svc.membership() {
         let relay = svc.relay();
         let others = {
-            let store = app
-                .state::<AppState>()
-                .store
-                .lock()
-                .map_err(|e| e.to_string())?;
+            let state = app.state::<AppState>();
+            let store = state.store.lock().map_err(|e| e.to_string())?;
             let others = store
                 .sync_devices()
                 .unwrap_or_default()

@@ -176,6 +176,7 @@ Finished tasks go to the **Logbook**. A task added with no date and no project g
 
 <img src="docs/screenshots/agents.png" alt="Connectors: AI apps that can send tasks to Todo City" width="340" align="right">
 
+- **Your other Macs** keeps the same tasks on your work and personal Macs — end-to-end encrypted, no iCloud or account needed. See [Sync between your Macs](#sync-between-your-macs).
 - **Calendar** shows your meetings beside your tasks (read-only; includes Google, Outlook and iCloud calendars added to the Mac).
 - **Apple Reminders** syncs both ways — off by default.
 - **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a Todo City task to send the deck Friday 3pm"). They can never read your list, and you approve every task.
@@ -254,6 +255,24 @@ Preferences → **Data transfer** → **Todoist** brings your Todoist into Todo 
 | Recurring date | The same repeat when it's daily, weekdays, weekly, every 2 weeks, monthly or yearly; other patterns come once, with a note |
 | Completed tasks | Done tasks: lit windows in your city |
 
+## Sync between your Macs
+
+Connectors → **Your other Macs** keeps your tasks the same on, say, a work laptop and a personal one — even when the work Mac can't sign in to iCloud.
+
+1. On one Mac, choose **Show a code**. It shows a code like `K7MX-4QRB` for 10 minutes.
+2. On the other, choose **I have a code** and type it in.
+3. **Both Macs show six digits.** Check they're the same, then confirm on both. That's how you know nothing got between your Macs.
+
+From then on, changes on either Mac show up on the other within about 30 seconds while both are open; a Mac that was asleep or offline catches up within a minute of coming back. Add more Macs the same way.
+
+**How it stays private.** Your Macs share a key that is made on your Mac, handed over only inside the pairing (sealed with a secret the two Macs work out together) and kept in your Keychain. Every change is locked with it (ChaCha20-Poly1305) before it leaves. In between sits a small relay ([`relay/`](relay/)) that holds the sealed boxes until your other Macs pick them up and then deletes them — after 30 days at the latest. It never has the key, so it can't read task titles, notes, projects or Mac names, and there's no account behind it.
+
+- **Keep a project on one Mac.** Under **Keep on this Mac only**, switch on any project — say, a personal one on your work Mac. Its tasks stay where they are and leave your other Macs.
+- **Edits on two Macs at once?** Each detail keeps its newest edit: rename a task on one Mac and tick it off on the other, and both changes stick.
+- **Away for more than 30 days?** That Mac asks the others for a full copy when it's back.
+- **Stop syncing.** **Remove…** another Mac, or **Turn off sync on this Mac**. Tasks stay on every Mac either way. Lost a Mac? Turn sync off on your other Macs and pair them again: that makes a new key the lost Mac doesn't have.
+- Notifications, snoozes and Apple Reminders links stay per Mac.
+
 ## Install
 
 1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/TodoCity/releases/latest/download/TodoCity-macOS.dmg).
@@ -301,7 +320,8 @@ gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
-- **Todo City uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**). There is no Todo City server.
+- **Todo City uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**), and — only if you pair your Macs — sync.
+- **Sync is end-to-end encrypted.** Paired Macs pass changes through a relay as sealed boxes it can't open; the key exists only on your Macs, in the Keychain. The relay keeps no logs, deletes each box once every Mac has it (30 days at most), and has no accounts. See [Sync between your Macs](#sync-between-your-macs).
 - **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to Todo City over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
 - **Watching your screen stays on your Mac.** If you turn on **Connectors → Watch my screen**, Todo City reads the text of the window in front (never password managers, Keychain, System Settings or terminals, and never what you type), runs the on-device model on new text, and keeps none of it.
 - **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
@@ -347,9 +367,10 @@ npm test                 # date, time and repeat parsing, quick add, due chips, 
 
 ```
 crates/todocity-core/   Platform-independent Rust: prompt and schema, model clients, verified downloads,
-                     clipboard guard, SQLite store, recurrence, Reminders sync logic
+                     clipboard guard, SQLite store, recurrence, Reminders sync logic, Mac-to-Mac sync
 src-tauri/           Tauri v2 shell: menu bar, shortcuts, windows, capture, notifications, updates
 src/                 React + TypeScript UI: task panel, menu-bar popover, quick add; src/lib holds the logic
+relay/               The sync relay: a Cloudflare Worker that stores and forwards sealed boxes
 scripts/             llama-server build, icon rendering, UI preview screenshots
 ```
 
@@ -376,6 +397,8 @@ Quit Todo City from its menu-bar icon, move it from Applications to the Bin and 
 ```bash
 rm -rf ~/Library/Application\ Support/app.pluck.desktop
 ```
+
+If you used sync, turn it off first (Connectors → Your other Macs), or delete the "app.todocity.sync" item in Keychain Access afterwards.
 
 ## Contributing
 

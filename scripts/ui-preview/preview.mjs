@@ -237,6 +237,19 @@ function mockTauri(s) {
       },
     email_tasks_status: () =>
       s.emailTasks ?? { schedule: s.settings.email, servers: [], claude_code_connected: false, running: false },
+    sync_status: () =>
+      s.sync ?? {
+        on: false,
+        name: "Sam's MacBook Air",
+        devices: [],
+        local_only: [],
+        last_ok: null,
+        error: null,
+        busy: false,
+        pending: 0,
+        removed_notice: false,
+        pairing: null,
+      },
     calendar_status: () => s.calendar ?? { supported: true, access: "not_determined", enabled: false, hidden: [] },
     calendar_calendars: () => [
       { id: "c1", key: "Google / Work", title: "Work", source: "Google", color: "#3b82f6" },
@@ -677,7 +690,7 @@ await shot(
   }),
   async (p) => {
     await tab(p, "Connectors");
-    await p.locator(".connector-action").nth(1).click();
+    await p.locator(".connector-action").nth(2).click();
   },
 );
 await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));
@@ -729,13 +742,58 @@ const EVENTS = [
 await shot("panel-connectors", PANEL, scenario(), async (p) => {
   await tab(p, "Connectors");
 });
-await shot("panel-connectors-calendar", PANEL, scenario({ calendar: CAL_ON }), async (p) => {
+const SYNC_BASE = {
+  on: false,
+  name: "Sam's MacBook Air",
+  devices: [],
+  local_only: [],
+  last_ok: null,
+  error: null,
+  busy: false,
+  pending: 0,
+  removed_notice: false,
+  pairing: null,
+};
+const SYNC_ON = {
+  ...SYNC_BASE,
+  on: true,
+  devices: [
+    { id: "me", name: "Sam's MacBook Air", me: true, last_seen: null },
+    { id: "work", name: "Work MacBook Pro", me: false, last_seen: new Date(Date.now() - 4 * 60_000).toISOString() },
+  ],
+  local_only: ["Offsite 2026"],
+  last_ok: new Date(Date.now() - 30_000).toISOString(),
+};
+const syncOpen = async (p) => {
   await tab(p, "Connectors");
   await p.locator(".connector-action").first().click();
+};
+await shot("panel-connectors-sync", PANEL, scenario({ sync: SYNC_BASE }), syncOpen);
+await shot(
+  "panel-connectors-sync-code",
+  PANEL,
+  scenario({ sync: { ...SYNC_BASE, on: true, pairing: { role: "host", code: "K7MX-4QRB", stage: "waiting", sas: null, confirmed: false, error: null } } }),
+  async (p) => await tab(p, "Connectors"),
+);
+const SYNC_COMPARE = { ...SYNC_BASE, pairing: { role: "join", code: "K7MX-4QRB", stage: "compare", sas: "482 913", confirmed: false, error: null } };
+await shot("panel-connectors-sync-compare", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Connectors"));
+await shot("panel-connectors-sync-compare-dark", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Connectors"), true);
+await shot("panel-connectors-sync-on", PANEL, scenario({ sync: SYNC_ON }), async (p) => {
+  await syncOpen(p);
+  await p.locator(".connector-subhead", { hasText: "Your Macs" }).scrollIntoViewIfNeeded();
+});
+await shot("panel-connectors-sync-join", PANEL, scenario({ sync: SYNC_BASE }), async (p) => {
+  await syncOpen(p);
+  await p.getByRole("button", { name: "I have a code" }).click();
+  await p.locator("#sync-code").fill("k7mx-4qrb");
+});
+await shot("panel-connectors-calendar", PANEL, scenario({ calendar: CAL_ON }), async (p) => {
+  await tab(p, "Connectors");
+  await p.locator(".connector-action").nth(1).click();
 });
 await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(1).click();
+  await p.locator(".connector-action").nth(2).click();
 });
 await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
 await shot("popover-events-dark", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }), async () => {}, true);
@@ -823,11 +881,11 @@ const WATCH_ON = {
 };
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(2).click();
+  await p.locator(".connector-action").nth(3).click();
 });
 await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(2).click();
+  await p.locator(".connector-action").nth(3).click();
   await p.locator(".connector-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
@@ -840,7 +898,7 @@ const AGENTS_ON = {
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(4).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -863,13 +921,13 @@ await shot(
   }),
   async (p) => {
     await tab(p, "Connectors");
-    await p.locator(".connector-action").nth(3).click();
+    await p.locator(".connector-action").nth(4).click();
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(4).click();
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
