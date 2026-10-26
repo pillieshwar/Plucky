@@ -46,3 +46,18 @@ reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Wi
 id = "GHSA-4684-h2q9-2vcp"
 ignoreUntil = 2027-01-15
 reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+ignoreUntil = 2027-01-26
+reason = "zvariant is unmaintained; only used by zbus (D-Bus) under notify-rust, for Linux notifications. Not compiled for macOS (macOS uses UserNotifications directly)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+ignoreUntil = 2027-01-26
+reason = "zbus_names is unmaintained; only used by zbus (D-Bus) under notify-rust, for Linux notifications. Not compiled for macOS (macOS uses UserNotifications directly)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+ignoreUntil = 2027-01-26
+reason = "zvariant_derive is unmaintained; only used by zbus (D-Bus) under notify-rust, for Linux notifications. Not compiled for macOS (macOS uses UserNotifications directly)."
