@@ -247,6 +247,28 @@ CREATE TABLE imports (
     PRIMARY KEY (source, ext_id)
 );
 "#,
+    // Sync between a person's Macs (see `crate::sync`): every task gets an id
+    // that's the same on every Mac, and the last state each Mac agreed on is
+    // kept per field ("the shadow"), so changes are found by comparing.
+    r#"
+ALTER TABLE tasks ADD COLUMN uid TEXT;
+UPDATE tasks SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL;
+CREATE UNIQUE INDEX tasks_uid ON tasks (uid);
+CREATE TRIGGER tasks_uid_new AFTER INSERT ON tasks FOR EACH ROW WHEN NEW.uid IS NULL
+BEGIN
+    UPDATE tasks SET uid = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid;
+END;
+CREATE TABLE sync_shadow (
+    entity  TEXT NOT NULL,
+    field   TEXT NOT NULL,
+    value   TEXT NOT NULL,
+    hlc     TEXT NOT NULL,
+    pending INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (entity, field)
+) WITHOUT ROWID;
+CREATE INDEX sync_shadow_pending ON sync_shadow (pending) WHERE pending = 1;
+CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -314,7 +336,7 @@ pub struct ProjectSummary {
 }
 
 pub struct Store {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl Store {
