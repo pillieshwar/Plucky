@@ -50,6 +50,8 @@ pub struct Page {
     pub gap: bool,
     /// The newest box number in the mailbox.
     pub latest: i64,
+    /// Each Mac's id and when it last checked in (Unix milliseconds).
+    pub devices: Vec<(String, i64)>,
 }
 
 #[derive(Deserialize)]
@@ -62,6 +64,12 @@ struct RawBox {
 }
 
 #[derive(Deserialize)]
+struct RawDevice {
+    id: String,
+    seen: i64,
+}
+
+#[derive(Deserialize)]
 struct RawPage {
     boxes: Vec<RawBox>,
     #[serde(default)]
@@ -70,6 +78,8 @@ struct RawPage {
     gap: bool,
     #[serde(default)]
     latest: i64,
+    #[serde(default)]
+    devices: Vec<RawDevice>,
 }
 
 #[derive(Deserialize)]
@@ -185,6 +195,7 @@ impl Relay {
             more: raw.more,
             gap: raw.gap,
             latest: raw.latest,
+            devices: raw.devices.into_iter().map(|d| (d.id, d.seen)).collect(),
         })
     }
 

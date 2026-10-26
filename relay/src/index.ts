@@ -13,7 +13,7 @@ import { DurableObject } from "cloudflare:workers";
  * `X-Device: <id>`.
  *
  *   POST   /v1/m/{mailbox}/boxes             store one box → {box}
- *   GET    /v1/m/{mailbox}/boxes?after=n     → {boxes:[{box,from,data}], more, gap, latest}
+ *   GET    /v1/m/{mailbox}/boxes?after=n     → {boxes:[{box,from,data}], more, gap, latest, devices:[{id,seen}]}
  *   POST   /v1/m/{mailbox}/ack   {upto}      this device has everything ≤ upto
  *   PUT    /v1/m/{mailbox}/devices/{id} {acked}  a Mac joining: keep boxes for it
  *   DELETE /v1/m/{mailbox}/devices/{id}      a Mac left
@@ -194,6 +194,8 @@ export class Mailbox extends DurableObject<Env> {
           more,
           gap: after < floor,
           latest: this.latest(),
+          // When each Mac last checked in, so the others can show it.
+          devices: sql.exec<{ id: string; seen: number }>("SELECT id, seen FROM devices").toArray(),
         },
       };
     }

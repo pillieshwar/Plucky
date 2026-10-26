@@ -169,6 +169,8 @@ pub struct Report {
     pub removed: bool,
     /// Macs heard from in this round.
     pub heard: Vec<String>,
+    /// When each Mac last checked in with the relay (Unix milliseconds).
+    pub seen: Vec<(String, i64)>,
 }
 
 fn locked(store: &Mutex<Store>) -> Result<std::sync::MutexGuard<'_, Store>, SyncError> {
@@ -212,6 +214,7 @@ pub async fn cycle(
     let mut someone_asked = false;
     for _ in 0..50 {
         let page = relay.list(&mailbox, &token, cursor).await?;
+        report.seen.clone_from(&page.devices);
         if page.gap && !report.asked_resync {
             relay
                 .put(&mailbox, &token, resync_box(&me.key, &me.device)?)

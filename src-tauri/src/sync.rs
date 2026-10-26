@@ -323,6 +323,15 @@ async fn round(app: &AppHandle) -> Result<(), ()> {
                 for d in &report.heard {
                     c.seen.insert(d.clone(), at.clone());
                 }
+                for (d, ms) in &report.seen {
+                    if let Some(t) = chrono::DateTime::from_timestamp_millis(*ms) {
+                        let t = t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+                        let e = c.seen.entry(d.clone()).or_default();
+                        if t > *e {
+                            *e = t;
+                        }
+                    }
+                }
             });
             svc.set_health(|h| {
                 h.last_ok = Some(at.clone());
