@@ -69,10 +69,33 @@ jobs:
           set -euo pipefail
           sleep 5
           test "$(curl -fsS "$URL/health")" = "ok"
+          # A mailbox: pass, put, list, ack (which deletes), and the gap a
+          # late Mac would see.
           mailbox="ci_$(openssl rand -hex 16)"
-          put=$(curl -fsS -X PUT --data-binary "smoke-test" "$URL/v1/m/$mailbox/boxes")
+          pass="$(openssl rand -hex 24)"
+          box() { curl -fsS -H "authorization: Bearer $pass" -H "x-device: $1" "${@:2}"; }
+          box ci_dev_A -X PUT "$URL/v1/m/$mailbox/devices/ci_dev_B" -d '{"acked":0}' >/dev/null
+          put=$(box ci_dev_A -X POST --data-binary "smoke-test" "$URL/v1/m/$mailbox/boxes")
           echo "put: $put"
           echo "$put" | grep -q '"box":1'
-          got=$(curl -fsS "$URL/v1/m/$mailbox/boxes?after=0")
+          got=$(box ci_dev_B "$URL/v1/m/$mailbox/boxes?after=0")
+          echo "got: $got"
           echo "$got" | grep -q "$(printf 'smoke-test' | base64)"
-          echo "::notice::Relay answers: health ok, put and get work."
+          echo "$got" | grep -q '"gap":false'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "authorization: Bearer wrong-pass-wrong-pass-wrong-pass-00" -H "x-device: ci_dev_C" "$URL/v1/m/$mailbox/boxes")" = 401
+          box ci_dev_B -X POST "$URL/v1/m/$mailbox/ack" -d '{"upto":1}' >/dev/null
+          late=$(box ci_dev_B "$URL/v1/m/$mailbox/boxes?after=0")
+          echo "after ack: $late"
+          echo "$late" | grep -q '"boxes":\[\]'
+          echo "$late" | grep -q '"gap":true'
+          box ci_dev_A -X DELETE "$URL/v1/m/$mailbox" >/dev/null
+          # A pairing room.
+          code=$(LC_ALL=C tr -dc '23456789ABCDEFGHJKMNPQRSTUVWXYZ' </dev/urandom | head -c 8)
+          curl -fsS -X POST --data 'hello' "$URL/v1/pair/$code?new=1" >/dev/null
+          curl -fsS -X POST --data 'there' "$URL/v1/pair/$code" >/dev/null
+          msgs=$(curl -fsS "$URL/v1/pair/$code?after=1")
+          echo "room: $msgs"
+          test "$msgs" = '{"msgs":["there"]}'
+          curl -fsS -X DELETE "$URL/v1/pair/$code" >/dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/v1/pair/$code")" = 404
+          echo "::notice::Relay answers: health, mailbox (pass, put, list, ack, gap) and pairing rooms work."

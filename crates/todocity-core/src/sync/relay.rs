@@ -15,6 +15,10 @@ pub enum RelayError {
     Unauthorized,
     #[error("that code isn't open (it may have expired)")]
     NoRoom,
+    #[error("this sync group was ended on another Mac")]
+    Gone,
+    #[error("the sync mailbox is full; it empties as your other Macs catch up")]
+    Full,
     #[error("the sync relay is busy; trying again shortly")]
     Busy,
     #[error("the sync relay said: {0}")]
@@ -125,7 +129,9 @@ impl Relay {
         }
         Err(match status.as_u16() {
             401 | 403 => RelayError::Unauthorized,
-            404 | 410 => RelayError::NoRoom,
+            404 => RelayError::NoRoom,
+            410 => RelayError::Gone,
+            507 => RelayError::Full,
             429 | 503 => RelayError::Busy,
             _ => RelayError::Other(format!(
                 "{status}: {}",

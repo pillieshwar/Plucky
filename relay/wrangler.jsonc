@@ -5,10 +5,21 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "durable_objects": {
-    "bindings": [{ "name": "MAILBOX", "class_name": "Mailbox" }]
+    "bindings": [
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "ROOM", "class_name": "Room" }
+    ]
   },
-  // Each mailbox gets its own SQLite database.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Mailbox"] }],
+  // Each mailbox and pairing room gets its own SQLite database.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Mailbox"] },
+    { "tag": "v2", "new_sqlite_classes": ["Room"] }
+  ],
+  // Per network address, per minute.
+  "ratelimits": [
+    { "name": "PER_IP", "namespace_id": "4101", "simple": { "limit": 600, "period": 60 } },
+    { "name": "PAIR_IP", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
+  ],
   // No request logs: the relay keeps nothing it doesn't need.
   "observability": { "enabled": false }
 }

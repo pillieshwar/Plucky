@@ -51,23 +51,12 @@ struct Msg {
     pk: String,
     #[serde(default)]
     device: String,
-    #[serde(default)]
-    name: String,
     #[serde(rename = "box", default)]
     sealed: String,
 }
 
 fn parse(msg: &str) -> Option<Msg> {
     serde_json::from_str(msg).ok()
-}
-
-fn clip(name: &str) -> String {
-    let n: String = name.chars().filter(|c| !c.is_control()).take(60).collect();
-    if n.trim().is_empty() {
-        "A Mac".into()
-    } else {
-        n.trim().to_string()
-    }
 }
 
 pub fn cancel_msg() -> String {
@@ -79,15 +68,15 @@ pub struct Host {
     code: String,
     key: Option<PairKey>,
     public: [u8; 32],
-    name: String,
     paired: Option<Paired>,
-    /// The joining Mac's device id and name, once it's here.
-    pub peer: Option<(String, String)>,
+    /// The joining Mac's device id, once it's here. (Names travel only
+    /// inside sealed boxes, never in the clear through the room.)
+    pub peer: Option<String>,
 }
 
 impl Host {
     /// Returns the host and the first message to open the room with.
-    pub fn new(code: &str, name: &str) -> Result<(Self, String), PairError> {
+    pub fn new(code: &str) -> Result<(Self, String), PairError> {
         let key = PairKey::generate()?;
         let public = key.public;
         let first = json!({ "t": "commit", "h": commitment(&public) }).to_string();
@@ -96,7 +85,6 @@ impl Host {
                 code: code.to_string(),
                 key: Some(key),
                 public,
-                name: clip(name),
                 paired: None,
                 peer: None,
             },
@@ -116,9 +104,9 @@ impl Host {
                     return Ok(None);
                 };
                 self.paired = Some(key.agree(&peer, &self.code, &self.public, &peer)?);
-                self.peer = Some((m.device, clip(&m.name)));
+                self.peer = Some(m.device);
                 Ok(Some(
-                    json!({ "t": "reveal", "pk": b64::encode_url(&self.public), "name": self.name }).to_string(),
+                    json!({ "t": "reveal", "pk": b64::encode_url(&self.public) }).to_string(),
                 ))
             }
             "no" => Err(PairError::Cancelled),
@@ -149,27 +137,22 @@ pub struct Joiner {
     key: Option<PairKey>,
     public: [u8; 32],
     device: String,
-    name: String,
     commit: Option<String>,
     paired: Option<Paired>,
     sealed: Option<Vec<u8>>,
-    /// The host's name, once it's revealed.
-    pub peer_name: Option<String>,
 }
 
 impl Joiner {
-    pub fn new(code: &str, device: &str, name: &str) -> Result<Self, PairError> {
+    pub fn new(code: &str, device: &str) -> Result<Self, PairError> {
         let key = PairKey::generate()?;
         Ok(Self {
             code: code.to_string(),
             public: key.public,
             key: Some(key),
             device: device.to_string(),
-            name: clip(name),
             commit: None,
             paired: None,
             sealed: None,
-            peer_name: None,
         })
     }
 
@@ -179,7 +162,7 @@ impl Joiner {
             "commit" if self.commit.is_none() => {
                 self.commit = Some(m.h);
                 Ok(Some(
-                    json!({ "t": "join", "pk": b64::encode_url(&self.public), "device": self.device, "name": self.name })
+                    json!({ "t": "join", "pk": b64::encode_url(&self.public), "device": self.device })
                         .to_string(),
                 ))
             }
@@ -194,7 +177,6 @@ impl Joiner {
                     return Ok(None);
                 };
                 self.paired = Some(key.agree(&peer, &self.code, &peer, &self.public)?);
-                self.peer_name = Some(clip(&m.name));
                 Ok(None)
             }
             "invite" if self.paired.is_some() => {
@@ -238,15 +220,16 @@ mod tests {
     #[test]
     fn a_whole_pairing() {
         let code = room_code().unwrap();
-        let (mut host, commit) = Host::new(&code, "Home Mac").unwrap();
-        let mut join = Joiner::new(&code, "J", "Work Mac").unwrap();
+        let (mut host, commit) = Host::new(&code).unwrap();
+        let mut join = Joiner::new(&code, "J").unwrap();
         let hello = join.hear(&commit).unwrap().unwrap();
         let reveal = host.hear(&hello).unwrap().unwrap();
-        assert_eq!(host.peer, Some(("J".into(), "Work Mac".into())));
+        assert_eq!(host.peer.as_deref(), Some("J"));
         assert!(join.hear(&reveal).unwrap().is_none());
-        assert_eq!(join.peer_name.as_deref(), Some("Home Mac"));
         assert_eq!(host.sas(), join.sas());
         assert!(host.sas().is_some());
+        // Nothing personal goes through the room in the clear.
+        assert!(!hello.contains("Mac") && !reveal.contains("Mac"));
 
         let msg = host.invite(&invite()).unwrap().unwrap();
         assert_eq!(join.invite().unwrap(), None);
@@ -257,12 +240,12 @@ mod tests {
     #[test]
     fn a_swapped_key_is_caught() {
         let code = room_code().unwrap();
-        let (mut host, commit) = Host::new(&code, "Home").unwrap();
-        let mut join = Joiner::new(&code, "J", "Work").unwrap();
+        let (mut host, commit) = Host::new(&code).unwrap();
+        let mut join = Joiner::new(&code, "J").unwrap();
         let hello = join.hear(&commit).unwrap().unwrap();
         host.hear(&hello).unwrap();
         // Someone in the middle answers with a key of their own.
-        let (mut fake, _) = Host::new(&code, "Home").unwrap();
+        let (mut fake, _) = Host::new(&code).unwrap();
         let fake_reveal = fake.hear(&hello).unwrap().unwrap();
         assert_eq!(join.hear(&fake_reveal), Err(PairError::Mismatch));
     }
@@ -270,14 +253,14 @@ mod tests {
     #[test]
     fn a_second_joiner_is_ignored_and_cancel_ends_it() {
         let code = room_code().unwrap();
-        let (mut host, commit) = Host::new(&code, "Home").unwrap();
-        let mut a = Joiner::new(&code, "A", "A").unwrap();
-        let mut b = Joiner::new(&code, "B", "B").unwrap();
+        let (mut host, commit) = Host::new(&code).unwrap();
+        let mut a = Joiner::new(&code, "A").unwrap();
+        let mut b = Joiner::new(&code, "B").unwrap();
         let ha = a.hear(&commit).unwrap().unwrap();
         let hb = b.hear(&commit).unwrap().unwrap();
         assert!(host.hear(&ha).unwrap().is_some());
         assert!(host.hear(&hb).unwrap().is_none());
-        assert_eq!(host.peer.as_ref().map(|p| p.0.as_str()), Some("A"));
+        assert_eq!(host.peer.as_deref(), Some("A"));
         assert_eq!(host.hear(&cancel_msg()), Err(PairError::Cancelled));
         assert!(host.hear("not json").unwrap().is_none());
     }
