@@ -67,15 +67,20 @@ jobs:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
           set -euo pipefail
-          sleep 5
-          test "$(curl -fsS "$URL/health")" = "ok"
           # Each check says what it saw, so a failure shows in the run summary.
           check() { if ! eval "$2"; then echo "::error::smoke test: $1 (saw: ${3:-})"; exit 1; fi; }
+          # A new version can take a few seconds to reach every location.
+          for _ in 1 2 3 4 5 6; do
+            h=$(curl -sS "$URL/health" 2>&1 || true)
+            [[ "$h" == ok ]] && break
+            sleep 5
+          done
+          check "health" '[[ "$h" == ok ]]' "$h"
           # A mailbox: pass, put, list, ack (which deletes), and the gap a
           # late Mac would see.
           mailbox="ci_$(openssl rand -hex 16)"
           pass="$(openssl rand -hex 24)"
-          box() { curl -sS -H "authorization: Bearer $pass" -H "x-device: $1" "${@:2}"; }
+          box() { curl -sS --retry 2 -H "authorization: Bearer $pass" -H "x-device: $1" "${@:2}"; }
           reg=$(box ci_dev_A -X PUT "$URL/v1/m/$mailbox/devices/ci_dev_B" -d '{"acked":0}')
           check "register a device" '[[ "$reg" == *ok* ]]' "$reg"
           put=$(box ci_dev_A -X POST --data-binary "smoke-test" "$URL/v1/m/$mailbox/boxes")
