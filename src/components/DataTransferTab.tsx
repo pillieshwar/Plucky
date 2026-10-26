@@ -180,8 +180,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
         <div>
           <h2 className="tr-title">Move in from Things 3</h2>
           <p className="tr-sub">
-            Bring your projects, headings, to-dos, checklists and Logbook into Todo City. Everything happens on this
-            Mac — Things isn't changed, and nothing goes online.
+            Projects, headings, to-dos, checklists and Logbook. Things isn't changed.
           </p>
         </div>
       </header>
@@ -337,8 +336,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
         <div>
           <h2 className="tr-title">Move in from Todoist</h2>
           <p className="tr-sub">
-            Bring your projects, sections, tasks, sub-tasks, labels, comments and completed tasks into Todo City.
-            Todoist isn't changed, and your token is used once to read your tasks — it's never saved.
+            Projects, sections, tasks, labels, comments and completed tasks. Todoist isn't changed; your token isn't saved.
           </p>
         </div>
       </header>
@@ -582,7 +580,7 @@ function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport;
         {report.failed > 0 && ` ${plural(report.failed, "task")} couldn't be read and stayed in ${app}.`}
       </p>
       <p className="tr-small">
-        A backup from just before is in Preferences → Your data, if you want to undo this. Moved-in tasks aren't sent to
+        A backup from just before is in Settings → Backups & export, if you want to undo this. Moved-in tasks aren't sent to
         Apple Reminders on their own.
       </p>
       <div className="tr-actions">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
 import type { AppSettings, Theme, BackupInfo, LookSettings, NotificationPermission, Status, UpdateStatus } from "../lib/types";
@@ -72,163 +72,6 @@ export function updateText(u: UpdateStatus): string {
   }
 }
 
-export function GeneralSection(
-  props: SettingsProps & { status: Status | null; update: UpdateStatus; onTour?: () => void },
-) {
-  const { settings, status, update, onError, onTour } = props;
-  const save = useSave(props);
-  const [login, setLogin] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    api
-      .autostartEnabled()
-      .then(setLogin)
-      .catch(() => setLogin(null));
-  }, []);
-
-  async function setLoginItem(on: boolean) {
-    try {
-      setLogin(await api.setAutostart(on));
-    } catch (e) {
-      onError(String(e));
-    }
-  }
-
-  return (
-    <section className="settings-section">
-      <h2 className="settings-h">General</h2>
-      <div className="card-stack">
-        <Toggle
-          label="Open Todo City when I log in"
-          hint="Keeps capture and reminders working after a restart."
-          checked={!!login}
-          disabled={login === null}
-          onChange={(v) => void setLoginItem(v)}
-        />
-        <Toggle
-          label="Show Todo City when my Mac starts or wakes"
-          hint="Opens Todo City at login and the first time you open your Mac each day."
-          checked={settings?.show_on_start ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
-        />
-        <Toggle
-          label="Open in full screen"
-          hint="When you open Todo City (or open it again from Finder or Spotlight), it fills the screen. Off: the side panel."
-          checked={settings?.open_full ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, open_full: v }))}
-        />
-        <Toggle
-          label="Press ⌘C twice to capture"
-          hint="Copy as usual; press ⌘C again within a moment and Todo City turns what you copied into a task."
-          checked={settings?.double_copy ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
-        />
-        <Toggle
-          label="Show my city in full screen"
-          hint="Every task you finish lights a window. The city sits in the corner of full screen; click it to explore."
-          checked={settings?.city_corner ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, city_corner: v }))}
-        />
-        <Toggle
-          label="Review captures under the menu-bar icon"
-          hint="A card drops down from the Todo City icon. Off: captures open in this panel."
-          checked={settings?.capture_in_menu_bar ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, capture_in_menu_bar: v }))}
-        />
-        <Toggle
-          label="Remember where tasks came from"
-          hint="Saves the app and page link with each capture, on this Mac only."
-          checked={settings?.remember_source ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, remember_source: v }))}
-        />
-        <Toggle
-          label="Update automatically"
-          hint="Downloads signed updates in the background; you choose when to restart."
-          checked={settings?.auto_update ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, auto_update: v }))}
-        />
-        <div className="update-line">
-          <span>
-            Todo City {status?.version ?? ""}
-            {update.state !== "idle" && <span className="update-state"> — {updateText(update)}</span>}
-          </span>
-          {update.state === "ready" ? (
-            <button type="button" className="primary small" onClick={() => void api.installUpdate().catch((e) => onError(String(e)))}>
-              Restart to update
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="ghost small"
-              disabled={update.state === "checking" || update.state === "downloading"}
-              onClick={() => void api.checkForUpdates().catch((e) => onError(String(e)))}
-            >
-              Check now
-            </button>
-          )}
-        </div>
-        {onTour && (
-          <div className="update-line">
-            <span>New to Todo City, or forgot something?</span>
-            <button type="button" className="ghost small" onClick={onTour}>
-              Take the tour again
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-const THEMES: { id: Theme; label: string; hint: string }[] = [
-  { id: "dark", label: "Dark", hint: "Always dark" },
-  { id: "light", label: "Light", hint: "Always light" },
-  { id: "system", label: "System", hint: "Match macOS" },
-];
-
-/** Light, dark, or follow macOS — for every Todo City window. */
-export function AppearanceSection(props: SettingsProps) {
-  const save = useSave(props);
-  const current = props.settings?.theme ?? "dark";
-  function choose(theme: Theme) {
-    applyTheme(theme); // right away; the other windows follow on save
-    void save((s) => ({ ...s, theme }));
-  }
-  return (
-    <section className="settings-section">
-      <h2 className="settings-h">Appearance</h2>
-      <div className="theme-picker" role="radiogroup" aria-label="Appearance">
-        {THEMES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={current === t.id}
-            className={current === t.id ? "theme-option on" : "theme-option"}
-            disabled={!props.settings}
-            onClick={() => choose(t.id)}
-          >
-            <span className={`theme-swatch ${t.id}`} aria-hidden>
-              <span className="theme-swatch-bar" />
-              <span className="theme-swatch-line" />
-              <span className="theme-swatch-line short" />
-            </span>
-            <span className="theme-label">{t.label}</span>
-            <span className="theme-hint">{t.hint}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /** A choice from a short list, as one row of a card stack. */
 function Choice<T extends string>({
   label,
@@ -262,6 +105,133 @@ function Choice<T extends string>({
   );
 }
 
+/** A time of day, as one row of a card stack. */
+function TimeRow({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className={disabled ? "toggle-row disabled" : "toggle-row"}>
+      <span className="toggle-text">
+        <span className="toggle-label">{label}</span>
+        {hint && <span className="toggle-hint">{hint}</span>}
+      </span>
+      <input type="time" className="time-input" value={value} disabled={disabled} onChange={(e) => e.target.value && onChange(e.target.value)} />
+    </label>
+  );
+}
+
+/** A plain row: a label and a button (or anything) on the right. */
+export function ActionRow({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="toggle-row static">
+      <span className="toggle-text">
+        <span className="toggle-label">{label}</span>
+        {hint && <span className="toggle-hint">{hint}</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// ── General ────────────────────────────────────────────────────────────────
+
+export function GeneralPage(props: SettingsProps & { status: Status | null; update: UpdateStatus }) {
+  const { settings, status, update, onError } = props;
+  const save = useSave(props);
+  const [login, setLogin] = useState<boolean | null>(null);
+  useEffect(() => {
+    api
+      .autostartEnabled()
+      .then(setLogin)
+      .catch(() => setLogin(null));
+  }, []);
+  async function setLoginItem(on: boolean) {
+    try {
+      setLogin(await api.setAutostart(on));
+    } catch (e) {
+      onError(String(e));
+    }
+  }
+  const off = !settings;
+  return (
+    <>
+      <section className="settings-section">
+        <h2 className="settings-h">Opening</h2>
+        <div className="card-stack">
+          <Toggle label="Open at login" checked={!!login} disabled={login === null} onChange={(v) => void setLoginItem(v)} />
+          <Toggle
+            label="Show when my Mac wakes"
+            hint="Once a day"
+            checked={settings?.show_on_start ?? true}
+            disabled={off}
+            onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
+          />
+          <Choice
+            label="Open in"
+            value={(settings?.open_full ?? true) ? "full" : "panel"}
+            disabled={off}
+            options={[
+              ["full", "Full screen"],
+              ["panel", "Side panel"],
+            ]}
+            onChange={(v) => void save((s) => ({ ...s, open_full: v === "full" }))}
+          />
+          <ActionRow label="Side panel position">
+            <button type="button" className="ghost small" onClick={() => void api.snapPanelToEdge()}>
+              Snap to right edge
+            </button>
+          </ActionRow>
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Updates</h2>
+        <div className="card-stack">
+          <Toggle
+            label="Update automatically"
+            checked={settings?.auto_update ?? true}
+            disabled={off}
+            onChange={(v) => void save((s) => ({ ...s, auto_update: v }))}
+          />
+          <ActionRow label={`Todo City ${status?.version ?? ""}`} hint={update.state !== "idle" ? updateText(update) : undefined}>
+            {update.state === "ready" ? (
+              <button type="button" className="primary small" onClick={() => void api.installUpdate().catch((e) => onError(String(e)))}>
+                Restart to update
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="ghost small"
+                disabled={update.state === "checking" || update.state === "downloading"}
+                onClick={() => void api.checkForUpdates().catch((e) => onError(String(e)))}
+              >
+                Check now
+              </button>
+            )}
+          </ActionRow>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ── Appearance ─────────────────────────────────────────────────────────────
+
+const THEMES: { id: Theme; label: string }[] = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "system", label: "System" },
+];
+
 const ACCENTS: [LookSettings["accent"], string, string][] = [
   ["purple", "Purple", "#7d74f0"],
   ["blue", "Blue", "#4a86f0"],
@@ -270,223 +240,329 @@ const ACCENTS: [LookSettings["accent"], string, string][] = [
   ["pink", "Pink", "#e8679f"],
 ];
 
-/** Personal touches: the calendar, the clock, colors, density and the city. */
-export function CustomizeSection(props: SettingsProps) {
+export function AppearancePage(props: SettingsProps) {
+  const save = useSave(props);
   const look = lookOf(props.settings);
-  const save = useSave(props);
   const set = (patch: Partial<LookSettings>) => void save((s) => ({ ...s, look: { ...lookOf(s), ...patch } }));
+  const current = props.settings?.theme ?? "dark";
   const off = !props.settings;
+  function choose(theme: Theme) {
+    applyTheme(theme); // right away; the other windows follow on save
+    void save((s) => ({ ...s, theme }));
+  }
   return (
-    <section className="settings-section">
-      <h2 className="settings-h">Customize</h2>
-      <div className="accent-picker" role="radiogroup" aria-label="Accent color">
-        {ACCENTS.map(([id, name, color]) => (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={look.accent === id}
-            aria-label={name}
-            title={name}
-            className={look.accent === id ? "accent-dot on" : "accent-dot"}
-            style={{ background: color }}
+    <>
+      <section className="settings-section">
+        <h2 className="settings-h">Theme</h2>
+        <div className="theme-picker" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={current === t.id}
+              className={current === t.id ? "theme-option on" : "theme-option"}
+              disabled={off}
+              onClick={() => choose(t.id)}
+            >
+              <span className={`theme-swatch ${t.id}`} aria-hidden>
+                <span className="theme-swatch-bar" />
+                <span className="theme-swatch-line" />
+                <span className="theme-swatch-line short" />
+              </span>
+              <span className="theme-label">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Accent</h2>
+        <div className="accent-picker" role="radiogroup" aria-label="Accent color">
+          {ACCENTS.map(([id, name, color]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={look.accent === id}
+              aria-label={name}
+              title={name}
+              className={look.accent === id ? "accent-dot on" : "accent-dot"}
+              style={{ background: color }}
+              disabled={off}
+              onClick={() => set({ accent: id })}
+            />
+          ))}
+          <span className="accent-name">{ACCENTS.find((a) => a[0] === look.accent)?.[1]}</span>
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Lists</h2>
+        <div className="card-stack">
+          <Choice
+            label="Open to"
+            value={look.start_list}
             disabled={off}
-            onClick={() => set({ accent: id })}
+            options={[
+              ["last", "Where I left off"],
+              ["today", "Today"],
+              ["upcoming", "Calendar"],
+              ["all", "Anytime"],
+            ]}
+            onChange={(v) => set({ start_list: v })}
           />
-        ))}
-        <span className="accent-name">Accent: {ACCENTS.find((a) => a[0] === look.accent)?.[1]}</span>
-      </div>
-      <div className="card-stack">
-        <Choice
-          label="Open to"
-          hint="The list Todo City shows when it starts."
-          value={look.start_list}
-          disabled={off}
-          options={[
-            ["last", "Where I left off"],
-            ["today", "Today"],
-            ["upcoming", "Calendar"],
-            ["all", "Anytime"],
-          ]}
-          onChange={(v) => set({ start_list: v })}
-        />
-        <Choice
-          label="First day of the week"
-          hint="For the calendar, the month and the week strip."
-          value={look.week_start}
-          disabled={off}
-          options={[
-            ["auto", "Automatic"],
-            ["sun", "Sunday"],
-            ["mon", "Monday"],
-            ["sat", "Saturday"],
-          ]}
-          onChange={(v) => set({ week_start: v })}
-        />
-        <Choice
-          label="Clock"
-          value={look.clock}
-          disabled={off}
-          options={[
-            ["auto", "Automatic"],
-            ["12", "12-hour (3:30 PM)"],
-            ["24", "24-hour (15:30)"],
-          ]}
-          onChange={(v) => set({ clock: v })}
-        />
-        <Toggle
-          label="Show notes and sub-tasks under each task"
-          hint="In full screen. Turn off for a cleaner list; they're still there when you open a task."
-          checked={look.details}
-          disabled={off}
-          onChange={(v) => set({ details: v })}
-        />
-        <Toggle label="Compact rows" hint="Fit more tasks on screen in full screen." checked={look.compact} disabled={off} onChange={(v) => set({ compact: v })} />
-        <Choice
-          label="City sky"
-          value={look.city_sky}
-          disabled={off}
-          options={[
-            ["auto", "Follow Appearance"],
-            ["night", "Always night"],
-            ["dusk", "Always dusk"],
-          ]}
-          onChange={(v) => set({ city_sky: v })}
-        />
-        <Toggle
-          label="Moving cars and blinking windows"
-          hint="Traffic, the slow turn and overdue blinking in your city."
-          checked={look.city_motion}
-          disabled={off}
-          onChange={(v) => set({ city_motion: v })}
-        />
-      </div>
-    </section>
+          <Choice
+            label="Week starts on"
+            value={look.week_start}
+            disabled={off}
+            options={[
+              ["auto", "Automatic"],
+              ["sun", "Sunday"],
+              ["mon", "Monday"],
+              ["sat", "Saturday"],
+            ]}
+            onChange={(v) => set({ week_start: v })}
+          />
+          <Choice
+            label="Clock"
+            value={look.clock}
+            disabled={off}
+            options={[
+              ["auto", "Automatic"],
+              ["12", "12-hour"],
+              ["24", "24-hour"],
+            ]}
+            onChange={(v) => set({ clock: v })}
+          />
+          <Toggle label="Show notes under tasks" hint="Full screen" checked={look.details} disabled={off} onChange={(v) => set({ details: v })} />
+          <Toggle label="Compact rows" hint="Full screen" checked={look.compact} disabled={off} onChange={(v) => set({ compact: v })} />
+        </div>
+      </section>
+    </>
   );
 }
 
-/** The menu-bar dropdown opening by itself: due tasks and the daily check-in. */
-export function MenuBarNudgesSection(props: SettingsProps) {
-  const { settings } = props;
-  const save = useSave(props);
-  return (
-    <section className="settings-section">
-      <h2 className="settings-h">Menu bar check-ins</h2>
-      <p className="settings-intro">
-        Todo City can open its menu-bar dropdown on its own, showing just what needs you. It never takes over your
-        keyboard — keep typing, and answer when you're ready.
-      </p>
-      <div className="card-stack">
-        <Toggle
-          label="Spotlight tasks when their time comes"
-          hint="The dropdown opens on that task with Done and Snooze, everything else blurred."
-          checked={settings?.due_spotlight ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, due_spotlight: v }))}
-        />
-        <Toggle
-          label="Daily check-in for tasks without a date"
-          hint="Once a day, plan undated tasks with one tap — today, tomorrow or next week. Skipped when there are none."
-          checked={settings?.undated_nudge ?? true}
-          disabled={!settings}
-          onChange={(v) => void save((s) => ({ ...s, undated_nudge: v }))}
-        />
-        <label className={settings?.undated_nudge ? "toggle-row" : "toggle-row disabled"}>
-          <span className="toggle-text">
-            <span className="toggle-label">Check-in time</span>
-            <span className="toggle-hint">Your local time</span>
-          </span>
-          <input
-            type="time"
-            className="time-input"
-            value={settings?.undated_time ?? "16:00"}
-            disabled={!settings?.undated_nudge}
-            onChange={(e) => e.target.value && void save((s) => ({ ...s, undated_time: e.target.value }))}
-          />
-        </label>
-      </div>
-    </section>
-  );
-}
+// ── Notifications ──────────────────────────────────────────────────────────
 
-export function NotificationsSection(props: SettingsProps) {
+export function NotificationsPage(props: SettingsProps) {
   const { settings } = props;
   const save = useSave(props);
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
-
   useEffect(() => {
     api
       .notificationPermission()
       .then(setPermission)
       .catch(() => setPermission(null));
   }, []);
-
   async function enable(on: boolean) {
     await save((s) => ({ ...s, notify: { ...s.notify, enabled: on } }));
     if (on && permission === "not_determined") {
       setPermission(await api.requestNotificationPermission().catch(() => null));
     }
   }
-
   const n = settings?.notify;
   return (
-    <section className="settings-section">
-      <h2 className="settings-h">Notifications</h2>
-      <p className="settings-intro">
-        Todo City reminds you when a task is due, right on this Mac. Each reminder has Done, Snooze and Tomorrow buttons.
-      </p>
+    <>
       {permission === "denied" && (
         <div className="rem-note error">
-          <p>Notifications for Todo City are turned off in System Settings.</p>
+          <p>Notifications are off for Todo City in System Settings.</p>
           <button type="button" className="ghost" onClick={() => void api.openNotificationSettings().catch(() => undefined)}>
-            Open Notification settings
+            Open System Settings
           </button>
         </div>
       )}
-      <div className="card-stack">
-        <Toggle
-          label="Remind me when tasks are due"
-          checked={n?.enabled ?? true}
-          disabled={!n}
-          onChange={(v) => void enable(v)}
-        />
-        <label className={n?.enabled ? "toggle-row" : "toggle-row disabled"}>
-          <span className="toggle-text">
-            <span className="toggle-label">Tasks without a time</span>
-            <span className="toggle-hint">Remind me on the day at</span>
-          </span>
-          <input
-            type="time"
-            className="time-input"
+      <section className="settings-section">
+        <h2 className="settings-h">Reminders</h2>
+        <div className="card-stack">
+          <Toggle label="Remind me when tasks are due" checked={n?.enabled ?? true} disabled={!n} onChange={(v) => void enable(v)} />
+          <TimeRow
+            label="Tasks without a time"
+            hint="Remind on the day at"
             value={n?.all_day_time ?? "09:00"}
             disabled={!n?.enabled}
-            onChange={(e) =>
-              e.target.value && void save((s) => ({ ...s, notify: { ...s.notify, all_day_time: e.target.value } }))
-            }
+            onChange={(t) => void save((s) => ({ ...s, notify: { ...s.notify, all_day_time: t } }))}
           />
-        </label>
+          <Toggle
+            label="One morning summary instead"
+            hint="Timed tasks still remind on time"
+            checked={n?.daily_summary ?? false}
+            disabled={!n?.enabled}
+            onChange={(v) => void save((s) => ({ ...s, notify: { ...s.notify, daily_summary: v } }))}
+          />
+          <ActionRow label="Test">
+            {permission === "not_determined" ? (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => void api.requestNotificationPermission().then(setPermission).catch(() => undefined)}
+              >
+                Allow notifications…
+              </button>
+            ) : (
+              <button type="button" className="ghost small" onClick={() => void api.testNotification().catch(() => undefined)}>
+                Send a test
+              </button>
+            )}
+          </ActionRow>
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Menu bar</h2>
+        <div className="card-stack">
+          <Toggle
+            label="Open on a task when it's due"
+            checked={settings?.due_spotlight ?? true}
+            disabled={!settings}
+            onChange={(v) => void save((s) => ({ ...s, due_spotlight: v }))}
+          />
+          <Toggle
+            label="Daily check-in for undated tasks"
+            checked={settings?.undated_nudge ?? true}
+            disabled={!settings}
+            onChange={(v) => void save((s) => ({ ...s, undated_nudge: v }))}
+          />
+          <TimeRow
+            label="Check-in time"
+            value={settings?.undated_time ?? "16:00"}
+            disabled={!settings?.undated_nudge}
+            onChange={(t) => void save((s) => ({ ...s, undated_time: t }))}
+          />
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ── Capture & shortcuts ────────────────────────────────────────────────────
+
+export function CapturePage(props: SettingsProps & { shortcuts: ReactNode }) {
+  const { settings } = props;
+  const save = useSave(props);
+  const off = !settings;
+  return (
+    <>
+      <section className="settings-section">
+        <h2 className="settings-h">Capture</h2>
+        <div className="card-stack">
+          <Toggle
+            label="Press ⌘C twice to capture"
+            checked={settings?.double_copy ?? true}
+            disabled={off}
+            onChange={(v) => void save((s) => ({ ...s, double_copy: v }))}
+          />
+          <Toggle
+            label="Review captures in the menu bar"
+            hint="Off: in the side panel"
+            checked={settings?.capture_in_menu_bar ?? true}
+            disabled={off}
+            onChange={(v) => void save((s) => ({ ...s, capture_in_menu_bar: v }))}
+          />
+          <Toggle
+            label="Remember where tasks came from"
+            hint="The app and link"
+            checked={settings?.remember_source ?? true}
+            disabled={off}
+            onChange={(v) => void save((s) => ({ ...s, remember_source: v }))}
+          />
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Keyboard shortcuts</h2>
+        {props.shortcuts}
+      </section>
+    </>
+  );
+}
+
+// ── Your city ──────────────────────────────────────────────────────────────
+
+export function CityPage(props: SettingsProps) {
+  const { settings } = props;
+  const save = useSave(props);
+  const look = lookOf(settings);
+  const set = (patch: Partial<LookSettings>) => void save((s) => ({ ...s, look: { ...lookOf(s), ...patch } }));
+  const off = !settings;
+  const [city, setCity] = useState(settings?.city_name ?? "");
+  const [mayor, setMayor] = useState(settings?.mayor_name ?? "");
+  useEffect(() => setCity(settings?.city_name ?? ""), [settings?.city_name]);
+  useEffect(() => setMayor(settings?.mayor_name ?? ""), [settings?.mayor_name]);
+  return (
+    <section className="settings-section">
+      <div className="card-stack">
         <Toggle
-          label="One morning summary instead"
-          hint="A single “3 due today, 1 overdue” at that time, rather than one per task. Tasks with a time still remind you on time."
-          checked={n?.daily_summary ?? false}
-          disabled={!n?.enabled}
-          onChange={(v) => void save((s) => ({ ...s, notify: { ...s.notify, daily_summary: v } }))}
+          label="Show my city in full screen"
+          checked={settings?.city_corner ?? true}
+          disabled={off}
+          onChange={(v) => void save((s) => ({ ...s, city_corner: v }))}
         />
+        <ActionRow label="City name">
+          <input
+            className="settings-text"
+            value={city}
+            maxLength={40}
+            placeholder="Name your city"
+            aria-label="City name"
+            disabled={off}
+            onChange={(e) => setCity(e.target.value)}
+            onBlur={() => city.trim() !== (settings?.city_name ?? "") && void save((s) => ({ ...s, city_name: city.trim() || null }))}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </ActionRow>
+        <ActionRow label="Mayor">
+          <input
+            className="settings-text"
+            value={mayor}
+            maxLength={40}
+            placeholder="Your name"
+            aria-label="Mayor's name"
+            disabled={off}
+            onChange={(e) => setMayor(e.target.value)}
+            onBlur={() => mayor.trim() !== (settings?.mayor_name ?? "") && void save((s) => ({ ...s, mayor_name: mayor.trim() || null }))}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </ActionRow>
+        <Choice
+          label="Sky"
+          value={look.city_sky}
+          disabled={off}
+          options={[
+            ["auto", "Follow theme"],
+            ["night", "Night"],
+            ["dusk", "Dusk"],
+          ]}
+          onChange={(v) => set({ city_sky: v })}
+        />
+        <Toggle label="Moving cars and blinking windows" checked={look.city_motion} disabled={off} onChange={(v) => set({ city_motion: v })} />
       </div>
-      <div className="row-actions">
-        {permission === "not_determined" ? (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => void api.requestNotificationPermission().then(setPermission).catch(() => undefined)}
-          >
-            Allow notifications…
+    </section>
+  );
+}
+
+// ── Help ───────────────────────────────────────────────────────────────────
+
+export function HelpPage({ onTour, onKeys }: { onTour: () => void; onKeys: () => void }) {
+  return (
+    <section className="settings-section">
+      <div className="card-stack">
+        <ActionRow label="The tour">
+          <button type="button" className="ghost small" onClick={onTour}>
+            Take it again
           </button>
-        ) : (
-          <button type="button" className="ghost" onClick={() => void api.testNotification().catch(() => undefined)}>
-            Send a test notification
+        </ActionRow>
+        <ActionRow label="Keyboard shortcuts">
+          <button type="button" className="ghost small" onClick={onKeys}>
+            Show
           </button>
-        )}
+        </ActionRow>
+        <ActionRow label="Log file" hint="Stays on this Mac">
+          <button type="button" className="ghost small" onClick={() => void api.revealLogs().catch(() => undefined)}>
+            Show
+          </button>
+        </ActionRow>
+        <ActionRow label="Report a problem">
+          <button type="button" className="ghost small" onClick={() => void api.openUrl("https://github.com/pillieshwar/TodoCity/issues").catch(() => undefined)}>
+            Open GitHub
+          </button>
+        </ActionRow>
       </div>
     </section>
   );
@@ -517,10 +593,7 @@ export function DataSection({ onError }: { onError: (message: string) => void })
 
   return (
     <section className="settings-section">
-      <h2 className="settings-h">Your data</h2>
-      <p className="settings-intro">
-        Tasks live in one file on this Mac. Todo City keeps a backup for each of the last 7 days.
-      </p>
+      <p className="settings-intro">A backup is kept for each of the last 7 days.</p>
       <div className="row-actions">
         <button type="button" className="ghost" onClick={() => void run(() => api.exportTasks("csv"), "Saved a CSV to Downloads.")}>
           Export CSV

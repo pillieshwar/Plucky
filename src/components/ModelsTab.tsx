@@ -65,8 +65,8 @@ export function ModelsTab({ onChanged }: Props) {
     <div className="models">
       <p className="models-intro">
         {anyInstalled
-          ? "Runs entirely on this Mac. Todo City always uses the best model you've downloaded."
-          : "Todo City needs one model. It downloads once, then runs entirely on this Mac."}
+          ? "Runs on this Mac. The best one you've downloaded is used."
+          : "Todo City needs one model. It downloads once and runs on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
       {best && !best.installed && (

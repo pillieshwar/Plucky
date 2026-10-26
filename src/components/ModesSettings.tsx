@@ -80,11 +80,7 @@ export function ModesSection({ settings, onSettings, onError }: Props) {
 
   return (
     <section className="settings-section" id="modes">
-      <h2 className="settings-h">Modes</h2>
-      <p className="settings-intro">
-        A mode shows only the projects you choose — in Today, Calendar, Anytime, the menu bar and notifications. Switch with the menu at the
-        top of the sidebar, or ⌃⌥1, ⌃⌥2… Each Mac remembers its own mode; your tasks stay the same everywhere.
-      </p>
+      <p className="settings-intro">Each mode shows only the projects you tick. Each Mac keeps its own mode. Switch with ⌃⌥1, ⌃⌥2…</p>
 
       <div className="modes-tabs" role="tablist" aria-label="Modes">
         {modes.map((m) => (

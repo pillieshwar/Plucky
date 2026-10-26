@@ -153,7 +153,7 @@ export function CityCard({
           </span>
         </div>
         {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
-        <button type="button" className="city-card-hide" onClick={onHide} title="Hide (turn it back on in Preferences)">
+        <button type="button" className="city-card-hide" onClick={onHide} title="Hide (turn it back on in Settings → Your city)">
           Hide
         </button>
       </div>

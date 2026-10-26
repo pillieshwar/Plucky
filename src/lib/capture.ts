@@ -25,7 +25,7 @@ export async function processCapture(
       phase: "manual",
       selection,
       source,
-      error: "No model downloaded yet — add this one by hand, or get a model in the Models tab.",
+      error: "No model downloaded yet — add this one by hand, or get a model in Settings → AI model.",
     });
     return;
   }
