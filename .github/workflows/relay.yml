@@ -96,7 +96,8 @@ jobs:
           del=$(box ci_dev_A -X DELETE "$URL/v1/m/$mailbox")
           check "delete the mailbox" '[[ "$del" == *ok* ]]' "$del"
           # A pairing room.
-          room=$(LC_ALL=C tr -dc '23456789ABCDEFGHJKMNPQRSTUVWXYZ' </dev/urandom | head -c 8)
+          # (tr | head would end tr with SIGPIPE, which pipefail treats as failure.)
+          room=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc '23456789ABCDEFGHJKMNPQRSTUVWXYZ' | cut -c1-8)
           o=$(curl -sS -X POST --data 'hello' "$URL/v1/pair/$room?new=1")
           check "open a room" '[[ "$o" == *ok* ]]' "$o"
           o=$(curl -sS -X POST --data 'there' "$URL/v1/pair/$room")
