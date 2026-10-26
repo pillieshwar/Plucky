@@ -35,6 +35,8 @@ export interface Floor {
   name: string | null;
   /** "Ground floor", "1st Floor: Travel". */
   label: string;
+  /** 0 for the ground floor, then 1, 2… upward. */
+  level: number;
   rooms: Room[];
   /** Rooms along each side. */
   per: number;
@@ -136,8 +138,8 @@ export function floorShape(n: number): { per: number; levels: number; size: numb
 export function stack(lobby: Room[], floors: { name: string; rooms: Room[] }[], hasLobby: boolean): Floor[] {
   const sorted = [...floors].sort((a, b) => b.rooms.length - a.rooms.length || a.name.localeCompare(b.name));
   const out: Floor[] = [];
-  if (hasLobby || lobby.length || !sorted.length) out.push({ name: null, label: "Ground floor", rooms: lobby, ...floorShape(lobby.length) });
-  sorted.forEach((f, i) => out.push({ name: f.name, label: `${ordinal(i + 1)} Floor: ${f.name}`, rooms: f.rooms, ...floorShape(f.rooms.length) }));
+  if (hasLobby || lobby.length || !sorted.length) out.push({ name: null, label: "Ground floor", level: 0, rooms: lobby, ...floorShape(lobby.length) });
+  sorted.forEach((f, i) => out.push({ name: f.name, label: `${ordinal(i + 1)} Floor: ${f.name}`, level: i + 1, rooms: f.rooms, ...floorShape(f.rooms.length) }));
   // Narrowing upward: each floor at most as wide as the one under it.
   for (let i = out.length - 2; i >= 0; i--) out[i].size = Math.max(out[i].size, out[i + 1].size);
   return out;
@@ -246,7 +248,7 @@ export function buildCity(
       lots: hl,
       name: HOUSES,
       project: null,
-      floors: [{ name: null, label: HOUSES, rooms, per: 1, levels: 1, size: 0.5 }],
+      floors: [{ name: null, label: HOUSES, level: 0, rooms, per: 1, levels: 1, size: 0.5 }],
       open: houses.open,
       done: houses.done,
       planned: false,

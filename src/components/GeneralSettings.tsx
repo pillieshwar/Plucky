@@ -1,3 +1,4 @@
+import { MayorAvatar } from "./MayorAvatar";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
@@ -520,6 +521,27 @@ export function CityPage(props: SettingsProps) {
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </ActionRow>
+        <div className="toggle-row static mayor-pick-row">
+          <span className="toggle-text">
+            <span className="toggle-label">Mayor’s figure</span>
+          </span>
+          <div className="mayor-pick" role="radiogroup" aria-label="Mayor’s figure">
+            {(["man", "woman"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={look.mayor_look === m}
+                className={look.mayor_look === m ? "mayor-pick-opt on" : "mayor-pick-opt"}
+                disabled={off}
+                onClick={() => set({ mayor_look: m })}
+              >
+                <MayorAvatar look={m} fallback={m === "man" ? "M" : "W"} size={56} />
+                <span>{m === "man" ? "Man" : "Woman"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <Choice
           label="Sky"
           value={look.city_sky}

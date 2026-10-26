@@ -1638,9 +1638,24 @@ html[data-full="1"] body { background: var(--paper); }
 .app-full .someday-link { margin-left: 28px; }
 .app-full .empty { padding-top: 12vh; }
 
+/* The right-hand pane's edge: drag it to resize. */
+.full-body { position: relative; }
+.side-resize {
+  flex: none; position: relative; z-index: 6; width: 0; cursor: col-resize; outline: none;
+}
+.side-resize::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 8px;
+}
+.side-resize::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background 120ms;
+}
+.side-resize:hover::after, .side-resize:focus-visible::after, .resizing-side .side-resize::after { background: var(--teal); }
+.resizing-side, .resizing-side * { cursor: col-resize !important; user-select: none !important; }
+
 /* The right-hand pane */
+.app-full { --side-w-default: 300px; }
 .side-pane {
-  flex: none; width: 400px; display: flex; flex-direction: column; min-height: 0;
+  flex: none; width: var(--side-w, var(--side-w-default)); display: flex; flex-direction: column; min-height: 0;
   border-left: 1px solid var(--line); background: var(--side);
 }
 .sp-head {
@@ -1778,7 +1793,7 @@ html[data-full="1"] body { background: var(--paper); }
 .fs-inner { max-width: 720px; }
 
 @media (max-width: 1180px) {
-  .side-pane { width: 340px; }
+  .app-full { --side-w-default: 255px; }
   .sidebar { width: 216px; }
 }
 
@@ -1787,7 +1802,7 @@ html[data-full="1"] body { background: var(--paper); }
    click it for the city in 3D. */
 .city-corner { position: absolute; right: 16px; bottom: 16px; z-index: 30; }
 /* With a side pane open (the month, the hours, a task), the card sits beside it, not over it. */
-.app-full:has(.full-body.with-side):not(:has(.full-content.week)) .city-corner { right: 416px; }
+.app-full:has(.full-body.with-side):not(:has(.full-content.week)) .city-corner { right: calc(var(--side-w, var(--side-w-default)) + 16px); }
 .city-canvas { display: block; width: 100%; height: 100%; }
 .city-canvas.live { cursor: grab; outline: none; touch-action: none; }
 .city-canvas.live:active { cursor: grabbing; }
@@ -2023,22 +2038,38 @@ html[data-full="1"] body { background: var(--paper); }
 .sb-chev { display: grid; place-items: center; width: 18px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--faint); cursor: pointer; border-radius: 5px; transition: transform 120ms; }
 .sb-chev.open { transform: rotate(90deg); }
 .sb-chev:hover { color: var(--ink); }
-.sb-floors { display: flex; flex-direction: column; margin: 0 0 4px 28px; padding-left: 8px; border-left: 1px solid var(--line); }
+.sb-floors { display: flex; flex-direction: column; margin: 1px 0 4px 21px; padding-left: 4px; border-left: 1px solid var(--line); }
 .sb-floor {
-  display: flex; align-items: center; gap: 8px; height: 25px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent;
-  color: var(--muted); font-size: 12px; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 6px 0 4px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); font-size: 12.5px; text-align: left; cursor: pointer;
 }
 .sb-floor:hover { background: color-mix(in srgb, var(--line) 70%, transparent); color: var(--ink); }
 .sb-floor-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-floor-count { font-size: 11.5px; color: var(--faint); }
 .sb-floor.on { background: var(--teal-soft); color: var(--ink); font-weight: 600; }
-.sb-floor-row { position: relative; display: flex; align-items: center; }
+/* A floor's number, like a lift button. */
+.sb-lvl {
+  flex: none; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--faint) 45%, transparent); color: var(--faint);
+  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.sb-lvl.g { border-style: dashed; }
+.sb-lvl.add { border-style: dashed; font-size: 12px; font-weight: 500; }
+.sb-floor:hover .sb-lvl, .sb-floor.on .sb-lvl { border-color: var(--teal); color: var(--teal); }
+.sb-floor-row { position: relative; display: flex; align-items: center; border-radius: 6px; }
 .sb-floor-row .sb-floor { flex: 1; min-width: 0; }
 .sb-building .sb-b { position: relative; }
 .sb-more {
   flex: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px;
   background: transparent; color: var(--faint); font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 120ms;
 }
+/* The ⋯ button takes no room until wanted: it sits over the count. */
+.sb-floor-row .sb-more { position: absolute; right: 2px; top: 2px; }
+.sb-floor-row:hover .sb-floor-count, .sb-floor-row:has(.sb-more[aria-expanded="true"]) .sb-floor-count { visibility: hidden; }
+/* Dropping a dragged task on a building or a floor. */
+.sidebar.dragging .sb-b, .sidebar.dragging .sb-floor-row { transition: background 80ms, box-shadow 80ms; }
+.sb-b.drop, .sb-floor-row.drop { background: var(--teal-soft); box-shadow: inset 0 0 0 1.5px var(--teal); border-radius: 7px; }
+.sb-floor-row.drop .sb-lvl { border-color: var(--teal); color: var(--teal); }
 .sb-b:hover .sb-more, .sb-floor-row:hover .sb-more, .sb-more:focus-visible, .sb-more[aria-expanded="true"] { opacity: 1; }
 .sb-more:hover { background: var(--line); color: var(--ink); }
 .sb-menu {
@@ -2065,6 +2096,8 @@ html[data-full="1"] body { background: var(--paper); }
   background: linear-gradient(135deg, #a29bff, #5249d9); color: #fff; font-size: 12px; font-weight: 750; letter-spacing: 0.02em;
   box-shadow: 0 0 0 2px color-mix(in srgb, #ffd27a 70%, transparent);
 }
+.mayor-badge.figure { overflow: hidden; background: radial-gradient(circle at 50% 30%, #c9c4ff, #6a61e6 70%, #4b42c9); }
+.mayor-badge.figure img { display: block; width: 100%; height: 100%; }
 .sb-mayor {
   display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 6px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
   border: 1px solid var(--line); background: var(--paper); color: var(--ink); text-align: left;
@@ -2563,3 +2596,38 @@ html[data-full="1"] body { background: var(--paper); }
   color: var(--ink); font: 13px var(--sans);
 }
 .set-sync .connector-body-inner { padding-top: 0; }
+
+/* Settings → Your city: the mayor's figure */
+.mayor-pick { display: flex; gap: 10px; }
+.mayor-pick-opt {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 12px 6px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.mayor-pick-opt:hover:not(:disabled) { border-color: color-mix(in srgb, var(--teal) 50%, var(--line)); color: var(--ink); }
+.mayor-pick-opt.on { border-color: var(--teal); background: var(--teal-soft); color: var(--ink); font-weight: 600; }
+.mayor-pick-opt .mayor-badge { box-shadow: 0 0 0 2px color-mix(in srgb, #ffd27a 70%, transparent); }
+
+/* The version dot in the top bar: green on the latest, red when there's newer. */
+.vdot-wrap { position: relative; display: inline-flex; }
+.vdot {
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer;
+}
+.vdot:hover, .vdot-wrap.open .vdot { background: color-mix(in srgb, var(--line) 80%, transparent); }
+.vdot.red { background: color-mix(in srgb, #e5484d 14%, transparent); }
+.vdot-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #30a46c; flex: none; }
+.vdot.red .vdot-dot, .vdot-dot.red { background: #e5484d; }
+.vdot.red .vdot-dot { animation: vdot-pulse 2.4s ease-in-out infinite; }
+.vdot.gray .vdot-dot, .vdot-dot.gray { background: var(--faint); }
+.vdot.green .vdot-dot, .vdot-dot.green { background: #30a46c; }
+@keyframes vdot-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.45); } 50% { box-shadow: 0 0 0 4px rgba(229, 72, 77, 0); } }
+@media (prefers-reduced-motion: reduce) { .vdot.red .vdot-dot { animation: none; } }
+.vdot-pop {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; width: 236px; padding: 12px; border-radius: 11px;
+  background: var(--paper); border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+}
+.vdot-now { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); }
+.vdot-ver { margin: 3px 0 10px 15px; font-size: 11.5px; color: var(--faint); }
+.vdot-btn { width: 100%; justify-content: center; }
+/* Where a captured task goes */
+.capture .add-place { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 10px 0 2px; }

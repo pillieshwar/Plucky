@@ -1,3 +1,5 @@
+import { MayorAvatar } from "./MayorAvatar";
+import { currentMayorLook } from "../lib/mayorModel";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { CITY_NAMES, SOMEDAY_KEY, cityStats, initials, type City, type CityRange } from "../lib/city";
 import { api } from "../lib/api";
@@ -297,9 +299,7 @@ export function CityView({
           />
         ) : (
           <button type="button" className="cv-mayor" onClick={() => setRenamingMayor(true)} title="What should the city call you?">
-            <span className="mayor-badge" aria-hidden>
-              {initials(mayor)}
-            </span>
+            <MayorAvatar look={currentMayorLook()} fallback={initials(mayor)} size={26} />
             {mayor ? `Mayor ${mayor}` : "Your name, Mayor?"}
           </button>
         )}

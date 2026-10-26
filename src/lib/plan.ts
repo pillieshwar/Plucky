@@ -87,14 +87,30 @@ export function hourRange(plan: DayPlan, events: DayEvents, from = 7, to = 21): 
   return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 }
 
-/** Where a dragged task was dropped. `hour`: a block, `null` = Anytime, absent = keep its time. */
+/**
+ * Where a dragged task was dropped: a day (`iso`; `hour`: a block, `null` =
+ * Anytime, absent = keep its time), or a place — a building, or one of its
+ * floors (`heading`; null = the ground floor, absent = a building's row).
+ */
 export interface DropTarget {
-  iso: string;
+  iso?: string;
   hour?: number | null;
+  place?: { project: string; heading?: string | null };
+}
+
+/** The change dropping on a building or floor makes, or null if none. */
+export function placePatch(task: Task, place: NonNullable<DropTarget["place"]>): TaskPatch | null {
+  const sameProject = task.project === place.project;
+  // A building's row: into the building (its ground floor), or stay put if already in it.
+  const heading = place.heading === undefined ? (sameProject ? task.heading : null) : place.heading;
+  if (sameProject && (task.heading ?? null) === (heading ?? null)) return null;
+  return { project: place.project, heading: heading ?? null };
 }
 
 /** The change a drop makes, or null if it changes nothing. */
 export function dropPatch(task: Task, to: DropTarget): TaskPatch | null {
+  if (to.place) return placePatch(task, to.place);
+  if (!to.iso) return null;
   const patch: TaskPatch = {};
   if (to.iso !== task.due_date) patch.due_date = to.iso;
   if (to.hour === null) {

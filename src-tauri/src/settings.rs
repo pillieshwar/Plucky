@@ -87,6 +87,10 @@ pub struct AppSettings {
     pub open_full: bool,
 }
 
+/// Limits for the right-hand pane's width.
+pub const SIDE_MIN: u32 = 240;
+pub const SIDE_MAX: u32 = 640;
+
 /// Personal touches: calendar, clock, colors, density and the city.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -107,6 +111,10 @@ pub struct LookSettings {
     pub city_motion: bool,
     /// Tighter rows in full screen.
     pub compact: bool,
+    /// The mayor's figure: "man" or "woman".
+    pub mayor_look: String,
+    /// Width of full screen's right-hand pane, in points (0: the default).
+    pub side_width: u32,
 }
 
 impl Default for LookSettings {
@@ -120,6 +128,8 @@ impl Default for LookSettings {
             city_sky: "auto".into(),
             city_motion: true,
             compact: false,
+            mayor_look: "man".into(),
+            side_width: 0,
         }
     }
 }
@@ -151,6 +161,12 @@ impl LookSettings {
             city_sky: pick(self.city_sky, &["auto", "night", "dusk"], "auto"),
             city_motion: self.city_motion,
             compact: self.compact,
+            mayor_look: pick(self.mayor_look, &["man", "woman"], "man"),
+            side_width: if self.side_width == 0 {
+                0
+            } else {
+                self.side_width.clamp(SIDE_MIN, SIDE_MAX)
+            },
         }
     }
 }
@@ -358,9 +374,13 @@ mod tests {
             week_start: "tue".into(),
             clock: "24".into(),
             accent: "neon".into(),
+            mayor_look: "robot".into(),
+            side_width: 9000,
             ..LookSettings::default()
         }
         .clean();
+        assert_eq!(odd.mayor_look, "man");
+        assert_eq!(odd.side_width, SIDE_MAX);
         assert_eq!(odd.week_start, "auto");
         assert_eq!(odd.clock, "24");
         assert_eq!(odd.accent, "purple");

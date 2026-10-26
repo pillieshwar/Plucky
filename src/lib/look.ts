@@ -12,6 +12,8 @@ export const DEFAULT_LOOK: LookSettings = {
   city_sky: "auto",
   city_motion: true,
   compact: false,
+  mayor_look: "man",
+  side_width: 0,
 };
 
 export const lookOf = (s: AppSettings | null | undefined): LookSettings => ({ ...DEFAULT_LOOK, ...(s?.look ?? {}) });
@@ -32,4 +34,5 @@ export function applyLook(look: LookSettings) {
   root.dataset.accent = look.accent;
   root.dataset.citySky = look.city_sky;
   root.dataset.cityMotion = look.city_motion ? "on" : "off";
+  root.dataset.mayorLook = look.mayor_look;
 }

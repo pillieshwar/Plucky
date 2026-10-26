@@ -8,6 +8,8 @@ import { bulletSteps, isDeadlinePhrase } from "../lib/lists";
 import { sourceLabel } from "../lib/taskText";
 import type { CaptureResult, Extraction, NewTask, SourceInfo, TaskPatch } from "../lib/types";
 import { safeLocale } from "../lib/locale";
+import { api } from "../lib/api";
+import { PlacePicker } from "./AddTaskForm";
 
 export type CaptureState =
   | { phase: "extracting"; selection: string; source: SourceInfo | null }
@@ -121,6 +123,7 @@ function Review({
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFor(state, now));
   const [saving, setSaving] = useState(false);
+  const place = usePlaces();
   const ready = !!draft.title.trim();
 
   async function save() {
@@ -136,6 +139,7 @@ function Review({
         // "by Friday" is a deadline as well as the day.
         deadline: draft.date && isDeadlinePhrase(draft.dateText) ? draft.date : null,
         checklist: draft.useSteps ? draft.steps.map((text) => ({ text, done: false })) : [],
+        ...place.chosen(),
         source_text: state.selection,
         source_app: state.source?.app ?? null,
         source_bundle: state.source?.bundle ?? null,
@@ -168,6 +172,8 @@ function Review({
 
       <Single draft={draft} now={now} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
 
+      {place.places.length > 0 && place.picker}
+
       <details className="capture-source-toggle">
         <summary>Selected text</summary>
         <p className="capture-source">{truncate(state.selection, 600)}</p>
@@ -182,6 +188,50 @@ function Review({
       </div>
     </form>
   );
+}
+
+/** Which building and floor a captured task goes in: the projects and their floors, and the picker. */
+function usePlaces() {
+  const [places, setPlaces] = useState<{ name: string; floors: string[] }[]>([]);
+  const [building, setBuilding] = useState<string | null>(null);
+  const [floor, setFloor] = useState<string | null>(null);
+  const [newBuilding, setNewBuilding] = useState<string | null>(null);
+  const [newFloor, setNewFloor] = useState<string | null>(null);
+  useEffect(() => {
+    void Promise.all([api.listProjects(), api.listFloors()])
+      .then(([ps, fs]) => setPlaces(ps.map((p) => ({ name: p.name, floors: fs.filter((f) => f.project === p.name).map((f) => f.name) }))))
+      .catch(() => undefined);
+  }, []);
+  const picker = (
+    <PlacePicker
+      places={places}
+      building={newBuilding !== null ? "__new" : building}
+      floor={newFloor !== null ? "__new" : floor}
+      newBuilding={newBuilding}
+      newFloor={newFloor}
+      onBuilding={(b) => {
+        if (b === "__new") return setNewBuilding("");
+        setNewBuilding(null);
+        setBuilding(b);
+        setFloor(null);
+        setNewFloor(null);
+      }}
+      onFloor={(f) => {
+        if (f === "__new") return setNewFloor("");
+        setNewFloor(null);
+        setFloor(f);
+      }}
+      onNewBuilding={setNewBuilding}
+      onNewFloor={setNewFloor}
+    />
+  );
+  /** What to save: only when a building was picked (otherwise the mode's default applies). */
+  const chosen = (): Partial<NewTask> => {
+    const b = newBuilding?.trim() || building;
+    if (!b) return {};
+    return { project: b, heading: newFloor?.trim() || floor || null };
+  };
+  return { places, picker, chosen };
 }
 
 function whenLabel(d: Pick<Draft, "date" | "time" | "repeat">, now: Date): string {

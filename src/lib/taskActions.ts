@@ -77,6 +77,21 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
+  /** Put a task in a building, or on one of its floors. */
+  async function place(task: Task, patch: TaskPatch) {
+    const before: TaskPatch = { project: task.project, heading: task.heading };
+    try {
+      const t = await api.updateTask(task.id, patch);
+      const where = [t.project, t.heading].filter(Boolean).join(" › ");
+      show(`Moved to ${where || "no project"} · “${short(task.title)}”`, {
+        label: "Undo",
+        run: () => api.updateTask(task.id, before).then(() => undefined, fail),
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   /** Move several tasks to one day (e.g. all overdue → today). */
   async function moveAll(tasks: Task[], day: string) {
     const before = tasks.map((t) => ({ id: t.id, due_date: t.due_date }));
@@ -225,7 +240,7 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
-  return { setDone, remove, reschedule, moveAll, snooze, update, fail, skip, pause, batch, completeMany, removeMany };
+  return { setDone, remove, reschedule, place, moveAll, snooze, update, fail, skip, pause, batch, completeMany, removeMany };
 }
 
 export type TaskActions = ReturnType<typeof taskActions>;

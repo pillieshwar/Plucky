@@ -5,7 +5,9 @@ import type { DragState } from "../lib/useTaskDrag";
 /** The label that follows the pointer while a task is dragged: where it will land. */
 export function DragGhost({ drag, now, locale }: { drag: DragState; now: Date; locale: string }) {
   const o = drag.over;
-  const where = o
+  const where = o?.place
+    ? [o.place.project, o.place.heading === undefined ? null : (o.place.heading ?? "Ground floor")].filter(Boolean).join(" › ")
+    : o?.iso
     ? [
         relativeLabel(o.iso, now, locale),
         o.hour === null ? "any time" : o.hour === undefined ? null : hourLabel(o.hour, locale),

@@ -60,7 +60,7 @@ describe("the city", () => {
   });
 
   it("puts rooms round each storey, side by side", () => {
-    const f = { name: "A", label: "", rooms: [], ...floorShape(18) };
+    const f = { name: "A", label: "", level: 1, rooms: [], ...floorShape(18) };
     expect(roomSpot(f, 0)).toEqual({ level: 0, side: 0, slot: 0 });
     expect(roomSpot(f, 4)).toEqual({ level: 0, side: 1, slot: 1 });
   });

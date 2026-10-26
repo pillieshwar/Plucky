@@ -10,14 +10,32 @@ export interface DragState {
   over: DropTarget | null;
 }
 
-/** Read a drop target from `data-iso` (+ optional `data-hour`: "any" or 0–23). */
+/**
+ * Read a drop target from `data-iso` (+ optional `data-hour`: "any" or 0–23),
+ * or a place from `data-drop-project` (+ optional `data-drop-floor`: a
+ * floor's name, "" for the ground floor).
+ */
 function targetAt(x: number, y: number): DropTarget | null {
   const el = document.elementFromPoint(x, y) as HTMLElement | null;
+  const pl = el?.closest<HTMLElement>("[data-drop-project]");
+  if (pl?.dataset.dropProject) {
+    const f = pl.dataset.dropFloor;
+    return { place: { project: pl.dataset.dropProject, ...(f === undefined ? {} : { heading: f || null }) } };
+  }
   const t = el?.closest<HTMLElement>("[data-iso]");
   if (!t?.dataset.iso) return null;
   const h = t.dataset.hour;
   if (h === undefined) return { iso: t.dataset.iso };
   return { iso: t.dataset.iso, hour: h === "any" ? null : Number(h) };
+}
+
+export function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
+  return (
+    a?.iso === b?.iso &&
+    a?.hour === b?.hour &&
+    a?.place?.project === b?.place?.project &&
+    a?.place?.heading === b?.place?.heading
+  );
 }
 
 /** Scroll `[data-autoscroll]` boxes while dragging near their top or bottom edge. */
@@ -67,7 +85,7 @@ export function useTaskDrag(onDrop: (task: Task, to: DropTarget) => void) {
           autoScroll(d.x, d.y);
           // What's under the pointer changes as the box scrolls.
           const over = targetAt(d.x, d.y);
-          if (over?.iso !== d.over?.iso || over?.hour !== d.over?.hour) {
+          if (!sameTarget(over, d.over)) {
             dragRef.current = { ...d, over };
             setDrag(dragRef.current);
           }
