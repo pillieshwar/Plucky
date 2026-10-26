@@ -161,6 +161,10 @@ In full screen, every task shows its **notes** and **sub-tasks** right under it 
 
 Finished tasks go to the **Logbook**. A task added with no date and no project goes straight to **Someday**, where ideas wait until you plan them.
 
+### Modes: Work, Personal, or your own
+
+The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, Anytime, the menu bar and notifications show only your work projects (and tasks with no project); everything else waits, a click away ("4 more today outside Work · Show"). **Personal** starts with every project. Make more in **Preferences → Modes**: tick the projects each one shows, which calendars it shows, whether notifications follow it, and which project new tasks go to. Each Mac remembers its own mode — Work on the work laptop, Personal at home — while the tasks stay the same everywhere. Switch with ⌃⌥1, ⌃⌥2…, or ⌃⌥0 for everything.
+
 ### Reminders and check-ins
 
 <img src="docs/screenshots/check-in.png" alt="The menu-bar dropdown opened on a task that just came due" width="340" align="right">

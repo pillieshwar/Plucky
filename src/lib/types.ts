@@ -171,6 +171,31 @@ export interface AppSettings {
   watch: WatchSettings;
   /** Personal touches (missing in older settings files). */
   look?: LookSettings;
+  /** Modes this Mac offers (missing before 0.4.48). */
+  modes?: ViewMode[];
+  /** The mode this Mac is in; null shows everything. */
+  mode?: string | null;
+  /** Open in full screen when Todo City starts. */
+  open_full?: boolean;
+}
+
+/** Mirrors `todocity_core::modes::ViewMode`: which projects a Mac shows. */
+export interface ViewMode {
+  id: string;
+  name: string;
+  icon: string;
+  /** Shown projects, or hidden ones when `new_projects` is on. */
+  projects: string[];
+  /** New projects show here too (then `projects` lists the hidden ones). */
+  new_projects: boolean;
+  /** Show tasks that belong to no project. */
+  no_project: boolean;
+  /** Calendars hidden in this mode, by key. */
+  hidden_calendars: string[];
+  /** Only notify about tasks this mode shows. */
+  notify: boolean;
+  /** Tasks added with no project go here in this mode. */
+  new_task_project: string | null;
 }
 
 /** Mirrors `settings::LookSettings`. */

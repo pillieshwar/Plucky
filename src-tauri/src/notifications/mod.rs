@@ -169,10 +169,17 @@ fn body_for(task: &Task) -> String {
     parts.join(" · ")
 }
 
+/// Tasks to notify about: in a mode that follows notifications, only the
+/// ones it shows.
 fn open_tasks(app: &AppHandle) -> Vec<Task> {
-    app.try_state::<AppState>()
+    let tasks = app
+        .try_state::<AppState>()
         .and_then(|s| s.store.lock().ok().and_then(|st| st.list(None).ok()))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    match crate::active_mode(app).filter(|m| m.notify) {
+        Some(m) => tasks.into_iter().filter(|t| m.shows(t)).collect(),
+        None => tasks,
+    }
 }
 
 /// One scheduler tick: send whatever is due now.

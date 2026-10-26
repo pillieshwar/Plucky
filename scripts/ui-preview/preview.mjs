@@ -82,7 +82,14 @@ const TASKS = [
   task("Pay rent #home", { due_date: day(0), done: true, completed_at: new Date().toISOString() }),
 ];
 
+const MODE = (id, name, icon, extra = {}) => ({
+  id, name, icon, projects: [], new_projects: false, no_project: true, hidden_calendars: [], notify: true, new_task_project: null, ...extra,
+});
+const MODES = [MODE("work", "Work", "💼"), MODE("personal", "Personal", "🏠", { new_projects: true })];
 const SETTINGS = {
+  modes: MODES,
+  mode: null,
+  open_full: true,
   notify: { enabled: true, all_day_time: "09:00", daily_summary: false },
   auto_update: true,
   remember_source: true,
@@ -190,6 +197,11 @@ function mockTauri(s) {
     status: () => s.status,
     get_settings: () => s.settings,
     set_settings: (a) => (s.settings = a.value),
+    set_view_mode: (a) => {
+      s.settings = { ...s.settings, mode: a.id };
+      setTimeout(() => window.__emit?.("settings-changed", s.settings), 0);
+      return s.settings;
+    },
     get_shortcuts: () => s.shortcuts,
     update_status: () => s.update,
     list_models: () => [
@@ -989,6 +1001,36 @@ const side = (name) => async (p) => {
 };
 await shot("full-today", FULL, full({ settings: DARK }));
 await shot("full-today-light", FULL, full({ settings: LIGHT }));
+// Modes: the work laptop in Work mode shows only work projects.
+const WORK_MODES = [
+  MODE("work", "Work", "💼", { projects: ["Hiring", "Q4 launch"] }),
+  MODE("personal", "Personal", "🏠", { new_projects: true, projects: ["Hiring", "Q4 launch"] }),
+  MODE("study", "Study", "📚", { projects: ["Reading list"], no_project: false }),
+];
+const IN_WORK = { ...LIGHT, modes: WORK_MODES, mode: "work" };
+await shot("full-mode-work", FULL, full({ settings: IN_WORK }));
+await shot("full-mode-work-dark", FULL, full({ settings: { ...IN_WORK, theme: "dark" } }), async () => {}, true);
+await shot("full-mode-menu", FULL, full({ settings: IN_WORK }), async (p) => {
+  await p.locator(".mode-switch.mode-side .mode-btn").click();
+});
+await shot("full-mode-others", FULL, full({ settings: IN_WORK }), async (p) => {
+  await p.locator(".sb-others").click();
+});
+await shot("full-mode-peek", FULL, full({ settings: IN_WORK }), async (p) => {
+  await p.locator(".mode-hidden .link").click();
+});
+await shot("full-mode-switch", FULL, full({ settings: { ...LIGHT, modes: WORK_MODES } }), async (p) => {
+  await p.locator(".mode-switch.mode-side .mode-btn").click();
+  await p.getByRole("menuitemradio", { name: /Personal/ }).click();
+  await p.waitForTimeout(300);
+  if (!(await p.locator(".mode-switch.mode-side.on").count())) throw new Error("the mode didn't switch");
+});
+await shot("full-settings-modes", FULL, full({ settings: IN_WORK }), async (p) => {
+  await p.locator(".sidebar button").filter({ hasText: "Settings" }).last().click();
+  await p.waitForTimeout(300);
+  await p.locator("#modes").scrollIntoViewIfNeeded();
+});
+await shot("popover-mode", POP, scenario({ label: "popover", settings: IN_WORK, tasks: FULL_TASKS }));
 await shot("full-today-hours", FULL, full({ settings: DARK }), async (p) => {
   // Today always shows its hours beside the list; there's no switch any more.
   if (await p.getByRole("radio", { name: "List + Hours" }).count()) throw new Error("the List / List + Hours switch is still there");

@@ -15,7 +15,9 @@ import { ViewSwitch } from "../components/ViewSwitch";
 import { dropPatch } from "../lib/plan";
 import { useTaskDrag } from "../lib/useTaskDrag";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onSettingsChanged, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { activeMode, showsTask } from "../lib/modes";
+import { ModeSwitch } from "../components/ModeSwitch";
 import { processCapture } from "../lib/capture";
 import { CaptureCard, type CaptureState } from "../components/CaptureCard";
 import { monthGrid, monthLabel, shiftMonth, weekStartForLocale, weekdayLabels, type DayCell } from "../lib/calendar";
@@ -24,7 +26,7 @@ import { findSchedule, repeatShort, timeLabel } from "../lib/schedule";
 import { formatShortcut } from "../lib/shortcuts";
 import { taskActions } from "../lib/taskActions";
 import { linkParts, sourceLabel } from "../lib/taskText";
-import type { CalendarEvent, InboxItem, NewTask, Task, UpdateStatus, WatchStatus } from "../lib/types";
+import type { AppSettings, CalendarEvent, InboxItem, NewTask, Task, UpdateStatus, WatchStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
 import { DueNowCard } from "../components/DueNowCard";
@@ -60,7 +62,11 @@ export default function Popover() {
   const [stripAnchor, setStripAnchor] = useState(today);
   const [expanded, setExpanded] = useState(false);
   const [view, setView] = useState(() => ({ year: now.getFullYear(), month: now.getMonth() }));
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setTasks] = useState<Task[]>([]);
+  // The mode this Mac is in: the dropdown shows only its projects.
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const viewMode = activeMode(settings);
+  const tasks = useMemo(() => (viewMode ? allTasks.filter((t) => showsTask(viewMode, t)) : allTasks), [allTasks, viewMode]);
   const [adding, setAdding] = useState(false);
   const quickRef = useRef<HTMLInputElement>(null);
   const [showDone, setShowDone] = useState(false);
@@ -145,8 +151,13 @@ export default function Popover() {
       .watchStatus()
       .then(setWatch)
       .catch(() => undefined);
+    api
+      .getSettings()
+      .then(setSettings)
+      .catch(() => undefined);
     const subs = [
       onTasksChanged(() => void load()),
+      onSettingsChanged(setSettings),
       onInboxChanged(() => void api.inboxList().then(setInbox, () => undefined)),
       onWatchChanged(() => void api.watchStatus().then(setWatch, () => undefined)),
       onPopoverShown(reset),
@@ -456,6 +467,7 @@ export default function Popover() {
               )}
             </IconButton>
           )}
+          <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => void api.openMain(null, "settings")} />
           <IconButton label="Open Todo City" onClick={() => void api.openMain(null, null)}>
             <rect x="2.5" y="3" width="11" height="10" rx="2" />
             <path d="M9.5 3v10" />

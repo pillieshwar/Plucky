@@ -243,6 +243,21 @@ pub fn show(app: &AppHandle) {
     let _ = app.emit_to(LABEL, "panel-collapsed", false);
 }
 
+/// What opening Todo City shows: full screen (the default), or the side
+/// panel if the person turned that off.
+pub fn open_main_window(app: &AppHandle) {
+    let open_full = app
+        .try_state::<crate::settings::Settings>()
+        .map(|s| s.get().open_full)
+        .unwrap_or(true);
+    if is_full(app) || !open_full {
+        show(app);
+    } else if let Err(e) = set_full(app, true) {
+        log::warn!("could not open full screen: {e}");
+        show(app);
+    }
+}
+
 pub fn hide(app: &AppHandle) {
     // Hiding the full-screen window ends full screen (and its Dock icon);
     // Todo City opens as the side panel next time.

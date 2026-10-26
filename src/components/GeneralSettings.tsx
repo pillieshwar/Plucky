@@ -107,10 +107,17 @@ export function GeneralSection(
         />
         <Toggle
           label="Show Todo City when my Mac starts or wakes"
-          hint="Opens this panel at login and the first time you open your Mac each day."
+          hint="Opens Todo City at login and the first time you open your Mac each day."
           checked={settings?.show_on_start ?? true}
           disabled={!settings}
           onChange={(v) => void save((s) => ({ ...s, show_on_start: v }))}
+        />
+        <Toggle
+          label="Open in full screen"
+          hint="When you open Todo City (or open it again from Finder or Spotlight), it fills the screen. Off: the side panel."
+          checked={settings?.open_full ?? true}
+          disabled={!settings}
+          onChange={(v) => void save((s) => ({ ...s, open_full: v }))}
         />
         <Toggle
           label="Press ⌘C twice to capture"

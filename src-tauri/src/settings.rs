@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use todocity_core::modes::ViewMode;
 use todocity_core::notify::NotifySettings;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +79,12 @@ pub struct AppSettings {
     pub watch: WatchSettings,
     /// How Todo City looks and behaves, as the user likes it.
     pub look: LookSettings,
+    /// Modes this Mac offers (Work, Personal, and any the user made).
+    pub modes: Vec<ViewMode>,
+    /// The mode this Mac is in; none shows everything.
+    pub mode: Option<String>,
+    /// Open in full screen when Todo City starts (or is opened again).
+    pub open_full: bool,
 }
 
 /// Personal touches: calendar, clock, colors, density and the city.
@@ -262,6 +269,9 @@ impl Default for AppSettings {
             email: EmailSchedule::default(),
             watch: WatchSettings::default(),
             look: LookSettings::default(),
+            modes: ViewMode::defaults(),
+            mode: None,
+            open_full: true,
         }
     }
 }
@@ -369,6 +379,9 @@ mod tests {
         assert!(s.onboarding_done && s.auto_update && s.remember_source);
         assert!(s.double_copy);
         assert!(s.city_corner && s.city_name.is_none());
+        // Modes arrive with 0.4.48: Work and Personal, none on yet.
+        assert_eq!(s.modes, ViewMode::defaults());
+        assert!(s.mode.is_none() && s.open_full);
     }
 
     #[test]
