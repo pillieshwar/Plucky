@@ -1,0 +1,36 @@
+# cargo-deny policy, checked by .github/workflows/security.yml.
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Todo City ships for macOS and Windows; ignore crates only Linux builds use.
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+version = 2
+# Known vulnerabilities always fail. Crates marked unmaintained fail only when
+# Todo City depends on them directly; deeper ones are reported as warnings.
+unmaintained = "workspace"
+yanked = "deny"
+# Each ignored advisory needs a reason and is reviewed when it changes.
+ignore = [
+  # zip 4.6.1 comes only from tauri-plugin-updater (latest 2.14.0, and its
+  # 3.0 pre-releases), which requires zip ^4 and uses it only on Windows to
+  # unpack update packages. Fixed in zip 9, which the updater can't use yet.
+  # The bugs are in extracting attacker-controlled archives; the updater
+  # only unpacks packages whose signature it has already verified against
+  # Todo City's public key, and zip isn't compiled into the macOS app at all.
+  # Revisit when Tauri's updater moves to zip >= 9.
+  { id = "RUSTSEC-2026-0367", reason = "zip 4 via tauri-plugin-updater (Windows only); only signature-verified update packages are extracted" },
+  { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater (Windows only); only signature-verified update packages are extracted" },
+  { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater (Windows only); only signature-verified update packages are extracted" },
+]
+
+[sources]
+# Only crates.io; no git or other registries can sneak in.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

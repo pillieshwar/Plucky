@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLAMA_CPP_REF: b11609
+  CARGO_TERM_COLOR: never
+
+jobs:
+  core:
+    name: Rust core (tests)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # rustup ships with GitHub's runners; no third-party action needed.
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Cargo.lock is up to date
+        run: cargo metadata --locked --format-version 1 > /dev/null
+      - run: cargo fmt --all --check
+      - name: Test
+        shell: bash
+        run: scripts/ci-annotate.sh cargo test --locked -p todocity-core
+      - name: Clippy
+        shell: bash
+        run: scripts/ci-annotate.sh cargo clippy --locked -p todocity-core --all-targets --message-format=short -- -D warnings
+
+  frontend:
+    name: Frontend (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Typecheck
+        shell: bash
+        run: scripts/ci-annotate.sh npm run typecheck
+      - run: TZ=America/Los_Angeles npm test
+      - run: TZ=Pacific/Auckland npm test
+      - name: Build
+        shell: bash
+        run: scripts/ci-annotate.sh npm run build
+
+  app:
+    name: Desktop app (${{ matrix.os }})
+    needs: [core, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows builds are paused: Todo City is focusing on macOS for now.
+        os: [macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --component clippy && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Cache llama-server build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .llama-build
+          key: llama-${{ runner.os }}-${{ runner.arch }}-${{ env.LLAMA_CPP_REF }}-${{ hashFiles('scripts/build-llama-server.sh') }}
+      - name: Build bundled model runtime (llama-server)
+        shell: bash
+        run: |
+          # Older runs built this inside target/; drop it from the restored Rust cache.
+          rm -rf target/llama.cpp
+          scripts/build-llama-server.sh
+      - run: npm ci
+      - run: npm run build
+      - name: Clippy
+        shell: bash
+        run: scripts/ci-annotate.sh cargo clippy --locked -p todocity --all-targets --message-format=short -- -D warnings
+      - name: Unit tests (app crate)
+        shell: bash
+        run: scripts/ci-annotate.sh cargo test --locked -p todocity --lib
+      - name: Build unsigned debug bundle
+        shell: bash
+        # Updater archives need the release signing key, which CI doesn't have.
+        run: scripts/ci-annotate.sh npm run tauri build -- --debug --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Check the runtime is inside the bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app=$(ls -d target/debug/bundle/macos/*.app)
+          ls -l "$app/Contents/MacOS"
+          test -x "$app/Contents/MacOS/llama-server"
+          "$app/Contents/MacOS/llama-server" --version
+          # todocity:// must be registered, or Slack sign-in can't come back.
+          scheme=$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$app/Contents/Info.plist")
+          echo "::notice::URL scheme: $scheme"
+          test "$scheme" = "todocity"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: todocity-${{ matrix.os }}
+          path: |
+            target/debug/bundle/dmg/*.dmg
+            target/debug/bundle/msi/*.msi
+            target/debug/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+  model-catalog:
+    name: Model catalog links
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check every catalog file exists on Hugging Face
+        shell: bash
+        run: |
+          set -euo pipefail
+          # repo/file pairs are read straight from the catalog source.
+          grep -E '^\s+(repo|file): "' crates/todocity-core/src/models.rs | sed -E 's/.*"(.*)".*/\1/' | paste - - |
+          while read -r repo file; do
+            url="https://huggingface.co/$repo/resolve/main/$file"
+            code=$(curl -s -o /dev/null -w '%{http_code}' -I -L "$url")
+            echo "$code $url"
+            if [ "$code" != "200" ]; then echo "::error::Model file not found: $url"; exit 1; fi
+            meta=$(curl -sf "https://huggingface.co/api/models/$repo/tree/main")
+            echo "$meta" | python3 -c "import json,sys; f=[e for e in json.load(sys.stdin) if e['path']=='$file'][0]; print('  size', f.get('lfs',{}).get('size', f.get('size')), 'sha256', f.get('lfs',{}).get('oid'))"
+          done

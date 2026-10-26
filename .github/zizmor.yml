@@ -1,0 +1,9 @@
+# zizmor settings (https://docs.zizmor.sh/configuration/).
+# Every exception needs a reason.
+rules:
+  adhoc-packages:
+    ignore:
+      # Screenshot tooling for UI review, pinned to an exact Playwright
+      # version; it never ships in the app. Kept out of package.json because
+      # npm 10 can't resolve it next to vitest's optional Playwright support.
+      - ui-preview.yml

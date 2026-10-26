@@ -1,0 +1,104 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Todo City",
+  "mainBinaryName": "TodoCity",
+  "version": "0.4.45",
+  "identifier": "app.pluck.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "panel",
+        "title": "Todo City",
+        "width": 360,
+        "height": 720,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true
+      },
+      {
+        "label": "popover",
+        "title": "Todo City Today",
+        "url": "index.html",
+        "width": 340,
+        "height": 540,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "windowEffects": { "effects": ["popover"], "state": "active", "radius": 14 },
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true,
+        "visibleOnAllWorkspaces": true
+      },
+      {
+        "label": "quick",
+        "title": "Todo City Quick Add",
+        "url": "index.html",
+        "width": 640,
+        "height": 300,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true,
+        "visibleOnAllWorkspaces": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Select text, get a private dated task. Runs on-device.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "Entitlements.plist"
+    },
+    "externalBin": [
+      "binaries/llama-server"
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["todocity"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBMURFNDEwOTAwOTU3ODYKUldTR1Z3bVFFT1FkdXBEdXBONFRFVTVlcXdqSjRkeVhNdWhQbk8zV3A1REZ5RmZONnlEd3dydDAK",
+      "endpoints": [
+        "https://github.com/pillieshwar/TodoCity/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

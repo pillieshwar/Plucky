@@ -1,0 +1,60 @@
+name: UI preview
+
+# Renders the UI with a fake backend and pushes screenshots to the
+# `ui-previews` branch, so changes can be reviewed without a Mac. Runs on
+# macOS so the shots use the real system font and Mac shortcut symbols.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["v0.*"]
+    paths: ["src/**", "scripts/ui-preview/**", ".github/workflows/ui-preview.yml"]
+
+permissions: {}
+
+concurrency:
+  group: ui-preview
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: macos-latest
+    permissions:
+      # Pushes the screenshots to the ui-previews branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright
+        # Screenshot tooling only, never part of the app; pinned to an exact
+        # version. (Kept out of package.json: npm 10 can't resolve it next to
+        # vitest's optional Playwright integration.)
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install chromium
+      - name: Screenshots
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          sleep 3
+          TZ=America/Los_Angeles node scripts/ui-preview/preview.mjs http://localhost:4173 shots
+          # The built app too, so the screens can be checked by hand.
+          cp -R dist shots/app
+      - name: Push to ui-previews
+        # Also when a shot failed: its "-FAILED" image shows what went wrong.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd shots
+          git init -q -b ui-previews
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "UI preview for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" ui-previews

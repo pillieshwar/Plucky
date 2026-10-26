@@ -1,0 +1,53 @@
+name: Clean up old releases
+
+# One-off housekeeping, run by hand from the Actions tab: deletes every
+# GitHub Release and tag except the one to keep (e.g. v0.4.45), so the
+# Releases page only offers the current version, and every branch but the
+# default one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "The release tag to keep, e.g. v0.4.45"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  cleanup:
+    name: Delete old releases, tags and branches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # delete releases, tags and branches
+    steps:
+      - name: Delete everything but the kept release and main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.keep }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KEEP" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'keep' must look like v1.2.3"
+            exit 1
+          fi
+          gh release list --repo "$REPO" --limit 1000 --json tagName -q '.[].tagName' | while read -r tag; do
+            [ "$tag" = "$KEEP" ] && continue
+            echo "Deleting release $tag"
+            gh release delete "$tag" --repo "$REPO" --yes --cleanup-tag || gh release delete "$tag" --repo "$REPO" --yes
+          done
+          gh api --paginate "repos/$REPO/git/matching-refs/tags/" -q '.[].ref' | while read -r ref; do
+            [ "$ref" = "refs/tags/$KEEP" ] && continue
+            echo "Deleting $ref"
+            gh api -X DELETE "repos/$REPO/git/$ref" || true
+          done
+          default=$(gh api "repos/$REPO" -q .default_branch)
+          gh api --paginate "repos/$REPO/branches?per_page=100" -q '.[].name' | while read -r branch; do
+            [ "$branch" = "$default" ] && continue
+            echo "Deleting branch $branch"
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" || true
+          done
+          echo "Left: $(gh release list --repo "$REPO" --json tagName -q '[.[].tagName] | join(", ")')"

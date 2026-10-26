@@ -1,0 +1,48 @@
+# OSV-Scanner settings, used by .github/workflows/security.yml.
+# Every accepted finding needs a reason and a date to look at it again.
+#
+# OSV-Scanner reads the whole Cargo.lock, including crates that only Linux
+# builds use. Todo City ships for macOS and Windows only, and cargo-deny (which
+# knows the targets, see deny.toml) checks what actually gets compiled. The
+# entries below come from Tauri's Linux support (GTK, xkbcommon) and are
+# never built into Todo City.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2027-04-15
+reason = "glib 0.18 (GTK): Linux-only via tauri/tao/muda; not compiled for macOS or Windows."
+
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+ignoreUntil = 2027-04-15
+reason = "Same glib 0.18 advisory as RUSTSEC-2024-0429; Linux-only."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-04-15
+reason = "proc-macro-error is unmaintained; only used by glib/gtk3 macros (Linux-only)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0186"
+ignoreUntil = 2027-04-15
+reason = "memmap2 0.8 via xkbcommon (Linux keyboard handling in tao); not compiled for macOS or Windows."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0367"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0368"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0369"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
+
+[[IgnoredVulns]]
+id = "GHSA-4684-h2q9-2vcp"
+ignoreUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fix is zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."

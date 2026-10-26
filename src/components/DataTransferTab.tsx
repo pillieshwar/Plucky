@@ -1,0 +1,654 @@
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, onTodoistProgress } from "../lib/api";
+import { Toggle } from "./GeneralSettings";
+import type { ImportReport, ThingsOptions, ThingsPreviewData } from "../lib/types";
+
+type Source = "things" | "todoist";
+
+/** What a preview shows, whichever app it came from. */
+interface Found {
+  /** "Found your Things library · saved …" */
+  line: string;
+  title?: string;
+  preview: ThingsPreviewData;
+}
+
+type Phase =
+  | { kind: "idle" }
+  | { kind: "reading" }
+  | { kind: "preview"; found: Found }
+  | { kind: "moving"; found: Found }
+  | { kind: "done"; report: ImportReport }
+  | { kind: "error"; message: string };
+
+const n = (x: number) => x.toLocaleString();
+const plural = (x: number, one: string, many = `${one}s`) => `${n(x)} ${x === 1 ? one : many}`;
+
+/** What goes where, Things 3 → Todo City. */
+const THINGS_MAP: [string, string][] = [
+  ["Project", "Project (a building)"],
+  ["Heading", "Floor"],
+  ["To-do", "Task (a home)"],
+  ["Checklist", "Sub-tasks"],
+  ["Area", "Its projects come as they are; to-dos sitting right in the area become a project named after it"],
+  ["Inbox and loose to-dos", "Tasks with no project (houses)"],
+  ["Today, This Evening, Upcoming", "The same day (and evening)"],
+  ["Anytime", "No day"],
+  ["Someday", "Someday"],
+  ["Deadline", "Deadline"],
+  ["Reminder time", "Time of day"],
+  ["Repeating to-do", "Repeat — daily, weekdays, weekly, every 2 weeks, monthly, yearly"],
+  ["Notes", "Notes"],
+  ["Tags", "#tags on the task"],
+  ["Logbook", "Done tasks — lit windows in your city"],
+];
+
+/** What goes where, Todoist → Todo City. */
+const TODOIST_MAP: [string, string][] = [
+  ["Project", "Project (a building) — sub-projects too"],
+  ["Inbox", "Tasks with no project (houses)"],
+  ["Section", "Floor"],
+  ["Task", "Task (a home)"],
+  ["Sub-tasks (any depth)", "Sub-tasks — their own dates are dropped"],
+  ["Labels", "#tags on the task"],
+  ["Priority 1–3", "#p1, #p2, #p3 (if you choose)"],
+  ["Description and comments", "Notes"],
+  ["Date and time", "Day and time of day"],
+  ["Deadline", "Deadline"],
+  ["Recurring date", "Repeat — daily, weekdays, weekly, every 2 weeks, monthly, yearly"],
+  ["Completed tasks", "Done tasks — lit windows in your city (with a token)"],
+];
+
+function savedSource(): Source {
+  try {
+    return localStorage.getItem("todocity.transfer") === "todoist" ? "todoist" : "things";
+  } catch {
+    return "things";
+  }
+}
+
+/**
+ * Data transfer: move everything in from another app — Things 3 (read on
+ * this Mac) or Todoist (over its API with your token, or from CSV files).
+ */
+export function DataTransferTab({ onFinished }: { onFinished: () => void }) {
+  const [source, setSource] = useState<Source>(savedSource);
+  useEffect(() => {
+    try {
+      localStorage.setItem("todocity.transfer", source);
+    } catch {
+      // Remembered for this session only.
+    }
+  }, [source]);
+  return (
+    <div className="transfer">
+      <div className="tr-sources" role="tablist" aria-label="Move in from">
+        {(
+          [
+            ["things", "Things 3", "Reads it on this Mac", <ThingsGlyph key="g" />],
+            ["todoist", "Todoist", "With your API token, or CSV files", <TodoistGlyph key="g" />],
+          ] as [Source, string, string, ReactNode][]
+        ).map(([id, name, sub, glyph]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={source === id}
+            className={source === id ? "tr-source on" : "tr-source"}
+            onClick={() => setSource(id)}
+          >
+            {glyph}
+            <span>
+              <b>{name}</b>
+              <small>{sub}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      {source === "things" ? <ThingsMoveIn onFinished={onFinished} /> : <TodoistMoveIn onFinished={onFinished} />}
+    </div>
+  );
+}
+
+/** Shared state for one move-in: options, skipped buildings, the phase. */
+function useMoveIn() {
+  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [includeDone, setIncludeDone] = useState(true);
+  const [includeCanceled, setIncludeCanceled] = useState(false);
+  const [priorityTags, setPriorityTags] = useState(true);
+  const [skip, setSkip] = useState<Set<string>>(new Set());
+  const options = useCallback(
+    (): ThingsOptions => ({
+      include_done: includeDone,
+      include_canceled: includeCanceled,
+      priority_tags: priorityTags,
+      skip: [...skip],
+    }),
+    [includeDone, includeCanceled, priorityTags, skip],
+  );
+  return { phase, setPhase, includeDone, setIncludeDone, includeCanceled, setIncludeCanceled, priorityTags, setPriorityTags, skip, setSkip, options };
+}
+
+function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
+  const m = useMoveIn();
+  const { phase, setPhase, includeDone, includeCanceled } = m;
+  const [path, setPath] = useState<string | null>(null);
+
+  const read = useCallback(
+    async (p: string | null, opts: ThingsOptions) => {
+      setPhase({ kind: "reading" });
+      try {
+        const data = await api.thingsPreview(p, opts);
+        setPhase({
+          kind: "preview",
+          found: {
+            line: `Found your Things library${data.source.modified ? ` · saved ${new Date(data.source.modified).toLocaleString()}` : ""}`,
+            title: data.source.path,
+            preview: data.preview,
+          },
+        });
+      } catch (e) {
+        setPhase({ kind: "error", message: String(e) });
+      }
+    },
+    [setPhase],
+  );
+
+  // The counts depend on these two, so read again when they change.
+  const previewing = phase.kind === "preview";
+  useEffect(() => {
+    if (previewing) void read(path, { ...m.options(), skip: [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeDone, includeCanceled]);
+
+  async function pick() {
+    try {
+      const p = await api.thingsPick();
+      if (!p) return;
+      setPath(p);
+      m.setSkip(new Set());
+      await read(p, m.options());
+    } catch (e) {
+      setPhase({ kind: "error", message: String(e) });
+    }
+  }
+
+  return (
+    <>
+      <header className="tr-hero">
+        <ThingsGlyph />
+        <div>
+          <h2 className="tr-title">Move in from Things 3</h2>
+          <p className="tr-sub">
+            Bring your projects, headings, to-dos, checklists and Logbook into Todo City. Everything happens on this
+            Mac — Things isn't changed, and nothing goes online.
+          </p>
+        </div>
+      </header>
+
+      {phase.kind !== "done" && (
+        <ol className="tr-steps">
+          <li>
+            <b>Open Things 3 on this Mac</b> and let it finish syncing, so this Mac has all your to-dos. Only use
+            Things on iPhone or iPad? Install Things 3 for Mac and sign in to Things Cloud first.
+          </li>
+          <li>
+            <b>Click Find my Things library.</b> If macOS asks whether Todo City may access data from other apps,
+            click <b>Allow</b>.
+          </li>
+          <li>
+            <b>Check the preview.</b> Untick any project you'd rather leave behind, and choose whether to bring your
+            Logbook.
+          </li>
+          <li>
+            <b>Click Move in.</b> Todo City backs itself up first. You can keep using Things and move in again later —
+            only new to-dos come across.
+          </li>
+        </ol>
+      )}
+
+      {(phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
+        <div className="tr-actions">
+          <button type="button" className="primary" disabled={phase.kind === "reading"} onClick={() => void read(path, m.options())}>
+            {phase.kind === "reading" ? "Reading Things…" : "Find my Things library"}
+          </button>
+          <button type="button" className="ghost" disabled={phase.kind === "reading"} onClick={() => void pick()}>
+            Choose the database myself…
+          </button>
+        </div>
+      )}
+
+      {phase.kind === "error" && (
+        <div className="tr-error" role="alert">
+          <p>{phase.message}</p>
+          <details>
+            <summary>Where is the Things database?</summary>
+            <p>
+              In Finder, choose <b>Go → Go to Folder…</b> and paste
+              <code>~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac</code>
+              Open the <b>ThingsData-…</b> folder inside (older versions don't have one) and pick{" "}
+              <b>Things Database.thingsdatabase</b>. Copying it to your Desktop first and choosing the copy works too.
+            </p>
+          </details>
+        </div>
+      )}
+
+      {(phase.kind === "preview" || phase.kind === "moving") && (
+        <PreviewPanel
+          m={m}
+          found={phase.found}
+          unit="to-do"
+          loose="No project — Inbox and loose to-dos (houses)"
+          toggles={
+            <>
+              <Toggle
+                checked={m.includeDone}
+                onChange={m.setIncludeDone}
+                label="Bring the Logbook"
+                hint="Finished to-dos come as done tasks — each one a lit window in your city."
+              />
+              <Toggle
+                checked={m.includeCanceled}
+                onChange={m.setIncludeCanceled}
+                label="Bring cancelled to-dos"
+                hint={`As done tasks.${phase.found.preview.canceled ? ` ${plural(phase.found.preview.canceled, "cancelled to-do")} would stay behind otherwise.` : ""}`}
+              />
+            </>
+          }
+          onMove={() => api.thingsImport(path, m.options())}
+          other={
+            <button type="button" className="ghost" disabled={phase.kind === "moving"} onClick={() => void pick()}>
+              Use a different database…
+            </button>
+          }
+        />
+      )}
+
+      {phase.kind === "done" && <DonePanel report={phase.report} app="Things" onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />}
+
+      <MapTable from="Things 3" rows={THINGS_MAP} foot="Trashed to-dos stay behind. Projects you've finished come with their to-dos as done." />
+    </>
+  );
+}
+
+function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
+  const m = useMoveIn();
+  const { phase, setPhase, includeDone, priorityTags } = m;
+  const [token, setToken] = useState("");
+  const [progress, setProgress] = useState<string | null>(null);
+  const [kind, setKind] = useState<"api" | "csv">("api");
+
+  useEffect(() => {
+    const un = onTodoistProgress(setProgress);
+    return () => void un.then((u) => u());
+  }, []);
+
+  const read = useCallback(
+    async (from: { token?: string; files?: string[] } | null, opts: ThingsOptions) => {
+      setPhase({ kind: "reading" });
+      setProgress(null);
+      try {
+        const data = await api.todoistPreview(from, opts);
+        setKind(data.source.kind);
+        // The token was used once; don't keep it on screen.
+        if (from?.token) setToken("");
+        setPhase({
+          kind: "preview",
+          found: {
+            line: data.source.kind === "api" ? "Connected to your Todoist account" : `Read ${data.source.label} from Todoist`,
+            preview: data.preview,
+          },
+        });
+      } catch (e) {
+        setPhase({ kind: "error", message: String(e) });
+      }
+    },
+    [setPhase],
+  );
+
+  // Changing these re-plans what was already read (no new requests).
+  const previewing = phase.kind === "preview";
+  useEffect(() => {
+    if (previewing) void read(null, { ...m.options(), skip: [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeDone, priorityTags]);
+
+  async function pickFiles() {
+    try {
+      const files = await api.todoistPickFiles();
+      if (!files.length) return;
+      m.setSkip(new Set());
+      await read({ files }, m.options());
+    } catch (e) {
+      setPhase({ kind: "error", message: String(e) });
+    }
+  }
+
+  const connect = () => {
+    if (!token.trim()) return;
+    m.setSkip(new Set());
+    void read({ token: token.trim() }, m.options());
+  };
+
+  return (
+    <>
+      <header className="tr-hero">
+        <TodoistGlyph />
+        <div>
+          <h2 className="tr-title">Move in from Todoist</h2>
+          <p className="tr-sub">
+            Bring your projects, sections, tasks, sub-tasks, labels, comments and completed tasks into Todo City.
+            Todoist isn't changed, and your token is used once to read your tasks — it's never saved.
+          </p>
+        </div>
+      </header>
+
+      {phase.kind !== "done" && (
+        <ol className="tr-steps">
+          <li>
+            <b>Copy your API token from Todoist.</b> In Todoist (web or app) open <b>Settings → Integrations → Developer</b>{" "}
+            and click <b>Copy API token</b>.
+          </li>
+          <li>
+            <b>Paste it below and click Connect.</b> Todo City reads your Todoist straight from Todoist's servers to
+            this Mac — big accounts take a minute while completed tasks come in, year by year.
+          </li>
+          <li>
+            <b>Check the preview.</b> Untick any project you'd rather leave behind, and choose whether to bring completed
+            tasks and turn priorities into tags.
+          </li>
+          <li>
+            <b>Click Move in.</b> Todo City backs itself up first. You can keep using Todoist and move in again later —
+            only new tasks come across.
+          </li>
+        </ol>
+      )}
+
+      {(phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
+        <>
+          <form
+            className="tr-token"
+            onSubmit={(e) => {
+              e.preventDefault();
+              connect();
+            }}
+          >
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Paste your Todoist API token"
+              aria-label="Todoist API token"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={phase.kind === "reading"}
+            />
+            <button type="submit" className="primary" disabled={phase.kind === "reading" || !token.trim()}>
+              {phase.kind === "reading" ? "Reading Todoist…" : "Connect"}
+            </button>
+          </form>
+          {phase.kind === "reading" && progress && <p className="tr-progress">{progress}</p>}
+          <details className="tr-alt">
+            <summary>No token? Use CSV files instead</summary>
+            <p>
+              In Todoist, open a project, click <b>⋯ → Export as CSV</b>, and repeat for each project you want. On Pro,
+              you can instead download a backup from <b>Settings → Backups</b> and unzip it. Then choose all the .csv
+              files together. CSV files don't include completed tasks, so your city starts dark.
+            </p>
+            <button type="button" className="ghost" disabled={phase.kind === "reading"} onClick={() => void pickFiles()}>
+              Choose CSV files…
+            </button>
+          </details>
+        </>
+      )}
+
+      {phase.kind === "error" && (
+        <div className="tr-error" role="alert">
+          <p>{phase.message}</p>
+          <details>
+            <summary>Where is my Todoist API token?</summary>
+            <p>
+              Open Todoist on the web or in the app, go to <b>Settings → Integrations → Developer</b>, and click{" "}
+              <b>Copy API token</b>. It's a long string of letters and numbers. If you ever want to cut off access,
+              Todoist lets you issue a new token there.
+            </p>
+          </details>
+        </div>
+      )}
+
+      {(phase.kind === "preview" || phase.kind === "moving") && (
+        <PreviewPanel
+          m={m}
+          found={phase.found}
+          unit="task"
+          loose="Inbox (houses — tasks in no project)"
+          toggles={
+            <>
+              <Toggle
+                checked={m.includeDone && kind === "api"}
+                onChange={m.setIncludeDone}
+                disabled={kind === "csv"}
+                label="Bring completed tasks"
+                hint={kind === "csv" ? "CSV files don't include completed tasks — connect with a token for those." : "Each one comes as a done task — a lit window in your city."}
+              />
+              <Toggle
+                checked={m.priorityTags}
+                onChange={m.setPriorityTags}
+                label="Turn priorities into tags"
+                hint="Priority 1, 2 and 3 become #p1, #p2 and #p3."
+              />
+            </>
+          }
+          onMove={() => api.todoistImport(m.options())}
+          other={
+            <button type="button" className="ghost" disabled={phase.kind === "moving"} onClick={() => setPhase({ kind: "idle" })}>
+              Start over
+            </button>
+          }
+        />
+      )}
+
+      {phase.kind === "done" && <DonePanel report={phase.report} app="Todoist" onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />}
+
+      <MapTable
+        from="Todoist"
+        rows={TODOIST_MAP}
+        foot="Deleted tasks stay behind. Archived projects only come for their completed tasks. Repeats Todo City doesn't have yet come once, with a note."
+      />
+    </>
+  );
+}
+
+/** The preview: what was found, options, buildings to tick, and Move in. */
+function PreviewPanel({
+  m,
+  found,
+  unit,
+  loose,
+  toggles,
+  onMove,
+  other,
+}: {
+  m: ReturnType<typeof useMoveIn>;
+  found: Found;
+  unit: string;
+  loose: string;
+  toggles: ReactNode;
+  onMove: () => Promise<ImportReport>;
+  other: ReactNode;
+}) {
+  const { phase, setPhase, skip, setSkip, includeDone } = m;
+  const moving = phase.kind === "moving";
+  const chosen = useMemo(() => {
+    const on = found.preview.buildings.filter((b) => !skip.has(b.key));
+    const open = on.reduce((s, b) => s + b.open, 0);
+    const done = on.reduce((s, b) => s + b.done, 0);
+    return { open, done, buildings: on.filter((b) => b.kind !== "loose").length };
+  }, [found, skip]);
+  // The counts are only what's new: earlier imports are left out already.
+  const toMove = chosen.open + chosen.done;
+
+  async function move() {
+    setPhase({ kind: "moving", found });
+    try {
+      setPhase({ kind: "done", report: await onMove() });
+    } catch (e) {
+      setPhase({ kind: "error", message: String(e) });
+    }
+  }
+
+  const p = found.preview;
+  return (
+    <section className="tr-preview" aria-label="What will move in">
+      <p className="tr-found" title={found.title}>
+        {found.line}
+      </p>
+      <div className="tr-stats">
+        <Stat value={chosen.open} label="to do" />
+        <Stat value={chosen.done} label="done" />
+        <Stat value={chosen.buildings} label="projects" />
+        <Stat value={p.subtasks} label="sub-tasks" />
+      </div>
+
+      <div className="tr-options">{toggles}</div>
+
+      <h3 className="tr-h">Buildings</h3>
+      <ul className="tr-list">
+        {p.buildings.map((b) => {
+          const on = !skip.has(b.key);
+          return (
+            <li key={b.key || "loose"} className={on ? "" : "off"}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() =>
+                    setSkip((s) => {
+                      const next = new Set(s);
+                      if (next.has(b.key)) next.delete(b.key);
+                      else next.add(b.key);
+                      return next;
+                    })
+                  }
+                />
+                <span className="tr-name">
+                  {b.kind === "loose" ? loose : b.name}
+                  {b.area && <span className="tr-tag">{b.area}</span>}
+                  {b.kind === "area" && <span className="tr-tag">area</span>}
+                </span>
+                <span className="tr-count">
+                  {[b.open && `${n(b.open)} to do`, includeDone && b.done && `${n(b.done)} done`, b.floors && plural(b.floors, "floor")]
+                    .filter(Boolean)
+                    .join(" · ") || "empty"}
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+
+      <ul className="tr-notes">
+        {p.already > 0 && <li>{plural(p.already, unit)} moved in earlier — they won't be added twice.</li>}
+        {p.someday > 0 && <li>{plural(p.someday, unit)} go to Someday.</li>}
+        {p.repeating > 0 && <li>{plural(p.repeating, `repeating ${unit}`)} keep their repeat.</li>}
+        {p.unmapped_repeats > 0 && (
+          <li>
+            {p.unmapped_repeats === 1
+              ? "1 repeat uses a pattern Todo City doesn't have yet; it comes once, with a note to set a repeat."
+              : `${n(p.unmapped_repeats)} repeats use patterns Todo City doesn't have yet; they come once, with a note to set a repeat.`}
+          </li>
+        )}
+      </ul>
+
+      <div className="tr-actions">
+        <button type="button" className="primary" disabled={moving || toMove === 0} onClick={() => void move()}>
+          {moving ? "Moving in…" : toMove === 0 ? "Nothing new to move in" : `Move in ${plural(toMove, unit)}`}
+        </button>
+        {other}
+      </div>
+    </section>
+  );
+}
+
+function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport; app: string; onFinished: () => void; onAgain: () => void }) {
+  return (
+    <section className="tr-done" aria-live="polite">
+      <h3>Welcome home.</h3>
+      <p>
+        {report.added
+          ? `${plural(report.added, "task")} moved in${report.done ? ` — ${plural(report.done, "window")} lit up in your city` : ""}.`
+          : "Everything was already here — nothing new to move in."}
+        {report.skipped > 0 && ` ${plural(report.skipped, "task")} were already here.`}
+        {report.failed > 0 && ` ${plural(report.failed, "task")} couldn't be read and stayed in ${app}.`}
+      </p>
+      <p className="tr-small">
+        A backup from just before is in Preferences → Your data, if you want to undo this. Moved-in tasks aren't sent to
+        Apple Reminders on their own.
+      </p>
+      <div className="tr-actions">
+        <button type="button" className="primary" onClick={onFinished}>
+          See your tasks
+        </button>
+        <button type="button" className="ghost" onClick={onAgain}>
+          Move in again
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function MapTable({ from, rows, foot }: { from: string; rows: [string, string][]; foot: string }) {
+  return (
+    <details className="tr-map">
+      <summary>What goes where</summary>
+      <table>
+        <thead>
+          <tr>
+            <th>{from}</th>
+            <th>Todo City</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([a, b]) => (
+            <tr key={a}>
+              <td>{a}</td>
+              <td>{b}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="tr-small">{foot}</p>
+    </details>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="tr-stat">
+      <b>{n(value)}</b>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** A plain check-in-a-square mark (not Things' own logo). */
+function ThingsGlyph() {
+  return (
+    <svg className="tr-glyph" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="2" y="2" width="36" height="36" rx="9" fill="#2f7bf5" />
+      <rect x="10" y="10" width="20" height="20" rx="4" fill="none" stroke="#fff" strokeWidth="2.6" />
+      <path d="M14.5 20.5l4 4 7-8" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** A plain list-with-a-tick mark in red (not Todoist's own logo). */
+function TodoistGlyph() {
+  return (
+    <svg className="tr-glyph" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="2" y="2" width="36" height="36" rx="9" fill="#e4553f" />
+      <path d="M11 14h18M11 20h18M11 26h10" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M24 26.5l2.5 2.5 4.5-5" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

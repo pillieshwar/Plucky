@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into Todo City.app's Info.plist by Tauri. Reminders access is only
+     requested if the user turns on Reminders sync in Settings. NSServices
+     adds "Add to Todo City" to the Services menu for selected text. -->
+<plist version="1.0">
+<dict>
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>Todo City adds your tasks to Reminders and keeps them in sync, because you turned this on in Todo City's Settings.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Todo City shows your calendar events next to your tasks, because you connected Calendar in Todo City. It only reads them, on this Mac.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Todo City shows your calendar events next to your tasks, because you connected Calendar in Todo City. It only reads them, on this Mac.</string>
+  <key>NSRemindersUsageDescription</key>
+  <string>Todo City adds your tasks to Reminders and keeps them in sync, because you turned this on in Todo City's Settings.</string>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>Add to Todo City</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>addToPluck</string>
+      <key>NSPortName</key>
+      <string>Todo City</string>
+      <key>NSSendTypes</key>
+      <array>
+        <string>public.utf8-plain-text</string>
+        <string>NSStringPboardType</string>
+      </array>
+      <key>NSRequiredContext</key>
+      <dict/>
+    </dict>
+  </array>
+</dict>
+</plist>
