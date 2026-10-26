@@ -2402,3 +2402,6 @@ html[data-full="1"] body { background: var(--paper); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tc-suggest span { color: var(--muted); font-weight: 400; }
+.de-type { flex-wrap: wrap; }
+.de-type input { flex: 1 1 220px; }
+.de-tab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

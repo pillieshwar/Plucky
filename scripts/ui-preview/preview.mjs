@@ -310,6 +310,8 @@ function mockTauri(s) {
       if (!t) return null;
       const { only_this, ...patch } = a.patch ?? {};
       Object.assign(t, patch);
+      // The app refreshes when the backend says tasks changed.
+      setTimeout(() => window.__emit?.("tasks-changed", null), 0);
       return { ...t };
     },
     logbook: () => s.logbook ?? [],
@@ -465,7 +467,7 @@ await shot("panel-multi-select", PANEL, rich(), async (p) => {
 await shot("panel-repeat-editor", PANEL, rich(), async (p) => {
   await p.locator(".task .task-row", { hasText: "Water the plants" }).first().click();
   await p.locator(".tc-pill").nth(3).click();
-  await p.locator(".de-series").scrollIntoViewIfNeeded();
+  await p.locator(".de-series-actions").scrollIntoViewIfNeeded();
 });
 
 const PLAN_EVENTS = [
