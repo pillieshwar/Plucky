@@ -24,7 +24,7 @@ function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "mute
     case "on_battery":
       return { tone: "muted", text: "Waiting for power — you chose to watch only when plugged in." };
     case "no_model":
-      return { tone: "warn", text: "Download a model in the Models tab first; it reads your screen on this Mac." };
+      return { tone: "warn", text: "Download a model in Settings → AI model first; it reads your screen on this Mac." };
     case "no_access":
       return { tone: "warn", text: "Todo City needs Accessibility access (the same as the capture shortcut)." };
     case "unsupported":

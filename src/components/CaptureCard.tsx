@@ -373,7 +373,7 @@ function Notice({
     },
     failed: {
       title: "Couldn’t read the selection",
-      body: `${result.kind === "failed" ? result.message : ""} If this keeps happening, use “Show log file” in Preferences and send it along.`,
+      body: `${result.kind === "failed" ? result.message : ""} If this keeps happening, use Settings → Help → Log file and send it along.`,
     },
   }[result.kind];
   return (

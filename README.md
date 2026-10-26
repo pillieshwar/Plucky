@@ -92,7 +92,7 @@ Your population is every task you've finished. At each milestone the city gains 
 
 **Share it.** **Share** makes a picture of your city with its name and, if you like, how many things you did this week. Copy it or save it to Downloads. The picture is made on your Mac and contains no task names, notes or times — and project names stay off unless you turn them on.
 
-Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
+Prefer a clean screen? Make the city card small, or hide it in **Settings → Your city**.
 
 <br clear="right">
 
@@ -111,7 +111,7 @@ Prefer a clean screen? Make the city card small, or hide it in **Preferences**.
 <img src="docs/screenshots/capture.png" alt="A capture card under the menu-bar icon, with the task, date and time filled in" width="340" align="right">
 
 - **<kbd>⌘C</kbd> twice.** Copy as usual, then press <kbd>⌘C</kbd> again within a moment. Works in every app, no permissions needed.
-- **Or a shortcut.** Select text and press <kbd>⇧⌘S</kbd> (change it in Preferences) — no copying at all. Or right-click → **Add to Todo City**.
+- **Or a shortcut.** Select text and press <kbd>⇧⌘S</kbd> (change it in Settings → Capture & shortcuts) — no copying at all. Or right-click → **Add to Todo City**.
 - **Dates done right.** "by Friday 3pm", "every Monday", "tomorrow evening" become a real day, time and repeat — and "by Friday" becomes a **deadline**. When a phrase is ambiguous, Todo City asks instead of guessing.
 - **Lists become sub-tasks.** Capture a bulleted list and it turns into a checklist.
 - **Back to the source.** Each task remembers where it came from — the Slack thread, the email, the web page — and opens it in one click.
@@ -163,7 +163,7 @@ Finished tasks go to the **Logbook**. A task added with no date and no project g
 
 ### Modes: Work, Personal, or your own
 
-The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, Anytime, the menu bar and notifications show only your work projects (and tasks with no project); everything else waits, a click away ("4 more today outside Work · Show"). **Personal** starts with every project. Make more in **Preferences → Modes**: tick the projects each one shows, which calendars it shows, whether notifications follow it, and which project new tasks go to. Each Mac remembers its own mode — Work on the work laptop, Personal at home — while the tasks stay the same everywhere. Switch with ⌃⌥1, ⌃⌥2…, or ⌃⌥0 for everything.
+The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, Anytime, the menu bar and notifications show only your work projects (and tasks with no project); everything else waits, a click away ("4 more today outside Work · Show"). **Personal** starts with every project. Make more in **Settings → Modes**: tick the projects each one shows, which calendars it shows, whether notifications follow it, and which project new tasks go to. Each Mac remembers its own mode — Work on the work laptop, Personal at home — while the tasks stay the same everywhere. Switch with ⌃⌥1, ⌃⌥2…, or ⌃⌥0 for everything.
 
 ### Reminders and check-ins
 
@@ -198,7 +198,7 @@ The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, 
 
 ### Make it yours
 
-**Preferences → Customize** lets you pick:
+**Settings → Appearance** and **Settings → Your city** let you pick:
 
 - an **accent color** (purple, blue, green, orange or pink);
 - which list Todo City **opens to** (where you left off, Today, Calendar or Anytime);
@@ -208,12 +208,12 @@ The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, 
 
 ## Moving from Things 3
 
-Preferences → **Data transfer** brings your whole Things 3 library into Todo City. It all happens on your Mac: Todo City reads a copy of Things' database, and Things itself isn't changed, so you can keep using it while you try Todo City.
+Settings → **Move in** brings your whole Things 3 library into Todo City. It all happens on your Mac: Todo City reads a copy of Things' database, and Things itself isn't changed, so you can keep using it while you try Todo City.
 
 1. **Open Things 3 on this Mac** and let it finish syncing. If you only use Things on iPhone or iPad, install Things 3 for Mac and sign in to Things Cloud first.
-2. In Todo City, open **Preferences → Data transfer** and click **Find my Things library**. If macOS asks whether Todo City may access data from other apps, click **Allow**.
+2. In Todo City, open **Settings → Move in** and click **Find my Things library**. If macOS asks whether Todo City may access data from other apps, click **Allow**.
 3. **Check the preview.** Untick any project you'd rather leave behind, and choose whether to bring the Logbook and cancelled to-dos.
-4. **Click Move in.** Todo City backs itself up first (Preferences → Your data → "before import"), so you can undo it.
+4. **Click Move in.** Todo City backs itself up first (Settings → Backups & export → "before import"), so you can undo it.
 
 Running it again later only brings to-dos that are new since last time, even if you've deleted some here.
 
@@ -236,12 +236,12 @@ Trashed to-dos stay behind. **Can't find your library?** Click **Choose the data
 
 ## Moving from Todoist
 
-Preferences → **Data transfer** → **Todoist** brings your Todoist into Todo City. Todoist isn't changed, so you can keep using it while you try Todo City.
+Settings → **Move in** → **Todoist** brings your Todoist into Todo City. Todoist isn't changed, so you can keep using it while you try Todo City.
 
 1. In Todoist (web or app), open **Settings → Integrations → Developer** and click **Copy API token**.
 2. In Todo City, paste it and click **Connect**. Todo City reads your projects, sections, tasks, sub-tasks, labels, comments and completed tasks straight from Todoist's servers to your Mac. The token is used for that and never saved; big accounts take a minute while completed tasks come in, year by year.
 3. **Check the preview.** Untick any project you'd rather leave behind; choose whether to bring completed tasks and whether priorities 1–3 become `#p1`–`#p3`.
-4. **Click Move in.** Todo City backs itself up first (Preferences → Your data → "before import"). Running it again later only brings tasks that are new since last time.
+4. **Click Move in.** Todo City backs itself up first (Settings → Backups & export → "before import"). Running it again later only brings tasks that are new since last time.
 
 **No token?** Export each project with **⋯ → Export as CSV** in Todoist (or, on Pro, download a backup from Settings → Backups and unzip it), then choose **No token? Use CSV files instead** and pick all the .csv files. CSV exports don't include completed tasks, so your city starts dark.
 
@@ -261,7 +261,7 @@ Preferences → **Data transfer** → **Todoist** brings your Todoist into Todo 
 
 ## Sync between your Macs
 
-Connectors → **Your other Macs** keeps your tasks the same on, say, a work laptop and a personal one — even when the work Mac can't sign in to iCloud.
+Settings → **Your other Macs** keeps your tasks the same on, say, a work laptop and a personal one — even when the work Mac can't sign in to iCloud.
 
 1. On one Mac, choose **Show a code**. It shows a code like `K7MX-4QRB` for 10 minutes.
 2. On the other, choose **I have a code** and type it in.
@@ -297,7 +297,7 @@ gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 
 ## Keyboard shortcuts
 
-**Anywhere on your Mac** — change them in **Preferences → Keyboard shortcuts**:
+**Anywhere on your Mac** — change them in **Settings → Capture & shortcuts**:
 
 | Shortcut | Action |
 | --- | --- |
@@ -324,7 +324,7 @@ gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
 - **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
-- **Todo City uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Preferences → General**), and — only if you pair your Macs — sync.
+- **Todo City uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Settings → General**), and — only if you pair your Macs — sync.
 - **Sync is end-to-end encrypted.** Paired Macs pass changes through a relay as sealed boxes it can't open; the key exists only on your Macs, in the Keychain. The relay keeps no logs, deletes each box once every Mac has it (30 days at most), and has no accounts. See [Sync between your Macs](#sync-between-your-macs).
 - **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to Todo City over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
 - **Watching your screen stays on your Mac.** If you turn on **Connectors → Watch my screen**, Todo City reads the text of the window in front (never password managers, Keychain, System Settings or terminals, and never what you type), runs the on-device model on new text, and keeps none of it.
@@ -385,14 +385,14 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 | Problem | Fix |
 | --- | --- |
 | "Apple could not verify Todo City…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
-| <kbd>⌘C</kbd> twice does nothing | Check that **Preferences → Press ⌘C twice to capture** is on and the Todo City icon is in the menu bar. Copies made inside Todo City itself are ignored. |
-| <kbd>⇧⌘S</kbd> does nothing | Check that the Todo City icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Preferences → Keyboard shortcuts**. |
+| <kbd>⌘C</kbd> twice does nothing | Check that **Settings → Capture & shortcuts → Press ⌘C twice to capture** is on and the Todo City icon is in the menu bar. Copies made inside Todo City itself are ignored. |
+| <kbd>⇧⌘S</kbd> does nothing | Check that the Todo City icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Settings → Capture & shortcuts**. |
 | "No selected text found" | Select the text again. Password fields and some secure apps can't be read, by design. |
 | **Add to Todo City** isn't in the right-click menu | Open Todo City from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
-| No reminders appear | **Preferences → Notifications** shows whether they're allowed and can send a test notification. |
+| No reminders appear | **Settings → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove Todo City with **–**, then capture again and re-allow it. |
 | The menu-bar icon is somewhere you don't want it | Hold **⌘** and drag it. macOS remembers the spot, including across updates. Todo City starts next to the battery, but never moves the icon again after that. |
-| Something else | **Preferences → Show log file** opens Todo City's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/TodoCity/issues). |
+| Something else | **Settings → Help → Log file** opens Todo City's log. It stays on your Mac — attach it to an [issue](https://github.com/pillieshwar/TodoCity/issues). |
 
 ## Uninstall
 
@@ -402,13 +402,13 @@ Quit Todo City from its menu-bar icon, move it from Applications to the Bin and 
 rm -rf ~/Library/Application\ Support/app.pluck.desktop
 ```
 
-If you used sync, turn it off first (Connectors → Your other Macs), or delete the "app.todocity.sync" item in Keychain Access afterwards.
+If you used sync, turn it off first (Settings → Your other Macs), or delete the "app.todocity.sync" item in Keychain Access afterwards.
 
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome.
 
-1. Open an [issue](https://github.com/pillieshwar/TodoCity/issues) describing the bug or idea — for bugs, attach the log from **Preferences → Show log file**.
+1. Open an [issue](https://github.com/pillieshwar/TodoCity/issues) describing the bug or idea — for bugs, attach the log from **Settings → Help → Log file**.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `npm test` before opening a pull request. CI builds the app on macOS and Windows and runs the security checks. Commit `Cargo.lock` and `package-lock.json` changes along with the dependency change that caused them.
 

@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { AppearanceSection, CustomizeSection, DataSection, GeneralSection, MenuBarNudgesSection, NotificationsSection } from "./GeneralSettings";
-import { ModesSection } from "./ModesSettings";
-import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import {
   formatShortcut,
   sameShortcut,
@@ -14,92 +11,26 @@ import {
   type ShortcutSpec,
 } from "../lib/shortcuts";
 
-interface Props {
-  shortcuts: ShortcutSettings | null;
-  onShortcuts: (s: ShortcutSettings) => void;
-  settings: AppSettings | null;
-  onSettings: (s: AppSettings) => void;
-  status: Status | null;
-  update: UpdateStatus;
-  onError: (message: string) => void;
-  /** Start the first-run tour again. */
-  onTour: () => void;
-}
-
 const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boolean }[] = [
   {
     action: "capture",
     title: "Capture selected text",
-    hint: "Select text in any app, then press this to turn it into a task.",
+    hint: "From selected text in any app",
     optional: false,
   },
   {
     action: "quick_add",
     title: "Quick add",
-    hint: "Type a task from anywhere — “pay rent friday 5pm #home”.",
+    hint: "Type a task from anywhere",
     optional: true,
   },
   {
     action: "toggle_panel",
     title: "Show or hide Todo City",
-    hint: "Open your task list from anywhere — even over a full-screen app, where the menu bar is hidden.",
+    hint: "Even over full-screen apps",
     optional: true,
   },
 ];
-
-export function SettingsTab({ shortcuts, onShortcuts, settings, onSettings, status, update, onError, onTour }: Props) {
-  return (
-    <div className="settings">
-      <ModesSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <AppearanceSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <CustomizeSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <MenuBarNudgesSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <NotificationsSection settings={settings} onSettings={onSettings} onError={onError} />
-
-      <section className="settings-section">
-        <h2 className="settings-h">Keyboard shortcuts</h2>
-        <p className="settings-intro">
-          These work in every app while Todo City is running. Click a shortcut, then press the keys you want.
-        </p>
-        <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} />
-      </section>
-
-      <GeneralSection
-        settings={settings}
-        onSettings={onSettings}
-        status={status}
-        update={update}
-        onError={onError}
-        onTour={onTour}
-      />
-
-      <DataSection onError={onError} />
-
-      <section className="settings-section">
-        <h2 className="settings-h">Panel</h2>
-        <p className="settings-intro">Drag the panel by its header to put it anywhere. Todo City remembers the spot.</p>
-        <button type="button" className="ghost" onClick={() => void api.snapPanelToEdge()}>
-          Snap to right edge
-        </button>
-      </section>
-
-      <section className="settings-section">
-        <h2 className="settings-h">Troubleshooting</h2>
-        <p className="settings-intro">
-          Todo City keeps a log on this Mac (never sent anywhere). If something goes wrong, it helps to attach it to a bug
-          report.
-        </p>
-        <button type="button" className="ghost" onClick={() => void api.revealLogs().catch(() => undefined)}>
-          Show log file
-        </button>
-      </section>
-    </div>
-  );
-}
 
 /** The three global shortcuts, each with a click-to-record keycap. */
 export function ShortcutEditor({

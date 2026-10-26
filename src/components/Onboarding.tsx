@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, onModelDownload } from "../lib/api";
-import { ShortcutEditor } from "./SettingsTab";
+import { ShortcutEditor } from "./ShortcutEditor";
 import { formatShortcut, type ShortcutSettings } from "../lib/shortcuts";
 import type { AppSettings, ModelInfo, Status } from "../lib/types";
 

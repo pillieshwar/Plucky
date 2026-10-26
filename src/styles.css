@@ -2525,3 +2525,41 @@ html[data-full="1"] body { background: var(--paper); }
 .modes-list { margin-bottom: 10px; }
 .modes-options { margin-top: 10px; }
 .modes-options .setting-select { border-top: 1px solid var(--line); }
+
+/* Settings: pages in groups (sidebar in full screen, a list in the panel) */
+.set-nav { display: flex; flex-direction: column; gap: 2px; }
+.set-nav.side { flex: none; width: 228px; padding: 16px 10px 24px; border-right: 1px solid var(--line); overflow-y: auto; }
+.set-nav.list { padding: 6px 10px 16px; }
+.set-group + .set-group { margin-top: 12px; }
+.set-group-label { margin: 6px 10px 4px; font: 650 10.5px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.set-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 4px 10px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ink); font: 500 13px var(--sans); text-align: left; cursor: pointer;
+}
+.set-nav.list .set-item { min-height: 42px; font-size: 14px; }
+.set-item:hover { background: color-mix(in srgb, var(--line) 70%, transparent); }
+.set-item.on { background: var(--teal-soft); color: var(--teal); font-weight: 650; }
+.set-icon {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: 12px; font-weight: 700;
+  color: #fff; background: #6b7077;
+}
+.set-icon.violet { background: #7d74f0; }
+.set-icon.red { background: #e5534b; }
+.set-icon.blue { background: #4a86f0; }
+.set-icon.amber { background: #d9902f; }
+.set-icon.green { background: #34b27a; }
+.set-icon.teal { background: #2fa3a3; }
+.set-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-badge { flex: none; display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.set-badge .tab-dot { position: static; }
+.set-chev { flex: none; color: var(--faint); }
+.set-title { margin: 0 0 14px; font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+.fs-content .settings, .fs-content .connectors, .fs-content .models, .fs-content .transfer { padding: 0; }
+.settings .connectors, .settings .models, .settings .transfer { padding: 0; }
+.toggle-row.static { cursor: default; }
+.toggle-row.static .ghost, .toggle-row.static .primary { flex: none; }
+.settings-text {
+  width: 200px; max-width: 55%; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper);
+  color: var(--ink); font: 13px var(--sans);
+}
+.set-sync .connector-body-inner { padding-top: 0; }

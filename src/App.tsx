@@ -1,12 +1,9 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureCard, type CaptureState } from "./components/CaptureCard";
-import { ModelsTab } from "./components/ModelsTab";
-import { ConnectorsTab } from "./components/ConnectorsTab";
-import { DataTransferTab } from "./components/DataTransferTab";
 import { Onboarding } from "./components/Onboarding";
 import { processCapture } from "./lib/capture";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { SettingsTab } from "./components/SettingsTab";
+import { pageFromTab, pageLabel, SettingsContent, SettingsNav, type SettingsPage } from "./components/Settings";
 import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
 import { CityCard, CityView } from "./components/City";
@@ -62,15 +59,7 @@ import { ModeSwitch } from "./components/ModeSwitch";
 
 const LOCALE = safeLocale();
 
-type Tab = "tasks" | "connectors" | "models" | "transfer" | "settings";
-const TABS: { id: Tab; label: string; short?: string }[] = [
-  { id: "tasks", label: "Tasks" },
-  { id: "settings", label: "Preferences" },
-  { id: "connectors", label: "Connectors" },
-  { id: "models", label: "Models" },
-  { id: "transfer", label: "Data transfer", short: "Transfer" },
-];
-const isTab = (t: string): t is Tab => TABS.some((x) => x.id === t);
+type Tab = "tasks" | "settings";
 
 type TodayMode = "list" | "hours";
 function saved<T extends string>(key: string, allowed: T[], fallback: T): T {
@@ -133,6 +122,16 @@ export default function App() {
   const [update, setUpdate] = useState<UpdateStatus>({ state: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("tasks");
+  // Settings: the page showing, and (side panel) whether it's on the list of pages.
+  const [page, setPage] = useState<SettingsPage>("general");
+  const [panelHome, setPanelHome] = useState(true);
+  const openSettings = useCallback((p?: SettingsPage) => {
+    setTab("settings");
+    if (p) {
+      setPage(p);
+      setPanelHome(false);
+    } else setPanelHome(true);
+  }, []);
   const [collapsed, setCollapsed] = useState(false);
   // Full screen: the panel as a big window with a sidebar and a detail pane.
   const [full, setFull] = useState(false);
@@ -330,7 +329,11 @@ export default function App() {
     const subs = [
       onCapture((r) => void handleCapture(r)),
       onTasksChanged(() => void refresh()),
-      onOpenTab((t) => setTab(isTab(t) ? t : "tasks")),
+      onOpenTab((t) => {
+        const p = pageFromTab(t);
+        if (p) openSettings(p);
+        else setTab("tasks");
+      }),
       onShortcutsChanged(setShortcuts),
       // A mode switched from the menu bar (or another window) shows here too.
       onSettingsChanged(setSettings),
@@ -573,7 +576,7 @@ export default function App() {
       }
       if (s.full && mod && e.key === ",") {
         e.preventDefault();
-        setTab("settings");
+        openSettings();
         return;
       }
       if (s.full && mod && e.key === "\\") {
@@ -820,15 +823,11 @@ export default function App() {
   })();
   const subText =
     tab !== "tasks"
-      ? tab === "connectors"
-        ? "Work with apps on this Mac"
-        : tab === "transfer"
-          ? "Move in from Things 3 or Todoist"
-          : tab === "models"
-          ? status?.active_model
-            ? `Using ${status.active_model}`
-            : "No model yet"
-          : `Todo City ${status?.version ?? ""}`
+      ? page === "model"
+        ? status?.active_model
+          ? `Using ${status.active_model}`
+          : "No model yet"
+        : `Todo City ${status?.version ?? ""}`
       : list === "today"
         ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${w.toDo(listCounts.today)}`
         : list === "upcoming"
@@ -858,7 +857,7 @@ export default function App() {
         </Banner>
       )}
       {tab === "tasks" && status?.engine === "bundled" && !status.active_model && !onboarding && (
-        <Banner tone="warn" action={{ label: "Get a model", run: () => setTab("models") }}>
+        <Banner tone="warn" action={{ label: "Get a model", run: () => openSettings("model") }}>
           Download a model so Todo City can read your selections.
         </Banner>
       )}
@@ -1083,28 +1082,41 @@ export default function App() {
     </>
   );
 
-  const settingsEl = (
-    <>
-      {tab === "connectors" && <ConnectorsTab />}
-      {tab === "models" && <ModelsTab onChanged={checkStatus} />}
-      {tab === "transfer" && <DataTransferTab onFinished={() => setTab("tasks")} />}
-      {tab === "settings" && (
-        <SettingsTab
-          shortcuts={shortcuts}
-          onShortcuts={setShortcuts}
-          settings={settings}
-          onSettings={setSettings}
-          status={status}
-          update={update}
-          onError={setError}
-          onTour={() => {
-            setTab("tasks");
-            setTour(true);
-          }}
-        />
-      )}
-    </>
+  const settingsContent = (
+    <SettingsContent
+      page={page}
+      settings={settings}
+      onSettings={setSettings}
+      shortcuts={shortcuts}
+      onShortcuts={setShortcuts}
+      status={status}
+      update={update}
+      onError={setError}
+      onTour={() => {
+        setTab("tasks");
+        setTour(true);
+      }}
+      onKeys={() => setShowKeys(true)}
+      onModelChanged={checkStatus}
+      onDone={() => setTab("tasks")}
+      showTitle={full}
+    />
   );
+  const settingsEl =
+    tab === "tasks" ? null : full || !panelHome ? (
+      settingsContent
+    ) : (
+      <SettingsNav
+        variant="list"
+        page={null}
+        settings={settings}
+        update={update}
+        onPage={(p) => {
+          setPage(p);
+          setPanelHome(false);
+        }}
+      />
+    );
 
   const keysSheet = showKeys && (
     <div className="keys-sheet" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setShowKeys(false)}>
@@ -1261,7 +1273,7 @@ export default function App() {
             }}
             counts={listCounts}
             projects={projectStats}
-            modeSwitch={<ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} variant="side" />}
+            modeSwitch={<ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} variant="side" />}
             inMode={mode ? (name) => showsTask(mode, { project: name }) : undefined}
             modeName={mode?.name}
             tags={tags}
@@ -1275,7 +1287,7 @@ export default function App() {
               setSearchOpen(true);
               window.setTimeout(() => searchRef.current?.focus(), 0);
             }}
-            onSettings={() => setTab(tab === "tasks" ? "settings" : "tasks")}
+            onSettings={() => (tab === "tasks" ? openSettings() : setTab("tasks"))}
             onKeys={() => setShowKeys(true)}
             onCity={() => setCityOpen("view")}
             cityName={settings?.city_name ?? null}
@@ -1405,7 +1417,7 @@ export default function App() {
             <span className="fh-sub" data-tauri-drag-region>
               {tab === "tasks" && floorOpen ? floorSub : subText}
             </span>
-            {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} />}
+            {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} />}
             {tab === "tasks" && upcoming && (
               <div className="fh-week">
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), -7)))} aria-label="Previous week" title="Previous week (←)">
@@ -1492,20 +1504,7 @@ export default function App() {
             </div>
           ) : (
             <div className="full-body settings">
-              <nav className="fs-nav" role="tablist" aria-label="Settings">
-                {TABS.filter((t) => t.id !== "tasks").map((t) => (
-                  <button
-                    key={t.id}
-                    role="tab"
-                    aria-selected={tab === t.id}
-                    className={tab === t.id ? "fs-tab on" : "fs-tab"}
-                    onClick={() => setTab(t.id)}
-                  >
-                    {t.label}
-                    {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
-                  </button>
-                ))}
-              </nav>
+              <SettingsNav variant="side" page={page} settings={settings} update={update} onPage={setPage} />
               <main className="fs-content">
                 <div className="fs-inner">{settingsEl}</div>
               </main>
@@ -1526,7 +1525,7 @@ export default function App() {
               onShare={() => setCityOpen("share")}
               onHide={() => {
                 void patchSettings({ city_corner: false });
-                show("Your city is hidden. Open it from the sidebar, or bring it back in Preferences.");
+                show("Your city is hidden. Open it from the sidebar, or bring it back in Settings → Your city.");
               }}
             />
           </div>
@@ -1594,14 +1593,19 @@ export default function App() {
             }}
           />
         ) : (
-          <button type="button" className="back-btn" onClick={() => setTab("tasks")} title="Back to tasks (Esc)">
+          <button
+            type="button"
+            className="back-btn"
+            onClick={() => (panelHome ? setTab("tasks") : setPanelHome(true))}
+            title={panelHome ? "Back to tasks (Esc)" : "All settings"}
+          >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M10 3.5 5.5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Settings
+            {panelHome ? "Settings" : pageLabel(page)}
           </button>
         )}
-        {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => setTab("settings")} />}
+        {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} />}
         <span className="topbar-gap" data-tauri-drag-region />
         {tab === "tasks" && !onboarding && (
           <>
@@ -1638,9 +1642,9 @@ export default function App() {
         <button
           type="button"
           className={tab !== "tasks" ? "icon on" : "icon"}
-          onClick={() => setTab(tab === "tasks" ? "settings" : "tasks")}
+          onClick={() => (tab === "tasks" ? openSettings() : setTab("tasks"))}
           aria-label="Settings"
-          title="Settings, models and connectors"
+          title="Settings"
         >
           <GearIcon />
           {update.state === "ready" && <span className="icon-dot" aria-label="Update ready" />}
@@ -1664,23 +1668,7 @@ export default function App() {
             />
           )}
         </div>
-      ) : (
-        <nav className="tabs" role="tablist" aria-label="Settings">
-          {TABS.filter((t) => t.id !== "tasks").map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              className={tab === t.id ? "tab on" : "tab"}
-              onClick={() => setTab(t.id)}
-              aria-label={t.label}
-            >
-              {t.short ?? t.label}
-              {t.id === "settings" && update.state === "ready" && <span className="tab-dot" aria-label="Update ready" />}
-            </button>
-          ))}
-        </nav>
-      )}
+      ) : null}
 
       {tab === "tasks" && list === "today" && !onboarding && (
         <WeekStrip

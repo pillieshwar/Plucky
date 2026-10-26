@@ -407,10 +407,15 @@ async function shot(name, size, s, steps = async () => {}, dark = false) {
 
 const PANEL = { width: 360, height: 720 };
 /** Settings live behind the gear; open it, then the tab. */
+/** Settings pages by their old tab names too. */
+const PAGE_NAMES = { Preferences: "General", Models: "AI model", "Data transfer": "Move in" };
 const tab = async (p, name) => {
-  const t = p.getByRole("tab", { name: new RegExp(`^${name}`) });
-  if (!(await t.count())) await p.getByRole("button", { name: "Settings", exact: true }).click();
-  await t.click();
+  const label = PAGE_NAMES[name] ?? name;
+  const item = () => p.locator(".set-item", { hasText: new RegExp(`^.?${label}`) }).first();
+  if (!(await item().count())) await p.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await p.waitForTimeout(100);
+  await item().click();
+  await p.waitForTimeout(150);
 };
 /** Open a task as a card. */
 const openTask = async (p, n) => {
@@ -630,6 +635,15 @@ await shot("panel-extracting", PANEL, scenario({ extract: "pending" }), async (p
     }),
   );
 });
+await shot("panel-settings-home", PANEL, scenario({ update: { state: "ready", version: "0.2.1", notes: null } }), async (p) => {
+  await p.getByRole("button", { name: "Settings", exact: true }).first().click();
+});
+await shot("panel-settings-appearance", PANEL, scenario(), async (p) => {
+  await tab(p, "Appearance");
+});
+await shot("panel-settings-notifications", PANEL, scenario(), async (p) => {
+  await tab(p, "Notifications");
+});
 await shot("panel-preferences", PANEL, scenario(), async (p) => {
   await tab(p, "Preferences");
 });
@@ -638,12 +652,10 @@ await shot("panel-preferences-dark", PANEL, scenario({ settings: { ...SETTINGS, 
   await tab(p, "Preferences");
 });
 await shot("panel-settings", PANEL, scenario({ update: { state: "ready", version: "0.2.1", notes: null } }), async (p) => {
-  await tab(p, "Preferences");
-  await p.locator(".settings-h", { hasText: "General" }).scrollIntoViewIfNeeded();
+  await tab(p, "General");
 });
 await shot("panel-settings-data", PANEL, scenario(), async (p) => {
-  await tab(p, "Preferences");
-  await p.locator(".settings-h", { hasText: "Your data" }).scrollIntoViewIfNeeded();
+  await tab(p, "Backups & export");
 });
 await shot(
   "panel-onboarding",
@@ -702,7 +714,7 @@ await shot(
   }),
   async (p) => {
     await tab(p, "Connectors");
-    await p.locator(".connector-action").nth(2).click();
+    await p.locator(".connector-action").nth(1).click();
   },
 );
 await shot("panel-update-downloading", PANEL, scenario({ update: { state: "downloading", version: "0.4.5", percent: 40 } }));
@@ -777,19 +789,18 @@ const SYNC_ON = {
   last_ok: new Date(Date.now() - 30_000).toISOString(),
 };
 const syncOpen = async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").first().click();
+  await tab(p, "Your other Macs");
 };
 await shot("panel-connectors-sync", PANEL, scenario({ sync: SYNC_BASE }), syncOpen);
 await shot(
   "panel-connectors-sync-code",
   PANEL,
   scenario({ sync: { ...SYNC_BASE, on: true, pairing: { role: "host", code: "K7MX-4QRB", stage: "waiting", sas: null, confirmed: false, error: null } } }),
-  async (p) => await tab(p, "Connectors"),
+  async (p) => await tab(p, "Your other Macs"),
 );
 const SYNC_COMPARE = { ...SYNC_BASE, pairing: { role: "join", code: "K7MX-4QRB", stage: "compare", sas: "482 913", confirmed: false, error: null } };
-await shot("panel-connectors-sync-compare", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Connectors"));
-await shot("panel-connectors-sync-compare-dark", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Connectors"), true);
+await shot("panel-connectors-sync-compare", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Your other Macs"));
+await shot("panel-connectors-sync-compare-dark", PANEL, scenario({ sync: SYNC_COMPARE }), async (p) => await tab(p, "Your other Macs"), true);
 await shot("panel-connectors-sync-on", PANEL, scenario({ sync: SYNC_ON }), async (p) => {
   await syncOpen(p);
   await p.locator(".connector-subhead", { hasText: "Your Macs" }).scrollIntoViewIfNeeded();
@@ -805,11 +816,11 @@ await shot("panel-connectors-sync-join", PANEL, scenario({ sync: SYNC_BASE }), a
 });
 await shot("panel-connectors-calendar", PANEL, scenario({ calendar: CAL_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(1).click();
+  await p.locator(".connector-action").first().click();
 });
 await shot("panel-connectors-reminders", PANEL, scenario(), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(2).click();
+  await p.locator(".connector-action").nth(1).click();
 });
 await shot("popover-events", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }));
 await shot("popover-events-dark", POP, scenario({ label: "popover", calendar: CAL_ON, events: EVENTS }), async () => {}, true);
@@ -897,11 +908,11 @@ const WATCH_ON = {
 };
 await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(2).click();
 });
 await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await p.locator(".connector-action").nth(2).click();
   await p.locator(".connector-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
@@ -914,7 +925,7 @@ const AGENTS_ON = {
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(4).click();
+  await p.locator(".connector-action").nth(3).click();
   await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
 });
 await shot(
@@ -937,13 +948,13 @@ await shot(
   }),
   async (p) => {
     await tab(p, "Connectors");
-    await p.locator(".connector-action").nth(4).click();
+    await p.locator(".connector-action").nth(3).click();
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
   await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(4).click();
+  await p.locator(".connector-action").nth(3).click();
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
@@ -1026,9 +1037,7 @@ await shot("full-mode-switch", FULL, full({ settings: { ...LIGHT, modes: WORK_MO
   if (!(await p.locator(".mode-switch.mode-side.on").count())) throw new Error("the mode didn't switch");
 });
 await shot("full-settings-modes", FULL, full({ settings: IN_WORK }), async (p) => {
-  await p.locator(".sidebar button").filter({ hasText: "Settings" }).last().click();
-  await p.waitForTimeout(300);
-  await p.locator("#modes").scrollIntoViewIfNeeded();
+  await tab(p, "Modes");
 });
 await shot("popover-mode", POP, scenario({ label: "popover", settings: IN_WORK, tasks: FULL_TASKS }));
 await shot("full-today-hours", FULL, full({ settings: DARK }), async (p) => {
@@ -1070,18 +1079,17 @@ await shot("full-settings", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
   await p.waitForTimeout(200);
 });
+for (const [name, page] of [["notifications", "Notifications"], ["capture", "Capture & shortcuts"], ["city", "Your city"], ["sync", "Your other Macs"], ["connectors", "Connectors"], ["help", "Help"], ["backups", "Backups & export"]]) {
+  await shot(`full-settings-${name}`, FULL, full({ settings: DARK }), async (p) => await tab(p, page));
+}
 await shot("full-customize", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await p.waitForTimeout(200);
+  await tab(p, "Appearance");
   await p.getByRole("radio", { name: "Green" }).click();
   await p.waitForTimeout(150);
-  await p.locator(".settings-h", { hasText: "Customize" }).scrollIntoViewIfNeeded();
   if ((await p.evaluate(() => document.documentElement.dataset.accent)) !== "green") throw new Error("the accent color didn't change");
 });
 await shot("full-transfer", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await p.waitForTimeout(150);
-  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await tab(p, "Move in");
   await p.getByRole("button", { name: "Find my Things library" }).click();
   await p.waitForTimeout(200);
   await p.locator(".tr-list li", { hasText: "Trip to Lisbon" }).locator("input").click();
@@ -1089,9 +1097,7 @@ await shot("full-transfer", FULL, full({ settings: DARK }), async (p) => {
   if (label !== "Move in 534 to-dos") throw new Error(`move-in count wrong: ${label}`);
 });
 await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await p.waitForTimeout(150);
-  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await tab(p, "Move in");
   await p.getByRole("tab", { name: /Todoist/ }).click();
   await p.getByLabel("Todoist API token").fill("bad-token");
   await p.getByRole("button", { name: "Connect" }).click();
@@ -1104,9 +1110,7 @@ await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) =>
   if ((await p.getByLabel("Todoist API token").count()) !== 0) throw new Error("the token field should be gone after connecting");
 });
 await shot("full-transfer-todoist-csv", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await p.waitForTimeout(150);
-  await p.getByRole("tab", { name: "Data transfer" }).click();
+  await tab(p, "Move in");
   await p.getByRole("tab", { name: /Todoist/ }).click();
   await p.getByText("No token? Use CSV files instead").click();
   await p.getByRole("button", { name: "Choose CSV files…" }).click();

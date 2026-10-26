@@ -4,7 +4,6 @@ import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
 import { AgentsSection } from "./AgentsSection";
 import { WatchSection } from "./WatchSection";
-import { SyncGlyph, SyncSection, useSyncStatus } from "./SyncSection";
 import { safeLocale } from "../lib/locale";
 import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
@@ -19,7 +18,6 @@ export function ConnectorsTab() {
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [agents, setAgents] = useState<AgentsStatus | null>(null);
   const [watch, setWatch] = useState<WatchStatus | null>(null);
-  const [sync, setSync] = useSyncStatus();
   const [open, setOpen] = useState<Id | null>(null);
 
   const refresh = useCallback(() => {
@@ -39,24 +37,6 @@ export function ConnectorsTab() {
 
   return (
     <div className="connectors">
-      <p className="connectors-intro">
-        Connect apps to use your tasks with them. Everything runs from this Mac — there's no Todo City account, and
-        nothing leaves it unencrypted.
-      </p>
-
-      <ConnectorCard
-        icon={<SyncGlyph />}
-        tone="sync"
-        name="Your other Macs"
-        description="Keep the same tasks on your work and personal Macs, end-to-end encrypted."
-        connected={!!sync?.on}
-        connectedLabel={sync?.on ? `${sync.devices.length} Mac${sync.devices.length === 1 ? "" : "s"}` : undefined}
-        open={open === "sync" || !!sync?.pairing}
-        onToggle={() => toggle("sync")}
-      >
-        <SyncSection status={sync} onStatus={setSync} />
-      </ConnectorCard>
-
       <ConnectorCard
         icon={<CalendarGlyph />}
         tone="calendar"
@@ -106,12 +86,11 @@ export function ConnectorsTab() {
         <AgentsSection status={agents} onStatus={setAgents} />
       </ConnectorCard>
 
-      <p className="connectors-foot">More connectors are on the way.</p>
     </div>
   );
 }
 
-type Id = "sync" | "reminders" | "calendar" | "agents" | "watch";
+type Id = "reminders" | "calendar" | "agents" | "watch";
 
 function ConnectorCard({
   icon,
