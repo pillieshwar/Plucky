@@ -1,0 +1,57 @@
+[package]
+name = "todocity-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "PolyForm-Noncommercial-1.0.0"
+description = "Fuzz tests for todocity-core: everything that reads untrusted input."
+
+[package.metadata]
+cargo-fuzz = true
+
+# Not part of the main workspace: it needs a nightly compiler and libFuzzer.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+todocity-core = { path = "../crates/todocity-core" }
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "model_output"
+path = "fuzz_targets/model_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "todoist_csv"
+path = "fuzz_targets/todoist_csv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sync_boxes"
+path = "fuzz_targets/sync_boxes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sync_merge"
+path = "fuzz_targets/sync_merge.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pairing"
+path = "fuzz_targets/pairing.rs"
+test = false
+doc = false
+bench = false

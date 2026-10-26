@@ -32,12 +32,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Install Playwright
-        # Screenshot tooling only, never part of the app; pinned to an exact
-        # version. (Kept out of package.json: npm 10 can't resolve it next to
-        # vitest's optional Playwright integration.)
+        # Screenshot tooling only, never part of the app: its own package
+        # with a lockfile (hashes checked by npm ci), apart from the app's
+        # (npm 10 can't resolve it next to vitest's optional Playwright
+        # integration).
         run: |
-          npm install --no-save playwright@1.48.2
-          npx playwright install chromium
+          if [ -f scripts/ui-preview/package-lock.json ]; then
+            npm ci --prefix scripts/ui-preview --no-audit --no-fund
+          else
+            npm install --prefix scripts/ui-preview --no-audit --no-fund
+            echo "::notice title=lockfile::$(gzip -9c scripts/ui-preview/package-lock.json | base64 | tr -d "\n")"
+          fi
+          scripts/ui-preview/node_modules/.bin/playwright install chromium
       - name: Screenshots
         run: |
           npx vite preview --port 4173 --strictPort &

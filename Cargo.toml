@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/todocity-core", "src-tauri"]
+# Fuzz tests build on their own (nightly, libFuzzer); see fuzz/README.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.4.47"
