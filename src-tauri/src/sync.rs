@@ -389,7 +389,8 @@ pub fn after_restore(app: &AppHandle) {
     };
     {
         let state = app.state::<AppState>();
-        if let Ok(store) = state.store.lock() {
+        let locked = state.store.lock();
+        if let Ok(store) = &locked {
             if let Err(e) = store.sync_reset() {
                 log::warn!("sync: couldn't reset after restoring: {e}");
             }
@@ -555,7 +556,7 @@ pub async fn sync_add_mac(app: AppHandle) -> CmdResult<()> {
         log::info!("sync: started a new group on this Mac");
     }
     let relay = svc.relay();
-    let me = svc.membership().ok_or("Sync couldn't start.")?;
+    svc.membership().ok_or("Sync couldn't start.")?;
     let mut opened = None;
     for _ in 0..3 {
         let code = crypto::room_code().map_err(|e| e.to_string())?;
