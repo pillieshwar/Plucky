@@ -176,12 +176,22 @@ jobs:
           (cd dist-release && shasum -a 256 *.dmg)
 
       - name: Attest build provenance
+        id: attest
         if: github.ref_type == 'tag' || inputs.publish
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist-release/*.dmg
             dist-release/TodoCity.app.tar.gz
+
+      - name: Ship the provenance with the release
+        # The signed SLSA provenance (a Sigstore bundle) as a release file too,
+        # so it can be checked offline: `gh attestation verify
+        # TodoCity-macOS.dmg --repo REPO --bundle TodoCity.intoto.jsonl`.
+        if: github.ref_type == 'tag' || inputs.publish
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" dist-release/TodoCity.intoto.jsonl
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -205,7 +215,7 @@ jobs:
           3. The tour walks you through the rest: permission, model download (about 2 GB, once), shortcuts and a first capture.
 
 
-          **Verify your download** (optional): `gh attestation verify TodoCity-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow.
+          **Verify your download** (optional): `gh attestation verify TodoCity-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow. The signed provenance is also attached as `TodoCity.intoto.jsonl`, for checking offline with `--bundle`.
           EOF
           sed -i '' "s#REPO#${GITHUB_REPOSITORY}#g" notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then

@@ -1,0 +1,68 @@
+name: Fuzz
+
+# Throws random and mutated input at everything in todocity-core that reads
+# input Todo City doesn't control (see fuzz/README.md): briefly on pull
+# requests that change the core, longer every week.
+
+on:
+  pull_request:
+    paths: ["crates/todocity-core/**", "fuzz/**", ".github/workflows/fuzz.yml"]
+  schedule:
+    - cron: "7 11 * * 6" # Saturdays
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [model_output, todoist_csv, sync_boxes, sync_merge, pairing]
+    env:
+      CARGO_FUZZ_VERSION: "0.13.2"
+      # Seconds per target: short on pull requests, longer on the weekly run.
+      SECONDS_PER_TARGET: ${{ github.event_name == 'pull_request' && '120' || '1200' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust nightly
+        run: rustup toolchain install nightly --profile minimal && rustup default nightly
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: fuzz
+      - name: Install cargo-fuzz (pinned)
+        run: |
+          cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked > install.log 2>&1 || {
+            grep -m5 -E "^error" install.log | while IFS= read -r l; do echo "::error title=cargo install cargo-fuzz::$l"; done
+            tail -n 40 install.log
+            exit 1
+          }
+      - name: Fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -o pipefail
+          cargo fuzz run "$TARGET" -- -max_total_time="$SECONDS_PER_TARGET" -rss_limit_mb=4096 2>&1 | tail -n 200 > fuzz.log || {
+            grep -m5 -E '^error|panicked at|ERROR: libFuzzer|SUMMARY' fuzz.log | while IFS= read -r l; do echo "::error title=Fuzz $TARGET::$l"; done
+            cat fuzz.log
+            exit 1
+          }
+          tail -n 3 fuzz.log
+          echo "::notice title=Fuzz $TARGET::$(grep -m1 -oE 'Done [0-9]+ runs in [0-9]+ second\(s\)' fuzz.log || echo finished)"
+      - name: Keep the crashing input
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/
+          retention-days: 30

@@ -118,9 +118,14 @@ impl Clock {
         format!("{:013}-{:06}-{device}", self.millis, self.counter)
     }
 
+    /// Move up to another Mac's time, unless it's impossible (more than a
+    /// day ahead of this Mac's clock, or out of range): a broken clock
+    /// elsewhere mustn't drag this one into the far future.
     fn observe(&mut self, other: &str) {
         if let Some(o) = Clock::parse(other) {
-            if (o.millis, o.counter) > (self.millis, self.counter) {
+            let sane =
+                o.counter <= MAX_COUNTER && o.millis >= 0 && o.millis <= now_ms() + 86_400_000;
+            if sane && (o.millis, o.counter) > (self.millis, self.counter) {
                 *self = o;
             }
         }
@@ -730,6 +735,9 @@ mod tests {
         let back = c.tick(900, "x"); // the wall clock went backwards
         assert!(a < b && b < back, "{a} {b} {back}");
         c.observe("0000000005000-000003-y");
+        // Nonsense from a broken clock is ignored.
+        c.observe("9223372036854775807-000003-z");
+        c.observe("0000000005000-4294967295-z");
         let d = c.tick(1000, "x");
         assert!(d.as_str() > "0000000005000-000003-y");
     }
