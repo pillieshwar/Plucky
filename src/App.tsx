@@ -8,6 +8,7 @@ import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
 import { CityView } from "./components/City";
 import { FullFooter } from "./components/FullFooter";
+import { KeyboardIcon, KeysModal } from "./components/KeysModal";
 import { buildCity } from "./lib/city";
 import { cheerFor, newMilestones, type Milestone } from "./lib/milestones";
 import { CITY, PLAIN, WordsContext } from "./lib/words";
@@ -421,7 +422,7 @@ export default function App() {
   );
   // Inbox and projects as a board (full screen; each remembers list or board).
   const boardKey = list === "inbox" ? "inbox" : viewedProject !== null ? `project:${viewedProject}` : null;
-  const viewMode = boardKey ? (lookOf(settings).list_views[boardKey] ?? "board") : "list";
+  const viewMode = boardKey ? (lookOf(settings).list_views[boardKey] ?? "list") : "list";
   const boardView = full && boardKey !== null && !floorOpen && viewMode === "board" && !query.trim();
   // A board needs the room: the calendar pane stays closed there unless asked for.
   const [boardPane, setBoardPane] = useState(false);
@@ -442,11 +443,6 @@ export default function App() {
     const names = new Set([...projectStats.map((p) => p.name), ...allTasks.flatMap((t) => (t.project ? [t.project] : []))]);
     return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, headings: headingsOf(allTasks, name) }));
   }, [projectStats, allTasks]);
-  // In a mode: today's tasks it leaves out, for the "N more" line.
-  const hiddenToday = useMemo(
-    () => (realMode ? tasksForList(allTasks, "today", today).filter((t) => !t.done && !showsTask(realMode, t)) : []),
-    [allTasks, realMode, today],
-  );
   // Today's calendar events, for Today in hours.
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [eventsKey, setEventsKey] = useState(0);
@@ -1018,6 +1014,18 @@ export default function App() {
   );
 
   const tasksShown = tab === "tasks" && !onboarding;
+  // "2 completed · Show": under a list, or above a board.
+  const doneToggle = list !== "logbook" && (doneHidden > 0 || (revealDone && !look.show_done)) && (
+    <button type="button" className={boardView ? "done-toggle on-board" : "done-toggle"} onClick={() => setRevealDone((v) => !v)}>
+      {revealDone ? (
+        <>Hide completed</>
+      ) : (
+        <>
+          {doneHidden} completed{list === "today" ? " today" : ""} · <span>Show</span>
+        </>
+      )}
+    </button>
+  );
   const listEl = tasksShown && (
     <>
       {showList && viewedProject !== null && !floorOpen && (
@@ -1087,6 +1095,7 @@ export default function App() {
         />
       )}
       {list === "logbook" && <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />}
+      {showList && boardView && doneToggle}
       {showList && boardView && (
         <TaskBoard
           columns={boardColumns}
@@ -1158,39 +1167,7 @@ export default function App() {
           }
         />
       )}
-      {list !== "logbook" && (doneHidden > 0 || (revealDone && !look.show_done)) && (
-        <button type="button" className="done-toggle" onClick={() => setRevealDone((v) => !v)}>
-          {revealDone ? (
-            <>Hide completed</>
-          ) : (
-            <>
-              {doneHidden} completed{list === "today" ? " today" : ""} · <span>Show</span>
-            </>
-          )}
-        </button>
-      )}
-      {realMode && list === "today" && !query.trim() && (peek || hiddenToday.length > 0) && (
-        <div className="mode-hidden">
-          {peek ? (
-            <>
-              <span>Showing everything for now</span>
-              <button type="button" className="link" onClick={() => setPeek(false)}>
-                Back to {realMode.name}
-              </button>
-            </>
-          ) : (
-            <>
-              <span>
-                {hiddenToday.length} more today outside {realMode.name}
-                {hiddenToday.length <= 3 ? ` — ${hiddenToday.map((t) => t.title).join(", ")}` : ""}
-              </span>
-              <button type="button" className="link" onClick={() => setPeek(true)}>
-                Show
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {!boardView && doneToggle}
     </>
   );
 
@@ -1231,24 +1208,14 @@ export default function App() {
     );
 
   const keysSheet = showKeys && (
-    <div className="keys-sheet" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setShowKeys(false)}>
-      <div className="keys-card" onClick={(e) => e.stopPropagation()}>
-        <h2>Keyboard</h2>
-        <dl>
-          {KEYS.filter(([k]) => !full || k !== "V").map(([k, v]) => (
-            <div key={k}>
-              <dt>
-                <kbd>{k}</kbd>
-              </dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <p>
-          Anywhere: <kbd>{captureLabel}</kbd> capture{quickLabel && <> · <kbd>{quickLabel}</kbd> quick add</>}
-        </p>
-      </div>
-    </div>
+    <KeysModal
+      keys={KEYS.filter(([k]) => !full || k !== "V")}
+      shortcuts={shortcuts}
+      onShortcuts={setShortcuts}
+      doubleCopy={settings?.double_copy !== false}
+      onDoubleCopy={(on) => void patchSettings({ double_copy: on })}
+      onClose={() => setShowKeys(false)}
+    />
   );
 
   const captureHint =
@@ -1648,7 +1615,7 @@ export default function App() {
                   />
                 </main>
               ) : (
-                <main className="full-content" data-autoscroll>
+                <main className={boardView ? "full-content board-mode" : "full-content"} data-autoscroll={boardView ? undefined : true}>
                   <div className={boardView ? "full-list wide" : "full-list"}>{listEl}</div>
                 </main>
               )}
@@ -1766,7 +1733,7 @@ export default function App() {
             {panelHome ? "Settings" : pageLabel(page)}
           </button>
         )}
-        {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} />}
+        {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} variant="icon" />}
         <span className="topbar-gap" data-tauri-drag-region />
         {tab === "tasks" && !onboarding && (
           <>
@@ -1919,8 +1886,8 @@ export default function App() {
         <span className="foot-text" data-tauri-drag-region>
           On this Mac · {captureHint} to capture
         </span>
-        <button type="button" className="foot-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts">
-          ?
+        <button type="button" className="foot-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+          <KeyboardIcon />
         </button>
       </footer>
     </div>

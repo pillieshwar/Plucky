@@ -409,7 +409,7 @@ async function shot(name, size, s, steps = async () => {}, dark = false) {
 const PANEL = { width: 360, height: 720 };
 /** Settings live behind the gear; open it, then the tab. */
 /** Settings pages by their old tab names too. */
-const PAGE_NAMES = { Preferences: "General", Models: "AI model", "Data transfer": "Move in" };
+const PAGE_NAMES = { Preferences: "General", Models: "AI model", "Data transfer": "Import Data" };
 const tab = async (p, name) => {
   const label = PAGE_NAMES[name] ?? name;
   const item = () => p.locator(".set-item", { hasText: new RegExp(`^.?${label}`) }).first();
@@ -596,6 +596,15 @@ await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
 });
 await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
   await p.keyboard.press("Shift+Slash");
+  await p.locator(".km-card").waitFor();
+});
+await shot("panel-header-in-mode", PANEL, scenario({ settings: { ...SETTINGS, modes: [{ id: "work", name: "Work", icon: "💼", projects: [], new_projects: false, no_project: true, hidden_calendars: [], notify: true, new_task_project: null }], mode: "work" } }), async (p) => {
+  // Every header button stays inside the window.
+  const w = await p.evaluate(() => window.innerWidth);
+  for (const b of await p.locator(".topbar button").all()) {
+    const r = await b.boundingBox();
+    if (r && r.x + r.width > w + 1) throw new Error("a header button runs off the edge");
+  }
 });
 await shot("panel-date-editor", PANEL, scenario(), async (p) => {
   await openTask(p, 0);
@@ -1048,8 +1057,8 @@ await shot("full-mode-menu", FULL, full({ settings: IN_WORK }), async (p) => {
 await shot("full-mode-others", FULL, full({ settings: IN_WORK }), async (p) => {
   await p.locator(".sb-others").click();
 });
-await shot("full-mode-peek", FULL, full({ settings: IN_WORK }), async (p) => {
-  await p.locator(".mode-hidden .link").click();
+await shot("full-mode-quiet", FULL, full({ settings: IN_WORK }), async (p) => {
+  if (await p.locator(".mode-hidden").count()) throw new Error("Today still lists what's outside the mode");
 });
 await shot("full-mode-switch", FULL, full({ settings: { ...LIGHT, modes: WORK_MODES } }), async (p) => {
   await p.locator(".mode-switch.mode-side .mode-btn").click();
@@ -1078,8 +1087,12 @@ await shot("full-task-open-light", FULL, full({ settings: LIGHT }), async (p) =>
 });
 await shot("full-project", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  // A project opens as a board: its floors as columns.
-  if ((await p.locator(".bcol").count()) < 2) throw new Error("the project didn't open as a board of floors");
+  // A project opens as a list; Board shows its floors as columns.
+  if (await p.locator(".bcol").count()) throw new Error("a project should open as a list");
+  await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
+  if ((await p.locator(".bcol").count()) < 2) throw new Error("Board didn't show the floors as columns");
   await p.locator(".bcard", { hasText: "Pack for the offsite" }).click();
   await p.locator(".detail-pane").waitFor();
 });
@@ -1113,15 +1126,15 @@ await shot("full-customize", FULL, full({ settings: DARK }), async (p) => {
   if ((await p.evaluate(() => document.documentElement.dataset.accent)) !== "green") throw new Error("the accent color didn't change");
 });
 await shot("full-transfer", FULL, full({ settings: DARK }), async (p) => {
-  await tab(p, "Move in");
+  await tab(p, "Import Data");
   await p.getByRole("button", { name: "Find my Things library" }).click();
   await p.waitForTimeout(200);
   await p.locator(".tr-list li", { hasText: "Trip to Lisbon" }).locator("input").click();
   const label = await p.locator(".tr-preview .primary").textContent();
-  if (label !== "Move in 534 to-dos") throw new Error(`move-in count wrong: ${label}`);
+  if (label !== "Import 534 to-dos") throw new Error(`move-in count wrong: ${label}`);
 });
 await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) => {
-  await tab(p, "Move in");
+  await tab(p, "Import Data");
   await p.getByRole("tab", { name: /Todoist/ }).click();
   await p.getByLabel("Todoist API token").fill("bad-token");
   await p.getByRole("button", { name: "Connect", exact: true }).click();
@@ -1130,11 +1143,11 @@ await shot("full-transfer-todoist", FULL, full({ settings: DARK }), async (p) =>
   await p.getByRole("button", { name: "Connect", exact: true }).click();
   await p.locator(".tr-preview").waitFor();
   const label = await p.locator(".tr-preview .primary").textContent();
-  if (label !== "Move in 381 tasks") throw new Error(`move-in count wrong: ${label}`);
+  if (label !== "Import 381 tasks") throw new Error(`move-in count wrong: ${label}`);
   if ((await p.getByLabel("Todoist API token").count()) !== 0) throw new Error("the token field should be gone after connecting");
 });
 await shot("full-transfer-todoist-csv", FULL, full({ settings: DARK }), async (p) => {
-  await tab(p, "Move in");
+  await tab(p, "Import Data");
   await p.getByRole("tab", { name: /Todoist/ }).click();
   await p.getByText("No token? Use CSV files instead").click();
   await p.getByRole("button", { name: "Choose CSV files…" }).click();
@@ -1144,9 +1157,9 @@ await shot("full-transfer-todoist-csv", FULL, full({ settings: DARK }), async (p
 await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
   await tab(p, "Data transfer");
   await p.getByRole("button", { name: "Find my Things library" }).click();
-  await p.getByRole("button", { name: /^Move in \d/ }).click();
+  await p.getByRole("button", { name: /^Import \d/ }).click();
   await p.locator(".tr-done").waitFor();
-  if (!(await p.locator(".tr-done").textContent()).includes("543 tasks moved in")) throw new Error("done message missing");
+  if (!(await p.locator(".tr-done").textContent()).includes("543 tasks imported")) throw new Error("done message missing");
 });
 await shot("full-compact-blue", FULL, full({ settings: { ...DARK, look: { week_start: "mon", clock: "24", start_list: "last", details: false, accent: "blue", city_sky: "auto", city_motion: true, compact: true } } }), async (p) => {
   if (!(await p.locator(".app-full.compact").count())) throw new Error("compact rows didn't apply");
@@ -1250,19 +1263,28 @@ await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
 // Inbox: tasks in no project, as a board by default.
 await shot("full-inbox-board", FULL, full({ settings: DARK }), async (p) => {
   await side(/Inbox/)(p);
+  await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
+  // The board reaches down to the footer, with its scrollbar at the bottom.
+  const board = await p.locator(".board").boundingBox();
+  const foot = await p.locator(".full-foot").boundingBox();
+  if (foot.y - (board.y + board.height) > 48) throw new Error(`the board stops ${Math.round(foot.y - board.y - board.height)}px above the footer`);
   const cols = await p.locator(".bcol-title").allTextContents();
   if (cols.join(",") !== "Today,Tomorrow,Next 7 days,Later,Someday") throw new Error(`Inbox columns: ${cols.join(",")}`);
   if (await p.locator(".bcard", { hasText: "Book flights" }).count()) throw new Error("a project's task is in Inbox");
 });
 await shot("full-inbox-list", FULL, full({ settings: DARK }), async (p) => {
   await side(/Inbox/)(p);
-  await p.getByRole("button", { name: "List view" }).click();
   await p.waitForTimeout(300);
   if (await p.locator(".bcol").count()) throw new Error("still a board after choosing List");
   if (!(await p.locator(".task").count())) throw new Error("no tasks in Inbox's list");
 });
 await shot("full-inbox-drag", FULL, full({ settings: DARK }), async (p) => {
   await side(/Inbox/)(p);
+  await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   const card = p.locator(".bcard").first();
   const title = (await card.locator(".bcard-title").textContent())?.trim();
   const from = await card.boundingBox();
@@ -1280,6 +1302,9 @@ await shot("full-inbox-drag", FULL, full({ settings: DARK }), async (p) => {
 });
 await shot("full-board-floor-drag", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
+  await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   const card = p.locator(".bcard", { hasText: "Book flights" });
   const from = await card.boundingBox();
   const to = await p.locator(".bcol", { has: p.locator(".bcol-title", { hasText: "Program" }) }).boundingBox();
@@ -1290,6 +1315,32 @@ await shot("full-board-floor-drag", FULL, full({ settings: DARK }), async (p) =>
   await p.mouse.up();
   await p.waitForTimeout(400);
   if (!(await p.locator(".toast", { hasText: "Moved to Offsite 2026 › Program" }).count())) throw new Error("the card didn't move to the Program floor");
+});
+// The keyboard window: global shortcuts to record, and the keys inside.
+await shot("full-keys", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Keyboard shortcuts" }).first().click();
+  await p.locator(".km-card").waitFor();
+  if ((await p.locator(".km-card .keycap").count()) < 1) throw new Error("no shortcut to record");
+});
+// The week's columns line up from the day names down through the hours.
+await shot("full-week-aligned", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Calendar/)(p);
+  const day = await p.locator(".wg-days .wg-day").nth(1).boundingBox();
+  const any = await p.locator(".wg-any .wg-cell").nth(1).boundingBox();
+  const hour = await p.locator(".wg-body .wg-row").first().locator(".wg-cell").nth(1).boundingBox();
+  for (const [name, b] of [["all-day", any], ["hours", hour]]) {
+    if (Math.abs(b.x - day.x) > 1 || Math.abs(b.width - day.width) > 1) throw new Error(`the ${name} row is off by ${Math.round(b.x - day.x)}px`);
+  }
+});
+// With the calendar pane closed, the list sits in the middle.
+await shot("full-pane-closed-centered", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Hide calendar pane" }).click();
+  await p.waitForTimeout(300);
+  const main = await p.locator(".full-content").boundingBox();
+  const list = await p.locator(".full-list").boundingBox();
+  const left = list.x - main.x;
+  const right = main.x + main.width - (list.x + list.width);
+  if (Math.abs(left - right) > 20) throw new Error(`the list isn't centred (${Math.round(left)} vs ${Math.round(right)})`);
 });
 // The calendar pane closes from the header, and stays closed.
 await shot("full-pane-closed", FULL, full({ settings: DARK }), async (p) => {

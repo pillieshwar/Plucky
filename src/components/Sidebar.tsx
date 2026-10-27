@@ -7,6 +7,7 @@ import { GearIcon, SearchIcon } from "./icons";
 import { initials, type Building } from "../lib/city";
 import { PROJECT_COLORS } from "../lib/colors";
 import { MayorAvatar } from "./MayorAvatar";
+import { KeyboardIcon } from "./KeysModal";
 
 interface Props {
   list: ListId;
@@ -453,7 +454,7 @@ export function Sidebar(p: Props) {
             {p.updateReady && <span className="sb-dot" aria-label="Update ready" />}
           </button>
           <button type="button" className="sb-keys" onClick={p.onKeys} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
-            ?
+            <KeyboardIcon />
           </button>
         </div>
       </div>

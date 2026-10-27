@@ -11,7 +11,7 @@ export const DEFAULT_LOOK: LookSettings = {
   accent: "purple",
   city_sky: "auto",
   city_motion: true,
-  compact: false,
+  compact: true,
   mayor_look: "man",
   side_width: 0,
   side_open: true,
