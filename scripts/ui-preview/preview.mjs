@@ -1090,6 +1090,8 @@ await shot("full-project", FULL, full({ settings: DARK }), async (p) => {
   // A project opens as a list; Board shows its floors as columns.
   if (await p.locator(".bcol").count()) throw new Error("a project should open as a list");
   await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   if ((await p.locator(".bcol").count()) < 2) throw new Error("Board didn't show the floors as columns");
   await p.locator(".bcard", { hasText: "Pack for the offsite" }).click();
   await p.locator(".detail-pane").waitFor();
@@ -1262,6 +1264,8 @@ await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
 await shot("full-inbox-board", FULL, full({ settings: DARK }), async (p) => {
   await side(/Inbox/)(p);
   await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   // The board reaches down to the footer, with its scrollbar at the bottom.
   const board = await p.locator(".board").boundingBox();
   const foot = await p.locator(".full-foot").boundingBox();
@@ -1279,6 +1283,8 @@ await shot("full-inbox-list", FULL, full({ settings: DARK }), async (p) => {
 await shot("full-inbox-drag", FULL, full({ settings: DARK }), async (p) => {
   await side(/Inbox/)(p);
   await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   const card = p.locator(".bcard").first();
   const title = (await card.locator(".bcard-title").textContent())?.trim();
   const from = await card.boundingBox();
@@ -1297,6 +1303,8 @@ await shot("full-inbox-drag", FULL, full({ settings: DARK }), async (p) => {
 await shot("full-board-floor-drag", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
   await p.getByRole("button", { name: "Board view" }).click();
+  await p.locator(".board").waitFor();
+  await p.waitForTimeout(300);
   const card = p.locator(".bcard", { hasText: "Book flights" });
   const from = await card.boundingBox();
   const to = await p.locator(".bcol", { has: p.locator(".bcol-title", { hasText: "Program" }) }).boundingBox();
