@@ -94,6 +94,8 @@ export function hourRange(plan: DayPlan, events: DayEvents, from = 7, to = 21): 
  */
 export interface DropTarget {
   iso?: string;
+  /** No date: Inbox's Someday column. */
+  nodate?: boolean;
   hour?: number | null;
   place?: { project: string; heading?: string | null };
 }
@@ -110,8 +112,11 @@ export function placePatch(task: Task, place: NonNullable<DropTarget["place"]>):
 /** The change a drop makes, or null if it changes nothing. */
 export function dropPatch(task: Task, to: DropTarget): TaskPatch | null {
   if (to.place) return placePatch(task, to.place);
+  if (to.nodate) return task.due_date || !task.someday ? { due_date: null, due_time: null, someday: true } : null;
   if (!to.iso) return null;
   const patch: TaskPatch = {};
+  // A parked task given a day comes back from Someday.
+  if (task.someday) patch.someday = false;
   if (to.iso !== task.due_date) patch.due_date = to.iso;
   if (to.hour === null) {
     if (task.due_time) patch.due_time = null;

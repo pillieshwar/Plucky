@@ -22,6 +22,7 @@ function targetAt(x: number, y: number): DropTarget | null {
     const f = pl.dataset.dropFloor;
     return { place: { project: pl.dataset.dropProject, ...(f === undefined ? {} : { heading: f || null }) } };
   }
+  if (el?.closest("[data-drop-nodate]")) return { nodate: true };
   const t = el?.closest<HTMLElement>("[data-iso]");
   if (!t?.dataset.iso) return null;
   const h = t.dataset.hour;
@@ -32,6 +33,7 @@ function targetAt(x: number, y: number): DropTarget | null {
 export function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
   return (
     a?.iso === b?.iso &&
+    a?.nodate === b?.nodate &&
     a?.hour === b?.hour &&
     a?.place?.project === b?.place?.project &&
     a?.place?.heading === b?.place?.heading

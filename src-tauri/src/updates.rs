@@ -6,6 +6,8 @@
 //! replace the app.
 
 use std::sync::Mutex;
+
+use chrono::Timelike;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -14,8 +16,10 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::settings::Settings;
 
-/// How often to look for updates while TodoCity is running.
-const INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
+/// How often the update loop wakes to see whether the day's check is due.
+const TICK: Duration = Duration::from_secs(15 * 60);
+/// The daily check happens at (or soon after) this local hour: 12:00 PM.
+const CHECK_HOUR: u32 = 12;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "state", rename_all = "snake_case")]
@@ -162,15 +166,48 @@ pub fn install_and_restart(app: &AppHandle) -> Result<(), String> {
 }
 
 /// Check shortly after launch, then every few hours, if the user allows it.
+/// Look for updates once soon after launch, then every day at 12:00 PM —
+/// or as soon after it as the Mac is awake (a Mac asleep at noon checks when
+/// it wakes).
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(20)).await;
+        let mut last_daily: Option<chrono::NaiveDate> = None;
+        let mut first = true;
         loop {
-            if app.state::<Settings>().get().auto_update {
+            let now = chrono::Local::now();
+            let daily = daily_check_due(now.naive_local(), last_daily);
+            if (first || daily) && app.state::<Settings>().get().auto_update {
                 check(app.clone()).await;
             }
-            tokio::time::sleep(INTERVAL).await;
+            if daily || (first && now.hour() >= CHECK_HOUR) {
+                last_daily = Some(now.date_naive());
+            }
+            first = false;
+            tokio::time::sleep(TICK).await;
         }
     });
+}
+
+/// Whether today's 12:00 PM check is still to do.
+fn daily_check_due(now: chrono::NaiveDateTime, last: Option<chrono::NaiveDate>) -> bool {
+    now.hour() >= CHECK_HOUR && last != Some(now.date())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn checks_once_a_day_from_noon() {
+        use chrono::NaiveDate;
+        let day = NaiveDate::from_ymd_opt(2026, 10, 27).unwrap();
+        let at = |h| day.and_hms_opt(h, 5, 0).unwrap();
+        assert!(!super::daily_check_due(at(11), None));
+        assert!(super::daily_check_due(at(12), None));
+        assert!(super::daily_check_due(
+            at(18),
+            Some(day.pred_opt().unwrap())
+        ));
+        assert!(!super::daily_check_due(at(18), Some(day)));
+    }
 }

@@ -115,6 +115,12 @@ pub struct LookSettings {
     pub mayor_look: String,
     /// Width of full screen's right-hand pane, in points (0: the default).
     pub side_width: u32,
+    /// Full screen's right-hand pane (calendar and hours) is open.
+    pub side_open: bool,
+    /// Show finished tasks in the lists (they're always in Completed).
+    pub show_done: bool,
+    /// List or board, per view: "inbox" or "project:<name>" → "list" | "board".
+    pub list_views: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for LookSettings {
@@ -130,6 +136,9 @@ impl Default for LookSettings {
             compact: false,
             mayor_look: "man".into(),
             side_width: 0,
+            side_open: true,
+            show_done: false,
+            list_views: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -147,9 +156,14 @@ impl LookSettings {
         Self {
             week_start: pick(self.week_start, &["auto", "sun", "mon", "sat"], "auto"),
             clock: pick(self.clock, &["auto", "12", "24"], "auto"),
+            // "all" (Anytime) became Inbox in 0.4.52.
             start_list: pick(
-                self.start_list,
-                &["last", "today", "upcoming", "all"],
+                if self.start_list == "all" {
+                    "inbox".into()
+                } else {
+                    self.start_list
+                },
+                &["last", "today", "upcoming", "inbox"],
                 "last",
             ),
             details: self.details,
@@ -167,6 +181,14 @@ impl LookSettings {
             } else {
                 self.side_width.clamp(SIDE_MIN, SIDE_MAX)
             },
+            side_open: self.side_open,
+            show_done: self.show_done,
+            list_views: self
+                .list_views
+                .into_iter()
+                .filter(|(k, v)| k.len() <= 200 && (v == "list" || v == "board"))
+                .take(500)
+                .collect(),
         }
     }
 }
@@ -381,6 +403,17 @@ mod tests {
         .clean();
         assert_eq!(odd.mayor_look, "man");
         assert_eq!(odd.side_width, SIDE_MAX);
+        let views = LookSettings {
+            list_views: [
+                ("inbox".to_string(), "board".to_string()),
+                ("project:A".to_string(), "grid".to_string()),
+            ]
+            .into(),
+            ..LookSettings::default()
+        }
+        .clean();
+        assert_eq!(views.list_views.len(), 1);
+        assert!(views.side_open && !views.show_done);
         assert_eq!(odd.week_start, "auto");
         assert_eq!(odd.clock, "24");
         assert_eq!(odd.accent, "purple");

@@ -1,16 +1,23 @@
-import { daysBetween, parseISODate, relativeLabel } from "./dates";
+import { addDays, daysBetween, parseISODate, relativeLabel, toISODate } from "./dates";
 import type { DayGroup } from "./grouping";
 import type { Task } from "./types";
 
 /**
- * Which tasks the panel's list shows: everything, today only, Someday, the
- * Logbook, or one project.
+ * Which tasks a list shows: Today, the Calendar, Inbox (tasks in no
+ * project), Overdue, Completed (`logbook`), or one project. "all" (Anytime)
+ * and "someday" are older lists; they open Inbox now.
  */
-export type ListId = "all" | "today" | "upcoming" | "overdue" | "someday" | "logbook" | `project:${string}`;
+export type ListId = "all" | "today" | "upcoming" | "overdue" | "someday" | "logbook" | "inbox" | `project:${string}`;
 
-/** A list's name as its title ("all" is shown as Anytime). */
+/** Lists that were folded into Inbox (Anytime, Someday). */
+export const normalizeList = (id: ListId): ListId => (id === "all" || id === "someday" ? "inbox" : id);
+
+/** A list's name as its title. */
 export function listTitle(id: ListId): string {
-  return projectOf(id) ?? { all: "Anytime", today: "Today", upcoming: "Calendar", overdue: "Overdue", someday: "Someday", logbook: "Logbook" }[id as "all"];
+  return (
+    projectOf(id) ??
+    { all: "Inbox", inbox: "Inbox", today: "Today", upcoming: "Calendar", overdue: "Overdue", someday: "Inbox", logbook: "Completed" }[id as "all"]
+  );
 }
 
 export const projectList = (name: string): ListId => `project:${name}`;
@@ -42,6 +49,7 @@ export function isOverdue(t: Task, today: string, nowTime?: string): boolean {
 export function tasksForList(tasks: Task[], list: ListId, today: string, nowTime?: string): Task[] {
   const project = projectOf(list);
   if (project !== null) return tasks.filter((t) => t.project === project);
+  if (list === "inbox") return tasks.filter((t) => !t.project);
   if (list === "overdue") return tasks.filter((t) => isOverdue(t, today, nowTime));
   if (list === "someday") return tasks.filter((t) => !t.done && (t.someday || t.paused));
   // Someday and paused tasks stay out of the way everywhere else.
@@ -119,4 +127,60 @@ export function bulletSteps(text: string | null): string[] {
 /** "by Friday", "before 5pm", "due Monday", "no later than…" — a deadline, not just a day. */
 export function isDeadlinePhrase(text: string | null | undefined): boolean {
   return !!text && /^\s*(by|before|due|no later than|until|deadline)\b/i.test(text);
+}
+
+/**
+ * Inbox (tasks in no project) by when: Today (with anything late), Tomorrow,
+ * Next 7 days, Later, and Someday for tasks with no date (parked or not,
+ * and paused repeats). Finished tasks come last.
+ */
+export function groupInbox(tasks: Task[], reference: Date): DayGroup[] {
+  const today = toISODate(reference);
+  const tomorrow = toISODate(addDays(reference, 1));
+  const week = toISODate(addDays(reference, 7));
+  const cols: Record<InboxColumn, Task[]> = { today: [], tomorrow: [], week: [], later: [], someday: [] };
+  const done: Task[] = [];
+  for (const t of tasks) {
+    if (t.done) {
+      done.push(t);
+      continue;
+    }
+    const day = t.paused || t.someday ? null : effectiveDay(t, today);
+    if (!day) cols.someday.push(t);
+    else if (day <= today) cols.today.push(t);
+    else if (day === tomorrow) cols.tomorrow.push(t);
+    else if (day <= week) cols.week.push(t);
+    else cols.later.push(t);
+  }
+  const byWhen = (a: Task, b: Task) =>
+    (effectiveDay(a, today) ?? "").localeCompare(effectiveDay(b, today) ?? "") ||
+    Number(a.evening) - Number(b.evening) ||
+    (a.due_time ?? "99").localeCompare(b.due_time ?? "99") ||
+    a.created_at.localeCompare(b.created_at);
+  const groups: DayGroup[] = INBOX_COLUMNS.map(([key, label]) => ({
+    key: `in:${key}`,
+    label,
+    tone: key === "today" ? "today" : key === "someday" ? "someday" : "upcoming",
+    tasks: cols[key].sort(byWhen),
+  }));
+  if (done.length) {
+    done.sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
+    groups.push({ key: "done", label: "Completed", tone: "done", tasks: done });
+  }
+  return groups;
+}
+
+export type InboxColumn = "today" | "tomorrow" | "week" | "later" | "someday";
+export const INBOX_COLUMNS: [InboxColumn, string][] = [
+  ["today", "Today"],
+  ["tomorrow", "Tomorrow"],
+  ["week", "Next 7 days"],
+  ["later", "Later"],
+  ["someday", "Someday"],
+];
+
+/** The day a task dropped on an Inbox column gets (null: no date). */
+export function inboxColumnDay(col: InboxColumn, reference: Date): string | null {
+  const days = { today: 0, tomorrow: 1, week: 2, later: 8, someday: null }[col];
+  return days === null ? null : toISODate(addDays(reference, days));
 }

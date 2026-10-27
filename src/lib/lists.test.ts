@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulletSteps, effectiveDay, groupByHeading, isDeadlinePhrase, isOverdue, linesToSteps, tasksForList } from "./lists";
+import { bulletSteps, effectiveDay, groupByHeading, groupInbox, inboxColumnDay, isDeadlinePhrase, isOverdue, linesToSteps, normalizeList, tasksForList } from "./lists";
 import { groupTasks } from "./grouping";
 import { atProject } from "../components/AddTaskForm";
 import type { Task } from "./types";
@@ -126,5 +126,47 @@ describe("overdue and floors", () => {
     const g = groupByHeading([base({ heading: "A" }), base({ heading: "A", done: true, completed_at: "2026-10-02T00:00:00Z" })], true);
     expect(g.map((x) => [x.key, x.tasks.length])).toEqual([["h:A", 2]]);
     expect(groupByHeading([base({ heading: "A" }), base({ heading: "A", done: true })]).map((x) => x.key)).toEqual(["h:A", "done"]);
+  });
+});
+
+describe("Inbox", () => {
+  const base = (over: Partial<Task>): Task =>
+    ({ id: Math.random(), title: "t", done: false, someday: false, paused: false, evening: false, due_date: null, due_time: null, deadline: null, heading: null, project: null, created_at: "2026-10-01T00:00:00Z", completed_at: null, checklist: [], ...over }) as Task;
+  const ref = new Date(2026, 9, 27, 9, 0);
+  it("holds tasks in no project, by when", () => {
+    const tasks = [
+      base({ title: "late", due_date: "2026-10-24" }),
+      base({ title: "today", due_date: "2026-10-27" }),
+      base({ title: "tomorrow", due_date: "2026-10-28" }),
+      base({ title: "week", due_date: "2026-11-02" }),
+      base({ title: "later", due_date: "2026-11-20" }),
+      base({ title: "loose" }),
+      base({ title: "parked", someday: true }),
+      base({ title: "in a project", project: "P", due_date: "2026-10-27" }),
+      base({ title: "done", done: true, completed_at: "2026-10-27T08:00:00Z" }),
+    ];
+    const inbox = tasksForList(tasks, "inbox", "2026-10-27");
+    expect(inbox.some((t) => t.project)).toBe(false);
+    const g = groupInbox(inbox, ref);
+    const names = Object.fromEntries(g.map((x) => [x.key, x.tasks.map((t) => t.title)]));
+    expect(names["in:today"]).toEqual(["late", "today"]);
+    expect(names["in:tomorrow"]).toEqual(["tomorrow"]);
+    expect(names["in:week"]).toEqual(["week"]);
+    expect(names["in:later"]).toEqual(["later"]);
+    expect(names["in:someday"]).toEqual(["loose", "parked"]);
+    expect(names.done).toEqual(["done"]);
+  });
+  it("keeps every column, even empty ones", () => {
+    expect(groupInbox([], ref).map((x) => x.key)).toEqual(["in:today", "in:tomorrow", "in:week", "in:later", "in:someday"]);
+  });
+  it("gives a dropped task its column's day", () => {
+    expect(inboxColumnDay("today", ref)).toBe("2026-10-27");
+    expect(inboxColumnDay("tomorrow", ref)).toBe("2026-10-28");
+    expect(inboxColumnDay("someday", ref)).toBeNull();
+  });
+  it("opens Inbox for the lists it replaced", () => {
+    expect(normalizeList("all")).toBe("inbox");
+    expect(normalizeList("someday")).toBe("inbox");
+    expect(normalizeList("today")).toBe("today");
   });
 });

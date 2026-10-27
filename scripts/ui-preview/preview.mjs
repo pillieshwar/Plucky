@@ -193,7 +193,8 @@ function mockTauri(s) {
     for (const cb of listeners.get(event) ?? []) callbacks.get(cb)?.({ event, id: 0, payload });
   };
   const responses = {
-    list_tasks: () => s.tasks,
+    // Fresh objects each time, as the real backend returns.
+    list_tasks: () => s.tasks.map((t) => ({ ...t })),
     status: () => s.status,
     get_settings: () => s.settings,
     set_settings: (a) => (s.settings = a.value),
@@ -474,8 +475,8 @@ await shot("panel-lists-menu", PANEL, rich(), async (p) => {
 });
 await shot("panel-project", PANEL, rich(), pickList(/Offsite 2026/));
 await shot("panel-project-dark", PANEL, rich(), pickList(/Offsite 2026/), true);
-await shot("panel-someday", PANEL, rich(), pickList(/Someday/));
-await shot("panel-logbook", PANEL, rich(), pickList(/Logbook/));
+await shot("panel-inbox", PANEL, rich(), pickList(/Inbox/));
+await shot("panel-completed", PANEL, rich(), pickList(/Completed/));
 await shot("panel-steps-open", PANEL, rich(), async (p) => {
   await pickList(/Offsite 2026/)(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
@@ -568,7 +569,6 @@ await shot("panel-today-hours-dark", PANEL, planScenario(), async (p) => {
   await p.getByRole("radio", { name: "Hours" }).click();
   await p.waitForTimeout(250);
 }, true);
-await shot("panel-anytime", PANEL, rich(), pickList(/Anytime/));
 await shot("panel-drag-to-day", PANEL, scenario(), async (p) => {
   await dragTo(".task .task-row", ".ws-day:nth-child(4)")(p);
 });
@@ -1078,7 +1078,10 @@ await shot("full-task-open-light", FULL, full({ settings: LIGHT }), async (p) =>
 });
 await shot("full-project", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
+  // A project opens as a board: its floors as columns.
+  if ((await p.locator(".bcol").count()) < 2) throw new Error("the project didn't open as a board of floors");
+  await p.locator(".bcard", { hasText: "Pack for the offsite" }).click();
+  await p.locator(".detail-pane").waitFor();
 });
 await shot("full-when-editor", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();
@@ -1159,19 +1162,19 @@ await shot("full-no-sidebar", FULL, full({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Hide sidebar" }).click();
 });
 await shot("full-tour", FULL, full({ settings: { ...DARK, onboarding_done: false }, status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.28", platform: "macos" } }));
-await shot("full-city-corner-hover", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card").hover();
+await shot("full-footer-city-hover", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".ff-city").hover();
 });
 await shot("full-city", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(300);
 });
 await shot("full-city-light", FULL, full({ settings: LIGHT }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(300);
 });
 await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
   await p.mouse.down();
@@ -1181,12 +1184,12 @@ await shot("full-city-turned", FULL, full({ settings: DARK }), async (p) => {
   await p.waitForTimeout(200);
 });
 await shot("full-city-hover", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
 });
 await shot("full-city-clicked-building", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   const c = await p.locator(".city-view canvas").first().boundingBox();
   await p.mouse.move(c.x + c.width / 2 + 5, c.y + c.height / 2 + 10, { steps: 3 });
   await p.mouse.down();
@@ -1194,16 +1197,16 @@ await shot("full-city-clicked-building", FULL, full({ settings: DARK }), async (
   await p.waitForTimeout(250);
 });
 await shot("full-city-share", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card").hover();
-  await p.getByRole("button", { name: "Share a picture of your city" }).click();
+  await p.locator(".ff-city").click();
+  await p.locator(".cv-share").click();
   await p.waitForTimeout(300);
 });
 await shot("full-city-name", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(300);
 });
 await shot("full-city-named", FULL, full({ settings: { ...DARK, city_name: null } }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.getByRole("button", { name: "Harbor Lights" }).click();
   await p.getByRole("button", { name: "Found the city" }).click();
   await p.waitForTimeout(1200);
@@ -1243,6 +1246,64 @@ await shot("full-floor-added", FULL, full({ settings: DARK }), async (p) => {
   await p.keyboard.press("Enter");
   await p.waitForTimeout(300);
   if (await p.locator(".add-task").count()) throw new Error("the add form stayed open after adding");
+});
+// Inbox: tasks in no project, as a board by default.
+await shot("full-inbox-board", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Inbox/)(p);
+  const cols = await p.locator(".bcol-title").allTextContents();
+  if (cols.join(",") !== "Today,Tomorrow,Next 7 days,Later,Someday") throw new Error(`Inbox columns: ${cols.join(",")}`);
+  if (await p.locator(".bcard", { hasText: "Book flights" }).count()) throw new Error("a project's task is in Inbox");
+});
+await shot("full-inbox-list", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Inbox/)(p);
+  await p.getByRole("button", { name: "List view" }).click();
+  await p.waitForTimeout(300);
+  if (await p.locator(".bcol").count()) throw new Error("still a board after choosing List");
+  if (!(await p.locator(".task").count())) throw new Error("no tasks in Inbox's list");
+});
+await shot("full-inbox-drag", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Inbox/)(p);
+  const card = p.locator(".bcard").first();
+  const title = (await card.locator(".bcard-title").textContent())?.trim();
+  const from = await card.boundingBox();
+  const to = await p.locator(".bcol", { has: p.locator(".bcol-title", { hasText: "Someday" }) }).boundingBox();
+  await p.mouse.move(from.x + 40, from.y + 14);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 60, from.y + 40, { steps: 4 });
+  await p.mouse.move(to.x + 60, to.y + 60, { steps: 10 });
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".bcol.drop").count())) throw new Error("the column doesn't light up under a dragged card");
+  await p.mouse.up();
+  await p.waitForTimeout(400);
+  const some = await p.locator(".bcol", { has: p.locator(".bcol-title", { hasText: "Someday" }) }).locator(".bcard-title").allTextContents();
+  if (!some.map((x) => x.trim()).includes(title)) throw new Error(`"${title}" didn't move to Someday`);
+});
+await shot("full-board-floor-drag", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  const card = p.locator(".bcard", { hasText: "Book flights" });
+  const from = await card.boundingBox();
+  const to = await p.locator(".bcol", { has: p.locator(".bcol-title", { hasText: "Program" }) }).boundingBox();
+  await p.mouse.move(from.x + 40, from.y + 14);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 60, from.y + 40, { steps: 4 });
+  await p.mouse.move(to.x + 60, to.y + 60, { steps: 10 });
+  await p.mouse.up();
+  await p.waitForTimeout(400);
+  if (!(await p.locator(".toast", { hasText: "Moved to Offsite 2026 › Program" }).count())) throw new Error("the card didn't move to the Program floor");
+});
+// The calendar pane closes from the header, and stays closed.
+await shot("full-pane-closed", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: "Hide calendar pane" }).click();
+  await p.waitForTimeout(300);
+  if (await p.locator(".side-pane").count()) throw new Error("the pane didn't close");
+  await p.getByRole("button", { name: "Show calendar pane" }).waitFor();
+});
+// Finished tasks wait behind "N completed · Show".
+await shot("full-today-completed", FULL, full({ settings: DARK }), async (p) => {
+  if (await p.locator(".task.done").count()) throw new Error("finished tasks show by default");
+  await p.locator(".done-toggle").click();
+  await p.waitForTimeout(200);
+  if (!(await p.locator(".task.done").count())) throw new Error("Show didn't bring the finished tasks back");
 });
 // Floors in the sidebar: a small number, then the name.
 await shot("full-sidebar-floors", FULL, full({ settings: DARK }), async (p) => {
@@ -1287,7 +1348,9 @@ await shot("full-side-resized", FULL, full({ settings: DARK }), async (p) => {
 });
 // The version dot: red with a newer version, and Update in its card.
 await shot("full-version-dot", FULL, full({ settings: DARK, update: { state: "ready", version: "0.9.9", notes: null } }), async (p) => {
-  await p.locator(".vdot").click();
+  // A newer version opens its card by itself, once.
+  await p.waitForTimeout(300);
+  if (!(await p.locator(".vdot-pop").count())) throw new Error("the update card didn't open by itself");
   if (!(await p.locator(".vdot.red").count())) throw new Error("the dot isn't red with a newer version out");
   await p.locator(".vdot-pop").getByRole("button", { name: "Update" }).waitFor();
 });
@@ -1378,7 +1441,7 @@ await shot("full-project-color", FULL, full({ settings: DARK }), async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(600);
   await p.getByRole("button", { name: /Story/ }).click();
   await p.locator(".story-card").getByRole("button", { name: "Next", exact: true }).click();
@@ -1386,17 +1449,17 @@ await shot("full-city-story", FULL, full({ settings: DARK }), async (p) => {
   await p.waitForTimeout(350);
 });
 await shot("full-city-milestones", FULL, full({ settings: { ...DARK, city_peak: 1200, city_seen: 1200 } }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(900);
   const n = await p.locator(".city3d-label.landmark").count();
   if (n < 6) throw new Error(`expected the park, square, train, harbour, stadium and island labels, saw ${n}`);
 });
 await shot("full-city-milestones-light", FULL, full({ settings: { ...LIGHT, city_peak: 1200, city_seen: 1200 } }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(900);
 });
 await shot("full-city-milestones-sheet", FULL, full({ settings: { ...DARK, city_peak: 80, city_seen: 99999 } }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(500);
   await p.getByRole("button", { name: /Milestones/ }).click();
   await p.waitForTimeout(300);
@@ -1406,7 +1469,7 @@ await shot("full-city-milestones-sheet", FULL, full({ settings: { ...DARK, city_
 await shot("full-city-celebrate", FULL, full({ settings: { ...DARK, city_peak: 120, city_seen: 10 } }), async (p) => {
   await p.waitForTimeout(300);
   if (!(await p.locator(".toast, [role=status]").filter({ hasText: "the train is running" }).count())) throw new Error("no milestone toast");
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.locator(".ms-cheer").waitFor();
   await p.waitForTimeout(400);
 });
@@ -1415,7 +1478,7 @@ await shot("full-new-building", FULL, full({ settings: DARK }), async (p) => {
   await p.keyboard.type("Garden reno");
 });
 await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(800);
   const c = await p.locator(".city-view canvas").first().boundingBox();
   for (const [dx, dy] of [[0, 40], [60, 20], [-80, 30], [120, -40], [-140, 60]]) {
@@ -1425,7 +1488,7 @@ await shot("full-city-dark-room", FULL, full({ settings: DARK }), async (p) => {
   }
 });
 await shot("full-city-house", FULL, full({ settings: DARK }), async (p) => {
-  await p.locator(".city-card-art").click();
+  await p.locator(".ff-city").click();
   await p.waitForTimeout(900);
   const c = await p.locator(".city-view canvas").first().boundingBox();
   // Sweep across the city until a house is under the pointer.

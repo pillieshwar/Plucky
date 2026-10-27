@@ -3,9 +3,11 @@ import { api } from "../lib/api";
 import type { UpdateStatus } from "../lib/types";
 
 /**
- * A dot in the top bar: green on the latest version, red when a newer one
- * is out. Click it for the version and, when there's a newer one, Update —
- * which gets it (if it isn't downloaded yet) and restarts into it.
+ * The version, at the right of full screen's footer, with a dot: green on
+ * the latest version, red when a newer one is out. Click it for the version
+ * and, when there's a newer one, Update — which gets it (if it isn't
+ * downloaded yet) and restarts into it. A newer version opens the card by
+ * itself once; after that the red pill waits.
  */
 export function VersionDot({ update, version, onError }: { update: UpdateStatus; version: string | null; onError: (m: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -15,6 +17,23 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
   const ref = useRef<HTMLDivElement>(null);
   const newer = update.state === "ready" || update.state === "downloading";
   const tone = newer ? "red" : update.state === "failed" ? "gray" : "green";
+  // Open by itself the first time a given version is ready.
+  useEffect(() => {
+    if (update.state !== "ready") return;
+    let seen: string | null = null;
+    try {
+      seen = localStorage.getItem("todocity.updateSeen");
+    } catch {
+      // No storage: open it this once.
+    }
+    if (seen === update.version) return;
+    setOpen(true);
+    try {
+      localStorage.setItem("todocity.updateSeen", update.version);
+    } catch {
+      // The card may open again next launch.
+    }
+  }, [update]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,22 +78,25 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
 
   return (
     <div className={open ? "vdot-wrap open" : "vdot-wrap"} ref={ref}>
-      <button
-        type="button"
-        className={`vdot ${tone}`}
-        aria-expanded={open}
-        aria-label={newer ? "A new version is out" : "Version"}
-        title={label}
-        onClick={() => setOpen((o) => !o)}
-      >
+      <span className="vdot-version">TodoCity {version ?? ""}</span>
+      <button type="button" className={`vdot ${tone}`} aria-expanded={open} title={label} onClick={() => setOpen((o) => !o)}>
         <span className="vdot-dot" aria-hidden />
+        {busy
+          ? "Updating…"
+          : newer
+            ? `Update to ${"version" in update ? update.version : ""}`
+            : update.state === "failed"
+              ? "Couldn't check"
+              : update.state === "checking"
+                ? "Checking…"
+                : "Up to date"}
       </button>
       {open && (
         <div className="vdot-pop" role="dialog" aria-label="Version">
           <p className="vdot-now">
             <span className={`vdot-dot ${tone}`} aria-hidden /> {label}
           </p>
-          <p className="vdot-ver">{version ? `This Mac has ${version}` : ""}</p>
+          <p className="vdot-ver">{version ? `This Mac has ${version}. ` : ""}Checks every day at 12:00 PM.</p>
           {newer ? (
             <button
               type="button"

@@ -151,7 +151,7 @@ export function DayPlan({ tasks, day, today, now, locale, events, actions, drag,
         data-hour="any"
       >
         <div className="plan-any-head">
-          <span className="plan-label">Anytime</span>
+          <span className="plan-label">All day</span>
           {addAt !== "any" && (
             <button type="button" className="plan-add-any" onClick={() => setAddAt("any")} aria-label="Add a task for any time">
               +

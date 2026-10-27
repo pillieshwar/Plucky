@@ -2,7 +2,7 @@ import { useWords } from "../lib/words";
 import { Fragment, useEffect, useState, type ReactElement } from "react";
 import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
-import { CalIcon, CloudIcon, LinesIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
+import { CalIcon, InboxIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
 import { GearIcon, SearchIcon } from "./icons";
 import { initials, type Building } from "../lib/city";
 import { PROJECT_COLORS } from "../lib/colors";
@@ -13,7 +13,7 @@ interface Props {
   /** Settings is showing instead of a list. */
   inSettings: boolean;
   onList: (id: ListId) => void;
-  counts: { all: number; today: number; someday: number; overdue: number };
+  counts: { inbox: number; today: number; overdue: number };
   projects: ProjectSummary[];
   tags: string[];
   activeTags: string[];
@@ -48,8 +48,6 @@ interface Props {
   /** Pick a project's color (null: the accent color). */
   onColor: (project: string, color: string | null) => void;
   updateReady: boolean;
-  model: string | null;
-  captureHint: ReactElement;
   /** The window's close, minimize and zoom buttons. */
   lights: ReactElement;
   /** The mode switcher (Work, Personal…), under the title. */
@@ -60,8 +58,8 @@ interface Props {
 }
 
 /**
- * Full screen's sidebar: search, the lists (Today, Calendar, Anytime,
- * Someday, Logbook), projects with their progress, tags, and — at the
+ * Full screen's sidebar: search, the lists (Today, Calendar, Inbox,
+ * Overdue, Completed), projects with their progress, tags, and — at the
  * bottom — what's reading captures and Settings.
  */
 export function Sidebar(p: Props) {
@@ -183,10 +181,9 @@ export function Sidebar(p: Props) {
       <nav className="sb-nav" aria-label="Lists">
         {item("today", "Today", <StarIcon />, p.counts.today, "t-today")}
         {item("upcoming", "Calendar", <CalIcon />, undefined, "t-upcoming")}
-        {item("all", "Anytime", <LinesIcon />, p.counts.all, "t-anytime")}
-        {item("someday", "Someday", <CloudIcon />, p.counts.someday, "t-someday")}
+        {item("inbox", "Inbox", <InboxIcon />, p.counts.inbox, "t-inbox")}
         {item("overdue", "Overdue", <OverdueIcon />, p.counts.overdue, p.counts.overdue ? "t-overdue" : "t-overdue quiet")}
-        {item("logbook", "Logbook", <LogIcon />, undefined, "t-logbook")}
+        {item("logbook", "Completed", <LogIcon />, undefined, "t-logbook")}
       </nav>
 
       <div className="sb-scroll">
@@ -438,15 +435,6 @@ export function Sidebar(p: Props) {
       </div>
 
       <div className="sb-foot">
-        <div className="sb-local">
-          <span className="sb-local-title">
-            <span className="local-dot" aria-hidden /> On this Mac
-          </span>
-          <span className="sb-local-text">
-            {p.model ? `${p.model} · ` : ""}
-            {p.captureHint}
-          </span>
-        </div>
         <button type="button" className="sb-mayor" onClick={p.onCity} title="Open your city">
           <MayorAvatar look={p.mayorLook} fallback={initials(p.mayor)} />
           <span className="sb-mayor-text">

@@ -6,7 +6,8 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { pageFromTab, pageLabel, SettingsContent, SettingsNav, type SettingsPage } from "./components/Settings";
 import { type RowCommand, TaskDetail, TaskList } from "./components/TaskList";
 import { Sidebar } from "./components/Sidebar";
-import { CityCard, CityView } from "./components/City";
+import { CityView } from "./components/City";
+import { FullFooter } from "./components/FullFooter";
 import { buildCity } from "./lib/city";
 import { cheerFor, newMilestones, type Milestone } from "./lib/milestones";
 import { CITY, PLAIN, WordsContext } from "./lib/words";
@@ -21,8 +22,8 @@ import { WeekView } from "./components/WeekView";
 import { WeekStrip } from "./components/WeekStrip";
 import { DayPlan } from "./components/DayPlan";
 import { DragGhost } from "./components/DragGhost";
-import { VersionDot } from "./components/VersionDot";
 import { SideResizer, defaultSideWidth } from "./components/SideResizer";
+import { TaskBoard, type BoardColumn } from "./components/TaskBoard";
 import { useTaskDrag } from "./lib/useTaskDrag";
 import { dropPatch } from "./lib/plan";
 import {
@@ -41,8 +42,8 @@ import {
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
-import { groupByHeading, headingsOf, listTitle, projectList, projectOf, tasksForList, type ListId } from "./lib/lists";
-import { CalIcon, CloudIcon, LinesIcon, ListPicker, LogIcon, Pie, StarIcon } from "./components/ListPicker";
+import { groupByHeading, groupInbox, headingsOf, inboxColumnDay, type InboxColumn, listTitle, normalizeList, projectList, projectOf, tasksForList, type ListId } from "./lib/lists";
+import { CalIcon, InboxIcon, ListPicker, LogIcon, Pie, StarIcon } from "./components/ListPicker";
 import { Logbook } from "./components/Logbook";
 import type { ProjectInfo } from "./components/ProjectPicker";
 import { ProjectHeader } from "./components/ProjectHeader";
@@ -93,7 +94,7 @@ const KEYS: [string, string][] = [
   ["S", "Snooze"],
   ["N", "Description"],
   ["A", "Add a task"],
-  ["F", "Today ↔ Anytime"],
+  ["F", "Today ↔ Inbox"],
   ["C", "Sub-tasks (checklist)"],
   ["P", "Move to a project"],
   ["V", "Today as a list or in hours"],
@@ -111,6 +112,8 @@ function typingIn(target: EventTarget | null): boolean {
 export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [allTasks, setTasks] = useState<Task[]>([]);
+  const allTasksRef = useRef(allTasks);
+  allTasksRef.current = allTasks;
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -154,16 +157,18 @@ export default function App() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [command, setCommand] = useState<RowCommand | null>(null);
   const [showKeys, setShowKeys] = useState(false);
-  // Which list: All, Today, Someday, Logbook or a project. Remembered per Mac.
-  const [list, setList] = useState<ListId>(() => {
+  // Which list: Today, Calendar, Inbox, Overdue, Completed or a project.
+  // Remembered per Mac. (Anytime and Someday, from before, open Inbox.)
+  const [list, setListRaw] = useState<ListId>(() => {
     try {
       const saved = localStorage.getItem("todocity.list");
-      if (saved) return saved as ListId;
+      if (saved) return normalizeList(saved as ListId);
       return localStorage.getItem("todocity.view") === "week" ? "upcoming" : "today";
     } catch {
       return "today";
     }
   });
+  const setList = useCallback((l: ListId | ((prev: ListId) => ListId)) => setListRaw((p) => normalizeList(typeof l === "function" ? l(p) : l)), []);
   useEffect(() => {
     try {
       localStorage.setItem("todocity.list", list);
@@ -173,7 +178,7 @@ export default function App() {
   }, [list]);
   const focusToday = list === "today";
   const setFocusToday = (f: boolean | ((v: boolean) => boolean)) =>
-    setList((l) => ((typeof f === "function" ? f(l === "today") : f) ? "today" : "all"));
+    setList((l) => ((typeof f === "function" ? f(l === "today") : f) ? "today" : "inbox"));
   const [projectStats, setProjectStats] = useState<ProjectSummary[]>([]);
   // Each project's headings: the floors of its building.
   const [floorList, setFloorList] = useState<FloorSummary[]>([]);
@@ -209,7 +214,7 @@ export default function App() {
     if (!settings || startApplied.current) return;
     startApplied.current = true;
     const s = lookOf(settings).start_list;
-    if (s !== "last") setList(s);
+    if (s !== "last") setList(s as ListId);
   }, [settings]);
   const captureSeq = useRef(0);
   const statusRef = useRef<Status | null>(null);
@@ -344,7 +349,9 @@ export default function App() {
       onSettingsChanged(setSettings),
       onHighlightTask((id) => {
         setTab("tasks");
-        setList("all");
+        // Its own list: its project, or Inbox.
+        const t = allTasksRef.current.find((x) => x.id === id);
+        setList(t?.project ? projectList(t.project) : "inbox");
         setQuery("");
         setHighlight(id);
         setFocusId(id);
@@ -391,18 +398,42 @@ export default function App() {
   useEffect(() => {
     if (floorView && projectOf(list) !== floorView.project) setFloorView(null);
   }, [list, floorView]);
-  const groups = useMemo(() => {
+  // Finished tasks wait in Completed unless the user shows them (Settings →
+  // General), or asks to see this list's for now.
+  const [revealDone, setRevealDone] = useState(false);
+  useEffect(() => setRevealDone(false), [list, floorView]);
+  const showDone = list === "logbook" || lookOf(settings).show_done || revealDone;
+  const rawGroups = useMemo(() => {
     if (list === "logbook") return [];
+    if (list === "inbox") return groupInbox(visible, now);
     if (viewedProject === null) return groupTasks(visible, now, LOCALE);
     const all = groupByHeading(visible, full);
     // A floor's page: just that floor's tasks.
     return floorOpen ? all.filter((g) => g.key === `h:${floorOpen.floor ?? ""}`) : all;
   }, [visible, now, list, viewedProject, floorOpen, full]);
+  const doneHidden = useMemo(
+    () => (showDone ? 0 : rawGroups.reduce((n, g) => n + g.tasks.filter((t) => t.done).length, 0)),
+    [rawGroups, showDone],
+  );
+  const groups = useMemo(
+    () => (showDone ? rawGroups : rawGroups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => !t.done) })).filter((g) => g.tasks.length > 0)),
+    [rawGroups, showDone],
+  );
+  // Inbox and projects as a board (full screen; each remembers list or board).
+  const boardKey = list === "inbox" ? "inbox" : viewedProject !== null ? `project:${viewedProject}` : null;
+  const viewMode = boardKey ? (lookOf(settings).list_views[boardKey] ?? "board") : "list";
+  const boardView = full && boardKey !== null && !floorOpen && viewMode === "board" && !query.trim();
+  // A board needs the room: the calendar pane stays closed there unless asked for.
+  const [boardPane, setBoardPane] = useState(false);
+  const paneShown = boardView ? boardPane : lookOf(settings).side_open;
+  const setViewMode = (m: "list" | "board") => {
+    if (!boardKey) return;
+    void patchLook({ list_views: { ...lookOf(settings).list_views, [boardKey]: m } });
+  };
   const listCounts = useMemo(
     () => ({
-      all: tasksForList(tasks, "all", today).filter((t) => !t.done).length,
+      inbox: tasksForList(tasks, "inbox", today).filter((t) => !t.done).length,
       today: tasksForList(tasks, "today", today).filter((t) => !t.done).length,
-      someday: tasks.filter((t) => !t.done && t.someday).length,
       overdue: tasksForList(tasks, "overdue", today, nowTime).length,
     }),
     [tasks, today, nowTime],
@@ -453,7 +484,7 @@ export default function App() {
     setAdding(false);
     setQuery("");
     setTodayMode("list");
-    setList(t.due_date && t.due_date <= today ? "today" : "all");
+    setList(t.due_date && t.due_date <= today ? "today" : t.project ? projectList(t.project) : "inbox");
     setHighlight(t.id);
     setFocusId(t.id);
     window.setTimeout(() => setOpenId(t.id), 0);
@@ -511,6 +542,45 @@ export default function App() {
     [projectStats],
   );
   const city = useMemo(() => buildCity(cityWins, allTasks, projectStats, floorList, today), [cityWins, allTasks, projectStats, floorList, today]);
+  // The board's columns: Inbox's days, or a building's floors from the ground up.
+  const boardColumns = useMemo((): BoardColumn[] => {
+    if (!boardView) return [];
+    const keep = (ts: Task[]) => (showDone ? ts : ts.filter((t) => !t.done));
+    const short = (iso: string) => parseISODate(iso).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric" });
+    if (list === "inbox") {
+      return rawGroups
+        .filter((g) => g.key.startsWith("in:"))
+        .map((g) => {
+          const col = g.key.slice(3) as InboxColumn;
+          const day = inboxColumnDay(col, now);
+          const sub =
+            col === "someday" ? "no date" : col === "week" ? `to ${short(toISODate(addDays(now, 7)))}` : col === "later" ? "" : day ? short(day) : "";
+          return {
+            key: g.key,
+            label: g.label,
+            sub,
+            tasks: keep(g.tasks),
+            drop: day ? { iso: day } : { nodate: true },
+            add: day ? { due_date: day, project: null } : { due_date: null, someday: true, project: null },
+            showDay: col === "week" || col === "later",
+          };
+        });
+    }
+    const name = viewedProject!;
+    const b = city.buildings.find((x) => x.project === name);
+    const floors = b ? [...b.floors].sort((x, y) => x.level - y.level) : [];
+    if (!floors.some((f) => f.name === null)) floors.unshift({ name: null, label: "Ground floor", level: 0, rooms: [], per: 1, levels: 1, size: 1 });
+    const shown = keep(rawGroups.flatMap((g) => g.tasks));
+    return floors.map((f) => ({
+      key: `fl:${f.name ?? ""}`,
+      label: f.name ?? "Ground floor",
+      lvl: f.level ? String(f.level) : "G",
+      tasks: shown.filter((t) => (t.heading ?? null) === f.name),
+      drop: { place: { project: name, heading: f.name } },
+      add: { project: name, heading: f.name },
+      showDay: true,
+    }));
+  }, [boardView, list, rawGroups, showDone, now, city, viewedProject]);
   // Milestones: the highest population ever reached keeps what's built.
   const peak = settings?.city_peak ?? 0;
   const reached = Math.max(city.total, peak);
@@ -584,6 +654,11 @@ export default function App() {
       if (s.full && mod && e.key === ",") {
         e.preventDefault();
         openSettings();
+        return;
+      }
+      if (s.full && mod && e.altKey && e.code === "Backslash") {
+        e.preventDefault();
+        void patchLook({ side_open: !lookOf(settingsRef.current).side_open });
         return;
       }
       if (s.full && mod && e.key === "\\") {
@@ -854,14 +929,12 @@ export default function App() {
           ? full
             ? rangeText
             : "Your week, hour by hour"
-          : list === "all"
-            ? w.open(listCounts.all)
+          : list === "inbox"
+            ? `Tasks in no project · ${w.open(listCounts.inbox)}`
             : list === "overdue"
               ? listCounts.overdue
                 ? `${listCounts.overdue} past their day, time or deadline`
                 : "All caught up"
-            : list === "someday"
-              ? "Ideas and paused repeats, out of the way"
               : list === "logbook"
                 ? "Everything you've finished"
                 : stats
@@ -977,8 +1050,8 @@ export default function App() {
           extra={
             viewedProject !== null
               ? { project: viewedProject, heading: floorOpen ? floorOpen.floor : addHeading }
-              : list === "someday"
-                ? { someday: true, due_date: null }
+              : list === "inbox"
+                ? { project: null }
                 : undefined
           }
           context={
@@ -989,14 +1062,14 @@ export default function App() {
           placeholder="What needs doing? Try “send deck fri 3pm @Work”"
           onAdd={async (task) => {
             try {
-              // No day and no project: it waits in Someday until you plan it.
+              // No day and no project: it waits in Inbox's Someday until you plan it.
               const loose = !task.due_date && !task.project && !task.someday;
               await api.addTask(loose ? { ...task, someday: true } : task);
               show(
                 task.due_date
                   ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
                   : loose
-                    ? "Added to Someday — give it a day or a project to plan it"
+                    ? "Added to Inbox, under Someday"
                     : "Task added",
               );
               // Added: the form closes; the add button opens it again.
@@ -1014,7 +1087,19 @@ export default function App() {
         />
       )}
       {list === "logbook" && <Logbook actions={actions} now={now} locale={LOCALE} query={query} onOpenProject={openProject} />}
-      {showList && list !== "logbook" && (
+      {showList && boardView && (
+        <TaskBoard
+          columns={boardColumns}
+          actions={actions}
+          now={now}
+          locale={LOCALE}
+          drag={drag}
+          openId={openId}
+          onOpen={setOpenId}
+          onAdd={addFromPlan}
+        />
+      )}
+      {showList && list !== "logbook" && !boardView && (
         <TaskList
           groups={viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
           plain={!!floorOpen}
@@ -1048,10 +1133,10 @@ export default function App() {
                 <p className="empty-big">Nothing overdue</p>
                 <p>Tasks whose day, time or deadline has passed gather here, so nothing slips by.</p>
               </>
-            ) : list === "someday" && !query.trim() ? (
+            ) : list === "inbox" && !query.trim() ? (
               <>
-                <p className="empty-big">Nothing in Someday</p>
-                <p>Park ideas here from a task's date menu — they stay out of Today and the calendar.</p>
+                <p className="empty-big">Inbox is clear</p>
+                <p>Tasks with no project land here — captures, quick adds, ideas for someday.</p>
               </>
             ) : floorOpen && !query.trim() ? (
               <>
@@ -1072,6 +1157,17 @@ export default function App() {
             ) : undefined
           }
         />
+      )}
+      {list !== "logbook" && (doneHidden > 0 || (revealDone && !look.show_done)) && (
+        <button type="button" className="done-toggle" onClick={() => setRevealDone((v) => !v)}>
+          {revealDone ? (
+            <>Hide completed</>
+          ) : (
+            <>
+              {doneHidden} completed{list === "today" ? " today" : ""} · <span>Show</span>
+            </>
+          )}
+        </button>
       )}
       {realMode && list === "today" && !query.trim() && (peek || hiddenToday.length > 0) && (
         <div className="mode-hidden">
@@ -1094,11 +1190,6 @@ export default function App() {
             </>
           )}
         </div>
-      )}
-      {list === "all" && listCounts.someday > 0 && !query.trim() && (
-        <button type="button" className="someday-link" onClick={() => setList("someday")}>
-          {listCounts.someday} in Someday →
-        </button>
       )}
     </>
   );
@@ -1190,7 +1281,11 @@ export default function App() {
       : [];
     // A task opens in place in the list; one that isn't in it (picked from the
     // calendar or the hours) opens in the detail pane.
-    const inList = openTask ? flat.some((t) => t.id === openTask.id) && !upcoming : false;
+    const inList = openTask ? flat.some((t) => t.id === openTask.id) && !upcoming && !boardView : false;
+    // The right-hand pane: a task opened from the calendar or a board always
+    // shows; the rest (the month and hours, the week's undated tasks) only
+    // while the pane is open (the button at the top right).
+    const paneOn = boardView ? boardPane : look.side_open;
     const sidePane = !tasksShown ? null : openTask && !inList ? (
       <TaskDetail
         task={openTask}
@@ -1203,7 +1298,7 @@ export default function App() {
         onClose={() => setOpenId(null)}
         onStep={ids.includes(openTask.id) ? stepTask : undefined}
       />
-    ) : upcoming ? (
+    ) : !paneOn ? null : upcoming ? (
       <WeekSide
         tasks={tasks}
         days={weekDays}
@@ -1283,6 +1378,7 @@ export default function App() {
         className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}
         style={sideW ? ({ "--side-w": `${sideW}px` } as CSSProperties) : undefined}
       >
+        <div className="full-row">
         {sideOpen && (
           <Sidebar
             list={list}
@@ -1405,8 +1501,6 @@ export default function App() {
                 .catch((e) => setError(String(e)))
             }
             updateReady={update.state === "ready"}
-            model={status?.active_model ?? null}
-            captureHint={<>{captureHint} to capture</>}
             lights={lights}
           />
         )}
@@ -1459,7 +1553,22 @@ export default function App() {
               </div>
             )}
             <span className="topbar-gap" data-tauri-drag-region />
-            <VersionDot update={update} version={status?.version ?? null} onError={setError} />
+            {tasksShown && boardKey && !floorOpen && (
+              <div className="view-toggle" role="group" aria-label="View">
+                <button type="button" aria-label="List view" title="List" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" strokeLinecap="round" />
+                  </svg>
+                </button>
+                <button type="button" aria-label="Board view" title="Board" aria-pressed={viewMode === "board"} onClick={() => setViewMode("board")}>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <rect x="2" y="2.5" width="3.2" height="11" rx="1" />
+                    <rect x="6.4" y="2.5" width="3.2" height="7" rx="1" />
+                    <rect x="10.8" y="2.5" width="3.2" height="9" rx="1" />
+                  </svg>
+                </button>
+              </div>
+            )}
             {tasksShown && (
               <button
                 type="button"
@@ -1483,6 +1592,21 @@ export default function App() {
             {tasksShown && list !== "logbook" && (
               <button type="button" className="primary fh-new" onClick={() => setAdding(true)} title="New task (A)">
                 <PlusIcon /> {w.addButton}
+              </button>
+            )}
+            {tasksShown && list !== "logbook" && (
+              <button
+                type="button"
+                className={paneShown ? "icon pane-toggle" : "icon pane-toggle on"}
+                onClick={() => (boardView ? setBoardPane((o) => !o) : void patchLook({ side_open: !look.side_open }))}
+                aria-label={paneShown ? "Hide calendar pane" : "Show calendar pane"}
+                aria-pressed={paneShown}
+                title={`${paneShown ? "Hide" : "Show"} calendar (⌥⌘\\)`}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="2" y="2.5" width="12" height="11" rx="2" />
+                  <path d="M10 2.5v11" />
+                </svg>
               </button>
             )}
           </header>
@@ -1525,7 +1649,7 @@ export default function App() {
                 </main>
               ) : (
                 <main className="full-content" data-autoscroll>
-                  <div className="full-list">{listEl}</div>
+                  <div className={boardView ? "full-list wide" : "full-list"}>{listEl}</div>
                 </main>
               )}
               {sidePane && (
@@ -1549,24 +1673,23 @@ export default function App() {
             </div>
           )}
         </div>
+        </div>
+        <FullFooter
+          model={status?.active_model ?? null}
+          captureHint={<>{captureHint} to capture</>}
+          onModel={() => openSettings("model")}
+          city={cityShown}
+          cityName={settings?.city_name ?? null}
+          showCity={settings?.city_corner !== false}
+          onCity={() => setCityOpen("view")}
+          now={now}
+          version={status?.version ?? null}
+          update={update}
+          onError={setError}
+        />
 
         {tasksShown && !upcoming && selectedTasks.length > 0 && (
           <BatchBar tasks={selectedTasks} actions={actions} projects={projectInfos} onClear={() => setSelected(new Set())} />
-        )}
-        {tasksShown && !cityOpen && settings?.city_corner !== false && (
-          <div className="city-corner">
-            <CityCard
-              city={cityShown}
-              name={settings?.city_name ?? null}
-              now={now}
-              onOpen={() => setCityOpen("view")}
-              onShare={() => setCityOpen("share")}
-              onHide={() => {
-                void patchSettings({ city_corner: false });
-                show("Your city is hidden. Open it from the sidebar, or bring it back in Settings → Your city.");
-              }}
-            />
-          </div>
         )}
         {cityOpen && (
           <CityView
@@ -1585,14 +1708,14 @@ export default function App() {
               setTab("tasks");
               setQuery("");
               setSearchOpen(false);
-              setList(project ? projectList(project) : "all");
+              setList(project ? projectList(project) : "inbox");
             }}
             onOpenSomeday={() => {
               setCityOpen(null);
               setTab("tasks");
               setQuery("");
               setSearchOpen(false);
-              setList("someday");
+              setList("inbox");
             }}
             onClose={() => setCityOpen(null)}
             onError={actions.fail}
@@ -1810,10 +1933,9 @@ function ListIcon({ list, stats }: { list: ListId; stats?: ProjectSummary }) {
   if (projectOf(list) !== null) return <Pie done={stats?.done ?? 0} total={(stats?.done ?? 0) + (stats?.open ?? 0)} size={18} />;
   if (list === "today") return <StarIcon />;
   if (list === "upcoming") return <CalIcon />;
-  if (list === "someday") return <CloudIcon />;
   if (list === "logbook") return <LogIcon />;
   if (list === "overdue") return <ClockIcon />;
-  return <LinesIcon />;
+  return <InboxIcon />;
 }
 
 function Banner({

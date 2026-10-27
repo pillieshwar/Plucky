@@ -131,6 +131,12 @@ describe("dropPatch", () => {
     expect(dropPatch(placed, { place: { project: "Offsite", heading: "Travel" } })).toBeNull();
   });
 
+  it("parks a task dropped on Someday, and brings a parked one back with a day", () => {
+    expect(dropPatch(task("Idea", TODAY), { nodate: true })).toEqual({ due_date: null, due_time: null, someday: true });
+    expect(dropPatch(task("Idea", null, { someday: true }), { nodate: true })).toBeNull();
+    expect(dropPatch(task("Idea", null, { someday: true }), { iso: TODAY })).toEqual({ someday: false, due_date: TODAY });
+  });
+
   it("is a no-op when nothing changes", () => {
     expect(dropPatch(t, { iso: TODAY, hour: 12 })).toBeNull();
     expect(dropPatch(task("Loose", TODAY), { iso: TODAY, hour: null })).toBeNull();
