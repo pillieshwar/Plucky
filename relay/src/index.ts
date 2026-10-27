@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 /**
- * Todo City sync relay.
+ * TodoCity sync relay.
  *
  * A dumb, always-on mailbox: Macs put sealed boxes in, other Macs take them
  * out. Everything is encrypted on the Mac before it arrives, so the relay

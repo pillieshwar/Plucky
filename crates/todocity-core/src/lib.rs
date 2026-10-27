@@ -1,4 +1,4 @@
-//! Platform-independent core of Todo City.
+//! Platform-independent core of TodoCity.
 //!
 //! Everything here is pure Rust with no UI or OS hooks, so it can be unit
 //! tested on any machine:
@@ -15,7 +15,7 @@
 //! * [`recurrence`] — repeating tasks.
 //! * [`notify`] — when to show due-time notifications.
 //! * [`reminders_sync`] — merge rules for two-way Apple Reminders sync.
-//! * [`things`] — reading a Things 3 database to move into Todo City.
+//! * [`things`] — reading a Things 3 database to move into TodoCity.
 //! * [`todoist`] — reading Todoist (its API or CSV exports) to move in.
 //! * [`sync`] — end-to-end encrypted sync between a person's Macs.
 //! * [`modes`] — which projects a Mac shows right now (Work, Personal…).

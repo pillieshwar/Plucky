@@ -15,7 +15,7 @@
   --amber-soft: #fdf0d8;
   --check: #9a9ea5;
   /* One family everywhere: the system UI font — SF Pro on macOS, Segoe UI
-     Variable on Windows — so Todo City reads like a native app at every size.
+     Variable on Windows — so TodoCity reads like a native app at every size.
      Monospace is kept only for file paths and code. */
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Code", Consolas, monospace;

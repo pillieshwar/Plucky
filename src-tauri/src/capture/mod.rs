@@ -82,7 +82,7 @@ pub enum CaptureResult {
 pub enum CaptureMethod {
     Accessibility,
     Clipboard,
-    /// Right-click → Services → Add to Todo City.
+    /// Right-click → Services → Add to TodoCity.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Service,
 }
@@ -95,10 +95,10 @@ const COPY_TIMEOUT: Duration = Duration::from_millis(1200);
 const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(3);
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
-/// After a capture, Todo City's own clipboard writes settle for a moment.
+/// After a capture, TodoCity's own clipboard writes settle for a moment.
 static QUIET_UNTIL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
-/// Whether Todo City is using the clipboard itself (a capture, or just after
+/// Whether TodoCity is using the clipboard itself (a capture, or just after
 /// one), so clipboard changes now aren't the user's.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn clipboard_busy() -> bool {
@@ -219,7 +219,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         Err(e) => {
             log::warn!("clipboard unavailable: {e}");
             return CaptureResult::Failed {
-                message: format!("Todo City couldn't open the clipboard ({e})."),
+                message: format!("TodoCity couldn't open the clipboard ({e})."),
             };
         }
     };
@@ -243,7 +243,7 @@ fn capture_inner(app: &AppHandle) -> CaptureResult {
         FallbackOutcome::Failed(e) => {
             log::warn!("clipboard capture failed: {e}");
             CaptureResult::Failed {
-                message: format!("Todo City couldn't copy the selection ({e})."),
+                message: format!("TodoCity couldn't copy the selection ({e})."),
             }
         }
     }

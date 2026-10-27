@@ -24,7 +24,7 @@ type Phase =
 const n = (x: number) => x.toLocaleString();
 const plural = (x: number, one: string, many = `${one}s`) => `${n(x)} ${x === 1 ? one : many}`;
 
-/** What goes where, Things 3 → Todo City. */
+/** What goes where, Things 3 → TodoCity. */
 const THINGS_MAP: [string, string][] = [
   ["Project", "Project (a building)"],
   ["Heading", "Floor"],
@@ -43,7 +43,7 @@ const THINGS_MAP: [string, string][] = [
   ["Logbook", "Done tasks — lit windows in your city"],
 ];
 
-/** What goes where, Todoist → Todo City. */
+/** What goes where, Todoist → TodoCity. */
 const TODOIST_MAP: [string, string][] = [
   ["Project", "Project (a building) — sub-projects too"],
   ["Inbox", "Tasks with no project (houses)"],
@@ -192,7 +192,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
             Things on iPhone or iPad? Install Things 3 for Mac and sign in to Things Cloud first.
           </li>
           <li>
-            <b>Click Find my Things library.</b> If macOS asks whether Todo City may access data from other apps,
+            <b>Click Find my Things library.</b> If macOS asks whether TodoCity may access data from other apps,
             click <b>Allow</b>.
           </li>
           <li>
@@ -200,7 +200,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
             Logbook.
           </li>
           <li>
-            <b>Click Move in.</b> Todo City backs itself up first. You can keep using Things and move in again later —
+            <b>Click Move in.</b> TodoCity backs itself up first. You can keep using Things and move in again later —
             only new to-dos come across.
           </li>
         </ol>
@@ -348,7 +348,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
             and click <b>Copy API token</b>.
           </li>
           <li>
-            <b>Paste it below and click Connect.</b> Todo City reads your Todoist straight from Todoist's servers to
+            <b>Paste it below and click Connect.</b> TodoCity reads your Todoist straight from Todoist's servers to
             this Mac — big accounts take a minute while completed tasks come in, year by year.
           </li>
           <li>
@@ -356,7 +356,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
             tasks and turn priorities into tags.
           </li>
           <li>
-            <b>Click Move in.</b> Todo City backs itself up first. You can keep using Todoist and move in again later —
+            <b>Click Move in.</b> TodoCity backs itself up first. You can keep using Todoist and move in again later —
             only new tasks come across.
           </li>
         </ol>
@@ -451,7 +451,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
       <MapTable
         from="Todoist"
         rows={TODOIST_MAP}
-        foot="Deleted tasks stay behind. Archived projects only come for their completed tasks. Repeats Todo City doesn't have yet come once, with a note."
+        foot="Deleted tasks stay behind. Archived projects only come for their completed tasks. Repeats TodoCity doesn't have yet come once, with a note."
       />
     </>
   );
@@ -552,8 +552,8 @@ function PreviewPanel({
         {p.unmapped_repeats > 0 && (
           <li>
             {p.unmapped_repeats === 1
-              ? "1 repeat uses a pattern Todo City doesn't have yet; it comes once, with a note to set a repeat."
-              : `${n(p.unmapped_repeats)} repeats use patterns Todo City doesn't have yet; they come once, with a note to set a repeat.`}
+              ? "1 repeat uses a pattern TodoCity doesn't have yet; it comes once, with a note to set a repeat."
+              : `${n(p.unmapped_repeats)} repeats use patterns TodoCity doesn't have yet; they come once, with a note to set a repeat.`}
           </li>
         )}
       </ul>
@@ -603,7 +603,7 @@ function MapTable({ from, rows, foot }: { from: string; rows: [string, string][]
         <thead>
           <tr>
             <th>{from}</th>
-            <th>Todo City</th>
+            <th>TodoCity</th>
           </tr>
         </thead>
         <tbody>

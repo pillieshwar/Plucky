@@ -47,7 +47,7 @@ pub struct ShortcutSettings {
     pub defaults_version: u32,
 }
 
-/// 2 = "Show or hide Todo City" gained a default (0.3.1), so the panel can be
+/// 2 = "Show or hide TodoCity" gained a default (0.3.1), so the panel can be
 /// opened while a full-screen app hides the menu bar.
 /// 3 = new defaults in 0.4: capture ⇧⌘S (was ⇧⌘Z, which is Redo) and
 /// show/hide ⇧⌘H (was ⌥⇧⌘P). Only shortcuts still on the old default move.
@@ -173,7 +173,7 @@ impl ShortcutSpec {
     pub fn to_shortcut(&self) -> Result<Shortcut, String> {
         self.validate()?;
         let code = parse_code(&self.code)
-            .ok_or_else(|| format!("Todo City can't use the key “{}” in a shortcut.", self.code))?;
+            .ok_or_else(|| format!("TodoCity can't use the key “{}” in a shortcut.", self.code))?;
         let mut mods = Modifiers::empty();
         if self.meta {
             mods |= Modifiers::SUPER;
@@ -228,7 +228,7 @@ impl ShortcutSpec {
     }
 }
 
-/// The keys Todo City accepts in shortcuts, by W3C code name.
+/// The keys TodoCity accepts in shortcuts, by W3C code name.
 fn parse_code(code: &str) -> Option<Code> {
     Some(match code {
         "KeyA" => Code::KeyA,
@@ -341,7 +341,7 @@ fn check_distinct(s: &ShortcutSettings) -> Result<(), String> {
         a.to_shortcut()?;
         if all[..i].iter().any(|(_, b)| b == a) {
             return Err(format!(
-                "{} is already used by another Todo City shortcut.",
+                "{} is already used by another TodoCity shortcut.",
                 a.label()
             ));
         }

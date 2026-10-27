@@ -3,7 +3,7 @@ name: Release
 # Builds the Mac app and publishes it as a GitHub Release. Run it either by
 # pushing a tag like v0.1.0, or from the Actions tab ("Release" → "Run
 # workflow"), which tags the current commit with the version in
-# src-tauri/tauri.conf.json. The "Download Todo City" button links to
+# src-tauri/tauri.conf.json. The "Download TodoCity" button links to
 #   https://github.com/<owner>/<repo>/releases/latest/download/TodoCity-macOS.dmg
 # which always points at the newest release.
 #
@@ -18,7 +18,7 @@ name: Release
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the key whose public half is in
 # tauri.conf.json → plugins.updater.pubkey). The release then also carries
 # TodoCity.app.tar.gz, its .sig and latest.json, which installed copies of
-# Todo City checks for updates.
+# TodoCity checks for updates.
 #
 # Supply chain: builds use only the committed lockfiles, start from an empty
 # cache (a poisoned cache can't reach a signed release), and every .dmg and
@@ -84,7 +84,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Build Todo City.app and .dmg (universal)
+      - name: Build TodoCity.app and .dmg (universal)
         shell: bash
         env:
           CERT: ${{ secrets.APPLE_CERTIFICATE }}
@@ -163,7 +163,7 @@ jobs:
           entry = {"signature": sig, "url": url}
           manifest = {
               "version": tag.lstrip("v"),
-              "notes": f"Todo City {tag}",
+              "notes": f"TodoCity {tag}",
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
           }
@@ -208,10 +208,10 @@ jobs:
           cat > notes.md <<'EOF'
           ## Download
 
-          **[Download Todo City for Mac](https://github.com/REPO/releases/latest/download/TodoCity-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
+          **[Download TodoCity for Mac](https://github.com/REPO/releases/latest/download/TodoCity-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
 
-          1. Open `TodoCity-macOS.dmg` and drag **Todo City** into **Applications**.
-          2. Open Todo City. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          1. Open `TodoCity-macOS.dmg` and drag **TodoCity** into **Applications**.
+          2. Open TodoCity. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
           3. The tour walks you through the rest: permission, model download (about 2 GB, once), shortcuts and a first capture.
 
 
@@ -221,11 +221,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — replacing its files"
             gh release upload "$TAG" dist-release/* --clobber
-            gh release edit "$TAG" --title "Todo City $TAG"
+            gh release edit "$TAG" --title "TodoCity $TAG"
           else
             # Creates the tag on this commit if it doesn't exist yet.
             gh release create "$TAG" dist-release/* --target "$GITHUB_SHA" \
-              --title "Todo City $TAG" --notes-file notes.md
+              --title "TodoCity $TAG" --notes-file notes.md
           fi
           # Only this release's own files: anything else (older names) goes.
           keep=$(cd dist-release && ls)

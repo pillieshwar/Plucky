@@ -3,7 +3,7 @@
 //! Things' database is never opened in place: it (and its write-ahead log)
 //! is copied into a temporary folder first, read from there, and the copy is
 //! deleted (see `things::read_copy`). Things can stay open the whole time.
-//! Before anything is added, Todo City's own database is backed up
+//! Before anything is added, TodoCity's own database is backed up
 //! (`tasks-…-before-import.db`), and the import itself is one transaction.
 
 use std::path::{Path, PathBuf};
@@ -50,7 +50,7 @@ fn source_of(path: &Path) -> ThingsSource {
 fn friendly(e: things::ThingsError) -> String {
     let denied = matches!(&e, things::ThingsError::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied);
     if denied {
-        "macOS didn't let Todo City read Things' data. Click Allow when macOS asks, or turn on Todo City in \
+        "macOS didn't let TodoCity read Things' data. Click Allow when macOS asks, or turn on TodoCity in \
          System Settings → Privacy & Security → Full Disk Access, then try again."
             .into()
     } else {
@@ -142,7 +142,7 @@ pub async fn things_preview(
     })
 }
 
-/// Bring the tasks in. Todo City's database is backed up first; anything
+/// Bring the tasks in. TodoCity's database is backed up first; anything
 /// brought in before is skipped.
 #[tauri::command]
 pub async fn things_import(
@@ -271,7 +271,7 @@ fn todoist_plan(
 
 /// Read Todoist — over its API with `token`, or from CSV `files` — and show
 /// what would move in. With neither, re-plans what was read last (for
-/// changed options). Nothing in Todo City changes.
+/// changed options). Nothing in TodoCity changes.
 #[tauri::command]
 pub async fn todoist_preview(
     app: AppHandle,
@@ -325,7 +325,7 @@ pub async fn todoist_preview(
     })
 }
 
-/// Bring in what the last preview read. Todo City is backed up first;
+/// Bring in what the last preview read. TodoCity is backed up first;
 /// anything brought in before is skipped.
 #[tauri::command]
 pub async fn todoist_import(

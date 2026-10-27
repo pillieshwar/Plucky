@@ -1,7 +1,7 @@
 name: Fuzz
 
 # Throws random and mutated input at everything in todocity-core that reads
-# input Todo City doesn't control (see fuzz/README.md): briefly on pull
+# input TodoCity doesn't control (see fuzz/README.md): briefly on pull
 # requests that change the core, longer every week.
 
 on:

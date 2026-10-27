@@ -65,7 +65,7 @@ export function updateText(u: UpdateStatus): string {
     case "downloading":
       return `Downloading ${u.version}${u.percent !== null ? ` · ${u.percent}%` : "…"}`;
     case "ready":
-      return `Todo City ${u.version} is ready to install.`;
+      return `TodoCity ${u.version} is ready to install.`;
     case "failed":
       return `Couldn't check for updates (${u.message}).`;
     default:
@@ -203,7 +203,7 @@ export function GeneralPage(props: SettingsProps & { status: Status | null; upda
             disabled={off}
             onChange={(v) => void save((s) => ({ ...s, auto_update: v }))}
           />
-          <ActionRow label={`Todo City ${status?.version ?? ""}`} hint={update.state !== "idle" ? updateText(update) : undefined}>
+          <ActionRow label={`TodoCity ${status?.version ?? ""}`} hint={update.state !== "idle" ? updateText(update) : undefined}>
             {update.state === "ready" ? (
               <button type="button" className="primary small" onClick={() => void api.installUpdate().catch((e) => onError(String(e)))}>
                 Restart to update
@@ -365,7 +365,7 @@ export function NotificationsPage(props: SettingsProps) {
     <>
       {permission === "denied" && (
         <div className="rem-note error">
-          <p>Notifications are off for Todo City in System Settings.</p>
+          <p>Notifications are off for TodoCity in System Settings.</p>
           <button type="button" className="ghost" onClick={() => void api.openNotificationSettings().catch(() => undefined)}>
             Open System Settings
           </button>

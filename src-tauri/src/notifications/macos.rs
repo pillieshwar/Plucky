@@ -38,7 +38,7 @@ define_class!(
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl UNUserNotificationCenterDelegate for Delegate {
-        /// Show banners even while a Todo City window is in front.
+        /// Show banners even while a TodoCity window is in front.
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
         fn will_present(
             &self,

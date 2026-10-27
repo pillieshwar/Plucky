@@ -8,7 +8,7 @@ import { safeLocale } from "../lib/locale";
 import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
 /**
- * Connectors: apps on this Mac that Todo City can work with. Each card shows
+ * Connectors: apps on this Mac that TodoCity can work with. Each card shows
  * whether it's connected and opens to its settings. Everything goes through
  * macOS on this Mac; nothing signs in to a server. (Sync with your other Macs
  * passes end-to-end encrypted boxes through a relay that can't read them.)
@@ -218,8 +218,8 @@ function CalendarSection({
     <div className="connector-body-inner">
       <div className="card-stack">
         <Toggle
-          label="Show calendar events in Todo City"
-          hint="Meetings appear next to your tasks in the menu bar. Read-only — Todo City never changes your calendar."
+          label="Show calendar events in TodoCity"
+          hint="Meetings appear next to your tasks in the menu bar. Read-only — TodoCity never changes your calendar."
           checked={enabled}
           disabled={busy || blocked}
           onChange={(v) => void (v ? turnOn() : turnOff())}
@@ -228,7 +228,7 @@ function CalendarSection({
         {blocked && (
           <div className="setting-line">
             <span className="dot warn" aria-hidden />
-            <span className="setting-line-text">Calendar access is off for Todo City.</span>
+            <span className="setting-line-text">Calendar access is off for TodoCity.</span>
             <button type="button" className="ghost small" onClick={() => void api.calendarOpenPrivacySettings()}>
               Allow
             </button>

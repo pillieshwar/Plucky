@@ -1,10 +1,10 @@
-//! Moving from Things 3: read its database and turn it into Todo City tasks.
+//! Moving from Things 3: read its database and turn it into TodoCity tasks.
 //!
 //! Things keeps everything in one SQLite file on the Mac
 //! (`…/Things Database.thingsdatabase/main.sqlite`). This module only reads
 //! it — the caller opens a *copy* — and maps it like this:
 //!
-//! | Things 3              | Todo City                          |
+//! | Things 3              | TodoCity                          |
 //! |-----------------------|------------------------------------|
 //! | Project               | Project (a building)               |
 //! | Heading               | Floor                              |
@@ -124,7 +124,7 @@ pub struct Preview {
     pub repeating: usize,
     pub subtasks: usize,
     pub canceled: usize,
-    /// Repeats whose pattern Todo City can't follow (kept as one-off tasks).
+    /// Repeats whose pattern TodoCity can't follow (kept as one-off tasks).
     pub unmapped_repeats: usize,
     /// Brought in by an earlier import, so they'll be skipped.
     pub already: usize,
@@ -378,7 +378,7 @@ fn clean_notes(s: Option<&str>) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
-/// A Things tag as a Todo City `#tag`: spaces become dashes, and only
+/// A Things tag as a TodoCity `#tag`: spaces become dashes, and only
 /// letters, digits, `_` and `-` are kept ("Work Stuff!" → `#Work-Stuff`).
 pub(crate) fn hashtag(tag: &str) -> Option<String> {
     let t: String = tag
@@ -418,7 +418,7 @@ fn plist_ints(xml: &str, name: &str) -> Vec<i64> {
     out
 }
 
-/// A Things repeat rule (an XML plist) as one of Todo City's, when there's
+/// A Things repeat rule (an XML plist) as one of TodoCity's, when there's
 /// a match. `fu` is the unit (16 day, 256 week, 8 month, 4 year), `fa`
 /// how many of them, `wd` the weekdays (1 Sunday … 7 Saturday).
 pub fn repeat_rule(blob: &[u8]) -> Option<Rule> {
@@ -451,7 +451,7 @@ struct Building {
     index: i64,
 }
 
-/// Turn a library into tasks for Todo City. `already` holds the ids brought
+/// Turn a library into tasks for TodoCity. `already` holds the ids brought
 /// in before (they're counted, not repeated); `today` is the local day.
 pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: NaiveDate) -> Plan {
     let by_id: HashMap<&str, &Row> = lib.rows.iter().map(|r| (r.uuid.as_str(), r)).collect();
@@ -1192,7 +1192,7 @@ INSERT INTO TMTag VALUES ('G1', 'errand');
         assert_eq!(r2.task.recurrence.as_deref(), Some("weekly"));
         let r1 = p.items.iter().find(|i| i.ext_id == "R1").unwrap();
         assert!(r1.task.recurrence.is_none());
-        // A rule Todo City can't read: one task on its next day, with a note.
+        // A rule TodoCity can't read: one task on its next day, with a note.
         let q = p.items.iter().find(|i| i.ext_id == "Q").unwrap();
         assert!(q.task.recurrence.is_none());
         assert_eq!(q.task.due_date.as_deref(), Some("2026-10-27"));

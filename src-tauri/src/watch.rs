@@ -1,7 +1,7 @@
 //! Watch mode: notice to-dos in Slack and Outlook as they appear.
 //!
 //! Every few seconds, if the frontmost window belongs to a watched app,
-//! Todo City reads its visible static text through Accessibility — the same
+//! TodoCity reads its visible static text through Accessibility — the same
 //! permission the capture shortcut uses. No screenshots, no recording, never
 //! text fields or password fields. When the window settles, only lines that
 //! weren't there before are considered; a cheap keyword check skips most of
@@ -28,7 +28,7 @@ use crate::models::ModelManager;
 use crate::settings::{Settings, WatchSettings};
 
 /// Never read, whatever the settings: password managers, the Keychain,
-/// System Settings, terminals (tokens and secrets) and Todo City itself.
+/// System Settings, terminals (tokens and secrets) and TodoCity itself.
 pub const ALWAYS_SKIP: &[(&str, &str)] = &[
     ("com.1password.1password", "1Password"),
     ("com.agilebits.onepassword7", "1Password 7"),
@@ -46,7 +46,7 @@ pub const ALWAYS_SKIP: &[(&str, &str)] = &[
     ("com.googlecode.iterm2", "iTerm"),
     ("dev.warp.Warp-Stable", "Warp"),
     ("com.mitchellh.ghostty", "Ghostty"),
-    ("app.pluck.desktop", "Todo City"),
+    ("app.pluck.desktop", "TodoCity"),
 ];
 
 /// Should this app's windows be left alone?
@@ -63,7 +63,7 @@ const MODEL_COOLDOWN: Duration = Duration::from_secs(12);
 const RECENT_APPS: usize = 10;
 
 const POLL: Duration = Duration::from_secs(3);
-/// The window must look the same this long before Todo City reads new lines,
+/// The window must look the same this long before TodoCity reads new lines,
 /// so half-loaded channels and scrolling don't count.
 const SETTLE: Duration = Duration::from_secs(4);
 const MAX_NODES: usize = 4000;
@@ -213,7 +213,7 @@ fn hash<T: Hash + ?Sized>(t: &T) -> u64 {
     h.finish()
 }
 
-/// What Todo City remembers about one window: hashes of lines it has seen
+/// What TodoCity remembers about one window: hashes of lines it has seen
 /// (never the text), and what the window looked like on the last read.
 #[derive(Default)]
 struct Window {
@@ -683,14 +683,14 @@ async fn check_now_mac(
         Ok(r) => r,
         Err(Some((_, name))) => {
             return Err(format!(
-                "Todo City doesn't read {name}. Remove it from the skipped apps to check it."
+                "TodoCity doesn't read {name}. Remove it from the skipped apps to check it."
             ))
         }
-        Err(None) => return Err("Todo City couldn't read the window in front.".into()),
+        Err(None) => return Err("TodoCity couldn't read the window in front.".into()),
     };
     let Some((earlier, new)) = recent(&read.lines) else {
         return Err(format!(
-            "Todo City couldn't read any messages in {}.",
+            "TodoCity couldn't read any messages in {}.",
             read.app
         ));
     };

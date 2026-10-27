@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows builds are paused: Todo City is focusing on macOS for now.
+        # Windows builds are paused: TodoCity is focusing on macOS for now.
         os: [macos-latest]
     runs-on: ${{ matrix.os }}
     permissions:

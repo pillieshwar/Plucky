@@ -26,7 +26,7 @@ const ROWS: { action: ShortcutAction; title: string; hint: string; optional: boo
   },
   {
     action: "toggle_panel",
-    title: "Show or hide Todo City",
+    title: "Show or hide TodoCity",
     hint: "Even over full-screen apps",
     optional: true,
   },
@@ -100,7 +100,7 @@ export function ShortcutEditor({
                     const err =
                       validateShortcut(spec) ??
                       (others.some((o) => sameShortcut(spec, o))
-                        ? "That shortcut is already used by another Todo City action."
+                        ? "That shortcut is already used by another TodoCity action."
                         : null);
                     if (err) setErrors((e) => ({ ...e, [row.action]: err }));
                     else void save(row.action, spec);
@@ -158,7 +158,7 @@ function Recorder({
   const handlers = useRef({ onCancel, onRecorded });
   handlers.current = { onCancel, onRecorded };
 
-  // While recording, Todo City's own global shortcuts are paused so pressing the
+  // While recording, TodoCity's own global shortcuts are paused so pressing the
   // current one is recorded instead of triggering a capture.
   useEffect(() => {
     if (!recording) return;

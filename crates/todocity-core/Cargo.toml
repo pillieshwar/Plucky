@@ -1,6 +1,6 @@
 [package]
 name = "todocity-core"
-description = "Platform-independent core of Todo City: local extraction, validation and task storage."
+description = "Platform-independent core of TodoCity: local extraction, validation and task storage."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

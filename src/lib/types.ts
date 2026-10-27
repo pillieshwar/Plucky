@@ -175,7 +175,7 @@ export interface AppSettings {
   modes?: ViewMode[];
   /** The mode this Mac is in; null shows everything. */
   mode?: string | null;
-  /** Open in full screen when Todo City starts. */
+  /** Open in full screen when TodoCity starts. */
   open_full?: boolean;
 }
 
@@ -310,7 +310,7 @@ export interface AgentApp {
   name: string;
   installed: boolean;
   connected: boolean;
-  /** Connected to a copy of Todo City that has moved. */
+  /** Connected to a copy of TodoCity that has moved. */
   stale: boolean;
   restart_hint: string;
 }
@@ -350,7 +350,7 @@ export interface ModelInfo {
   approx_size_mb: number;
   min_ram_gb: number;
   recommended: boolean;
-  /** Quality for Todo City (1 = best). */
+  /** Quality for TodoCity (1 = best). */
   rank: number;
   installed: boolean;
   active: boolean;
@@ -421,7 +421,7 @@ export interface RemindersStatus {
 /** Mirrors `calendar::CalendarInfo`. */
 export interface CalendarInfo {
   id: string;
-  /** "Account / Title" — how Todo City remembers which calendars to hide. */
+  /** "Account / Title" — how TodoCity remembers which calendars to hide. */
   key: string;
   title: string;
   source: string;
@@ -449,7 +449,7 @@ export interface CalendarStatus {
 }
 
 export interface RemindersEnableRequest {
-  /** null = create a list called "Todo City". */
+  /** null = create a list called "TodoCity". */
   list_id: string | null;
   include_notes: boolean;
   push_existing: boolean;

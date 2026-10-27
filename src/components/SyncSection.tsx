@@ -231,7 +231,7 @@ function PairingPanel({
               {pairing.code}
             </p>
             <p className="sync-pair-text">
-              Todo City → Settings → Your other Macs → <strong>I have a code</strong>. It works for 10 minutes.
+              TodoCity → Settings → Your other Macs → <strong>I have a code</strong>. It works for 10 minutes.
             </p>
           </>
         ) : (

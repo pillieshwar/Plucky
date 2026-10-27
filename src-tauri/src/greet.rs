@@ -1,4 +1,4 @@
-//! Keep the task panel in sight: open it when Todo City starts (at login too)
+//! Keep the task panel in sight: open it when TodoCity starts (at login too)
 //! and the first time the Mac wakes up each day.
 //!
 //! Waking is noticed without any OS hooks: a background thread ticks every
@@ -25,7 +25,7 @@ pub fn on_launch(app: &AppHandle, first_run: bool) {
     let settings = app.state::<Settings>();
     if first_run || settings.get().show_on_start {
         settings.update(|s| s.last_greeted = Some(today()));
-        // The first-run tour lives in the panel; after that, Todo City
+        // The first-run tour lives in the panel; after that, TodoCity
         // opens in full screen unless the person chose the panel.
         if first_run {
             crate::panel::show(app);

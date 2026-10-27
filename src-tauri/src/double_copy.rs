@@ -23,7 +23,7 @@ pub fn start(app: &tauri::AppHandle) {
                     enabled = app.state::<Settings>().get().double_copy;
                     checked = Some(Instant::now());
                 }
-                // Off, Todo City's own clipboard use, or copying inside Todo City.
+                // Off, TodoCity's own clipboard use, or copying inside TodoCity.
                 if !enabled || crate::capture::clipboard_busy() || app_focused(&app) {
                     detector.reset();
                     continue;

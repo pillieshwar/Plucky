@@ -1,4 +1,4 @@
-// Renders Todo City's UI in Chromium with a fake Tauri backend and saves
+// Renders TodoCity's UI in Chromium with a fake Tauri backend and saves
 // screenshots of the main states. Used by .github/workflows/ui-preview.yml.
 //
 //   node scripts/ui-preview/preview.mjs http://localhost:4173 out/
@@ -148,7 +148,7 @@ const AGENT_STATUS = {
   supported: true,
   enabled: false,
   proactive: true,
-  command: "/Applications/Todo City.app/Contents/MacOS/TodoCity",
+  command: "/Applications/TodoCity.app/Contents/MacOS/TodoCity",
   temporary_location: false,
   apps: [
     agentApp("claude_code", "Claude Code", true),
@@ -236,7 +236,7 @@ function mockTauri(s) {
     }),
     notification_permission: () => "granted",
     agents_status: () => s.agents,
-    agents_test: () => "Working — AI apps can send tasks to Todo City.",
+    agents_test: () => "Working — AI apps can send tasks to TodoCity.",
     inbox_list: () => s.inbox ?? [],
     watch_status: () =>
       s.watch ?? {
@@ -706,7 +706,7 @@ await shot(
       access: "full",
       enabled: true,
       include_notes: false,
-      list: { id: "l1", title: "Todo City", source: "iCloud", icloud: true, leaves_mac: true, writable: true },
+      list: { id: "l1", title: "TodoCity", source: "iCloud", icloud: true, leaves_mac: true, writable: true },
       linked: 12,
       last_sync: new Date().toISOString(),
       last_error: null,
@@ -960,7 +960,7 @@ await shot(
         enabled: true,
         server: "outlook",
         last_ok: localStamp(-12),
-        last: { at: localStamp(-12), ok: true, message: "Sent 2 tasks to Todo City." },
+        last: { at: localStamp(-12), ok: true, message: "Sent 2 tasks to TodoCity." },
       },
       servers: ["outlook", "github"],
       claude_code_connected: true,

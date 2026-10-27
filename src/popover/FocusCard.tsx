@@ -128,7 +128,7 @@ function InboxFocus({
       </h2>
       <p className="focus-meta">
         {noticed
-          ? "Todo City spotted these in new messages, on this Mac. Add the ones you want."
+          ? "TodoCity spotted these in new messages, on this Mac. Add the ones you want."
           : "Add the ones you want. Agents can add tasks, but never see your list."}
       </p>
       <ul className="focus-list">
@@ -230,7 +230,7 @@ function DueFocus({
       />
       <div className="focus-foot">
         <button type="button" className="focus-link" onClick={() => onOpen(task)}>
-          Open in Todo City
+          Open in TodoCity
         </button>
         <button type="button" className="focus-link quiet" onClick={() => next(Promise.resolve())}>
           {queue.length > 1 ? "Skip" : "Dismiss"}
@@ -314,12 +314,12 @@ function UndatedFocus({
       </ul>
       {more > 0 && (
         <button type="button" className="focus-link" onClick={() => onOpen(null)}>
-          and {more} more in Todo City
+          and {more} more in TodoCity
         </button>
       )}
       <div className="focus-foot">
         <button type="button" className="focus-link" onClick={() => onOpen(null)}>
-          Open in Todo City
+          Open in TodoCity
         </button>
         <button type="button" className="focus-link quiet" onClick={() => onFinish()}>
           Not now

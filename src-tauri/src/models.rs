@@ -24,7 +24,7 @@ use crate::engine::Engine;
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     active_model: Option<String>,
-    /// Model files the user pointed Todo City at instead of downloading.
+    /// Model files the user pointed TodoCity at instead of downloading.
     #[serde(default)]
     custom_models: Vec<CustomModel>,
 }

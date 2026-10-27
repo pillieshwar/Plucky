@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Todo City app icon: a building at night whose lit windows trace a check —
+  <!-- TodoCity app icon: a building at night whose lit windows trace a check —
        every finished task is a light on. macOS grid: 824 px tile centred on a 1024 canvas. -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">

@@ -97,7 +97,7 @@ export function Onboarding({
     else if (taskCount > baseline.current) setCaptured(true);
   }, [step, taskCount]);
 
-  // In the tour, copying the sample twice here works too (Todo City ignores
+  // In the tour, copying the sample twice here works too (TodoCity ignores
   // copies made inside itself everywhere else).
   useEffect(() => {
     if (step !== 2) return;
@@ -153,7 +153,7 @@ export function Onboarding({
   );
 
   return (
-    <section className="onboard" aria-label="Get started with Todo City">
+    <section className="onboard" aria-label="Get started with TodoCity">
       <div className="onboard-top">
         <ol className="onboard-steps" aria-label="Steps">
           {STEPS.map((s, i) => (
@@ -173,7 +173,7 @@ export function Onboarding({
       {step === 0 && (
         <div className="onboard-body">
           <h2>Pick your on-device model</h2>
-          <p>Todo City reads text and writes the to-do with a small AI model that runs on this Mac. Nothing leaves it.</p>
+          <p>TodoCity reads text and writes the to-do with a small AI model that runs on this Mac. Nothing leaves it.</p>
           {hasModel ? (
             <p className="onboard-ok">✓ {status?.active_model ?? "A model"} is ready</p>
           ) : progress !== null ? (
@@ -243,7 +243,7 @@ export function Onboarding({
               <span className="oc-title">
                 Press <kbd>⌘C</kbd> twice<span className="oc-badge">Easiest</span>
               </span>
-              <span className="oc-hint">Copy as usual, press ⌘C again — Todo City picks it up. Works in every app.</span>
+              <span className="oc-hint">Copy as usual, press ⌘C again — TodoCity picks it up. Works in every app.</span>
             </button>
             <button
               type="button"
@@ -264,7 +264,7 @@ export function Onboarding({
                 <ShortcutEditor shortcuts={shortcuts} onShortcuts={onShortcuts} compact />
               </div>
               {status?.accessibility ? (
-                <p className="onboard-ok">✓ Todo City can read selected text</p>
+                <p className="onboard-ok">✓ TodoCity can read selected text</p>
               ) : (
                 <p className="onboard-warn">
                   The shortcut needs Accessibility access.{" "}
@@ -288,7 +288,7 @@ export function Onboarding({
         <div className="onboard-body">
           <h2>Try it</h2>
           {captured ? (
-            <p className="onboard-ok">✓ Your first task is in Todo City.</p>
+            <p className="onboard-ok">✓ Your first task is in TodoCity.</p>
           ) : (
             <>
               <p>
@@ -306,7 +306,7 @@ export function Onboarding({
           <div className="onboard-actions">
             {back}
             <button type="button" className="primary" onClick={() => void finish()}>
-              {captured ? "Start using Todo City" : "Finish"}
+              {captured ? "Start using TodoCity" : "Finish"}
             </button>
           </div>
         </div>
