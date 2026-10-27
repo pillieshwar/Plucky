@@ -423,6 +423,9 @@ export default function App() {
   const boardKey = list === "inbox" ? "inbox" : viewedProject !== null ? `project:${viewedProject}` : null;
   const viewMode = boardKey ? (lookOf(settings).list_views[boardKey] ?? "board") : "list";
   const boardView = full && boardKey !== null && !floorOpen && viewMode === "board" && !query.trim();
+  // A board needs the room: the calendar pane stays closed there unless asked for.
+  const [boardPane, setBoardPane] = useState(false);
+  const paneShown = boardView ? boardPane : lookOf(settings).side_open;
   const setViewMode = (m: "list" | "board") => {
     if (!boardKey) return;
     void patchLook({ list_views: { ...lookOf(settings).list_views, [boardKey]: m } });
@@ -1282,7 +1285,7 @@ export default function App() {
     // The right-hand pane: a task opened from the calendar or a board always
     // shows; the rest (the month and hours, the week's undated tasks) only
     // while the pane is open (the button at the top right).
-    const paneOn = look.side_open;
+    const paneOn = boardView ? boardPane : look.side_open;
     const sidePane = !tasksShown ? null : openTask && !inList ? (
       <TaskDetail
         task={openTask}
@@ -1594,11 +1597,11 @@ export default function App() {
             {tasksShown && list !== "logbook" && (
               <button
                 type="button"
-                className={look.side_open ? "icon pane-toggle" : "icon pane-toggle on"}
-                onClick={() => void patchLook({ side_open: !look.side_open })}
-                aria-label={look.side_open ? "Hide calendar pane" : "Show calendar pane"}
-                aria-pressed={look.side_open}
-                title={`${look.side_open ? "Hide" : "Show"} calendar (⌥⌘\\)`}
+                className={paneShown ? "icon pane-toggle" : "icon pane-toggle on"}
+                onClick={() => (boardView ? setBoardPane((o) => !o) : void patchLook({ side_open: !look.side_open }))}
+                aria-label={paneShown ? "Hide calendar pane" : "Show calendar pane"}
+                aria-pressed={paneShown}
+                title={`${paneShown ? "Hide" : "Show"} calendar (⌥⌘\\)`}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
                   <rect x="2" y="2.5" width="12" height="11" rx="2" />
