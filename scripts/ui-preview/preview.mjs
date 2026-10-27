@@ -193,7 +193,8 @@ function mockTauri(s) {
     for (const cb of listeners.get(event) ?? []) callbacks.get(cb)?.({ event, id: 0, payload });
   };
   const responses = {
-    list_tasks: () => s.tasks,
+    // Fresh objects each time, as the real backend returns.
+    list_tasks: () => s.tasks.map((t) => ({ ...t })),
     status: () => s.status,
     get_settings: () => s.settings,
     set_settings: (a) => (s.settings = a.value),
