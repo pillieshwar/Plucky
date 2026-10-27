@@ -1,8 +1,8 @@
-//! Keeping Todo City's windows reachable over full-screen apps (macOS).
+//! Keeping TodoCity's windows reachable over full-screen apps (macOS).
 //!
 //! The menu-bar popover and quick add are turned into *non-activating
 //! panels* — the kind of window Spotlight and other menu-bar dropdowns use.
-//! An ordinary window has to activate Todo City to take the keyboard, and when
+//! An ordinary window has to activate TodoCity to take the keyboard, and when
 //! another app is full screen, activating a menu-bar app either shows
 //! nothing or switches back to the desktop. A non-activating panel floats
 //! over the full-screen app and takes typing while that app stays active.
@@ -26,7 +26,7 @@ pub enum Kind {
     Full,
 }
 
-/// Apply the right Space behaviour to every Todo City window, and turn the
+/// Apply the right Space behaviour to every TodoCity window, and turn the
 /// popover and quick add into panels. Call once during setup (main thread).
 pub fn configure_all(app: &AppHandle) {
     for (label, kind) in [
@@ -50,7 +50,7 @@ pub fn configure_all(app: &AppHandle) {
 }
 
 /// Show a panel in front, over full-screen apps too, without taking the
-/// keyboard: for things Todo City brings up on its own (a task coming due), so
+/// keyboard: for things TodoCity brings up on its own (a task coming due), so
 /// whatever the user is typing in keeps the keystrokes.
 pub fn present_passive(win: &WebviewWindow) {
     #[cfg(target_os = "macos")]
@@ -74,7 +74,7 @@ pub fn present_passive(win: &WebviewWindow) {
 }
 
 /// Show a window and give it the keyboard. Panels (popover, quick add) do
-/// this without activating Todo City, so they open over full-screen apps;
+/// this without activating TodoCity, so they open over full-screen apps;
 /// other windows are shown and focused as usual.
 pub fn present(win: &WebviewWindow) {
     #[cfg(target_os = "macos")]
@@ -117,7 +117,7 @@ pub fn configure(win: &WebviewWindow, kind: Kind) {
 }
 
 /// Put a just-shown window in front even over a full-screen app, whether or
-/// not macOS finished activating Todo City.
+/// not macOS finished activating TodoCity.
 pub fn bring_to_front(win: &WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
@@ -162,7 +162,7 @@ mod macos {
 
         impl TodoCityPanel {
             /// Take the keyboard (typing a task, arrow keys) even though
-            /// Todo City isn't the active app.
+            /// TodoCity isn't the active app.
             #[unsafe(method(canBecomeKeyWindow))]
             fn can_become_key_window(&self) -> bool {
                 true
@@ -227,7 +227,7 @@ mod macos {
         true
     }
 
-    /// Show a panel and make it key without activating Todo City. Returns
+    /// Show a panel and make it key without activating TodoCity. Returns
     /// false for windows that aren't panels.
     pub fn present_panel(win: &WebviewWindow) -> bool {
         let Some(ns) = ns_window(win) else {
@@ -266,7 +266,7 @@ mod macos {
             return;
         };
         // Every window joins all Spaces: if one sat on the desktop Space,
-        // activating Todo City from a full-screen app would make macOS jump
+        // activating TodoCity from a full-screen app would make macOS jump
         // back to the desktop instead of showing the popover.
         let (behavior, level) = match kind {
             Kind::Panel => (

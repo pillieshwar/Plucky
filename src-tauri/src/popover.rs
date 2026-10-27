@@ -1,5 +1,5 @@
 //! The menu-bar popover: a small calendar + agenda window that drops down
-//! from the Todo City icon when it's clicked, and hides when it loses focus.
+//! from the TodoCity icon when it's clicked, and hides when it loses focus.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;

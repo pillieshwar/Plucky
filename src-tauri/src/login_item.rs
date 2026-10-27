@@ -2,7 +2,7 @@
 //!
 //! A launch agent is listed by macOS under the developer's name ("Software
 //! from …"); the app registered as its own login item is listed — and
-//! announced — as "Todo City", with its icon. Older macOS keeps using the
+//! announced — as "TodoCity", with its icon. Older macOS keeps using the
 //! autostart plugin's launch agent.
 
 #[cfg(target_os = "macos")]
@@ -49,9 +49,9 @@ mod imp {
             Ok(())
         } else {
             Err(if on {
-                "macOS didn't let Todo City open at login. Check System Settings → General → Login Items.".into()
+                "macOS didn't let TodoCity open at login. Check System Settings → General → Login Items.".into()
             } else {
-                "macOS didn't let Todo City stop opening at login.".into()
+                "macOS didn't let TodoCity stop opening at login.".into()
             })
         }
     }
@@ -85,15 +85,20 @@ pub fn set(on: bool) -> Result<(), String> {
 }
 
 /// The launch agents earlier versions wrote (`~/Library/LaunchAgents/*.plist`
-/// named after the app: Pluck, Plucky, Todo City).
+/// named after the app: Pluck, Plucky, Todo City, TodoCity).
 pub fn legacy_agents() -> Vec<std::path::PathBuf> {
     let Some(home) = std::env::var_os("HOME") else {
         return Vec::new();
     };
     let dir = std::path::PathBuf::from(home).join("Library/LaunchAgents");
-    ["Pluck.plist", "Plucky.plist", "Todo City.plist"]
-        .iter()
-        .map(|n| dir.join(n))
-        .filter(|p| p.is_file())
-        .collect()
+    [
+        "Pluck.plist",
+        "Plucky.plist",
+        "Todo City.plist",
+        "TodoCity.plist",
+    ]
+    .iter()
+    .map(|n| dir.join(n))
+    .filter(|p| p.is_file())
+    .collect()
 }

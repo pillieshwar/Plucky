@@ -2,11 +2,11 @@
 //!
 //! Off by default. When on, a single worker thread owns the EventKit store
 //! and runs a sync pass (see `todocity_core::reminders_sync::run_pass`):
-//! * soon after any change in Todo City,
+//! * soon after any change in TodoCity,
 //! * every 30 seconds, to pick up changes made in Reminders (e.g. on iPhone),
 //! * when asked from Settings.
 //!
-//! Privacy: Todo City itself never uploads anything, but if the chosen list
+//! Privacy: TodoCity itself never uploads anything, but if the chosen list
 //! belongs to iCloud (or another account), macOS syncs it — so the UI warns
 //! before turning this on and while it's on.
 
@@ -27,7 +27,7 @@ use tauri::{AppHandle, Emitter, Manager};
 const POLL: Duration = Duration::from_secs(30);
 /// Wait for a burst of local edits to finish before syncing.
 const DEBOUNCE: Duration = Duration::from_millis(400);
-pub const DEFAULT_LIST: &str = "Todo City";
+pub const DEFAULT_LIST: &str = "TodoCity";
 /// Lists made under the app's earlier names (Plucky, and Pluck up to 0.4.1).
 const OLD_LISTS: [&str; 2] = ["Plucky", "Pluck"];
 
@@ -87,10 +87,10 @@ pub struct Status {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnableRequest {
-    /// An existing list, or None to create a "Todo City" list.
+    /// An existing list, or None to create a "TodoCity" list.
     pub list_id: Option<String>,
     pub include_notes: bool,
-    /// Also add tasks that already exist in Todo City.
+    /// Also add tasks that already exist in TodoCity.
     pub push_existing: bool,
 }
 
@@ -177,14 +177,14 @@ impl Reminders {
         self.settings.lock().map(|s| s.enabled).unwrap_or(false)
     }
 
-    /// Something changed in Todo City; sync soon.
+    /// Something changed in TodoCity; sync soon.
     pub fn nudge(&self) {
         if self.enabled() {
             self.send(Cmd::Sync);
         }
     }
 
-    /// A linked task was deleted in Todo City; delete its reminder too.
+    /// A linked task was deleted in TodoCity; delete its reminder too.
     pub fn deleted(&self, reminder_id: String) {
         if self.enabled() {
             self.send(Cmd::Deleted(reminder_id));
@@ -339,7 +339,7 @@ impl Worker {
                     ek.refresh();
                     Ok(ek.lists())
                 } else {
-                    Err("Todo City doesn't have access to Reminders.".into())
+                    Err("TodoCity doesn't have access to Reminders.".into())
                 };
                 let _ = tx.send(result);
                 false
@@ -363,7 +363,7 @@ impl Worker {
     #[cfg(target_os = "macos")]
     fn enable(&self, ek: &eventkit::EventKit, req: EnableRequest) -> Result<(), String> {
         if eventkit::access() != Access::Full {
-            return Err("Allow Todo City to use Reminders first.".into());
+            return Err("Allow TodoCity to use Reminders first.".into());
         }
         ek.refresh();
         let list = match req.list_id {
@@ -411,7 +411,7 @@ impl Worker {
         };
         if eventkit::access() != Access::Full {
             self.set_runtime(|r| {
-                r.last_error = Some("Todo City no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
+                r.last_error = Some("TodoCity no longer has access to Reminders. Allow it in System Settings → Privacy & Security → Reminders.".into());
             });
             return;
         }
@@ -420,7 +420,7 @@ impl Worker {
         if list.is_none() {
             self.set_runtime(|r| {
                 r.list = None;
-                r.last_error = Some("The Reminders list Todo City syncs with was deleted. Choose another list in Settings.".into());
+                r.last_error = Some("The Reminders list TodoCity syncs with was deleted. Choose another list in Settings.".into());
             });
             return;
         }

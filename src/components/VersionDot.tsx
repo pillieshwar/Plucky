@@ -48,9 +48,9 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
 
   const label =
     update.state === "ready"
-      ? `Todo City ${update.version} is out`
+      ? `TodoCity ${update.version} is out`
       : update.state === "downloading"
-        ? `Getting Todo City ${update.version}${update.percent !== null ? ` · ${update.percent}%` : "…"}`
+        ? `Getting TodoCity ${update.version}${update.percent !== null ? ` · ${update.percent}%` : "…"}`
         : update.state === "checking"
           ? "Checking for updates…"
           : update.state === "failed"

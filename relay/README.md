@@ -1,4 +1,4 @@
-# Todo City sync relay
+# TodoCity sync relay
 
 A small Cloudflare Worker that stores and forwards **sealed** boxes between a person's Macs. Everything is encrypted on the Mac first (ChaCha20-Poly1305, with a key only the paired Macs have), so the relay never sees task content and never holds a key.
 

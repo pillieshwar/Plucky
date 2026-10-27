@@ -1,4 +1,4 @@
-//! Todo City desktop shell: tray icon, global shortcut, docked task panel.
+//! TodoCity desktop shell: tray icon, global shortcut, docked task panel.
 //!
 //! Lifecycle of one capture:
 //!   shortcut released → pre-warm the bundled model runtime and capture the
@@ -873,10 +873,7 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
         "json" => ("json", serde_json::to_string_pretty(&tasks).map_err(err)?),
         other => return Err(format!("Unknown export format {other}")),
     };
-    let stem = format!(
-        "Todo City tasks {}",
-        chrono::Local::now().format("%Y-%m-%d")
-    );
+    let stem = format!("TodoCity tasks {}", chrono::Local::now().format("%Y-%m-%d"));
     let path = data::free_name(&data::downloads_dir(), &stem, ext);
     std::fs::write(&path, body).map_err(err)?;
     reveal(&path, true)?;
@@ -889,7 +886,7 @@ fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String>
 fn save_city_image(name: String, png: Vec<u8>) -> CmdResult<String> {
     const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
     if !png.starts_with(PNG_MAGIC) || png.len() > 20 * 1024 * 1024 {
-        return Err("That isn't a picture Todo City can save.".into());
+        return Err("That isn't a picture TodoCity can save.".into());
     }
     let path = data::free_name(&data::downloads_dir(), &city_file_stem(&name), "png");
     std::fs::write(&path, png).map_err(err)?;
@@ -1087,7 +1084,7 @@ fn set_panel_full(app: AppHandle, full: bool) -> CmdResult<()> {
     panel::set_full(&app, full).map_err(err)
 }
 
-/// Full screen: minimize the window to the Dock (clicking Todo City's Dock icon
+/// Full screen: minimize the window to the Dock (clicking TodoCity's Dock icon
 /// brings it back).
 #[tauri::command]
 fn minimize_panel(app: AppHandle) -> CmdResult<()> {
@@ -1190,9 +1187,10 @@ fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     }
 }
 
-/// Up to 0.4.1 the app was called Pluck, then Plucky until 0.4.36. An
-/// update keeps the old bundle path, so finish the rename on first launch:
-/// move it to `Todo City.app` and reopen from there. Returns true when
+/// Up to 0.4.1 the app was called Pluck, then Plucky until 0.4.36, then
+/// "Todo City" (two words) until 0.4.50. An update keeps the old bundle
+/// path, so finish the rename on first launch: move it to `TodoCity.app`
+/// and reopen from there. Returns true when
 /// relaunching.
 #[cfg(target_os = "macos")]
 fn finish_rename(app: &AppHandle) -> bool {
@@ -1203,22 +1201,19 @@ fn finish_rename(app: &AppHandle) -> bool {
     let Some(bundle) = exe.ancestors().nth(3).map(|p| p.to_path_buf()) else {
         return false;
     };
-    // Earlier names: Pluck, then Plucky.
+    // Earlier names: Pluck, Plucky, then Todo City.
     if !matches!(
         bundle.file_name().and_then(|n| n.to_str()),
-        Some("Pluck.app" | "Plucky.app")
+        Some("Pluck.app" | "Plucky.app" | "Todo City.app")
     ) {
         return false;
     }
-    let target = bundle.with_file_name("Todo City.app");
+    let target = bundle.with_file_name("TodoCity.app");
     if target.exists() {
         return false;
     }
     if let Err(e) = std::fs::rename(&bundle, &target) {
-        log::warn!(
-            "could not rename {} to Todo City.app: {e}",
-            bundle.display()
-        );
+        log::warn!("could not rename {} to TodoCity.app: {e}", bundle.display());
         return false;
     }
     log::info!("renamed the app to {}", target.display());
@@ -1232,14 +1227,14 @@ fn finish_rename(app: &AppHandle) -> bool {
             true
         }
         Err(e) => {
-            log::warn!("could not reopen as Todo City: {e}");
+            log::warn!("could not reopen as TodoCity: {e}");
             false
         }
     }
 }
 
 /// The login item of versions called Pluck (`Pluck.plist`) points at the old
-/// app. Replace it with Todo City's, if it was on.
+/// app. Replace it with TodoCity's, if it was on.
 fn migrate_login_item(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
@@ -1248,7 +1243,7 @@ fn migrate_login_item(app: &AppHandle) {
         };
         let agents = std::path::PathBuf::from(home).join("Library/LaunchAgents");
         // The login items of the app's earlier names.
-        let Some(old) = ["Pluck.plist", "Plucky.plist"]
+        let Some(old) = ["Pluck.plist", "Plucky.plist", "Todo City.plist"]
             .iter()
             .map(|n| agents.join(n))
             .find(|p| p.is_file())
@@ -1260,7 +1255,7 @@ fn migrate_login_item(app: &AppHandle) {
             return;
         }
         match app.autolaunch().enable() {
-            Ok(()) => log::info!("moved the login item to Todo City"),
+            Ok(()) => log::info!("moved the login item to TodoCity"),
             Err(e) => log::warn!("could not re-create the login item: {e}"),
         }
     }
@@ -1268,7 +1263,7 @@ fn migrate_login_item(app: &AppHandle) {
     let _ = app;
 }
 
-/// Mark the login item as Todo City's (`AssociatedBundleIdentifiers`), so
+/// Mark the login item as TodoCity's (`AssociatedBundleIdentifiers`), so
 /// macOS lists it under the app's name and icon in Login Items & Extensions
 /// instead of under the developer's name. Safe to run every launch.
 fn associate_login_item(app: &AppHandle) {
@@ -1309,7 +1304,7 @@ fn with_associated_bundle(plist: &str, id: &str) -> Option<String> {
     ))
 }
 
-/// Text sent through Services → "Add to Todo City".
+/// Text sent through Services → "Add to TodoCity".
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn on_service_text(app: AppHandle, text: String) {
     deliver_text(app, text, CaptureMethod::Service);
@@ -1378,13 +1373,13 @@ fn open_store(path: &std::path::Path) -> Store {
 
 // ── Logging ─────────────────────────────────────────────────────────────────
 
-/// `~/Library/Logs/Todo City/todocity.log` on macOS; the temp folder elsewhere.
+/// `~/Library/Logs/TodoCity/todocity.log` on macOS; the temp folder elsewhere.
 fn log_file_path() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         std::env::var_os("HOME")
-            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/Todo City/todocity.log"))
+            .map(|h| std::path::PathBuf::from(h).join("Library/Logs/TodoCity/todocity.log"))
     } else {
-        Some(std::env::temp_dir().join("Todo City").join("todocity.log"))
+        Some(std::env::temp_dir().join("TodoCity").join("todocity.log"))
     }
 }
 
@@ -1411,7 +1406,7 @@ fn init_logging() {
         }
     }
     let _ = builder.try_init();
-    log::info!("Todo City {} starting", env!("CARGO_PKG_VERSION"));
+    log::info!("TodoCity {} starting", env!("CARGO_PKG_VERSION"));
 
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -1543,7 +1538,7 @@ pub fn run() {
 
             app.state::<Shortcuts>().register_all(app.handle());
             tray::build(app.handle())?;
-            // Let Todo City's windows open over full-screen apps.
+            // Let TodoCity's windows open over full-screen apps.
             spaces::configure_all(app.handle());
             notifications::init(app.handle());
             notifications::start_scheduler(app.handle());
@@ -1554,12 +1549,12 @@ pub fn run() {
                 services::register(move |text| on_service_text(handle.clone(), text));
             }
 
-            // Todo City lives in the menu bar, so open it at login — once, by
+            // TodoCity lives in the menu bar, so open it at login — once, by
             // default; after that it's the user's switch in Settings.
             let settings = app.state::<Settings>();
             if login_item::available() {
-                // macOS 13+: the app is its own login item, listed as Todo
-                // City. Earlier versions used a launch agent (listed under
+                // macOS 13+: the app is its own login item, listed as
+                // TodoCity. Earlier versions used a launch agent (listed under
                 // the developer's name): move over, keeping the user's choice.
                 let legacy = login_item::legacy_agents();
                 let was_on = !legacy.is_empty() || app.autolaunch().is_enabled().unwrap_or(false);
@@ -1596,7 +1591,7 @@ pub fn run() {
             // Keep one warm connection to the Mac's calendars (see calendar.rs).
             calendar::start(app.handle());
 
-            // todocity:// links: while running, and the one Todo City was opened with.
+            // todocity:// links: while running, and the one TodoCity was opened with.
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
@@ -1748,12 +1743,12 @@ pub fn run() {
             hide_quick_add
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Todo City")
+        .expect("error while building TodoCity")
         .run(|app, event| {
             // Clicking the Dock icon (shown while full screen) brings the
             // window back, minimized or hidden.
             #[cfg(target_os = "macos")]
-            // Opening Todo City again (Finder, Spotlight, Launchpad) while
+            // Opening TodoCity again (Finder, Spotlight, Launchpad) while
             // it runs: bring up the window, in full screen by default.
             if let tauri::RunEvent::Reopen { .. } = event {
                 panel::open_main_window(app);
@@ -1792,7 +1787,7 @@ mod tests {
         assert_eq!(city_file_stem("../../etc/passwd"), "etcpasswd");
         assert_eq!(city_file_stem("  /:  "), "My city");
         let plist =
-            "<plist><dict>\n  <key>Label</key>\n  <string>Todo City</string>\n</dict></plist>";
+            "<plist><dict>\n  <key>Label</key>\n  <string>TodoCity</string>\n</dict></plist>";
         let fixed = with_associated_bundle(plist, "app.pluck.desktop").unwrap();
         assert!(fixed.contains("<key>AssociatedBundleIdentifiers</key>"));
         assert!(fixed.contains("<string>app.pluck.desktop</string>"));

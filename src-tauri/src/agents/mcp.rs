@@ -2,7 +2,7 @@
 //!
 //! AI apps launch this and talk JSON-RPC 2.0 over stdin/stdout, one message
 //! per line. It offers a single tool, `add_task`, and no resources or
-//! prompts. Each task is passed to the running Todo City app over its private
+//! prompts. Each task is passed to the running TodoCity app over its private
 //! socket; the reply to the agent never says anything about existing tasks.
 //!
 //! Nothing but protocol messages may go to stdout.
@@ -19,26 +19,26 @@ use super::{Submission, TaskDraft};
 /// Protocol versions this server speaks, newest first.
 const VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 
-/// `clientInfo.name` of Todo City's own "Send test task".
+/// `clientInfo.name` of TodoCity's own "Send test task".
 pub const SELF_TEST: &str = "todocity-self-test";
 
-pub const NOT_REACHABLE: &str = "Todo City isn't accepting tasks: it isn't running, or \"Let AI agents add tasks\" is off in Todo City → Connectors → AI agents.";
+pub const NOT_REACHABLE: &str = "TodoCity isn't accepting tasks: it isn't running, or \"Let AI agents add tasks\" is off in TodoCity → Connectors → AI agents.";
 const RECEIVED: &str =
-    "Sent to Todo City. The user will review it there before it's added to their tasks.";
+    "Sent to TodoCity. The user will review it there before it's added to their tasks.";
 
-const INSTRUCTIONS: &str = "Todo City is the user's private to-do list on their Mac. You can add tasks to it with add_task; the user reviews each one before it's added. You can't read, search, change or delete tasks, and the reply never says what else is on the list.";
+const INSTRUCTIONS: &str = "TodoCity is the user's private to-do list on their Mac. You can add tasks to it with add_task; the user reviews each one before it's added. You can't read, search, change or delete tasks, and the reply never says what else is on the list.";
 
 /// Added when the user lets agents suggest tasks on their own.
-const PROACTIVE: &str = " Use this proactively: whenever the user mentions something they need to do later — a deadline, an appointment, a follow-up, \"remind me\" — send it to Todo City without being asked, one call per task. Skip things that are already done or have nothing to do.";
+const PROACTIVE: &str = " Use this proactively: whenever the user mentions something they need to do later — a deadline, an appointment, a follow-up, \"remind me\" — send it to TodoCity without being asked, one call per task. Skip things that are already done or have nothing to do.";
 
 fn tool(proactive: bool) -> Value {
-    let mut description = String::from("Send a to-do to the user's Todo City task list on their Mac. The user reviews it before it's added. Write-only: you can't see existing tasks, and the reply is the same every time. Use the user's local date and time.");
+    let mut description = String::from("Send a to-do to the user's TodoCity task list on their Mac. The user reviews it before it's added. Write-only: you can't see existing tasks, and the reply is the same every time. Use the user's local date and time.");
     if proactive {
         description.push_str(PROACTIVE);
     }
     json!({
         "name": "add_task",
-        "title": "Add a task to Todo City",
+        "title": "Add a task to TodoCity",
         "description": description,
         "inputSchema": {
             "type": "object",
@@ -68,7 +68,7 @@ fn tool(proactive: bool) -> Value {
             "additionalProperties": false
         },
         "annotations": {
-            "title": "Add a task to Todo City",
+            "title": "Add a task to TodoCity",
             "readOnlyHint": false,
             "destructiveHint": false,
             "idempotentHint": false,
@@ -142,7 +142,7 @@ impl<D: Deliver> Server<D> {
                         "capabilities": { "tools": { "listChanged": false } },
                         "serverInfo": {
                             "name": "todocity",
-                            "title": "Todo City",
+                            "title": "TodoCity",
                             "version": env!("CARGO_PKG_VERSION")
                         },
                         "instructions": if self.proactive {
@@ -160,7 +160,7 @@ impl<D: Deliver> Server<D> {
                     return Some(error(
                         &id,
                         -32602,
-                        "Unknown tool. Todo City only has add_task.",
+                        "Unknown tool. TodoCity only has add_task.",
                     ));
                 }
                 result(&id, self.add_task(&params["arguments"]))
@@ -200,7 +200,7 @@ impl<D: Deliver> Server<D> {
 /// Delivers over the app's Unix socket.
 struct Socket;
 
-/// Todo City's data folder (Tauri's app data dir for `app.pluck.desktop`).
+/// TodoCity's data folder (Tauri's app data dir for `app.pluck.desktop`).
 fn data_dir() -> Option<std::path::PathBuf> {
     let home = std::path::PathBuf::from(std::env::var_os("HOME")?);
     let data = if cfg!(target_os = "macos") {
@@ -253,7 +253,7 @@ impl Deliver for Socket {
 
     #[cfg(not(unix))]
     fn deliver(&mut self, _sub: &Submission) -> Result<(), String> {
-        Err("Todo City's AI agent connection is available on macOS.".into())
+        Err("TodoCity's AI agent connection is available on macOS.".into())
     }
 }
 

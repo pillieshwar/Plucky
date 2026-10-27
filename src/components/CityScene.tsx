@@ -1585,7 +1585,7 @@ export function renderCityPicture(city: City, name: string, opts: { count: numbe
   ctx.textAlign = "right";
   ctx.fillStyle = sub;
   ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
-  ctx.fillText("Built with Todo City", W - 32, H - 26);
+  ctx.fillText("Built with TodoCity", W - 32, H - 26);
 
   built.dispose();
   composer.dispose();

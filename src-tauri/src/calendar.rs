@@ -1,9 +1,9 @@
 //! Calendar connector (macOS): read the events in the Mac's Calendar app so
-//! Todo City can show them next to tasks.
+//! TodoCity can show them next to tasks.
 //!
 //! Read-only and local. Events come from EventKit, the same store the Calendar
 //! app uses, so Google, Outlook and iCloud calendars that are added to the Mac
-//! show up too, without Todo City signing in anywhere or using the network.
+//! show up too, without TodoCity signing in anywhere or using the network.
 //!
 //! One worker thread owns a single, long-lived `EKEventStore`. A fresh store
 //! loads subscribed calendars (Holidays, Birthdays) and remote accounts in the

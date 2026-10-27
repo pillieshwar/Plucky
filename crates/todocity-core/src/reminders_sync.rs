@@ -3,14 +3,14 @@
 //!
 //! Each linked task keeps a *base*: the title, due day and done state both
 //! sides last agreed on. On every sync pass we compare the base with the
-//! current Todo City task (local) and the current reminder (remote) and merge
+//! current TodoCity task (local) and the current reminder (remote) and merge
 //! field by field — a three-way merge, like version control:
 //!
 //! * only one side changed a field → that change wins;
 //! * both changed the same field → the reminder wins (it is the side the
-//!   user most recently touched outside Todo City, e.g. on their iPhone).
+//!   user most recently touched outside TodoCity, e.g. on their iPhone).
 //!
-//! Deleting a reminder never deletes the Todo City task; the task is *detached*
+//! Deleting a reminder never deletes the TodoCity task; the task is *detached*
 //! and is never re-added to Reminders.
 
 use std::collections::HashSet;
@@ -34,7 +34,7 @@ pub struct Merge {
     pub result: SyncState,
     /// The reminder must be updated.
     pub push_remote: bool,
-    /// The Todo City task must be updated.
+    /// The TodoCity task must be updated.
     pub update_local: bool,
 }
 
@@ -67,7 +67,7 @@ fn normalize(title: &str) -> String {
         .to_lowercase()
 }
 
-/// Pair unlinked Todo City tasks with unlinked reminders that are evidently the
+/// Pair unlinked TodoCity tasks with unlinked reminders that are evidently the
 /// same item (same title, ignoring case and spacing, and the same due day),
 /// so turning sync back on doesn't create duplicates. Each side is used at
 /// most once. Returns `(local_index, remote_index)` pairs.
@@ -126,13 +126,13 @@ pub struct PassOptions<'a> {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct PassReport {
-    /// Todo City tasks updated from Reminders.
+    /// TodoCity tasks updated from Reminders.
     pub pulled: usize,
-    /// Reminders updated from Todo City.
+    /// Reminders updated from TodoCity.
     pub pushed: usize,
-    /// New reminders created for Todo City tasks.
+    /// New reminders created for TodoCity tasks.
     pub created: usize,
-    /// New Todo City tasks created from reminders.
+    /// New TodoCity tasks created from reminders.
     pub imported: usize,
     /// Tasks detached because their reminder was deleted.
     pub unlinked: usize,
@@ -266,7 +266,7 @@ pub fn run_pass(
         })?;
     }
 
-    // 4. Todo City → Reminders.
+    // 4. TodoCity → Reminders.
     for (i, task) in local_new.iter().enumerate() {
         if paired_local.contains(&i) {
             continue;
@@ -291,7 +291,7 @@ pub fn run_pass(
         }
     }
 
-    // 5. Reminders → Todo City.
+    // 5. Reminders → TodoCity.
     for (i, (id, state)) in remote_new.iter().enumerate() {
         if paired_remote.contains(&i) {
             continue;
@@ -513,7 +513,7 @@ mod tests {
         run_pass(&store, &mut rem, &opts()).unwrap();
         let rid = |task_id| store.reminder_link(task_id).unwrap().unwrap().reminder_id;
 
-        // Done in Todo City → completed in Reminders.
+        // Done in TodoCity → completed in Reminders.
         store
             .update(
                 a.id,
@@ -523,7 +523,7 @@ mod tests {
                 },
             )
             .unwrap();
-        // Completed in Reminders → done in Todo City.
+        // Completed in Reminders → done in TodoCity.
         rem.items.get_mut(&rid(b.id)).unwrap().1.done = true;
 
         let r = run_pass(&store, &mut rem, &opts()).unwrap();

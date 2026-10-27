@@ -171,7 +171,7 @@ export function Sidebar(p: Props) {
       <div className="sb-top" data-tauri-drag-region>
         {p.lights}
         <span className="sb-brand" data-tauri-drag-region>
-          Todo City
+          TodoCity
         </span>
       </div>
       {p.modeSwitch}

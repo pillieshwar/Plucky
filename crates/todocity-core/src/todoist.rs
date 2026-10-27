@@ -1,7 +1,7 @@
 //! Moving from Todoist: read it (over its API with the user's own token, or
-//! from exported CSV files) and turn it into Todo City tasks.
+//! from exported CSV files) and turn it into TodoCity tasks.
 //!
-//! | Todoist                    | Todo City                              |
+//! | Todoist                    | TodoCity                              |
 //! |----------------------------|----------------------------------------|
 //! | Project                    | Project (a building)                   |
 //! | Inbox                      | Tasks with no project (houses)         |
@@ -497,7 +497,7 @@ pub fn read_csv(files: &[(String, String)]) -> Result<Library, TodoistError> {
 
 // ── Dates and repeats ───────────────────────────────────────────────────────
 
-/// A due date (and time, if any) as Todo City's local day and `HH:MM`.
+/// A due date (and time, if any) as TodoCity's local day and `HH:MM`.
 fn due_of(d: &Due, today: NaiveDate) -> Option<(NaiveDate, Option<String>)> {
     let raw = d
         .datetime
@@ -615,7 +615,7 @@ fn time_in(lower: &str) -> Option<String> {
     parse_time(t)
 }
 
-/// A Todoist recurring phrase as one of Todo City's repeats, when it maps.
+/// A Todoist recurring phrase as one of TodoCity's repeats, when it maps.
 pub fn repeat_rule(phrase: &str) -> Option<Rule> {
     let mut s = phrase.trim().to_lowercase().replace("every!", "every");
     for cut in [
@@ -722,7 +722,7 @@ fn month(w: &str) -> bool {
 
 // ── Planning ────────────────────────────────────────────────────────────────
 
-/// Turn a library into tasks for Todo City (see the table at the top).
+/// Turn a library into tasks for TodoCity (see the table at the top).
 pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: NaiveDate) -> Plan {
     let skip: HashSet<&str> = opts.skip.iter().map(String::as_str).collect();
     let projects: HashMap<&str, &Project> = lib

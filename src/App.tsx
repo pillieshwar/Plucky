@@ -813,7 +813,7 @@ export default function App() {
         <header className="mini" data-tauri-drag-region onDoubleClick={() => minimize(false)}>
           {controls}
           <span className="mini-title" data-tauri-drag-region>
-            Todo City
+            TodoCity
           </span>
           <span className="mini-meta" data-tauri-drag-region>
             {open} open{dueToday ? ` · ${dueToday} due` : ""}
@@ -847,7 +847,7 @@ export default function App() {
         ? status?.active_model
           ? `Using ${status.active_model}`
           : "No model yet"
-        : `Todo City ${status?.version ?? ""}`
+        : `TodoCity ${status?.version ?? ""}`
       : list === "today"
         ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${w.toDo(listCounts.today)}`
         : list === "upcoming"
@@ -873,12 +873,12 @@ export default function App() {
       {tab !== "settings" && <UpdateBanner update={update} onError={setError} />}
       {status && !status.accessibility && !capture && !onboarding && (
         <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
-          Todo City needs Accessibility permission to read selected text.
+          TodoCity needs Accessibility permission to read selected text.
         </Banner>
       )}
       {tab === "tasks" && status?.engine === "bundled" && !status.active_model && !onboarding && (
         <Banner tone="warn" action={{ label: "Get a model", run: () => openSettings("model") }}>
-          Download a model so Todo City can read your selections.
+          Download a model so TodoCity can read your selections.
         </Banner>
       )}
       {error && (
@@ -1256,10 +1256,10 @@ export default function App() {
     ) : null;
 
     // The window's own buttons, top left as on every Mac window: close
-    // (hide Todo City), minimize to the Dock, and back to the side panel.
+    // (hide TodoCity), minimize to the Dock, and back to the side panel.
     const lights = (
       <div className="traffic" data-tauri-drag-region>
-        <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (hide Todo City)">
+        <button type="button" className="tl close" onClick={() => void api.hidePanel()} aria-label="Close" title="Close (hide TodoCity)">
           <svg viewBox="0 0 12 12" aria-hidden>
             <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" />
           </svg>

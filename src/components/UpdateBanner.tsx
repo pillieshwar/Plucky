@@ -16,7 +16,7 @@ export function UpdateBanner({ update, onError }: { update: UpdateStatus; onErro
       <div className="update-banner" role="status">
         <UpdateIcon />
         <p>
-          <strong>Todo City {update.version}</strong> is available — getting it ready
+          <strong>TodoCity {update.version}</strong> is available — getting it ready
           {update.percent !== null ? ` (${update.percent}%)` : ""}…
         </p>
       </div>
@@ -29,7 +29,7 @@ export function UpdateBanner({ update, onError }: { update: UpdateStatus; onErro
     <div className="update-banner" role="status">
       <UpdateIcon />
       <p>
-        <strong>Todo City {update.version}</strong> is ready. Update to get the latest — your tasks stay as they are.
+        <strong>TodoCity {update.version}</strong> is ready. Update to get the latest — your tasks stay as they are.
       </p>
       <div className="update-banner-actions">
         <button type="button" className="link-btn" onClick={() => setDismissed(update.version)}>

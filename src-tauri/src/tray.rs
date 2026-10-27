@@ -31,7 +31,7 @@ const MAX_TITLE: usize = 48;
 /// distance in points from the right edge of the screen — and reads it when
 /// the item is created. Tauri doesn't let us name the item, so AppKit calls
 /// it `Item-0` (the app's first and only status item). That key lives in the
-/// `app.pluck.desktop` defaults, which the rename to Todo City kept, so a spot
+/// `app.pluck.desktop` defaults, which the rename to TodoCity kept, so a spot
 /// the user picks by ⌘-dragging survives updates. Writing a small distance
 /// before the item exists places it as far right as macOS allows. After
 /// this one time the spot is left to the user.
@@ -152,7 +152,7 @@ fn tooltip(app: &AppHandle) -> String {
         n => format!("{n} tasks due today"),
     };
     format!(
-        "Todo City — {due}. Select text and press {}.",
+        "TodoCity — {due}. Select text and press {}.",
         capture_label(app)
     )
 }
@@ -228,8 +228,8 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .try_state::<Shortcuts>()
         .and_then(|s| s.toggle_panel_label())
     {
-        Some(sc) => format!("Open Todo City  {sc}"),
-        None => "Open Todo City".to_string(),
+        Some(sc) => format!("Open TodoCity  {sc}"),
+        None => "Open TodoCity".to_string(),
     };
     menu.append(&MenuItem::with_id(
         app,
@@ -296,7 +296,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "Quit Todo City",
+        "Quit TodoCity",
         true,
         None::<&str>,
     )?)?;

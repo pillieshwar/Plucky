@@ -1,5 +1,5 @@
 {
-  // The Todo City sync relay: stores and forwards encrypted boxes between
+  // The TodoCity sync relay: stores and forwards encrypted boxes between
   // a person's Macs. Deployed by .github/workflows/relay.yml.
   "name": "todocity-relay",
   "main": "src/index.ts",

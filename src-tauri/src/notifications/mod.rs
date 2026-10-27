@@ -108,7 +108,7 @@ fn send(app: &AppHandle, note: Note) {
     }
 }
 
-/// A plain notification without buttons; clicking it opens Todo City.
+/// A plain notification without buttons; clicking it opens TodoCity.
 pub fn send_plain(app: &AppHandle, id: &str, title: String, body: String) {
     send(
         app,
@@ -136,7 +136,7 @@ pub fn send_test(app: &AppHandle) {
         Note {
             id: "todocity-test".into(),
             title: "Notifications are on".into(),
-            body: "Todo City will remind you like this when a task is due.".into(),
+            body: "TodoCity will remind you like this when a task is due.".into(),
             actions: false,
         },
     );
@@ -209,7 +209,7 @@ fn tick(app: &AppHandle) {
                         } else {
                             format!("{count} tasks have no date")
                         },
-                        body: "Open Todo City to plan them.".into(),
+                        body: "Open TodoCity to plan them.".into(),
                         actions: false,
                     },
                 );
@@ -293,7 +293,7 @@ fn tick(app: &AppHandle) {
                     Note {
                         id: SUMMARY_ID.into(),
                         title: "Good morning".into(),
-                        body: format!("{} — open Todo City to plan your day.", summary.text()),
+                        body: format!("{} — open TodoCity to plan your day.", summary.text()),
                         actions: false,
                     },
                 );

@@ -1,6 +1,6 @@
 # Fuzz tests
 
-[cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz) targets for everything in `todocity-core` that reads input Todo City doesn't control:
+[cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz) targets for everything in `todocity-core` that reads input TodoCity doesn't control:
 
 | Target | What it feeds |
 |---|---|

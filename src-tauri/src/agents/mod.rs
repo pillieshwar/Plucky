@@ -301,7 +301,7 @@ impl Agents {
     }
 
     fn receive_from(&self, label: String, source: &str, draft: TaskDraft) -> Result<bool, String> {
-        let busy = "Todo City can't take more tasks right now. Try again later.";
+        let busy = "TodoCity can't take more tasks right now. Try again later.";
         let fp = fingerprint(
             &draft.title,
             draft.due_date.as_deref().or(draft.date_text.as_deref()),
@@ -433,7 +433,7 @@ fn on_submission(app: &AppHandle, sub: Submission) -> Reply {
             } else {
                 format!("{n} tasks to review")
             },
-            "An AI agent sent tasks to Todo City. Open Todo City to add or discard them.".into(),
+            "An AI agent sent tasks to TodoCity. Open TodoCity to add or discard them.".into(),
         );
     }
     Reply {
@@ -444,7 +444,7 @@ fn on_submission(app: &AppHandle, sub: Submission) -> Reply {
 
 /// Listen for `TodoCity --mcp` on the private socket.
 pub fn start(app: &AppHandle) {
-    // Apps connected to a copy of Todo City that has moved: point them here.
+    // Apps connected to a copy of TodoCity that has moved: point them here.
     let command = exe_path();
     if !is_temporary(&command) {
         let _ = std::thread::Builder::new()
@@ -473,10 +473,10 @@ fn listen(app: &AppHandle, socket: &Path) {
     use std::os::unix::fs::PermissionsExt;
     use std::os::unix::net::{UnixListener, UnixStream};
 
-    // A socket left over from a crash; but not one another Todo City is using.
+    // A socket left over from a crash; but not one another TodoCity is using.
     if socket.exists() {
         if UnixStream::connect(socket).is_ok() {
-            log::warn!("another Todo City is listening for agents; not starting a second listener");
+            log::warn!("another TodoCity is listening for agents; not starting a second listener");
             return;
         }
         let _ = std::fs::remove_file(socket);
@@ -506,7 +506,7 @@ fn listen(app: &AppHandle, socket: &Path) {
                 Ok(sub) => on_submission(app, sub),
                 Err(_) => Reply {
                     ok: false,
-                    error: Some("Todo City couldn't read that request.".into()),
+                    error: Some("TodoCity couldn't read that request.".into()),
                 },
             },
             Err(_) => continue,
@@ -529,7 +529,7 @@ pub struct Status {
     pub proactive: bool,
     /// The program AI apps should launch, with `--mcp`.
     pub command: String,
-    /// Todo City is running from somewhere temporary (a disk image, or moved by
+    /// TodoCity is running from somewhere temporary (a disk image, or moved by
     /// macOS Gatekeeper), so the path above won't last.
     pub temporary_location: bool,
     /// Every supported AI app and whether it's set up.
@@ -574,7 +574,7 @@ pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
 }
 
 /// Let agents suggest tasks on their own. In Claude Code this adds (or
-/// removes) a small Todo City subagent; other apps follow the tool description.
+/// removes) a small TodoCity subagent; other apps follow the tool description.
 #[tauri::command]
 pub async fn agents_set_proactive(app: AppHandle, on: bool) -> Status {
     app.state::<Settings>().update(|s| s.agents_proactive = on);
@@ -584,7 +584,7 @@ pub async fn agents_set_proactive(app: AppHandle, on: bool) -> Status {
 
 fn refuse_temporary(command: &str) -> Result<(), String> {
     if is_temporary(command) {
-        Err("Move Todo City to your Applications folder and open it from there first.".into())
+        Err("Move TodoCity to your Applications folder and open it from there first.".into())
     } else {
         Ok(())
     }
@@ -653,7 +653,7 @@ fn self_test() -> Result<String, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("Couldn't start Todo City's MCP server: {e}"))?;
+        .map_err(|e| format!("Couldn't start TodoCity's MCP server: {e}"))?;
     let messages = [
         serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "protocolVersion":"2025-06-18","capabilities":{},
@@ -661,7 +661,7 @@ fn self_test() -> Result<String, String> {
         serde_json::json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
         serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
         serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
-            "name":"add_task","arguments":{"title":"Todo City connection test"}}}),
+            "name":"add_task","arguments":{"title":"TodoCity connection test"}}}),
     ];
     if let Some(mut stdin) = child.stdin.take() {
         for m in &messages {
@@ -683,7 +683,7 @@ fn self_test() -> Result<String, String> {
     let lines = rx.recv_timeout(Duration::from_secs(10));
     let _ = child.kill();
     let _ = child.wait();
-    let lines = lines.map_err(|_| "Todo City's MCP server didn't answer in time.".to_string())?;
+    let lines = lines.map_err(|_| "TodoCity's MCP server didn't answer in time.".to_string())?;
     let replies: Vec<serde_json::Value> = lines
         .iter()
         .filter_map(|l| serde_json::from_str(l).ok())
@@ -694,18 +694,18 @@ fn self_test() -> Result<String, String> {
         .and_then(|r| r["result"]["tools"].as_array().map(Vec::len))
         .unwrap_or(0);
     if tools != 1 {
-        return Err("Todo City's MCP server didn't list its tool.".into());
+        return Err("TodoCity's MCP server didn't list its tool.".into());
     }
     let call = replies
         .iter()
         .find(|r| r["id"] == 3)
-        .ok_or("Todo City's MCP server didn't answer the test task.")?;
+        .ok_or("TodoCity's MCP server didn't answer the test task.")?;
     let text = call["result"]["content"][0]["text"]
         .as_str()
         .unwrap_or_default()
         .to_string();
     if call["result"]["isError"] == false {
-        Ok("Working — AI apps can send tasks to Todo City.".into())
+        Ok("Working — AI apps can send tasks to TodoCity.".into())
     } else {
         Err(text)
     }

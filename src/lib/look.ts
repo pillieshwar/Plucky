@@ -2,7 +2,7 @@ import { weekStartForLocale } from "./calendar";
 import { setClock } from "./schedule";
 import type { AppSettings, LookSettings } from "./types";
 
-/** How Todo City looks before (or without) any choices: the Mac's own calendar and clock. */
+/** How TodoCity looks before (or without) any choices: the Mac's own calendar and clock. */
 export const DEFAULT_LOOK: LookSettings = {
   week_start: "auto",
   clock: "auto",

@@ -23,7 +23,7 @@ type AXUIElementRef = *const c_void;
 type AXError = i32;
 const AX_ERROR_SUCCESS: AXError = 0;
 /// Seconds to wait for another app to answer an AX request. A hung app must
-/// not hang Todo City (the default is 6 s).
+/// not hang TodoCity (the default is 6 s).
 const AX_TIMEOUT_SECS: f32 = 0.35;
 
 #[link(name = "ApplicationServices", kind = "framework")]
@@ -345,7 +345,7 @@ const SKIP_ROLES: &[&str] = &[
 /// `Err(Some((bundle, name)))` when the app in front was turned away, so
 /// the caller can show it without its text ever being read.
 /// Bounded by `max_nodes` and `budget`, and every AX call has a short
-/// timeout, so a busy app can't stall Todo City. Never reads text fields (what
+/// timeout, so a busy app can't stall TodoCity. Never reads text fields (what
 /// the user is typing) or password fields.
 #[allow(unused_unsafe)]
 pub fn front_window_text(

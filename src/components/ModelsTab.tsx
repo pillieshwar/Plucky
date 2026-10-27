@@ -56,7 +56,7 @@ export function ModelsTab({ onChanged }: Props) {
   }
 
   const anyInstalled = models.some((m) => m.installed) || local.added.some((m) => m.available);
-  // Todo City picks the best downloaded model by itself, unless a file you
+  // TodoCity picks the best downloaded model by itself, unless a file you
   // added is in use.
   const catalogInUse = models.some((m) => m.active);
   const best = models.find((m) => m.recommended);
@@ -66,13 +66,13 @@ export function ModelsTab({ onChanged }: Props) {
       <p className="models-intro">
         {anyInstalled
           ? "Runs on this Mac. The best one you've downloaded is used."
-          : "Todo City needs one model. It downloads once and runs on this Mac."}
+          : "TodoCity needs one model. It downloads once and runs on this Mac."}
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
       {best && !best.installed && (
         <div className="model-best">
           <p>
-            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). Todo City switches to it by
+            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). TodoCity switches to it by
             itself once it's downloaded.
           </p>
           {best.progress === null && (
@@ -138,7 +138,7 @@ export function ModelsTab({ onChanged }: Props) {
                 )}
                 {m.installed && !m.active && !catalogInUse && (
                   <button className="primary" onClick={() => void run(m.id, () => api.setActiveModel(m.id))}>
-                    Use Todo City's models
+                    Use TodoCity's models
                   </button>
                 )}
                 {m.installed &&
@@ -265,10 +265,10 @@ function LocalModelsSection({
                 )}
                 <button
                   className="ghost"
-                  title="Todo City forgets this file; the file itself stays where it is."
+                  title="TodoCity forgets this file; the file itself stays where it is."
                   onClick={() => void run(m.id, () => api.removeModelFile(m.id))}
                 >
-                  Remove from Todo City
+                  Remove from TodoCity
                 </button>
               </div>
             </li>

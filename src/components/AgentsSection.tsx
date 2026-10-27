@@ -39,7 +39,7 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
         />
         <Toggle
           label="Let agents suggest tasks on their own"
-          hint="When you mention a deadline or say “remind me”, agents send it to Todo City without being asked — you still approve each one. In Claude Code this adds a small Todo City subagent."
+          hint="When you mention a deadline or say “remind me”, agents send it to TodoCity without being asked — you still approve each one. In Claude Code this adds a small TodoCity subagent."
           checked={status.proactive}
           disabled={!status.enabled}
           onChange={(v) =>
@@ -55,7 +55,7 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
         <div className="setting-line">
           <span className="dot warn" aria-hidden />
           <span className="setting-line-text">
-            Move Todo City to your Applications folder and open it from there — apps connect to it where it is now.
+            Move TodoCity to your Applications folder and open it from there — apps connect to it where it is now.
           </span>
         </div>
       )}
@@ -131,7 +131,7 @@ export function AgentAppList({
   if (installed.length === 0) {
     return (
       <p className="setting-line muted">
-        No AI apps found on this Mac. Todo City works with {status.apps.map((a) => a.name).join(", ")} — install one, then
+        No AI apps found on this Mac. TodoCity works with {status.apps.map((a) => a.name).join(", ")} — install one, then
         come back here.
       </p>
     );
@@ -211,7 +211,7 @@ function AppRow({
   );
 }
 
-/** For apps Todo City doesn't know: the command and JSON to paste. */
+/** For apps TodoCity doesn't know: the command and JSON to paste. */
 function ManualSetup({ command, onError }: { command: string; onError: (m: string | null) => void }) {
   const [copied, setCopied] = useState<string | null>(null);
   const quoted = `"${command}"`;
