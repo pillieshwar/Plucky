@@ -307,9 +307,16 @@ export function AppearancePage(props: SettingsProps) {
               ["last", "Where I left off"],
               ["today", "Today"],
               ["upcoming", "Calendar"],
-              ["all", "Anytime"],
+              ["inbox", "Inbox"],
             ]}
             onChange={(v) => set({ start_list: v })}
+          />
+          <Toggle
+            label="Show completed tasks"
+            hint="Off: they move to Completed, with a “Show” link under each list."
+            checked={look.show_done}
+            disabled={off}
+            onChange={(v) => set({ show_done: v })}
           />
           <Choice
             label="Week starts on"
@@ -490,7 +497,7 @@ export function CityPage(props: SettingsProps) {
     <section className="settings-section">
       <div className="card-stack">
         <Toggle
-          label="Show my city in full screen"
+          label="Show my city in the footer"
           checked={settings?.city_corner ?? true}
           disabled={off}
           onChange={(v) => void save((s) => ({ ...s, city_corner: v }))}

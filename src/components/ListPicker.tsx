@@ -4,8 +4,8 @@ import type { ProjectSummary } from "../lib/types";
 import { ClockIcon } from "./icons";
 
 /**
- * The panel's title, which is also the list menu: Today, Calendar, Anytime,
- * Someday, Logbook, then projects and tags.
+ * The panel's title, which is also the list menu: Today, Calendar, Inbox,
+ * Overdue, Completed, then projects and tags.
  */
 export function ListPicker({
   value,
@@ -17,7 +17,7 @@ export function ListPicker({
 }: {
   value: ListId;
   onChange: (id: ListId) => void;
-  counts: { all: number; today: number; someday: number; overdue?: number };
+  counts: { inbox: number; today: number; overdue?: number };
   projects: ProjectSummary[];
   tags: string[];
   onTag: (tag: string) => void;
@@ -92,10 +92,9 @@ export function ListPicker({
         <div className="lp-menu" role="menu" aria-label="Lists">
           {item("today", "Today", counts.today, <StarIcon />)}
           {item("upcoming", "Calendar", null, <CalIcon />, "week · hours")}
-          {item("all", "Anytime", counts.all, <LinesIcon />)}
+          {item("inbox", "Inbox", counts.inbox, <InboxIcon />, "no project")}
           {item("overdue", "Overdue", counts.overdue ?? 0, <ClockIcon />)}
-          {item("someday", "Someday", counts.someday, <CloudIcon />)}
-          {item("logbook", "Logbook", null, <LogIcon />)}
+          {item("logbook", "Completed", null, <LogIcon />)}
           <div className="lp-sep">Projects</div>
           {projects.length === 0 && <p className="lp-empty">Open a task and choose “Project” to start one.</p>}
           {projects.map((p) => (
@@ -182,6 +181,14 @@ export function LinesIcon() {
   return (
     <svg {...sv}>
       <path d="M3 4.5h10M3 8h10M3 11.5h10" strokeLinecap="round" />
+    </svg>
+  );
+}
+export function InboxIcon() {
+  return (
+    <svg {...sv}>
+      <path d="M2.5 9.5 4 3.5h8l1.5 6v3h-11v-3Z" strokeLinejoin="round" />
+      <path d="M2.5 9.5h3.2l.8 1.5h3l.8-1.5h3.2" strokeLinejoin="round" />
     </svg>
   );
 }

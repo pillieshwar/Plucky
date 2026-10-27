@@ -202,7 +202,7 @@ export interface ViewMode {
 export interface LookSettings {
   week_start: "auto" | "sun" | "mon" | "sat";
   clock: "auto" | "12" | "24";
-  start_list: "last" | "today" | "upcoming" | "all";
+  start_list: "last" | "today" | "upcoming" | "inbox" | "all";
   /** Notes and sub-tasks under each task in full screen. */
   details: boolean;
   accent: "purple" | "blue" | "green" | "orange" | "pink";
@@ -213,6 +213,12 @@ export interface LookSettings {
   mayor_look: "man" | "woman";
   /** Full screen's right-hand pane width in points (0: the default). */
   side_width: number;
+  /** Full screen's right-hand pane is open. */
+  side_open: boolean;
+  /** Show finished tasks in the lists (they're always in Completed). */
+  show_done: boolean;
+  /** List or board, per view ("inbox", "project:<name>"). */
+  list_views: Record<string, "list" | "board">;
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */

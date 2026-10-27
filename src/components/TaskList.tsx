@@ -325,9 +325,10 @@ function TaskRow({
                 ),
               )}
             </span>
-            <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} />
+            <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} whenOnly={rich} />
           </div>
         </div>
+        {rich && <RowSub task={task} inProject={inProject} onOpenProject={onOpenProject} hasNotes={details && !!task.notes} />}
         {rich && details && (task.notes || (task.checklist?.length ?? 0) > 0) && (
           <div className="task-extra" data-nodrag>
             {task.notes && <Notes text={task.notes} onEdit={() => onOpenTask(task.id)} onError={actions.fail} />}
@@ -352,6 +353,7 @@ function RowMeta({
   inProject,
   onOpenProject,
   onError,
+  whenOnly,
 }: {
   task: Task;
   now: Date;
@@ -359,6 +361,8 @@ function RowMeta({
   inProject: string | null;
   onOpenProject: (name: string) => void;
   onError: (e: unknown) => void;
+  /** Full screen: just when (and the deadline) on the right; the rest goes under the title. */
+  whenOnly?: boolean;
 }) {
   const w = useWords();
   const parts: ReactNode[] = [];
@@ -367,6 +371,19 @@ function RowMeta({
   const dl = deadlineChip(task, now, locale);
   if (dl) parts.push(<span key="dl" className={dl.tone === "overdue" ? "late" : undefined}>{dl.label}</span>);
   if (task.paused && !task.done) parts.push(<span key="p">Paused</span>);
+  if (whenOnly) {
+    if (!parts.length) return null;
+    return (
+      <div className="task-meta">
+        {parts.map((p, i) => (
+          <span key={i} className="meta-part">
+            {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
+            {p}
+          </span>
+        ))}
+      </div>
+    );
+  }
   const steps = task.checklist ?? [];
   if (steps.length) parts.push(<span key="s">{stepsLabel(steps)} {w.steps}</span>);
   const link = firstLink(task.notes);
@@ -411,8 +428,68 @@ function RowMeta({
   );
 }
 
+/**
+ * Full screen: one quiet line under the title — its project (when it isn't
+ * the one on screen), its repeat, where it came from, and its link when
+ * the notes don't already show it.
+ */
+function RowSub({
+  task,
+  inProject,
+  onOpenProject,
+  hasNotes,
+}: {
+  task: Task;
+  inProject: string | null;
+  onOpenProject: (name: string) => void;
+  hasNotes: boolean;
+}) {
+  const parts: ReactNode[] = [];
+  if (task.project && task.project !== inProject) {
+    parts.push(
+      <button key="pr" type="button" className="meta-link" data-nodrag onClick={() => onOpenProject(task.project!)}>
+        <span className="task-project-dot" aria-hidden />
+        {task.project}
+        {task.heading ? ` · ${task.heading}` : ""}
+      </button>,
+    );
+  }
+  const repeat = repeatShort(task.recurrence);
+  if (repeat) parts.push(<span key="r">{repeat}</span>);
+  const link = hasNotes ? null : firstLink(task.notes);
+  if (link) {
+    parts.push(
+      <a
+        key="l"
+        href={link}
+        data-nodrag
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void api.openUrl(link);
+        }}
+      >
+        ↗ {linkHost(link)}
+      </a>,
+    );
+  }
+  const source = sourceLabel(task);
+  if (source) parts.push(<span key="src">from {source}</span>);
+  if (!parts.length) return null;
+  return (
+    <div className="task-sub">
+      {parts.map((p, i) => (
+        <span key={i} className="meta-part">
+          {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
+          {p}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** "Tuesday" (late), "4:26 PM", "in 40 min", "Evening". */
-function whenText(t: Task, now: Date, locale: string): { text: string; late?: boolean; soon?: boolean } | null {
+export function whenText(t: Task, now: Date, locale: string): { text: string; late?: boolean; soon?: boolean } | null {
   if (t.done) return null;
   const chip = dueChip(t, now, locale);
   const time = t.due_time ? timeLabel(t.due_time, locale) : null;
@@ -430,12 +507,12 @@ function whenText(t: Task, now: Date, locale: string): { text: string; late?: bo
   return null;
 }
 
-function firstLink(notes: string | null): string | null {
+export function firstLink(notes: string | null): string | null {
   if (!notes) return null;
   return linkParts(notes).find((p) => p.url)?.url ?? null;
 }
 
-function shortUrl(url: string): string {
+export function shortUrl(url: string): string {
   const s = url.replace(/^(https?:\/\/(www\.)?|mailto:)/i, "").replace(/\/$/, "");
   return s.length > 28 ? `${s.slice(0, 27)}…` : s;
 }
@@ -832,7 +909,7 @@ function Notes({ text, onEdit, onError }: { text: string; onEdit: () => void; on
               void api.openUrl(p.url!).catch(onError);
             }}
           >
-            {p.url.replace(/^(https?:\/\/(www\.)?|mailto:)/i, "")}
+            ↗ {linkHost(p.url)}
           </a>
         ) : (
           <span key={i}>{p.text}</span>
@@ -840,6 +917,16 @@ function Notes({ text, onEdit, onError }: { text: string; onEdit: () => void; on
       )}
     </p>
   );
+}
+
+/** "docs.example.com" for a link (an email address for mailto:). */
+export function linkHost(url: string): string {
+  if (/^mailto:/i.test(url)) return url.slice(7);
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return shortUrl(url);
+  }
 }
 
 function EmptyArt() {

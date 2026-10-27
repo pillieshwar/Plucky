@@ -74,95 +74,6 @@ function useDark(): boolean {
 }
 
 
-/** The city in the corner of full screen: a still picture, its name and this week's count. */
-export function CityCard({
-  city,
-  name,
-  now,
-  onOpen,
-  onShare,
-  onHide,
-}: {
-  city: City;
-  name: string | null;
-  now: Date;
-  onOpen: () => void;
-  onShare: () => void;
-  onHide: () => void;
-}) {
-  const stats = useMemo(() => cityStats(city, "week", now), [city, now]);
-  const [small, setSmall] = useState(() => {
-    try {
-      return localStorage.getItem("todocity.cityCard") === "small";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("todocity.cityCard", small ? "small" : "big");
-    } catch {
-      // The choice lasts this session.
-    }
-  }, [small]);
-  // A soft glow when a new window lights up.
-  const [pulse, setPulse] = useState(false);
-  const lastTotal = useRef(city.total);
-  useEffect(() => {
-    // Not when the city first loads: only for windows lit while you watch.
-    if (lastTotal.current > 0 && city.total > lastTotal.current) {
-      setPulse(true);
-      const t = window.setTimeout(() => setPulse(false), 1400);
-      lastTotal.current = city.total;
-      return () => window.clearTimeout(t);
-    }
-    lastTotal.current = city.total;
-  }, [city.total]);
-
-  const title = name ?? "Your city";
-  if (small) {
-    return (
-      <button type="button" className={pulse ? "city-pill lit-up" : "city-pill"} onClick={() => setSmall(false)} title="Show your city">
-        <BuildingIcon />
-        <span>{title}</span>
-        <span className="city-pill-count">{stats.inRange}</span>
-      </button>
-    );
-  }
-  return (
-    <div className={pulse ? "city-card lit-up" : "city-card"}>
-      <button type="button" className="city-card-art" onClick={onOpen} aria-label={`Open ${title}`} title="Open your city">
-        <City3D city={city} range="week" now={now} still />
-      </button>
-      <div className="city-card-tools">
-        <button type="button" onClick={onShare} aria-label="Share a picture of your city" title="Share">
-          <ShareIcon />
-        </button>
-        <button type="button" onClick={onOpen} aria-label="Open your city" title="Open">
-          <ExpandIcon />
-        </button>
-        <button type="button" onClick={() => setSmall(true)} aria-label="Make the city card small" title="Make small">
-          <svg width="11" height="11" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
-            <path d="M2.5 6h7" />
-          </svg>
-        </button>
-      </div>
-      <div className="city-card-foot">
-        <div className="city-card-text">
-          <span className="city-card-name">{name ?? "Name your city"}</span>
-          <span className="city-card-sub">
-            Population {city.total} · +{stats.inRange} this week
-          </span>
-        </div>
-        {stats.today > 0 && <span className="city-card-today">+{stats.today} today</span>}
-        <button type="button" className="city-card-hide" onClick={onHide} title="Hide (turn it back on in Settings → Your city)">
-          Hide
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
  * The city, opened over full screen: turn it, zoom in, click a building to
  * go to its project, rename the city, share a picture of it.
@@ -645,28 +556,6 @@ function ShareSheet({
   );
 }
 
-export function BuildingIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d="M2.5 14V6.5l4-2v9.5M6.5 14V2.5l7 2.5V14M1.5 14h13" strokeLinejoin="round" />
-      <path d="M9 6.5h2M9 9h2M9 11.5h2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ShareIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-      <path d="M8 10V2.5M5 5.5l3-3 3 3M3.5 8.5v4a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ExpandIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
-      <path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function PencilIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -864,5 +753,13 @@ function Celebration({ name, fresh, onClose }: { name: string; fresh: Milestone[
         </div>
       </div>
     </div>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M8 10V2.5M5 5.5l3-3 3 3M3.5 8.5v4a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
