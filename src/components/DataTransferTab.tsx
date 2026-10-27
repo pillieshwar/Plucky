@@ -82,7 +82,7 @@ export function DataTransferTab({ onFinished }: { onFinished: () => void }) {
   }, [source]);
   return (
     <div className="transfer">
-      <div className="tr-sources" role="tablist" aria-label="Move in from">
+      <div className="tr-sources" role="tablist" aria-label="Import from">
         {(
           [
             ["things", "Things 3", "Reads it on this Mac", <ThingsGlyph key="g" />],
@@ -178,7 +178,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
       <header className="tr-hero">
         <ThingsGlyph />
         <div>
-          <h2 className="tr-title">Move in from Things 3</h2>
+          <h2 className="tr-title">Import from Things 3</h2>
           <p className="tr-sub">
             Projects, headings, to-dos, checklists and Logbook. Things isn't changed.
           </p>
@@ -200,7 +200,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
             Logbook.
           </li>
           <li>
-            <b>Click Move in.</b> TodoCity backs itself up first. You can keep using Things and move in again later —
+            <b>Click Import.</b> TodoCity backs itself up first. You can keep using Things and import again later —
             only new to-dos come across.
           </li>
         </ol>
@@ -334,7 +334,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
       <header className="tr-hero">
         <TodoistGlyph />
         <div>
-          <h2 className="tr-title">Move in from Todoist</h2>
+          <h2 className="tr-title">Import from Todoist</h2>
           <p className="tr-sub">
             Projects, sections, tasks, labels, comments and completed tasks. Todoist isn't changed; your token isn't saved.
           </p>
@@ -356,7 +356,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
             tasks and turn priorities into tags.
           </li>
           <li>
-            <b>Click Move in.</b> TodoCity backs itself up first. You can keep using Todoist and move in again later —
+            <b>Click Import.</b> TodoCity backs itself up first. You can keep using Todoist and import again later —
             only new tasks come across.
           </li>
         </ol>
@@ -457,7 +457,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
   );
 }
 
-/** The preview: what was found, options, buildings to tick, and Move in. */
+/** The preview: what was found, options, buildings to tick, and Import. */
 function PreviewPanel({
   m,
   found,
@@ -497,7 +497,7 @@ function PreviewPanel({
 
   const p = found.preview;
   return (
-    <section className="tr-preview" aria-label="What will move in">
+    <section className="tr-preview" aria-label="What will be imported">
       <p className="tr-found" title={found.title}>
         {found.line}
       </p>
@@ -560,7 +560,7 @@ function PreviewPanel({
 
       <div className="tr-actions">
         <button type="button" className="primary" disabled={moving || toMove === 0} onClick={() => void move()}>
-          {moving ? "Moving in…" : toMove === 0 ? "Nothing new to move in" : `Move in ${plural(toMove, unit)}`}
+          {moving ? "Importing…" : toMove === 0 ? "Nothing new to import" : `Import ${plural(toMove, unit)}`}
         </button>
         {other}
       </div>
@@ -574,8 +574,8 @@ function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport;
       <h3>Welcome home.</h3>
       <p>
         {report.added
-          ? `${plural(report.added, "task")} moved in${report.done ? ` — ${plural(report.done, "window")} lit up in your city` : ""}.`
-          : "Everything was already here — nothing new to move in."}
+          ? `${plural(report.added, "task")} imported${report.done ? ` — ${plural(report.done, "window")} lit up in your city` : ""}.`
+          : "Everything was already here — nothing new to import."}
         {report.skipped > 0 && ` ${plural(report.skipped, "task")} were already here.`}
         {report.failed > 0 && ` ${plural(report.failed, "task")} couldn't be read and stayed in ${app}.`}
       </p>
@@ -588,7 +588,7 @@ function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport;
           See your tasks
         </button>
         <button type="button" className="ghost" onClick={onAgain}>
-          Move in again
+          Import again
         </button>
       </div>
     </section>

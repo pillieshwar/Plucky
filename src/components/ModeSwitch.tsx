@@ -19,7 +19,8 @@ export function ModeSwitch({
   /** Open Preferences → Modes. */
   onEdit?: () => void;
   /** "side": full width in the sidebar; "chip": small, in a header. */
-  variant?: "side" | "chip";
+  /** side: the full-screen sidebar; chip: a header pill; icon: just the icon, where room is tight. */
+  variant?: "side" | "chip" | "icon";
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -68,7 +69,9 @@ export function ModeSwitch({
         <span className="mode-icon" aria-hidden>
           {mode ? mode.icon : "◎"}
         </span>
-        <span className="mode-name">{mode ? (variant === "side" ? mode.name : `${mode.name} mode`) : "Everything"}</span>
+        <span className={variant === "icon" ? "mode-name sr-only" : "mode-name"}>
+          {mode ? (variant === "side" ? mode.name : `${mode.name} mode`) : "Everything"}
+        </span>
         <svg className="mode-caret" width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
           <path d="M3.5 6 8 10.5 12.5 6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

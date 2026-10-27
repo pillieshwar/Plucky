@@ -146,6 +146,7 @@ export interface AppSettings {
   capture_in_menu_bar: boolean;
   theme: Theme;
   theme_v2?: boolean;
+  look_v2?: boolean;
   /** Press ⌘C twice to capture. */
   double_copy: boolean;
   /** The name the user gave their city; null until they name it. */

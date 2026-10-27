@@ -48,6 +48,10 @@ pub struct AppSettings {
     /// (Missing in older files, so it reads as false there.)
     #[serde(default)]
     pub theme_v2: bool,
+    /// 0.4.53 made compact rows (and lists rather than boards) the default;
+    /// settings from before were moved over once.
+    #[serde(default)]
+    pub look_v2: bool,
     /// Press ⌘C twice quickly to capture what was just copied.
     pub double_copy: bool,
     /// The name the user gave their city (every finished task lights a window).
@@ -133,7 +137,7 @@ impl Default for LookSettings {
             accent: "purple".into(),
             city_sky: "auto".into(),
             city_motion: true,
-            compact: false,
+            compact: true,
             mayor_look: "man".into(),
             side_width: 0,
             side_open: true,
@@ -292,6 +296,7 @@ impl Default for AppSettings {
             calendar_hidden: Vec::new(),
             theme: "dark".into(),
             theme_v2: true,
+            look_v2: true,
             double_copy: true,
             city_name: None,
             city_corner: true,
@@ -326,13 +331,19 @@ impl Settings {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
-        let migrate = !value.theme_v2;
-        if migrate {
+        let migrate = !value.theme_v2 || !value.look_v2;
+        if !value.theme_v2 {
             // Dark is the default from 0.4.27; "follow the Mac" moves over once.
             if value.theme == "system" {
                 value.theme = "dark".into();
             }
             value.theme_v2 = true;
+        }
+        if !value.look_v2 {
+            // Compact rows and lists are the defaults from 0.4.53.
+            value.look.compact = true;
+            value.look.list_views.clear();
+            value.look_v2 = true;
         }
         let me = Self {
             path,
@@ -417,7 +428,7 @@ mod tests {
         assert_eq!(odd.week_start, "auto");
         assert_eq!(odd.clock, "24");
         assert_eq!(odd.accent, "purple");
-        assert!(odd.details && odd.city_motion && !odd.compact);
+        assert!(odd.details && odd.city_motion && odd.compact);
     }
 
     #[test]
@@ -435,6 +446,8 @@ mod tests {
         // Modes arrive with 0.4.48: Work and Personal, none on yet.
         assert_eq!(s.modes, ViewMode::defaults());
         assert!(s.mode.is_none() && s.open_full);
+        // Compact rows from 0.4.53.
+        assert!(s.look.compact && s.look_v2);
     }
 
     #[test]

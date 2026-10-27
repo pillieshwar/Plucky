@@ -208,12 +208,12 @@ The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, 
 
 ## Moving from Things 3
 
-Settings → **Move in** brings your whole Things 3 library into TodoCity. It all happens on your Mac: TodoCity reads a copy of Things' database, and Things itself isn't changed, so you can keep using it while you try TodoCity.
+Settings → **Import Data** brings your whole Things 3 library into TodoCity. It all happens on your Mac: TodoCity reads a copy of Things' database, and Things itself isn't changed, so you can keep using it while you try TodoCity.
 
 1. **Open Things 3 on this Mac** and let it finish syncing. If you only use Things on iPhone or iPad, install Things 3 for Mac and sign in to Things Cloud first.
-2. In TodoCity, open **Settings → Move in** and click **Find my Things library**. If macOS asks whether TodoCity may access data from other apps, click **Allow**.
+2. In TodoCity, open **Settings → Import Data** and click **Find my Things library**. If macOS asks whether TodoCity may access data from other apps, click **Allow**.
 3. **Check the preview.** Untick any project you'd rather leave behind, and choose whether to bring the Logbook and cancelled to-dos.
-4. **Click Move in.** TodoCity backs itself up first (Settings → Backups & export → "before import"), so you can undo it.
+4. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"), so you can undo it.
 
 Running it again later only brings to-dos that are new since last time, even if you've deleted some here.
 
@@ -236,12 +236,12 @@ Trashed to-dos stay behind. **Can't find your library?** Click **Choose the data
 
 ## Moving from Todoist
 
-Settings → **Move in** → **Todoist** brings your Todoist into TodoCity. Todoist isn't changed, so you can keep using it while you try TodoCity.
+Settings → **Import Data** → **Todoist** brings your Todoist into TodoCity. Todoist isn't changed, so you can keep using it while you try TodoCity.
 
 1. In Todoist (web or app), open **Settings → Integrations → Developer** and click **Copy API token**.
 2. In TodoCity, paste it and click **Connect**. TodoCity reads your projects, sections, tasks, sub-tasks, labels, comments and completed tasks straight from Todoist's servers to your Mac. The token is used for that and never saved; big accounts take a minute while completed tasks come in, year by year.
 3. **Check the preview.** Untick any project you'd rather leave behind; choose whether to bring completed tasks and whether priorities 1–3 become `#p1`–`#p3`.
-4. **Click Move in.** TodoCity backs itself up first (Settings → Backups & export → "before import"). Running it again later only brings tasks that are new since last time.
+4. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"). Running it again later only brings tasks that are new since last time.
 
 **No token?** Export each project with **⋯ → Export as CSV** in Todoist (or, on Pro, download a backup from Settings → Backups and unzip it), then choose **No token? Use CSV files instead** and pick all the .csv files. CSV exports don't include completed tasks, so your city starts dark.
 

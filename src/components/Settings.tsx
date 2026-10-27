@@ -60,7 +60,7 @@ export const PAGE_GROUPS: { label: string; pages: PageInfo[] }[] = [
   {
     label: "Data",
     pages: [
-      { id: "movein", label: "Move in", glyph: "↓", tone: "gray" },
+      { id: "movein", label: "Import Data", glyph: "↓", tone: "gray" },
       { id: "backups", label: "Backups & export", glyph: "⛁", tone: "gray" },
       { id: "help", label: "Help", glyph: "?", tone: "gray" },
     ],

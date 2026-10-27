@@ -467,7 +467,7 @@ export default function Popover() {
               )}
             </IconButton>
           )}
-          <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => void api.openMain(null, "settings")} />
+          <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => void api.openMain(null, "settings")} variant="icon" />
           <IconButton label="Open TodoCity" onClick={() => void api.openMain(null, null)}>
             <rect x="2.5" y="3" width="11" height="10" rx="2" />
             <path d="M9.5 3v10" />
