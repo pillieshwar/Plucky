@@ -61,3 +61,8 @@ reason = "zbus_names is unmaintained; only used by zbus (D-Bus) under notify-rus
 id = "RUSTSEC-2026-0372"
 ignoreUntil = 2027-01-26
 reason = "zvariant_derive is unmaintained; only used by zbus (D-Bus) under notify-rust, for Linux notifications. Not compiled for macOS (macOS uses UserNotifications directly)."
+
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-15
+reason = "block-buffer 0.10.4 via digest 0.10 (sha2). The fix is only in 0.12.1, which digest 0.10 can't use. The bug needs a panic caught mid-hash and the buffer reused; TodoCity never catches panics around hashing."
