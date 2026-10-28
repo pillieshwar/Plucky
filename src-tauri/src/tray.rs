@@ -78,10 +78,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 popover::toggle(tray.app_handle(), rect);
             }
         });
-    // A black-on-transparent template image: macOS tints it to match the
-    // menu bar (dark or light, highlighted or not).
-    match tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png")) {
-        Ok(icon) => tray = tray.icon(icon).icon_as_template(true),
+    // A colour icon, not a template image: the app icon's building with its
+    // three gold windows. Its indigo and gold read on light and dark menu bars.
+    match tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png")) {
+        Ok(icon) => tray = tray.icon(icon).icon_as_template(false),
         Err(e) => {
             log::warn!("tray icon failed to load: {e}");
             if let Some(icon) = app.default_window_icon() {
