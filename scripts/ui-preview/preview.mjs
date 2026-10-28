@@ -1206,8 +1206,7 @@ await shot("full-transfer-sync-start", FULL, full({ settings: DARK }), async (p)
   await p.getByRole("button", { name: "Find my Things library" }).click();
   await p.getByRole("switch", { name: /Keep in sync/ }).waitFor();
   await p.getByRole("button", { name: /^Import \d/ }).click();
-  await p.locator(".tr-done").waitFor();
-  if (!(await p.locator(".tr-done").textContent()).includes("flow in on their own")) throw new Error("done message should say it keeps syncing");
+  await p.locator(".tr-done", { hasText: "flow in on their own" }).waitFor({ timeout: 5000 });
 });
 await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
   await tab(p, "Data transfer");
