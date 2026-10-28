@@ -71,3 +71,42 @@ export function sourceLabel(task: Pick<Task, "source_app" | "source_url">): stri
   }
   return task.source_app;
 }
+
+/** Priority names, by number (1 is the most urgent). */
+export const PRIORITIES: { n: 1 | 2 | 3; label: string; name: string; color: string }[] = [
+  { n: 1, label: "P1", name: "Urgent", color: "#ef5b4f" },
+  { n: 2, label: "P2", name: "High", color: "#f0a03c" },
+  { n: 3, label: "P3", name: "Medium", color: "#5b9cf5" },
+];
+
+export function priorityColor(p: number | undefined | null): string | null {
+  return PRIORITIES.find((x) => x.n === p)?.color ?? null;
+}
+
+const PRIORITY_WORD = /(^|\s)p([1-3])(?=\s|$)/i;
+
+/** "call the bank p1" → priority 1 and "call the bank". The last one typed wins. */
+export function takePriority(title: string): { priority: number | null; rest: string; matched: string | null } {
+  let priority: number | null = null;
+  let matched: string | null = null;
+  let rest = title;
+  for (;;) {
+    const m = PRIORITY_WORD.exec(rest);
+    if (!m) break;
+    priority = Number(m[2]);
+    matched = `p${m[2]}`;
+    rest = (rest.slice(0, m.index) + rest.slice(m.index + m[0].length)).replace(/\s+/g, " ");
+  }
+  return { priority, rest: priority ? rest.trim() : title, matched };
+}
+
+/** Add or remove `#tag` in a title. */
+export function toggleTag(title: string, tag: string): string {
+  const t = tag.startsWith("#") ? tag : `#${tag}`;
+  const has = tagsOf(title).includes(t.toLowerCase());
+  if (has) {
+    const re = new RegExp(`(^|\\s)${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`, "iu");
+    return title.replace(re, "").replace(/\s+/g, " ").trim();
+  }
+  return `${title.trim()} ${t}`.trim();
+}

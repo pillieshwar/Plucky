@@ -1,0 +1,32 @@
+{
+  "0.4.55": [
+    "A cleaner Add Task: chips for where it goes, its date and time; icons for priority, deadline, sub-tasks and tags",
+    "Priority: P1, P2 and P3 — click the flag, or type p1 in a task",
+    "A repeating task with a deadline stops at its deadline",
+    "Open tasks use the same clean card, in the list and in the side pane",
+    "Grey icons, Settings next to your name, and a slimmer footer",
+    "Personal mode by default, with Home and Office projects"
+  ],
+  "0.4.54": ["A cleaner logo, and a colour menu-bar icon"],
+  "0.4.53": [
+    "Calendar week lines line up",
+    "Boards fill the screen, with their scrollbar at the bottom",
+    "A keyboard shortcuts window — change your shortcuts there",
+    "Lists by default, with compact rows",
+    "Move In is now Import Data"
+  ],
+  "0.4.52": [
+    "Inbox: tasks in no project, as a list or a board",
+    "Calmer rows with rounded checkboxes",
+    "A footer with the AI model, your city and the version",
+    "Show or hide the calendar pane; Logbook is now Completed"
+  ],
+  "0.4.51": ["TodoCity, one word, everywhere"],
+  "0.4.50": [
+    "Pick a floor when adding a task",
+    "Drag tasks onto buildings and floors",
+    "A resizable right pane",
+    "The version in the corner, with Update",
+    "A 3D mayor"
+  ]
+}

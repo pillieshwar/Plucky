@@ -51,7 +51,7 @@ const TODOIST_MAP: [string, string][] = [
   ["Task", "Task (a home)"],
   ["Sub-tasks (any depth)", "Sub-tasks — their own dates are dropped"],
   ["Labels", "#tags on the task"],
-  ["Priority 1–3", "#p1, #p2, #p3 (if you choose)"],
+  ["Priority 1–3", "Priority P1, P2, P3"],
   ["Description and comments", "Notes"],
   ["Date and time", "Day and time of day"],
   ["Deadline", "Deadline"],
@@ -428,12 +428,6 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
                 disabled={kind === "csv"}
                 label="Bring completed tasks"
                 hint={kind === "csv" ? "CSV files don't include completed tasks — connect with a token for those." : "Each one comes as a done task — a lit window in your city."}
-              />
-              <Toggle
-                checked={m.priorityTags}
-                onChange={m.setPriorityTags}
-                label="Turn priorities into tags"
-                hint="Priority 1, 2 and 3 become #p1, #p2 and #p3."
               />
             </>
           }

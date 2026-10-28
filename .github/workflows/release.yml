@@ -161,9 +161,11 @@ jobs:
           url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/TodoCity.app.tar.gz"
           sig = open("dist-release/TodoCity.app.tar.gz.sig").read().strip()
           entry = {"signature": sig, "url": url}
+          # What's new in this version (src/whats-new.json), for the update card.
+          new = json.load(open("src/whats-new.json")).get(tag.lstrip("v"), [])
           manifest = {
               "version": tag.lstrip("v"),
-              "notes": f"TodoCity {tag}",
+              "notes": "\n".join(f"- {line}" for line in new) or f"TodoCity {tag}",
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
           }
@@ -218,10 +220,19 @@ jobs:
           **Verify your download** (optional): `gh attestation verify TodoCity-macOS.dmg --repo REPO` confirms it was built by this repository's release workflow. The signed provenance is also attached as `TodoCity.intoto.jsonl`, for checking offline with `--bundle`.
           EOF
           sed -i '' "s#REPO#${GITHUB_REPOSITORY}#g" notes.md
+          # What's new first, from src/whats-new.json (the app shows the same lines).
+          python3 - <<'PY'
+          import json, os
+          lines = json.load(open("src/whats-new.json")).get(os.environ["TAG"].lstrip("v"), [])
+          body = open("notes.md").read()
+          if lines:
+              body = "## What's new\n\n" + "".join(f"- {l}\n" for l in lines) + "\n" + body
+          open("notes.md", "w").write(body)
+          PY
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — replacing its files"
             gh release upload "$TAG" dist-release/* --clobber
-            gh release edit "$TAG" --title "TodoCity $TAG"
+            gh release edit "$TAG" --title "TodoCity $TAG" --notes-file notes.md
           else
             # Creates the tag on this commit if it doesn't exist yet.
             gh release create "$TAG" dist-release/* --target "$GITHUB_SHA" \

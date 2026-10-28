@@ -17,7 +17,7 @@ import { MonthCalendar } from "./components/MonthCalendar";
 import { applyLook, lookOf, weekStartOf } from "./lib/look";
 import { ProjectColors } from "./lib/colors";
 import { Toasts, useToasts } from "./components/Toasts";
-import { ClockIcon, GearIcon, PlusIcon, SearchIcon } from "./components/icons";
+import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
 import { WeekView } from "./components/WeekView";
 import { WeekStrip } from "./components/WeekStrip";
@@ -44,10 +44,11 @@ import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
 import { groupByHeading, groupInbox, headingsOf, inboxColumnDay, type InboxColumn, listTitle, normalizeList, projectList, projectOf, tasksForList, type ListId } from "./lib/lists";
-import { CalIcon, InboxIcon, ListPicker, LogIcon, Pie, StarIcon } from "./components/ListPicker";
+import { ListPicker } from "./components/ListPicker";
 import { Logbook } from "./components/Logbook";
 import type { ProjectInfo } from "./components/ProjectPicker";
 import { ProjectHeader } from "./components/ProjectHeader";
+import { LineIcon } from "./components/LineIcon";
 import { BatchBar } from "./components/BatchBar";
 import { taskActions } from "./lib/taskActions";
 import { dueNow } from "./lib/due";
@@ -462,7 +463,8 @@ export default function App() {
   }, []);
   async function addFromPlan(task: NewTask) {
     try {
-      await api.addTask(task);
+      // A column that says where its tasks go (Inbox's) keeps them there.
+      await api.addTask(task, "project" in task);
       show(
         task.due_time
           ? `Added at ${timeLabel(task.due_time, LOCALE)}`
@@ -603,6 +605,15 @@ export default function App() {
   const places = useMemo(
     () => city.buildings.filter((b) => b.project).map((b) => ({ name: b.project!, floors: b.floors.filter((f) => f.name).map((f) => f.name!) })),
     [city],
+  );
+  // Projects and every floor they have (empty ones too), to pick from.
+  const fieldPlaces: ProjectInfo[] = useMemo(
+    () =>
+      projectInfos.map((p) => ({
+        name: p.name,
+        headings: [...new Set([...(places.find((x) => x.name === p.name)?.floors ?? []), ...p.headings])],
+      })),
+    [projectInfos, places],
   );
 
   // Keyboard: Esc, undo, search and list navigation.
@@ -899,9 +910,6 @@ export default function App() {
   const w = full ? CITY : PLAIN;
   const floorShown = floorOpen ? city.buildings.find((b) => b.project === floorOpen.project)?.floors.find((f) => f.name === floorOpen.floor) : undefined;
   const floorTitle = floorShown?.label ?? (floorOpen?.floor ? floorOpen.floor : CITY.looseHeading);
-  const floorSub = floorOpen
-    ? `${CITY.progress(floorShown?.rooms.filter((r) => !r.lit).length ?? 0, floorShown?.rooms.filter((r) => r.lit).length ?? 0)}`
-    : "";
   const weekDays = sevenDays(planDay);
   const rangeText = (() => {
     const a = parseISODate(weekDays[0]);
@@ -912,6 +920,9 @@ export default function App() {
       return `${a.toLocaleDateString(LOCALE)} – ${b.toLocaleDateString(LOCALE)}`;
     }
   })();
+  // Full screen's header says only what nothing else on screen says: the
+  // day on Today, the week on Calendar. Counts live in the sidebar.
+  const fullSub = tab !== "tasks" ? "" : list === "today" && !floorOpen ? now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" }) : upcoming ? rangeText : "";
   const subText =
     tab !== "tasks"
       ? page === "model"
@@ -1028,7 +1039,8 @@ export default function App() {
   );
   const listEl = tasksShown && (
     <>
-      {showList && viewedProject !== null && !floorOpen && (
+      {/* The side panel has no sidebar, so a project's own actions sit at its top. */}
+      {showList && !full && viewedProject !== null && !floorOpen && (
         <ProjectHeader
           name={viewedProject}
           stats={projectStats.find((p) => p.name === viewedProject) ?? null}
@@ -1050,29 +1062,24 @@ export default function App() {
       )}
       {showList && adding && list !== "logbook" && (
         <AddTaskForm
-          places={places}
-          roomy={full}
+          places={fieldPlaces}
+          tags={tags}
+          compact={!full}
           locale={LOCALE}
           defaultDay={list === "today" ? today : null}
-          projects={projectInfos.map((p) => p.name)}
-          extra={
+          defaultPlace={
             viewedProject !== null
               ? { project: viewedProject, heading: floorOpen ? floorOpen.floor : addHeading }
               : list === "inbox"
-                ? { project: null }
-                : undefined
+                ? { project: null, heading: null }
+                : { project: mode?.new_task_project ?? null, heading: null }
           }
-          context={
-            viewedProject !== null
-              ? `${w.inProject(viewedProject)}${(floorOpen ? floorOpen.floor : addHeading) ? ` · ${floorOpen ? floorOpen.floor : addHeading}` : ""}`
-              : undefined
-          }
-          placeholder="What needs doing? Try “send deck fri 3pm @Work”"
+          placeholder="What needs doing? Try “send deck fri 3pm p1”"
           onAdd={async (task) => {
             try {
               // No day and no project: it waits in Inbox's Someday until you plan it.
               const loose = !task.due_date && !task.project && !task.someday;
-              await api.addTask(loose ? { ...task, someday: true } : task);
+              await api.addTask(loose ? { ...task, someday: true } : task, true);
               show(
                 task.due_date
                   ? `Added for ${relativeLabel(task.due_date, new Date(), LOCALE).toLowerCase()}`
@@ -1125,7 +1132,8 @@ export default function App() {
           filtered={!!query.trim()}
           focusToday={focusToday}
           today={today}
-          projects={projectInfos}
+          projects={fieldPlaces}
+          tags={tags}
           inProject={viewedProject}
           onOpenProject={openProject}
           selected={selected}
@@ -1243,9 +1251,6 @@ export default function App() {
         setFocusId(next);
       }
     };
-    const crumbs = openTask
-      ? [openTask.project ?? listTitle(list), ...(openTask.project && openTask.heading ? [openTask.heading] : [])]
-      : [];
     // A task opens in place in the list; one that isn't in it (picked from the
     // calendar or the hours) opens in the detail pane.
     const inList = openTask ? flat.some((t) => t.id === openTask.id) && !upcoming && !boardView : false;
@@ -1259,9 +1264,9 @@ export default function App() {
         actions={actions}
         now={now}
         locale={LOCALE}
-        projects={projectInfos}
+        projects={fieldPlaces}
+        tags={tags}
         command={command}
-        crumbs={crumbs}
         onClose={() => setOpenId(null)}
         onStep={ids.includes(openTask.id) ? stepTask : undefined}
       />
@@ -1484,7 +1489,7 @@ export default function App() {
               <SidebarIcon />
             </button>
             <span className="fh-icon" aria-hidden>
-              {tab !== "tasks" ? <GearIcon /> : <ListIcon list={list} stats={stats} />}
+              {tab !== "tasks" ? <LineIcon name="gear" size={20} /> : <HeadIcon list={list} color={viewedProject ? projectColors[viewedProject] : undefined} />}
             </span>
             {/* Where you are, as a breadcrumb: Project › Floor. Earlier steps are links. */}
             <nav className="fh-crumbs" aria-label="You are here" data-tauri-drag-region>
@@ -1502,10 +1507,13 @@ export default function App() {
                 {tab !== "tasks" ? "Settings" : floorOpen ? floorTitle : listTitle(list)}
               </h1>
             </nav>
-            <span className="fh-sub" data-tauri-drag-region>
-              {tab === "tasks" && floorOpen ? floorSub : subText}
-            </span>
-            {tab === "tasks" && realMode && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} />}
+            {fullSub && (
+              <span className="fh-sub" data-tauri-drag-region>
+                {fullSub}
+              </span>
+            )}
+            {/* The sidebar shows the mode; with it hidden, a small pill does. */}
+            {tab === "tasks" && realMode && !sideOpen && <ModeSwitch settings={settings} onSettings={setSettings} onEdit={() => openSettings("modes")} />}
             {tab === "tasks" && upcoming && (
               <div className="fh-week">
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), -7)))} aria-label="Previous week" title="Previous week (←)">
@@ -1589,10 +1597,11 @@ export default function App() {
                 <main className="full-content week">
                   {adding && (
                     <AddTaskForm
-                      places={places}
+                      places={fieldPlaces}
+                      tags={tags}
                       locale={LOCALE}
                       defaultDay={planDay}
-                      projects={projectInfos.map((p) => p.name)}
+                      defaultPlace={{ project: mode?.new_task_project ?? null, heading: null }}
                       placeholder="What needs doing? Try “call Sam fri 3pm”"
                       onAdd={async (t) => {
                         await addFromPlan(t);
@@ -1643,10 +1652,8 @@ export default function App() {
         </div>
         <FullFooter
           model={status?.active_model ?? null}
-          captureHint={<>{captureHint} to capture</>}
           onModel={() => openSettings("model")}
           city={cityShown}
-          cityName={settings?.city_name ?? null}
           showCity={settings?.city_corner !== false}
           onCity={() => setCityOpen("view")}
           now={now}
@@ -1842,11 +1849,12 @@ export default function App() {
           <div className="week-view today-hours">
             {adding && (
               <AddTaskForm
-                places={places}
-                roomy={false}
+                places={fieldPlaces}
+                tags={tags}
+                compact
                 locale={LOCALE}
                 defaultDay={today}
-                projects={projectInfos.map((p) => p.name)}
+                defaultPlace={{ project: mode?.new_task_project ?? null, heading: null }}
                 placeholder="What needs doing? Try “call Sam 3pm”"
                 onAdd={async (t) => {
                   await addFromPlan(t);
@@ -1896,13 +1904,11 @@ export default function App() {
 }
 
 /** The current list's icon, for full screen's header. */
-function ListIcon({ list, stats }: { list: ListId; stats?: ProjectSummary }) {
-  if (projectOf(list) !== null) return <Pie done={stats?.done ?? 0} total={(stats?.done ?? 0) + (stats?.open ?? 0)} size={18} />;
-  if (list === "today") return <StarIcon />;
-  if (list === "upcoming") return <CalIcon />;
-  if (list === "logbook") return <LogIcon />;
-  if (list === "overdue") return <ClockIcon />;
-  return <InboxIcon />;
+/** The page's icon in full screen's header: a project's ring, or the list's line icon. */
+function HeadIcon({ list, color }: { list: ListId; color?: string }) {
+  if (projectOf(list) !== null) return <i className="fh-ring" style={color ? { borderColor: color } : undefined} />;
+  const name = list === "today" ? "today" : list === "upcoming" ? "calendar" : list === "logbook" ? "done" : list === "overdue" ? "overdue" : "inbox";
+  return <LineIcon name={name} size={20} />;
 }
 
 function Banner({

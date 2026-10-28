@@ -94,7 +94,7 @@ pub struct Options {
     pub include_canceled: bool,
     /// Buildings (by [`BuildingPreview::key`]) to leave behind.
     pub skip: Vec<String>,
-    /// Todoist: turn priorities 1–3 into `#p1`–`#p3` tags.
+    /// No longer used: Todoist priorities always come in as priorities.
     pub priority_tags: bool,
 }
 

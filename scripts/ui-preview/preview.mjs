@@ -52,6 +52,7 @@ const task = (title, extra = {}) => ({
   checklist: [],
   series_date: null,
   paused: false,
+  priority: 0,
   ...extra,
 });
 
@@ -64,6 +65,7 @@ const TASKS = [
     source_bundle: "com.tinyspeck.slackmacgap",
     source_url: "https://app.slack.com/client/T1/C2",
     source_text: "Could you send me the Q3 numbers by 3pm today?",
+    priority: 1,
   }),
   task("Review the rollout checklist", {
     due_date: day(0),
@@ -71,7 +73,7 @@ const TASKS = [
     notes: "Checklist: https://docs.example.com/rollout/v2 — ping Dana before sign-off",
   }),
   task("Water the plants #home", { due_date: day(0), due_time: hm(40), recurrence: "weekly" }),
-  task("Renew passport", { due_date: day(-3) }),
+  task("Renew passport", { due_date: day(-3), priority: 2 }),
   task("Reply to the design review thread #work", {
     due_date: day(1),
     source_app: "Google Chrome",
@@ -85,10 +87,13 @@ const TASKS = [
 const MODE = (id, name, icon, extra = {}) => ({
   id, name, icon, projects: [], new_projects: false, no_project: true, hidden_calendars: [], notify: true, new_task_project: null, ...extra,
 });
-const MODES = [MODE("work", "Work", "💼"), MODE("personal", "Personal", "🏠", { new_projects: true })];
+const MODES = [
+  MODE("work", "Work", "💼", { projects: ["Office"], new_task_project: "Office" }),
+  MODE("personal", "Personal", "🏠", { new_projects: true, projects: ["Office"], new_task_project: "Home" }),
+];
 const SETTINGS = {
   modes: MODES,
-  mode: null,
+  mode: "personal",
   open_full: true,
   notify: { enabled: true, all_day_time: "09:00", daily_summary: false },
   auto_update: true,
@@ -340,6 +345,17 @@ function mockTauri(s) {
       setTimeout(() => window.__emit?.("tasks-changed", null), 0);
       return { ...t };
     },
+    add_task: (a) => {
+      const t = {
+        id: 900 + s.tasks.length, title: "", due_date: null, due_time: null, recurrence: null, source_text: null, source_app: null,
+        source_bundle: null, source_url: null, done: false, created_at: new Date().toISOString(), created_tz: null, completed_at: null,
+        snoozed_until: null, notified_at: null, next_id: null, notes: null, deadline: null, evening: false, someday: false,
+        project: null, heading: null, checklist: [], series_date: null, paused: false, priority: 0, ...a.task,
+      };
+      s.tasks.push(t);
+      setTimeout(() => window.__emit?.("tasks-changed", null), 0);
+      return { ...t };
+    },
     logbook: () => s.logbook ?? [],
     list_projects: () => {
       const m = new Map();
@@ -384,6 +400,8 @@ const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--ena
 
 const failed = [];
 async function shot(name, size, s, steps = async () => {}, dark = false) {
+  // ONLY=<regex> renders just the matching previews (handy while working).
+  if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return;
   const page = await browser.newPage({ viewport: size, deviceScaleFactor: 2 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -483,11 +501,13 @@ await shot("panel-steps-open", PANEL, rich(), async (p) => {
 });
 await shot("panel-project-picker", PANEL, rich(), async (p) => {
   await openTask(p, 1);
-  await p.locator(".tc-pill", { hasText: "Project" }).click();
+  await p.locator(".task.open .tf-chip").first().click();
+  await p.locator(".tf-menu").waitFor();
 });
 await shot("panel-when-editor", PANEL, rich(), async (p) => {
   await openTask(p, 1);
-  await p.locator(".tc-pill").first().click();
+  await p.locator(".task.open .tf-chip-main").first().click();
+  await p.locator(".tf-menu").waitFor();
 });
 await shot("popover-rich", POP, rich({ label: "popover" }));
 await shot("panel-multi-select", PANEL, rich(), async (p) => {
@@ -497,8 +517,8 @@ await shot("panel-multi-select", PANEL, rich(), async (p) => {
 });
 await shot("panel-repeat-editor", PANEL, rich(), async (p) => {
   await p.locator(".task .task-row", { hasText: "Water the plants" }).first().click();
-  await p.locator(".tc-pill").nth(3).click();
-  await p.locator(".de-series-actions").scrollIntoViewIfNeeded();
+  await p.locator(".task.open .tf-chip", { hasText: /Every|Weekly/ }).locator(".tf-chip-main").click();
+  await p.locator(".tf-menu").scrollIntoViewIfNeeded();
 });
 
 const PLAN_EVENTS = [
@@ -581,7 +601,9 @@ await shot("panel-focus-today", PANEL, scenario(), async (p) => {
 });
 await shot("panel-snooze", PANEL, scenario(), async (p) => {
   await openTask(p, 2);
-  await p.locator(".tc-link", { hasText: "Snooze" }).click();
+  await p.locator(".task.open").getByRole("button", { name: "More", exact: true }).click();
+  await p.getByRole("menuitem", { name: /Snooze/ }).click();
+  await p.locator(".tf-menu .snooze-bar").waitFor();
 });
 await shot("panel-task-open", PANEL, scenario(), async (p) => {
   await openTask(p, 2);
@@ -591,7 +613,7 @@ await shot("panel-task-open-dark", PANEL, scenario(), async (p) => {
 }, true);
 await shot("panel-notes-edit", PANEL, scenario(), async (p) => {
   await openTask(p, 3);
-  await p.locator(".tc-notes").click();
+  await p.locator(".task.open .tfc-notes, .task.open .task-notes").first().click();
   await p.keyboard.type("Deck: https://slides.example.com/q3");
 });
 await shot("panel-keys-sheet", PANEL, scenario(), async (p) => {
@@ -608,7 +630,8 @@ await shot("panel-header-in-mode", PANEL, scenario({ settings: { ...SETTINGS, mo
 });
 await shot("panel-date-editor", PANEL, scenario(), async (p) => {
   await openTask(p, 0);
-  await p.locator(".tc-pill").first().click();
+  await p.locator(".task.open .tf-chip-main").first().click();
+  await p.locator(".tf-menu").waitFor();
   await p.keyboard.type("fri 3pm every week");
 });
 await shot("panel-search", PANEL, scenario(), async (p) => {
@@ -878,7 +901,7 @@ await shot("popover-add-description", POP, scenario({ label: "popover" }), async
 await shot("panel-add-task", PANEL, scenario(), async (p) => {
   await p.getByRole("button", { name: "Add a task", exact: true }).click();
   await p.keyboard.type("Book flights for the offsite next tue");
-  await p.getByRole("button", { name: "+ Notes" }).click();
+  await p.locator(".tfc-notes").click();
   await p.keyboard.type("Team of 6, window seats if possible");
 });
 const focus = (f) => async (p) => {
@@ -1098,7 +1121,8 @@ await shot("full-project", FULL, full({ settings: DARK }), async (p) => {
 });
 await shot("full-when-editor", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();
-  await p.locator(".tc-props .tc-pill").first().click();
+  await p.locator(".task.open .tf-chip-main").first().click();
+  await p.locator(".tf-menu").waitFor();
 });
 await shot("full-upcoming", FULL, full({ settings: DARK }), side(/Calendar/));
 await shot("full-upcoming-light", FULL, full({ settings: LIGHT }), side(/Calendar/));
@@ -1425,40 +1449,45 @@ await shot("full-room-drawers", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
-  if (!(await p.locator(".task.open .sp-done").count())) throw new Error("the task didn't open in place with a Done button");
+  if (!(await p.locator(".task.open .tf").count())) throw new Error("the task didn't open in place with its fields");
+  if (await p.locator(".task.open .sp-done, .task.open .tc-foot, .task.open .tc-props").count()) throw new Error("the open task still has the old footer or labels");
 });
 await shot("full-task-when", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
-  await p.locator(".task.open .tc-props .tc-pill").first().click();
-  await p.locator(".date-editor").waitFor();
-  const box = await p.locator(".date-editor").boundingBox();
-  if (box.width > 580) throw new Error(`the date card is too wide: ${Math.round(box.width)}px`);
-  const cal = await p.locator(".date-editor .cal").boundingBox();
-  if (cal.height > 280) throw new Error(`the month is too tall: ${Math.round(cal.height)}px`);
-  await p.getByRole("combobox", { name: "Time" }).click();
+  await p.locator(".task.open .tf-chip-main").first().click();
+  await p.locator(".tf-menu").waitFor();
+  const box = await p.locator(".tf-menu").boundingBox();
+  if (box.width > 320) throw new Error(`the date menu is too wide: ${Math.round(box.width)}px`);
+  for (const gone of ["This evening", "Next week"]) {
+    if (await p.locator(".tf-menu .tf-opt", { hasText: gone }).count()) throw new Error(`"${gone}" is still in the date menu`);
+  }
+  // Time: its own chip, type a time and Return.
+  await p.locator(".task.open .tf-chip-main").nth(1).click();
+  await p.getByRole("combobox", { name: "Time" }).waitFor();
   await p.keyboard.type("10:30pm");
   await p.keyboard.press("Enter");
-  await p.waitForTimeout(150);
-  if (!(await p.locator(".time-select.set").count())) throw new Error("typing a time didn't set it");
-  await p.getByRole("combobox", { name: "Time" }).click();
+  await p.waitForTimeout(250);
+  if (!(await p.locator(".task.open .tf-chip.set", { hasText: "10:30" }).count())) throw new Error("typing a time didn't set it");
+  await p.locator(".task.open .tf-chip-main").first().click();
   await p.waitForTimeout(150);
 });
 await shot("full-task-deadline", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
-  await p.locator(".task.open .tc-props .tc-pill").nth(1).click();
-  await p.locator(".de-tab.on", { hasText: "Deadline" }).waitFor();
-  await p.locator(".date-editor .cal-quick", { hasText: "Friday" }).click();
-  await p.waitForTimeout(150);
+  await p.locator(".task.open .tf-tool[aria-label^='Deadline']").click();
+  await p.locator(".tf-menu", { hasText: "the day it must be done by" }).waitFor();
+  await p.locator(".tf-menu .cal button:not([disabled])").filter({ hasText: /^2[0-9]$/ }).first().click();
+  await p.waitForTimeout(200);
+  if (!(await p.locator(".task.open .tf-tool.dl").count())) throw new Error("the deadline icon didn't show the date");
 });
 await shot("full-task-title-date", FULL, full({ settings: DARK }), async (p) => {
   await openFloor(p);
   await p.locator(".task .task-row", { hasText: "Pack for the offsite" }).click();
   await p.waitForTimeout(200);
-  await p.locator(".task.open .tc-title").click();
+  await p.locator(".task.open .tfc-title").click();
   await p.keyboard.press("End");
   await p.keyboard.type(" tomorrow 10:30 pm");
   await p.locator(".tc-suggest").waitFor();
@@ -1466,18 +1495,61 @@ await shot("full-task-title-date", FULL, full({ settings: DARK }), async (p) => 
 await shot("full-add-rich", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
   await p.getByRole("button", { name: /^Add Task$/ }).click();
-  await p.keyboard.type("Ship the update tomorrow 3pm");
-  if (!(await p.locator(".add-task-understood").count())) throw new Error("the typed date wasn't understood");
-  await p.locator(".add-task-notes").click();
+  await p.keyboard.type("Ship the update tomorrow 3pm every week p1");
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".add-task .tf-chip.set", { hasText: "Tomorrow" }).count())) throw new Error("the typed date didn't fill the date chip");
+  if (!(await p.locator(".add-task .tf-chip.set", { hasText: "3:00" }).count())) throw new Error("the typed time didn't fill the time chip");
+  if (!(await p.locator(".add-task .tf-chip.set", { hasText: "Every week" }).count())) throw new Error("the typed repeat didn't show");
+  if (!(await p.locator(".add-task .tf-tool[aria-label='Priority P1']").count())) throw new Error("p1 didn't set the priority");
+  await p.locator(".add-task .tfc-notes").click();
   await p.keyboard.type("Release notes are in the shared doc");
-  await p.locator(".add-task .step-add").click();
-  await p.keyboard.type("Write the notes");
-  await p.keyboard.press("Enter");
-  await p.keyboard.type("Tag the release");
-  await p.keyboard.press("Enter");
-  if ((await p.locator(".add-task .step").count()) !== 2) throw new Error("sub-tasks didn't add with Return");
-  await p.locator(".add-task-pills .tc-pill").first().click();
-  await p.locator(".add-task .date-editor").waitFor();
+});
+await shot("full-add-empty", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
+  // On Today the date is set; the time waits as a quiet chip.
+  if (!(await p.locator(".add-task .tf-chip.set", { hasText: "Today" }).count())) throw new Error("a new task on Today isn't for today");
+  if (!(await p.locator(".add-task .tf-chip.ghost", { hasText: "Time" }).count())) throw new Error("no Time chip on a new task");
+  if (!(await p.locator(".add-task .tf-chip", { hasText: "Home" }).count())) throw new Error("a new task in Personal mode doesn't go to Home");
+});
+await shot("full-add-date-menu", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
+  await p.keyboard.type("Call the bank");
+  await p.locator(".add-task .tf-chip-main").first().click();
+  await p.locator(".tf-menu .cal").waitFor();
+});
+await shot("full-add-priority", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
+  await p.keyboard.type("Call the bank");
+  await p.locator(".add-task").getByRole("button", { name: "Priority", exact: true }).click();
+  await p.getByRole("menuitemradio", { name: /P1/ }).waitFor();
+});
+await shot("full-add-place", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: /^Add Task$/ }).click();
+  await p.keyboard.type("Book the venue");
+  await p.locator(".add-task .tf-chip").first().click();
+  await p.locator(".tf-menu .tf-filter").waitFor();
+});
+await shot("full-repeat-deadline", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row", { hasText: "Water the plants" }).first().click();
+  await p.waitForTimeout(200);
+  await p.locator(".task.open").getByRole("button", { name: "Deadline", exact: true }).click();
+  await p.locator(".tf-menu .cal button:not([disabled])").filter({ hasText: /^2[0-9]$/ }).last().click();
+  await p.waitForTimeout(250);
+  await p.locator(".task.open .tf-chip", { hasText: /Every|Weekly/ }).locator(".tf-chip-main").click();
+  await p.locator(".tf-note", { hasText: "Stops at the deadline" }).waitFor();
+});
+await shot("full-task-more", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row").nth(1).click();
+  await p.locator(".task.open").getByRole("button", { name: "More", exact: true }).click();
+  await p.getByRole("menuitem", { name: "Duplicate" }).waitFor();
+});
+await shot("full-sidebar-hover", FULL, full({ settings: DARK }), async (p) => {
+  // Counts line up on the right; + and ⋯ only show on hover.
+  const counts = await p.locator(".sidebar .sb-count:not(:empty)").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().right)));
+  if (new Set(counts).size > 1) throw new Error(`the sidebar's counts don't line up: ${counts.join(", ")}`);
+  if ((await p.locator(".sb-head-actions").evaluate((e) => getComputedStyle(e).opacity)) !== "0") throw new Error("the Projects + shows without hover");
+  await p.locator(".sb-b", { hasText: "Offsite 2026" }).hover();
+  await p.waitForTimeout(200);
 });
 await shot("full-floor-menu", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);

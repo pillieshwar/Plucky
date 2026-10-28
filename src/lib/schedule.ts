@@ -345,3 +345,51 @@ export function resolveCaptured(
     mustAsk: !confident,
   };
 }
+
+/**
+ * The days a repeating task lands on from `start` (inclusive) up to and
+ * including `until`, at most `max` of them. Mirrors the app's own rules
+ * (`todocity_core::recurrence`): a month or year keeps the start's day of
+ * the month where it can (Jan 31 → Feb 28 → Mar 31).
+ */
+export function repeatDates(start: string, rule: string, until: string, max = 120): string[] {
+  const [y, m, d] = start.split("-").map(Number);
+  const anchor = d;
+  const out: string[] = [];
+  let cur = new Date(y, m - 1, d);
+  const iso = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  const addMonths = (x: Date, n: number) => {
+    const total = x.getFullYear() * 12 + x.getMonth() + n;
+    const yy = Math.floor(total / 12);
+    const mm = total % 12;
+    const last = new Date(yy, mm + 1, 0).getDate();
+    return new Date(yy, mm, Math.min(anchor, last));
+  };
+  while (out.length < max && iso(cur) <= until) {
+    out.push(iso(cur));
+    switch (rule) {
+      case "daily":
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+        break;
+      case "weekdays":
+        do cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+        while (cur.getDay() === 0 || cur.getDay() === 6);
+        break;
+      case "weekly":
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7);
+        break;
+      case "biweekly":
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 14);
+        break;
+      case "monthly":
+        cur = addMonths(cur, 1);
+        break;
+      case "yearly":
+        cur = addMonths(cur, 12);
+        break;
+      default:
+        return out;
+    }
+  }
+  return out;
+}

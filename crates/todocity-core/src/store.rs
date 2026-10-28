@@ -90,6 +90,9 @@ pub struct Task {
     /// A paused repeating task: no reminders until it's resumed.
     #[serde(default)]
     pub paused: bool,
+    /// 0 (none), or 1 (urgent), 2 (high), 3 (medium).
+    #[serde(default)]
+    pub priority: u8,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -111,6 +114,8 @@ pub struct NewTask {
     pub project: Option<String>,
     pub heading: Option<String>,
     pub checklist: Vec<ChecklistItem>,
+    /// 0 (none) to 3; see [`Task::priority`].
+    pub priority: u8,
 }
 
 /// Partial update. `due_date: Some(None)` clears the date (and the time).
@@ -141,6 +146,8 @@ pub struct TaskPatch {
     pub heading: Option<Option<String>>,
     pub checklist: Option<Vec<ChecklistItem>>,
     pub paused: Option<bool>,
+    /// 0 clears it; 1 (urgent) to 3 (medium).
+    pub priority: Option<u8>,
     /// Moving a repeating task: `true` moves just this one (the series keeps
     /// its days), otherwise the series moves with it.
     pub only_this: Option<bool>,
@@ -280,6 +287,10 @@ CREATE TRIGGER sync_dirty_proj_del AFTER DELETE ON projects BEGIN UPDATE sync_st
 CREATE TRIGGER sync_dirty_floor_ins AFTER INSERT ON floors BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
 CREATE TRIGGER sync_dirty_floor_del AFTER DELETE ON floors BEGIN UPDATE sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'dirty'; END;
 "#,
+    // Priority: 0 (none), 1 (urgent), 2 (high), 3 (medium).
+    r#"
+ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 3);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -404,7 +415,7 @@ impl Store {
         let heading = project.as_ref().and(clean_name(t.heading));
         self.conn.execute(
             "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, someday = ?4, project = ?5,
-                 heading = ?6, checklist = ?7 WHERE id = ?8",
+                 heading = ?6, checklist = ?7, priority = ?8 WHERE id = ?9",
             params![
                 clean_notes(t.notes.as_deref()),
                 deadline,
@@ -413,6 +424,7 @@ impl Store {
                 project,
                 heading,
                 checklist_json(&t.checklist),
+                clean_priority(t.priority),
                 id
             ],
         )?;
@@ -590,6 +602,12 @@ impl Store {
             tx.execute(
                 "UPDATE tasks SET checklist = ?1 WHERE id = ?2",
                 params![checklist_json(&list), id],
+            )?;
+        }
+        if let Some(priority) = patch.priority {
+            tx.execute(
+                "UPDATE tasks SET priority = ?1 WHERE id = ?2",
+                params![clean_priority(priority), id],
             )?;
         }
         if let Some(paused) = patch.paused {
@@ -907,16 +925,19 @@ impl Store {
             .and_then(parse)
             .map_or(today, |d| d.max(today));
         let next = crate::recurrence::next_due(rule, base, after);
-        let shift = |d: Option<&str>| -> Option<String> {
-            let (d, b) = (d.and_then(parse)?, base?);
-            Some((next + (d - b)).format("%Y-%m-%d").to_string())
-        };
-        let deadline = shift(t.deadline.as_deref());
+        // The deadline ends the series: there's nothing to skip to past it.
+        if t.deadline
+            .as_deref()
+            .and_then(parse)
+            .is_some_and(|dl| next > dl)
+        {
+            return Ok(t);
+        }
         let next = next.format("%Y-%m-%d").to_string();
         self.conn.execute(
-            "UPDATE tasks SET due_date = ?1, series_date = NULL, deadline = ?2, snoozed_until = NULL,
-                 notified_at = NULL, someday = 0 WHERE id = ?3",
-            params![next, deadline, id],
+            "UPDATE tasks SET due_date = ?1, series_date = NULL, snoozed_until = NULL,
+                 notified_at = NULL, someday = 0 WHERE id = ?2",
+            params![next, id],
         )?;
         self.get(id)
     }
@@ -997,7 +1018,7 @@ impl Store {
 
 const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
     due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes,
-    deadline, evening, someday, project, heading, checklist, series_date, paused FROM tasks";
+    deadline, evening, someday, project, heading, checklist, series_date, paused, priority FROM tasks";
 
 /// By day, all-day tasks before timed ones, then by time.
 const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
@@ -1032,6 +1053,7 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
             .unwrap_or_default(),
         series_date: r.get(23)?,
         paused: r.get(24)?,
+        priority: r.get(25)?,
     })
 }
 
@@ -1061,12 +1083,16 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
         .and_then(parse)
         .map_or(today, |d| d.max(today));
     let next_day = crate::recurrence::next_due(rule, base, after);
+    // A deadline is the end of the series: the next one never lands after
+    // it, and when it would, this was the last one.
+    if t.deadline
+        .as_deref()
+        .and_then(parse)
+        .is_some_and(|dl| next_day > dl)
+    {
+        return Ok(None);
+    }
     let next = next_day.format("%Y-%m-%d").to_string();
-    // A deadline keeps its distance from the day.
-    let deadline = match (t.deadline.as_deref().and_then(parse), base) {
-        (Some(dl), Some(b)) => Some((next_day + (dl - b)).format("%Y-%m-%d").to_string()),
-        _ => None,
-    };
     let fresh: Vec<ChecklistItem> = t
         .checklist
         .iter()
@@ -1095,14 +1121,15 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     let next_id = tx.last_insert_rowid();
     tx.execute(
         "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, project = ?4, heading = ?5,
-             checklist = ?6 WHERE id = ?7",
+             checklist = ?6, priority = ?7 WHERE id = ?8",
         params![
             t.notes,
-            deadline,
+            t.deadline,
             t.evening,
             t.project,
             t.heading,
             checklist_json(&fresh),
+            t.priority,
             next_id
         ],
     )?;
@@ -1121,6 +1148,15 @@ fn unspawn_next(tx: &rusqlite::Transaction<'_>, before: &Task) -> Result<Option<
     let removed = tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [next])?;
     tx.execute("UPDATE tasks SET next_id = NULL WHERE id = ?1", [before.id])?;
     Ok((removed > 0).then_some(next))
+}
+
+/// 0 to 3; anything else is no priority.
+fn clean_priority(p: u8) -> u8 {
+    if p <= 3 {
+        p
+    } else {
+        0
+    }
 }
 
 /// Longest description kept, in characters.
@@ -1706,7 +1742,7 @@ mod tests {
             .insert(NewTask {
                 title: "Weekly report".into(),
                 due_date: Some(day(0)),
-                deadline: Some(day(2)),
+                deadline: Some(day(30)),
                 recurrence: Some("weekly".into()),
                 project: Some("Work".into()),
                 checklist: vec![ChecklistItem {
@@ -1732,7 +1768,8 @@ mod tests {
             .unwrap();
         let next = s.get(fx.spawned.unwrap()).unwrap();
         assert_eq!(next.due_date.as_deref(), Some(day(7).as_str()));
-        assert_eq!(next.deadline.as_deref(), Some(day(9).as_str()));
+        // The deadline is the end of the series, so it stays put.
+        assert_eq!(next.deadline.as_deref(), Some(day(30).as_str()));
         assert_eq!(next.project.as_deref(), Some("Work"));
         assert_eq!(
             next.checklist,
@@ -1763,6 +1800,55 @@ mod tests {
             s.get(fx.spawned.unwrap()).unwrap().due_date.as_deref(),
             Some(day(9).as_str())
         );
+    }
+
+    #[test]
+    fn repeats_never_go_past_the_deadline() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Water the seedlings".into(),
+                due_date: Some(day(0)),
+                deadline: Some(day(15)),
+                recurrence: Some("weekly".into()),
+                priority: 2,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(t.priority, 2);
+        // Day 0 → day 7 → day 14: each on or before the deadline.
+        let (_, fx) = s
+            .update_with_effects(t.id, patch(|p| p.done = Some(true)))
+            .unwrap();
+        let second = s.get(fx.spawned.unwrap()).unwrap();
+        assert_eq!(second.due_date.as_deref(), Some(day(7).as_str()));
+        assert_eq!(second.priority, 2);
+        let (_, fx) = s
+            .update_with_effects(second.id, patch(|p| p.done = Some(true)))
+            .unwrap();
+        let third = s.get(fx.spawned.unwrap()).unwrap();
+        assert_eq!(third.due_date.as_deref(), Some(day(14).as_str()));
+        // Skipping can't move it past the deadline either.
+        assert_eq!(
+            s.skip(third.id).unwrap().due_date.as_deref(),
+            Some(day(14).as_str())
+        );
+        // Day 21 would be after day 15: that was the last one.
+        let (_, fx) = s
+            .update_with_effects(third.id, patch(|p| p.done = Some(true)))
+            .unwrap();
+        assert_eq!(fx.spawned, None);
+    }
+
+    #[test]
+    fn priority_is_set_cleared_and_kept_in_range() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s.insert(task("Call the bank", None)).unwrap();
+        assert_eq!(t.priority, 0);
+        let t = s.update(t.id, patch(|p| p.priority = Some(1))).unwrap();
+        assert_eq!(t.priority, 1);
+        let t = s.update(t.id, patch(|p| p.priority = Some(9))).unwrap();
+        assert_eq!(t.priority, 0);
     }
 
     #[test]

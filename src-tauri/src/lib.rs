@@ -87,7 +87,11 @@ fn list_tasks(state: State<'_, AppState>, done_since: Option<String>) -> CmdResu
 }
 
 #[tauri::command]
-fn add_task(app: AppHandle, task: NewTask) -> CmdResult<Task> {
+fn add_task(app: AppHandle, task: NewTask, keep_place: Option<bool>) -> CmdResult<Task> {
+    if keep_place == Some(true) {
+        // The person chose where it goes (Inbox included): leave it there.
+        return insert_task_as_is(&app, task);
+    }
     insert_task(&app, task)
 }
 
@@ -101,6 +105,17 @@ pub(crate) fn insert_task(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
     if task.project.is_none() {
         task.project = active_mode(app).and_then(|m| m.new_task_project);
     }
+    insert_task_as_is(app, task)
+}
+
+/// Add a task exactly where it says (no mode default) and update everything.
+fn insert_task_as_is(app: &AppHandle, task: NewTask) -> CmdResult<Task> {
+    let task = NewTask {
+        created_tz: task
+            .created_tz
+            .or_else(|| iana_time_zone::get_timezone().ok()),
+        ..task
+    };
     let state = app.state::<AppState>();
     let t = state.store.lock().map_err(err)?.insert(task).map_err(err)?;
     let _ = app.emit("tasks-changed", ());
@@ -437,6 +452,7 @@ fn restore_task(app: AppHandle, state: State<'_, AppState>, task: Task) -> CmdRe
                 project: task.project.clone(),
                 heading: task.heading.clone(),
                 checklist: task.checklist.clone(),
+                priority: task.priority,
             })
             .map_err(err)?;
         if task.done {
@@ -1496,11 +1512,22 @@ pub fn run() {
                 Ok(None) => {}
                 Err(e) => log::warn!("daily backup failed: {e}"),
             }
+            let settings = Settings::new(&data_dir);
+            if !settings.get().default_projects_made {
+                // Every Mac starts with Home (for Personal) and Office (for
+                // Work), once — deleting them later sticks.
+                for name in [todocity_core::modes::HOME, todocity_core::modes::OFFICE] {
+                    if let Err(e) = store.create_project(name) {
+                        log::warn!("could not make the {name} project: {e}");
+                    }
+                }
+                settings.update(|s| s.default_projects_made = true);
+            }
             app.manage(AppState {
                 store: Mutex::new(store),
                 data_dir: data_dir.clone(),
             });
-            app.manage(Settings::new(&data_dir));
+            app.manage(settings);
             app.manage(agents::Agents::new(&data_dir));
             app.manage(Updates::default());
             app.manage(import::TodoistCache::default());

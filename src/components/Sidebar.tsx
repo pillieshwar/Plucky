@@ -2,12 +2,20 @@ import { useWords } from "../lib/words";
 import { Fragment, useEffect, useState, type ReactElement } from "react";
 import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
-import { CalIcon, InboxIcon, LogIcon, Pie, StarIcon } from "./ListPicker";
-import { GearIcon, SearchIcon } from "./icons";
+import { Pie } from "./ListPicker";
 import { initials, type Building } from "../lib/city";
 import { PROJECT_COLORS } from "../lib/colors";
 import { MayorAvatar } from "./MayorAvatar";
-import { KeyboardIcon } from "./KeysModal";
+import { LineIcon, type IconName } from "./LineIcon";
+
+const COLLAPSED_KEY = "todocity.projectsFolded";
+function savedFolded(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 interface Props {
   list: ListId;
@@ -91,6 +99,17 @@ export function Sidebar(p: Props) {
     | null
   >(null);
   const [text, setText] = useState("");
+  // The whole Projects section folded away (remembered on this Mac).
+  const [folded, setFolded] = useState(savedFolded);
+  const fold = () =>
+    setFolded((f) => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, f ? "0" : "1");
+      } catch {
+        // Not remembered; fine.
+      }
+      return !f;
+    });
   // The "⋯" menu open on a building or a floor.
   const [menu, setMenu] = useState<{ project: string; floor?: string } | null>(null);
   useEffect(() => {
@@ -147,7 +166,7 @@ export function Sidebar(p: Props) {
       onBlur={done}
     />
   );
-  const item = (id: ListId, text: string, icon: ReactElement, count?: number, tone?: string) => {
+  const item = (id: ListId, text: string, icon: IconName, count?: number, late?: boolean) => {
     const on = !p.inSettings && p.list === id;
     return (
       <button
@@ -157,11 +176,11 @@ export function Sidebar(p: Props) {
         aria-current={on ? "page" : undefined}
         onClick={() => p.onList(id)}
       >
-        <span className={`sb-icon ${tone ?? ""}`} aria-hidden>
-          {icon}
+        <span className="sb-icon" aria-hidden>
+          <LineIcon name={icon} size={18} />
         </span>
         <span className="sb-text">{text}</span>
-        {count !== undefined && count > 0 && <span className="sb-count">{count}</span>}
+        <span className={late ? "sb-count late" : "sb-count"}>{count ? count : ""}</span>
       </button>
     );
   };
@@ -175,28 +194,41 @@ export function Sidebar(p: Props) {
       </div>
       {p.modeSwitch}
       <button type="button" className="sb-search" onClick={p.onSearch} title="Search (/ or ⌘K)">
-        <SearchIcon />
+        <LineIcon name="search" size={17} />
         <span>Search</span>
         <kbd>⌘K</kbd>
       </button>
       <nav className="sb-nav" aria-label="Lists">
-        {item("today", "Today", <StarIcon />, p.counts.today, "t-today")}
-        {item("upcoming", "Calendar", <CalIcon />, undefined, "t-upcoming")}
-        {item("inbox", "Inbox", <InboxIcon />, p.counts.inbox, "t-inbox")}
-        {item("overdue", "Overdue", <OverdueIcon />, p.counts.overdue, p.counts.overdue ? "t-overdue" : "t-overdue quiet")}
-        {item("logbook", "Completed", <LogIcon />, undefined, "t-logbook")}
+        {item("today", "Today", "today", p.counts.today)}
+        {item("upcoming", "Calendar", "calendar")}
+        {item("inbox", "Inbox", "inbox", p.counts.inbox)}
+        {item("overdue", "Overdue", "overdue", p.counts.overdue, true)}
+        {item("logbook", "Completed", "done")}
       </nav>
 
       <div className="sb-scroll">
         <h2 className="sb-head sb-head-row">
-          <span>
+          <button type="button" className="sb-head-btn" onClick={fold} aria-expanded={!folded}>
             {w.projects} <span className="sb-head-aka">(Buildings)</span>
-          </span>
-          <button type="button" className="sb-add" onClick={() => setAdding({ kind: "building" })} aria-label="New project" title="New project (a new building)">
-            +
           </button>
+          <span className="sb-head-actions">
+            <button type="button" className="sb-act" onClick={() => setAdding({ kind: "building" })} aria-label="New project" title="New project (a new building)">
+              <LineIcon name="plus" size={15} />
+            </button>
+            <button
+              type="button"
+              className="sb-act"
+              onClick={fold}
+              aria-label={folded ? "Show projects" : "Hide projects"}
+              title={folded ? "Show projects" : "Hide projects"}
+              aria-expanded={!folded}
+            >
+              <LineIcon name={folded ? "chevronRight" : "chevronDown"} size={15} />
+            </button>
+          </span>
         </h2>
         {adding?.kind === "building" && field(`New ${w.project.toLowerCase()}'s name`)}
+        {!folded && <>
         {p.buildings.length === 0 && !adding && (
           <p className="sb-empty">
             Press + to start your first project — a new building in your city — or type “@Name” in a task.
@@ -232,27 +264,41 @@ export function Sidebar(p: Props) {
                   aria-label={expanded ? `Hide ${name}'s floors` : `Show ${name}'s floors`}
                   aria-expanded={expanded}
                 >
-                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-                    <path d="M6 3.5 10.5 8 6 12.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <LineIcon name="chevronRight" size={13} />
                 </button>
                 <button type="button" className="sb-b-main" aria-current={on ? "page" : undefined} onClick={() => p.onList(projectList(name))}>
                   <span className="sb-icon t-project" aria-hidden style={pr?.color ? { color: pr.color } : undefined}>
                     <Pie done={pr?.done ?? b.done} total={(pr?.open ?? b.open) + (pr?.done ?? b.done)} />
                   </span>
                   <span className="sb-text">{name}</span>
-                  {b.open > 0 && <span className="sb-count">{b.open}</span>}
                 </button>
-                <button
-                  type="button"
-                  className="sb-more"
-                  aria-expanded={!!menu && menu.project === name && !menu.floor}
-                  aria-label={`More for ${name}`}
-                  title="Rename or delete"
-                  onClick={() => setMenu(menu && menu.project === name && !menu.floor ? null : { project: name })}
-                >
-                  ⋯
-                </button>
+                <span className={menu && menu.project === name && !menu.floor ? "sb-trail busy" : "sb-trail"}>
+                  <span className="sb-count">{b.open > 0 ? b.open : ""}</span>
+                  <span className="sb-row-actions">
+                    <button
+                      type="button"
+                      className="sb-act"
+                      aria-label={`New floor in ${name}`}
+                      title="New floor"
+                      onClick={() => {
+                        setOpenB((s) => new Set(s).add(name));
+                        setAdding({ kind: "floor", project: name });
+                      }}
+                    >
+                      <LineIcon name="plus" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="sb-act sb-more"
+                      aria-expanded={!!menu && menu.project === name && !menu.floor}
+                      aria-label={`More for ${name}`}
+                      title="Rename, color or delete"
+                      onClick={() => setMenu(menu && menu.project === name && !menu.floor ? null : { project: name })}
+                    >
+                      <LineIcon name="more" size={15} />
+                    </button>
+                  </span>
+                </span>
                 {menu && menu.project === name && !menu.floor && (
                   <div className="sb-menu" role="menu">
                     <button
@@ -349,22 +395,26 @@ export function Sidebar(p: Props) {
                             {f.level || "G"}
                           </span>
                           <span className="sb-floor-name">{fname ?? "Ground floor"}</span>
-                          <span className="sb-floor-count" title={`${todo} to do · ${f.rooms.length - todo} done`}>
+                        </button>
+                        <span className={menu && menu.project === name && menu.floor === fname ? "sb-trail busy" : "sb-trail"}>
+                          <span className="sb-count" title={`${todo} to do · ${f.rooms.length - todo} done`}>
                             {todo || ""}
                           </span>
-                        </button>
-                        {fname && (
-                          <button
-                            type="button"
-                            className="sb-more"
-                            aria-expanded={!!menu && menu.project === name && menu.floor === fname}
-                            aria-label={`More for ${f.label}`}
-                            title="Rename or delete"
-                            onClick={() => setMenu(menu && menu.project === name && menu.floor === fname ? null : { project: name, floor: fname })}
-                          >
-                            ⋯
-                          </button>
-                        )}
+                          {fname && (
+                            <span className="sb-row-actions">
+                              <button
+                                type="button"
+                                className="sb-act sb-more"
+                                aria-expanded={!!menu && menu.project === name && menu.floor === fname}
+                                aria-label={`More for ${f.label}`}
+                                title="Rename or delete"
+                                onClick={() => setMenu(menu && menu.project === name && menu.floor === fname ? null : { project: name, floor: fname })}
+                              >
+                                <LineIcon name="more" size={15} />
+                              </button>
+                            </span>
+                          )}
+                        </span>
                         {fname && menu && menu.project === name && menu.floor === fname && (
                           <div className="sb-menu" role="menu">
                             <button
@@ -397,16 +447,7 @@ export function Sidebar(p: Props) {
                       </div>
                     );
                   })}
-                  {adding?.kind === "floor" && adding.project === name ? (
-                    field(`New ${w.heading.toLowerCase()}'s name`)
-                  ) : (
-                    <button type="button" className="sb-floor sb-floor-add" onClick={() => setAdding({ kind: "floor", project: name })}>
-                      <span className="sb-lvl add" aria-hidden>
-                        +
-                      </span>
-                      <span className="sb-floor-name">{w.newHeading.replace(/^\+\s*/, "")}</span>
-                    </button>
-                  )}
+                  {adding?.kind === "floor" && adding.project === name && field(`New ${w.heading.toLowerCase()}'s name`)}
                 </div>
               )}
             </div>
@@ -414,6 +455,7 @@ export function Sidebar(p: Props) {
           );
         })}
         {hiddenB.length > 0 && !showOthers && othersBtn}
+        </>}
 
         {p.tags.length > 0 && (
           <>
@@ -436,25 +478,27 @@ export function Sidebar(p: Props) {
       </div>
 
       <div className="sb-foot">
-        <button type="button" className="sb-mayor" onClick={p.onCity} title="Open your city">
-          <MayorAvatar look={p.mayorLook} fallback={initials(p.mayor)} />
-          <span className="sb-mayor-text">
-            <span className="sb-mayor-title">{p.mayor ? `Mayor ${p.mayor}` : "The mayor"}</span>
-            <span className="sb-mayor-sub">
-              {p.cityName ?? "Name your city"} · population {p.lit}
+        <div className="sb-me">
+          <button type="button" className="sb-mayor" onClick={p.onCity} title="Open your city">
+            <MayorAvatar look={p.mayorLook} fallback={initials(p.mayor)} />
+            <span className="sb-mayor-text">
+              <span className="sb-mayor-title">{p.mayor ? `Mayor ${p.mayor}` : "The mayor"}</span>
+              <span className="sb-mayor-sub">{p.cityName ?? "Name your city"}</span>
             </span>
-          </span>
-        </button>
-        <div className="sb-foot-row">
-          <button type="button" className={p.inSettings ? "sb-item on" : "sb-item"} onClick={p.onSettings} title="Settings (⌘,)">
-            <span className="sb-icon" aria-hidden>
-              <GearIcon />
-            </span>
-            <span className="sb-text">Settings</span>
-            {p.updateReady && <span className="sb-dot" aria-label="Update ready" />}
           </button>
-          <button type="button" className="sb-keys" onClick={p.onKeys} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
-            <KeyboardIcon />
+          <button type="button" className="sb-act big" onClick={p.onKeys} title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+            <LineIcon name="keyboard" size={19} />
+          </button>
+          <button
+            type="button"
+            className={p.inSettings ? "sb-act big on" : "sb-act big"}
+            onClick={p.onSettings}
+            title="Settings (⌘,)"
+            aria-label="Settings"
+            aria-pressed={p.inSettings}
+          >
+            <LineIcon name="gear" size={19} />
+            {p.updateReady && <span className="sb-dot" aria-hidden />}
           </button>
         </div>
       </div>
@@ -462,11 +506,3 @@ export function Sidebar(p: Props) {
   );
 }
 
-function OverdueIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="8" cy="8.5" r="5.5" />
-      <path d="M8 5.6v3.2l2 1.3M3 2.6 1.8 3.8M13 2.6l1.2 1.2" />
-    </svg>
-  );
-}

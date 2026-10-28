@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { UpdateStatus } from "../lib/types";
+import { LineIcon } from "./LineIcon";
+import whatsNew from "../whats-new.json";
+
+const REPO = "https://github.com/pillieshwar/TodoCity";
+/** A few plain lines per version, newest first (also used for the release notes). */
+const WHATS_NEW: Record<string, string[]> = whatsNew;
 
 /**
  * The version, at the right of full screen's footer, with a dot: green on
- * the latest version, red when a newer one is out. Click it for the version
- * and, when there's a newer one, Update — which gets it (if it isn't
- * downloaded yet) and restarts into it. A newer version opens the card by
- * itself once; after that the red pill waits.
+ * the latest version, red when a newer one is out. Click it for what's new,
+ * the release notes, a star on GitHub and, when there's a newer one, Update
+ * — which gets it (if it isn't downloaded yet) and restarts into it. A newer
+ * version opens the card by itself once; after that the red pill waits.
  */
 export function VersionDot({ update, version, onError }: { update: UpdateStatus; version: string | null; onError: (m: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -74,29 +80,44 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
           ? "Checking for updates…"
           : update.state === "failed"
             ? "Couldn't check for updates"
-            : "You're on the latest version";
+            : "You're up to date";
+  // What's new: in the version that's ready, or the one running.
+  const nextNotes =
+    update.state === "ready" && update.notes
+      ? update.notes
+          .split(/\n+/)
+          .map((l) => l.replace(/^[-•*]\s*/, "").trim())
+          .filter((l) => l && !/^TodoCity v?\d/.test(l))
+      : [];
+  const notesFor = update.state === "ready" && nextNotes.length ? update.version : version;
+  const notes = update.state === "ready" && nextNotes.length ? nextNotes : version ? (WHATS_NEW[version] ?? []) : [];
 
   return (
     <div className={open ? "vdot-wrap open" : "vdot-wrap"} ref={ref}>
-      <span className="vdot-version">TodoCity {version ?? ""}</span>
       <button type="button" className={`vdot ${tone}`} aria-expanded={open} title={label} onClick={() => setOpen((o) => !o)}>
         <span className="vdot-dot" aria-hidden />
         {busy
           ? "Updating…"
           : newer
             ? `Update to ${"version" in update ? update.version : ""}`
-            : update.state === "failed"
-              ? "Couldn't check"
-              : update.state === "checking"
-                ? "Checking…"
-                : "Up to date"}
+            : `TodoCity ${version ?? ""}`}
       </button>
       {open && (
         <div className="vdot-pop" role="dialog" aria-label="Version">
           <p className="vdot-now">
             <span className={`vdot-dot ${tone}`} aria-hidden /> {label}
           </p>
-          <p className="vdot-ver">{version ? `This Mac has ${version}. ` : ""}Checks every day at 12:00 PM.</p>
+          <p className="vdot-ver">TodoCity {version ?? ""} · checks every day at 12:00 PM</p>
+          {notes.length > 0 && (
+            <>
+              <p className="vdot-cap">What's new in {notesFor}</p>
+              <ul className="vdot-notes">
+                {notes.slice(0, 6).map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </>
+          )}
           {newer ? (
             <button
               type="button"
@@ -116,6 +137,14 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
               Check now
             </button>
           )}
+          <div className="vdot-links">
+            <button type="button" onClick={() => void api.openUrl(`${REPO}/releases`).catch((e) => onError(String(e)))}>
+              <LineIcon name="external" size={14} /> All release notes
+            </button>
+            <button type="button" onClick={() => void api.openUrl(REPO).catch((e) => onError(String(e)))}>
+              <LineIcon name="star" size={14} /> Star on GitHub
+            </button>
+          </div>
         </div>
       )}
     </div>

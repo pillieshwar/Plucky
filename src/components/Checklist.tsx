@@ -89,7 +89,7 @@ export function Checklist({
           autoFocus={autoFocusAdd}
           value={draft}
           maxLength={200}
-          placeholder={items.length ? `Add a ${w.step}…` : `First ${w.step}… (paste a list to add several)`}
+          placeholder={`Add a ${w.step}`}
           aria-label={`Add a ${w.step}`}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={(e) => {

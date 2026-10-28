@@ -9,7 +9,7 @@
 //! | Task                       | Task (a home)                          |
 //! | Sub-task (any depth)       | Sub-task (its own date is dropped)     |
 //! | Labels                     | `#tags` at the end of the title        |
-//! | Priority 1–3 (optional)    | `#p1`–`#p3`                            |
+//! | Priority 1–3               | Priority P1–P3                         |
 //! | Description and comments   | Notes                                  |
 //! | Due date and time          | Day and time                           |
 //! | Deadline                   | Deadline                               |
@@ -911,15 +911,12 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
                 s
             }
         };
-        let mut tags: Vec<String> = t
+        let tags: Vec<String> = t
             .labels
             .iter()
             .map(String::as_str)
             .filter_map(hashtag)
             .collect();
-        if opts.priority_tags && (2..=4).contains(&t.priority) {
-            tags.push(format!("#p{}", 5 - t.priority));
-        }
         for tag in tags {
             if !title.to_lowercase().contains(&tag.to_lowercase()) {
                 title.push(' ');
@@ -970,6 +967,12 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
                 heading: floor,
                 checklist,
                 source_app: Some(APP_NAME.into()),
+                // Todoist's 4 (red) is P1; 1 is none.
+                priority: if (2..=4).contains(&t.priority) {
+                    (5 - t.priority) as u8
+                } else {
+                    0
+                },
                 ..Default::default()
             },
             done,
@@ -1128,7 +1131,8 @@ mod tests {
         let get = |id: &str| p.items.iter().find(|i| i.ext_id == id).unwrap();
 
         let t1 = &get("t1").task;
-        assert_eq!(t1.title, "Order tiles #errand #Big-Job #p1");
+        assert_eq!(t1.title, "Order tiles #errand #Big-Job");
+        assert_eq!(t1.priority, 1);
         assert_eq!(t1.project.as_deref(), Some("Kitchen"));
         assert_eq!(t1.heading.as_deref(), Some("Buy"));
         assert_eq!(t1.due_date.as_deref(), Some("2026-11-03"));
@@ -1302,10 +1306,7 @@ task,Buy adapter,,4,1,Sam (1),,every month,en,US/Pacific,,,2026-11-20,en\r\n";
         };
         let p = plan(&lib, &opts, &HashSet::new(), today());
         let titles: Vec<&str> = p.items.iter().map(|i| i.task.title.as_str()).collect();
-        assert_eq!(
-            titles,
-            ["Plan trip #travel #p1", "Buy adapter", "Loose one"]
-        );
+        assert_eq!(titles, ["Plan trip #travel", "Buy adapter", "Loose one"]);
         let trip = &p.items[0].task;
         assert_eq!(trip.project.as_deref(), Some("Lisbon"));
         assert_eq!(trip.due_date.as_deref(), Some("2026-10-30"));

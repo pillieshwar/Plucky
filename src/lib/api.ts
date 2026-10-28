@@ -43,7 +43,8 @@ import type {
 export const api = {
   extract: (selection: string) => invoke<Extraction>("extract", { selection }),
   listTasks: (doneSince: string | null) => invoke<Task[]>("list_tasks", { doneSince }),
-  addTask: (task: NewTask) => invoke<Task>("add_task", { task }),
+  /** `keepPlace`: the person chose where it goes (Inbox too), so no mode default. */
+  addTask: (task: NewTask, keepPlace = false) => invoke<Task>("add_task", { task, keepPlace }),
   updateTask: (id: number, patch: TaskPatch) => invoke<Task>("update_task", { id, patch }),
   logbook: (before: string | null, limit = 80) => invoke<Task[]>("logbook", { before, limit }),
   cityWindows: () => invoke<CityWindow[]>("city_windows"),
