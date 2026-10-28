@@ -911,7 +911,7 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
                 s
             }
         };
-        let mut tags: Vec<String> = t
+        let tags: Vec<String> = t
             .labels
             .iter()
             .map(String::as_str)
