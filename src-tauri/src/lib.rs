@@ -16,6 +16,7 @@ mod engine;
 mod greet;
 mod import;
 mod login_item;
+mod mirror;
 mod models;
 mod notifications;
 mod panel;
@@ -1531,12 +1532,14 @@ pub fn run() {
             app.manage(agents::Agents::new(&data_dir));
             app.manage(Updates::default());
             app.manage(import::TodoistCache::default());
+            app.manage(mirror::Mirror::new(&data_dir));
             app.manage(ModelManager::new(&data_dir));
             app.manage(panel::PanelState::new(&data_dir));
             app.manage(Engine::new(&log_dir));
             app.manage(Shortcuts::new(&data_dir));
             app.manage(reminders::Reminders::start(app.handle(), &data_dir));
             app.manage(sync::SyncService::new(&data_dir));
+            mirror::Mirror::start(app.handle());
 
             // Every 30 s: release the model's memory when idle, and roll the
             // menu-bar list over to the new day at midnight.
@@ -1662,6 +1665,10 @@ pub fn run() {
             import::todoist_pick_files,
             import::todoist_preview,
             import::todoist_import,
+            mirror::mirror_status,
+            mirror::mirror_sync_now,
+            mirror::mirror_stop,
+            mirror::mirror_stop_project,
             set_view_mode,
             sync::sync_status,
             sync::sync_add_mac,

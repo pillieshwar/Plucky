@@ -50,6 +50,8 @@ export interface ProjectSummary {
   done: number;
   /** The color the user picked for it (`#rrggbb`). */
   color?: string | null;
+  /** The app it's kept in sync with (`things3`, `todoist`). */
+  synced?: string | null;
 }
 
 /** Mirrors `todocity_core::NewTask` (created_tz is filled in by Rust). */
@@ -534,6 +536,21 @@ export interface TodoistPreview {
 }
 
 /** Mirrors `todocity_core::ImportReport`. */
+export type MirrorSource = "things" | "todoist";
+
+/** One app kept in sync (mirrors `mirror::LinkStatus`). */
+export interface MirrorLink {
+  since: string;
+  last: string | null;
+  error: string | null;
+  projects: number;
+}
+
+export interface MirrorStatus {
+  things: MirrorLink | null;
+  todoist: MirrorLink | null;
+}
+
 export interface ImportReport {
   added: number;
   done: number;

@@ -56,6 +56,8 @@ interface Props {
   onDeleteFloor: (project: string, name: string) => void;
   /** Pick a project's color (null: the accent color). */
   onColor: (project: string, color: string | null) => void;
+  /** Stop keeping a project in sync with Things 3 or Todoist. */
+  onStopSync?: (project: string) => void;
   updateReady: boolean;
   /** The window's close, minimize and zoom buttons. */
   lights: ReactElement;
@@ -65,6 +67,9 @@ interface Props {
   inMode?: (project: string) => boolean;
   modeName?: string;
 }
+
+/** Display names of the apps a project can be synced from. */
+const SYNC_APPS: Record<string, string> = { things3: "Things 3", todoist: "Todoist" };
 
 /**
  * Full screen's sidebar: search, the lists (Today, Calendar, Inbox,
@@ -348,6 +353,22 @@ export function Sidebar(p: Props) {
                         />
                       ))}
                     </div>
+                    {pr?.synced && p.onStopSync && (
+                      <>
+                        <p className="sb-menu-label">Synced from {SYNC_APPS[pr.synced] ?? pr.synced}</p>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setMenu(null);
+                            p.onStopSync?.(name);
+                          }}
+                        >
+                          Stop syncing
+                          <span className="sb-menu-note">Its tasks stay here</span>
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       role="menuitem"

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, onTodoistProgress } from "../lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { api, onMirrorChanged, onTodoistProgress } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
-import type { ImportReport, ThingsOptions, ThingsPreviewData } from "../lib/types";
+import type { ImportReport, MirrorLink, MirrorSource, ThingsOptions, ThingsPreviewData } from "../lib/types";
 
 type Source = "things" | "todoist";
 
@@ -117,6 +117,7 @@ function useMoveIn() {
   const [includeCanceled, setIncludeCanceled] = useState(false);
   const [priorityTags, setPriorityTags] = useState(true);
   const [skip, setSkip] = useState<Set<string>>(new Set());
+  const [keepSync, setKeepSync] = useState(true);
   const options = useCallback(
     (): ThingsOptions => ({
       include_done: includeDone,
@@ -126,11 +127,93 @@ function useMoveIn() {
     }),
     [includeDone, includeCanceled, priorityTags, skip],
   );
-  return { phase, setPhase, includeDone, setIncludeDone, includeCanceled, setIncludeCanceled, priorityTags, setPriorityTags, skip, setSkip, options };
+  return { phase, setPhase, includeDone, setIncludeDone, includeCanceled, setIncludeCanceled, priorityTags, setPriorityTags, skip, setSkip, keepSync, setKeepSync, options };
+}
+
+/** Whether an app is kept in sync, kept fresh. */
+function useLink(source: MirrorSource) {
+  const [link, setLink] = useState<MirrorLink | null | undefined>(undefined);
+  const load = useCallback(() => {
+    api
+      .mirrorStatus()
+      .then((s) => setLink(s[source]))
+      .catch(() => setLink(null));
+  }, [source]);
+  useEffect(() => {
+    load();
+    const un = onMirrorChanged(load);
+    // "Synced 2 min ago" stays right.
+    const t = window.setInterval(load, 30_000);
+    return () => {
+      window.clearInterval(t);
+      void un.then((u) => u());
+    };
+  }, [load]);
+  return { link, reload: load };
+}
+
+function ago(iso: string | null): string {
+  if (!iso) return "not yet";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** Shown while an app is kept in sync: how it's going, Sync now, Stop. */
+function SyncCard({ source, app, link, onChange }: { source: MirrorSource; app: string; link: MirrorLink; onChange: () => void }) {
+  const [busy, setBusy] = useState<"now" | "stop" | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const run = async (what: "now" | "stop") => {
+    setBusy(what);
+    setProblem(null);
+    try {
+      if (what === "now") await api.mirrorSyncNow(source);
+      else await api.mirrorStop(source);
+    } catch (e) {
+      setProblem(String(e));
+    } finally {
+      setBusy(null);
+      onChange();
+    }
+  };
+  const error = problem ?? link.error;
+  return (
+    <section className="tr-sync" aria-label={`Syncing with ${app}`}>
+      <div className="tr-sync-head">
+        <span className={error ? "tr-sync-dot bad" : "tr-sync-dot"} aria-hidden />
+        <div>
+          <h3>Syncing with {app}</h3>
+          <p className="tr-small">
+            Synced {ago(link.last)} · {plural(link.projects, "project")}
+          </p>
+        </div>
+      </div>
+      <p className="tr-sync-text">
+        Changes in {app} flow in here on their own. Edit anything in TodoCity — your change stays until the same thing changes
+        in {app}. Nothing is sent back. To stop one project, use its ⋯ menu.
+      </p>
+      {error && (
+        <p className="tr-sync-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="tr-actions">
+        <button type="button" className="ghost" disabled={busy !== null} onClick={() => void run("now")}>
+          {busy === "now" ? "Syncing…" : "Sync now"}
+        </button>
+        <button type="button" className="ghost" disabled={busy !== null} onClick={() => void run("stop")}>
+          {busy === "stop" ? "Stopping…" : "Stop syncing"}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
   const m = useMoveIn();
+  const { link, reload } = useLink("things");
   const { phase, setPhase, includeDone, includeCanceled } = m;
   const [path, setPath] = useState<string | null>(null);
 
@@ -180,12 +263,14 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
         <div>
           <h2 className="tr-title">Import from Things 3</h2>
           <p className="tr-sub">
-            Projects, headings, to-dos, checklists and Logbook. Things isn't changed.
+            Projects, headings, to-dos, checklists and Logbook — and keep them in sync. Things isn't changed.
           </p>
         </div>
       </header>
 
-      {phase.kind !== "done" && (
+      {link && phase.kind !== "done" && <SyncCard source="things" app="Things" link={link} onChange={reload} />}
+
+      {!link && phase.kind !== "done" && (
         <ol className="tr-steps">
           <li>
             <b>Open Things 3 on this Mac</b> and let it finish syncing, so this Mac has all your to-dos. Only use
@@ -200,13 +285,13 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
             Logbook.
           </li>
           <li>
-            <b>Click Import.</b> TodoCity backs itself up first. You can keep using Things and import again later —
-            only new to-dos come across.
+            <b>Click Import.</b> TodoCity backs itself up first. With <b>Keep in sync</b> on, whatever changes in Things
+            keeps flowing in.
           </li>
         </ol>
       )}
 
-      {(phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
+      {!link && (phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
         <div className="tr-actions">
           <button type="button" className="primary" disabled={phase.kind === "reading"} onClick={() => void read(path, m.options())}>
             {phase.kind === "reading" ? "Reading Things…" : "Find my Things library"}
@@ -217,7 +302,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
         </div>
       )}
 
-      {phase.kind === "error" && (
+      {!link && phase.kind === "error" && (
         <div className="tr-error" role="alert">
           <p>{phase.message}</p>
           <details>
@@ -232,10 +317,12 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
         </div>
       )}
 
-      {(phase.kind === "preview" || phase.kind === "moving") && (
+      {!link && (phase.kind === "preview" || phase.kind === "moving") && (
         <PreviewPanel
           m={m}
           found={phase.found}
+          app="Things"
+          canSync
           unit="to-do"
           loose="No project — Inbox and loose to-dos (houses)"
           toggles={
@@ -254,7 +341,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
               />
             </>
           }
-          onMove={() => api.thingsImport(path, m.options())}
+          onMove={() => api.thingsImport(path, m.options(), m.keepSync)}
           other={
             <button type="button" className="ghost" disabled={phase.kind === "moving"} onClick={() => void pick()}>
               Use a different database…
@@ -263,7 +350,9 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
         />
       )}
 
-      {phase.kind === "done" && <DonePanel report={phase.report} app="Things" onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />}
+      {phase.kind === "done" && (
+        <DonePanel report={phase.report} app="Things" synced={!!link} onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />
+      )}
 
       <MapTable from="Things 3" rows={THINGS_MAP} foot="Trashed to-dos stay behind. Projects you've finished come with their to-dos as done." />
     </>
@@ -274,6 +363,9 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
   const m = useMoveIn();
   const { phase, setPhase, includeDone, priorityTags } = m;
   const [token, setToken] = useState("");
+  const { link, reload } = useLink("todoist");
+  // Kept (off screen) for Keep in sync, which saves it in the Keychain.
+  const tokenRef = useRef<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [kind, setKind] = useState<"api" | "csv">("api");
 
@@ -289,6 +381,8 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
       try {
         const data = await api.todoistPreview(from, opts);
         setKind(data.source.kind);
+        if (from?.token) tokenRef.current = from.token;
+        else if (from?.files) tokenRef.current = null;
         // The token was used once; don't keep it on screen.
         if (from?.token) setToken("");
         setPhase({
@@ -336,12 +430,14 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
         <div>
           <h2 className="tr-title">Import from Todoist</h2>
           <p className="tr-sub">
-            Projects, sections, tasks, labels, comments and completed tasks. Todoist isn't changed; your token isn't saved.
+            Projects, sections, tasks, labels, comments and completed tasks — and keep them in sync. Todoist isn't changed.
           </p>
         </div>
       </header>
 
-      {phase.kind !== "done" && (
+      {link && phase.kind !== "done" && <SyncCard source="todoist" app="Todoist" link={link} onChange={reload} />}
+
+      {!link && phase.kind !== "done" && (
         <ol className="tr-steps">
           <li>
             <b>Copy your API token from Todoist.</b> In Todoist (web or app) open <b>Settings → Integrations → Developer</b>{" "}
@@ -353,16 +449,16 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
           </li>
           <li>
             <b>Check the preview.</b> Untick any project you'd rather leave behind, and choose whether to bring completed
-            tasks and turn priorities into tags.
+            tasks.
           </li>
           <li>
-            <b>Click Import.</b> TodoCity backs itself up first. You can keep using Todoist and import again later —
-            only new tasks come across.
+            <b>Click Import.</b> TodoCity backs itself up first. With <b>Keep in sync</b> on, whatever changes in
+            Todoist keeps flowing in; your token is kept in the macOS Keychain for that, and deleted when you stop.
           </li>
         </ol>
       )}
 
-      {(phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
+      {!link && (phase.kind === "idle" || phase.kind === "error" || phase.kind === "reading") && (
         <>
           <form
             className="tr-token"
@@ -400,7 +496,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
         </>
       )}
 
-      {phase.kind === "error" && (
+      {!link && phase.kind === "error" && (
         <div className="tr-error" role="alert">
           <p>{phase.message}</p>
           <details>
@@ -414,10 +510,12 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
         </div>
       )}
 
-      {(phase.kind === "preview" || phase.kind === "moving") && (
+      {!link && (phase.kind === "preview" || phase.kind === "moving") && (
         <PreviewPanel
           m={m}
           found={phase.found}
+          app="Todoist"
+          canSync={kind === "api"}
           unit="task"
           loose="Inbox (houses — tasks in no project)"
           toggles={
@@ -431,7 +529,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
               />
             </>
           }
-          onMove={() => api.todoistImport(m.options())}
+          onMove={() => api.todoistImport(m.options(), m.keepSync && kind === "api", tokenRef.current)}
           other={
             <button type="button" className="ghost" disabled={phase.kind === "moving"} onClick={() => setPhase({ kind: "idle" })}>
               Start over
@@ -440,7 +538,9 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
         />
       )}
 
-      {phase.kind === "done" && <DonePanel report={phase.report} app="Todoist" onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />}
+      {phase.kind === "done" && (
+        <DonePanel report={phase.report} app="Todoist" synced={!!link} onFinished={onFinished} onAgain={() => setPhase({ kind: "idle" })} />
+      )}
 
       <MapTable
         from="Todoist"
@@ -455,6 +555,8 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
 function PreviewPanel({
   m,
   found,
+  app,
+  canSync,
   unit,
   loose,
   toggles,
@@ -463,6 +565,9 @@ function PreviewPanel({
 }: {
   m: ReturnType<typeof useMoveIn>;
   found: Found;
+  app: string;
+  /** Keep in sync is possible (not for CSV files). */
+  canSync: boolean;
   unit: string;
   loose: string;
   toggles: ReactNode;
@@ -479,6 +584,7 @@ function PreviewPanel({
   }, [found, skip]);
   // The counts are only what's new: earlier imports are left out already.
   const toMove = chosen.open + chosen.done;
+  const syncing = canSync && m.keepSync;
 
   async function move() {
     setPhase({ kind: "moving", found });
@@ -502,7 +608,17 @@ function PreviewPanel({
         <Stat value={p.subtasks} label="sub-tasks" />
       </div>
 
-      <div className="tr-options">{toggles}</div>
+      <div className="tr-options">
+        {canSync && (
+          <Toggle
+            checked={m.keepSync}
+            onChange={m.setKeepSync}
+            label="Keep in sync"
+            hint={`Changes in ${app} keep flowing in. Your edits here stay; nothing is sent back.`}
+          />
+        )}
+        {toggles}
+      </div>
 
       <h3 className="tr-h">Buildings</h3>
       <ul className="tr-list">
@@ -553,8 +669,14 @@ function PreviewPanel({
       </ul>
 
       <div className="tr-actions">
-        <button type="button" className="primary" disabled={moving || toMove === 0} onClick={() => void move()}>
-          {moving ? "Importing…" : toMove === 0 ? "Nothing new to import" : `Import ${plural(toMove, unit)}`}
+        <button type="button" className="primary" disabled={moving || (toMove === 0 && !syncing)} onClick={() => void move()}>
+          {moving
+            ? "Importing…"
+            : toMove === 0
+              ? syncing
+                ? "Start syncing"
+                : "Nothing new to import"
+              : `Import ${plural(toMove, unit)}`}
         </button>
         {other}
       </div>
@@ -562,7 +684,19 @@ function PreviewPanel({
   );
 }
 
-function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport; app: string; onFinished: () => void; onAgain: () => void }) {
+function DonePanel({
+  report,
+  app,
+  synced,
+  onFinished,
+  onAgain,
+}: {
+  report: ImportReport;
+  app: string;
+  synced: boolean;
+  onFinished: () => void;
+  onAgain: () => void;
+}) {
   return (
     <section className="tr-done" aria-live="polite">
       <h3>Welcome home.</h3>
@@ -572,6 +706,7 @@ function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport;
           : "Everything was already here — nothing new to import."}
         {report.skipped > 0 && ` ${plural(report.skipped, "task")} were already here.`}
         {report.failed > 0 && ` ${plural(report.failed, "task")} couldn't be read and stayed in ${app}.`}
+        {synced && ` From now on, changes in ${app} flow in on their own.`}
       </p>
       <p className="tr-small">
         A backup from just before is in Settings → Backups & export, if you want to undo this. Moved-in tasks aren't sent to
@@ -581,9 +716,11 @@ function DonePanel({ report, app, onFinished, onAgain }: { report: ImportReport;
         <button type="button" className="primary" onClick={onFinished}>
           See your tasks
         </button>
-        <button type="button" className="ghost" onClick={onAgain}>
-          Import again
-        </button>
+        {!synced && (
+          <button type="button" className="ghost" onClick={onAgain}>
+            Import again
+          </button>
+        )}
       </div>
     </section>
   );

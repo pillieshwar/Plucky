@@ -16,7 +16,8 @@
 //! | Recurring due date         | Repeat rule, when it maps              |
 //! | Completed tasks (API only) | Done tasks (lit windows)               |
 //!
-//! The token is only used for the requests here and never stored. CSV
+//! This module never stores the token (keeping Todoist in sync keeps it in
+//! the macOS Keychain; see the app's `mirror`). CSV
 //! exports have no completed tasks, and their dates are free text, so the
 //! common forms are read and anything else is kept in the notes.
 
@@ -314,6 +315,82 @@ pub async fn fetch(
         done += found;
         empty = if found == 0 { empty + 1 } else { 0 };
         until = since;
+    }
+    Ok(lib)
+}
+
+/// Read what keeping in step needs: everything open (one sync request) and
+/// the tasks finished since `done_since` (a few pages at most).
+pub async fn fetch_live(
+    client: &reqwest::Client,
+    base: &str,
+    token: &str,
+    done_since: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> Result<Library, TodoistError> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err(TodoistError::BadToken);
+    }
+    let auth = format!("Bearer {token}");
+    let sync: SyncResponse = get_json(
+        client
+            .post(format!("{base}/api/v1/sync"))
+            .header("Authorization", &auth)
+            .form(&[
+                ("sync_token", "*"),
+                (
+                    "resource_types",
+                    r#"["projects","items","sections","notes"]"#,
+                ),
+            ]),
+    )
+    .await?;
+    let mut lib = Library {
+        projects: sync.projects,
+        sections: sync.sections,
+        tasks: sync.items,
+        ..Default::default()
+    };
+    for n in sync.notes {
+        if let (false, Some(item)) = (n.is_deleted, n.item_id) {
+            if !n.content.trim().is_empty() {
+                lib.comments.entry(item).or_default().push(n.content);
+            }
+        }
+    }
+    let known: HashSet<String> = lib.tasks.iter().map(|t| t.id.clone()).collect();
+    let fmt = |d: DateTime<Utc>| d.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let mut since = done_since.min(now);
+    while since < now {
+        let until = (since + Duration::days(WINDOW_DAYS)).min(now);
+        let mut cursor: Option<String> = None;
+        loop {
+            let mut req = client
+                .get(format!("{base}/api/v1/tasks/completed/by_completion_date"))
+                .header("Authorization", &auth)
+                .query(&[
+                    ("since", fmt(since)),
+                    ("until", fmt(until)),
+                    ("limit", "200".to_string()),
+                ]);
+            if let Some(c) = &cursor {
+                req = req.query(&[("cursor", c.as_str())]);
+            }
+            let page: Page<Task> = get_json(req).await?;
+            for mut t in page.results {
+                if known.contains(&t.id) || t.is_deleted {
+                    continue;
+                }
+                t.checked = true;
+                lib.tasks.push(t);
+            }
+            match page.next_cursor {
+                Some(c) if !c.is_empty() => cursor = Some(c),
+                _ => break,
+            }
+        }
+        since = until;
     }
     Ok(lib)
 }
@@ -955,6 +1032,7 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
             preview.open += 1
         }
         items.push(Imported {
+            building: key.clone(),
             ext_id: t.id.clone(),
             task: NewTask {
                 title,
@@ -1426,6 +1504,23 @@ task,Buy adapter,,4,1,Sam (1),,every month,en,US/Pacific,,,2026-11-20,en\r\n";
         ));
         assert!(matches!(
             fetch(&client, &base, "  ", now, |_| {}).await,
+            Err(TodoistError::BadToken)
+        ));
+    }
+
+    #[tokio::test]
+    async fn live_reads_open_tasks_and_recently_done() {
+        let base = serve().await;
+        let client = reqwest::Client::new();
+        let now = Utc.with_ymd_and_hms(2026, 10, 25, 12, 0, 0).unwrap();
+        let since = Utc.with_ymd_and_hms(2026, 9, 30, 0, 0, 0).unwrap();
+        let lib = fetch_live(&client, &base, "good", since, now)
+            .await
+            .unwrap();
+        let ids: Vec<&str> = lib.tasks.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["a", "c1", "c2"]);
+        assert!(matches!(
+            fetch_live(&client, &base, "bad", since, now).await,
             Err(TodoistError::BadToken)
         ));
     }
