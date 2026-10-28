@@ -38,6 +38,8 @@ import type {
   TaskPatch,
   UpdateStatus,
   SyncStatus,
+  MirrorSource,
+  MirrorStatus,
 } from "./types";
 
 export const api = {
@@ -174,8 +176,8 @@ export const api = {
   thingsPreview: (path: string | null, options: ThingsOptions) =>
     invoke<ThingsPreview>("things_preview", { path, options }),
   /** Bring Things 3 to-dos in (backs up first, skips earlier imports). */
-  thingsImport: (path: string | null, options: ThingsOptions) =>
-    invoke<ImportReport>("things_import", { path, options }),
+  thingsImport: (path: string | null, options: ThingsOptions, keepInSync = false) =>
+    invoke<ImportReport>("things_import", { path, options, keepInSync }),
   /** Choose exported Todoist CSV files (empty if cancelled). */
   todoistPickFiles: () => invoke<string[]>("todoist_pick_files"),
   /**
@@ -185,7 +187,15 @@ export const api = {
   todoistPreview: (source: { token?: string; files?: string[] } | null, options: ThingsOptions) =>
     invoke<TodoistPreview>("todoist_preview", { token: source?.token ?? null, files: source?.files ?? null, options }),
   /** Bring in what the last Todoist preview read (backs up first). */
-  todoistImport: (options: ThingsOptions) => invoke<ImportReport>("todoist_import", { options }),
+  todoistImport: (options: ThingsOptions, keepInSync = false, token: string | null = null) =>
+    invoke<ImportReport>("todoist_import", { options, keepInSync, token: keepInSync ? token : null }),
+  // Keeping in sync with Things 3 or Todoist (one way: changes flow in).
+  mirrorStatus: () => invoke<MirrorStatus>("mirror_status"),
+  mirrorSyncNow: (source: MirrorSource) => invoke<unknown>("mirror_sync_now", { source }),
+  /** Stop syncing with an app; its tasks stay (and the Todoist token is deleted). */
+  mirrorStop: (source: MirrorSource) => invoke<void>("mirror_stop", { source }),
+  /** Stop syncing one project; it becomes an ordinary project. */
+  mirrorStopProject: (name: string) => invoke<boolean>("mirror_stop_project", { name }),
   // Sync between your Macs.
   syncStatus: () => invoke<SyncStatus>("sync_status"),
   /** Show a pairing code here (turns sync on here if needed). */
@@ -219,6 +229,10 @@ export function onQuickShown(handler: () => void): Promise<UnlistenFn> {
 /** A capture sent to this window (the side panel or the menu-bar dropdown). */
 export function onCapture(handler: (r: CaptureResult) => void): Promise<UnlistenFn> {
   return getCurrentWebviewWindow().listen<CaptureResult>("capture", (e) => handler(e.payload));
+}
+
+export function onMirrorChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("mirror-changed", () => handler());
 }
 
 export function onTasksChanged(handler: () => void): Promise<UnlistenFn> {

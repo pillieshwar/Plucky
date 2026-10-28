@@ -728,6 +728,7 @@ pub fn plan(lib: &Library, opts: &Options, already: &HashSet<String>, today: Nai
             preview.someday += someday as usize;
         }
         items.push(Imported {
+            building: key.clone(),
             ext_id: r.uuid.clone(),
             task,
             done,

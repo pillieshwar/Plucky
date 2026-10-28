@@ -307,7 +307,23 @@ function mockTauri(s) {
         preview: { buildings, open: 47, done: done ? 496 : 0, someday: 8, repeating: 4, subtasks: 63, canceled: 5, unmapped_repeats: 1, already: 0 },
       };
     },
-    things_import: () => ({ added: 543, done: 496, skipped: 0, failed: 0 }),
+    things_import: (a) => {
+      if (a.keepInSync) {
+        s.mirror = { todoist: null, ...(s.mirror ?? {}), things: { since: new Date().toISOString(), last: new Date().toISOString(), error: null, projects: 4 } };
+        setTimeout(() => window.__emit?.("mirror-changed", null), 0);
+      }
+      return { added: 543, done: 496, skipped: 0, failed: 0 };
+    },
+    mirror_status: () => s.mirror ?? { things: null, todoist: null },
+    mirror_sync_now: () => null,
+    mirror_stop: (a) => {
+      s.mirror = { ...(s.mirror ?? {}), [a.source]: null };
+      return null;
+    },
+    mirror_stop_project: (a) => {
+      s.synced = { ...(s.synced ?? {}), [a.name]: null };
+      return true;
+    },
     todoist_pick_files: () => ["/Users/sam/Downloads/Lisbon [2203306141].csv"],
     todoist_preview: (a) => {
       if (a.token && a.token !== "good-token") throw "Todoist didn't accept that token. Copy it again from Todoist → Settings → Integrations → Developer.";
@@ -361,7 +377,7 @@ function mockTauri(s) {
       const m = new Map();
       for (const t of [...s.tasks, ...(s.logbook ?? [])]) {
         if (!t.project) continue;
-        const p = m.get(t.project) ?? { name: t.project, open: 0, done: 0, color: (s.colors ?? { "Offsite 2026": "#f08a3c", "Q4 launch": "#3fbf7f" })[t.project] ?? null };
+        const p = m.get(t.project) ?? { name: t.project, open: 0, done: 0, color: (s.colors ?? { "Offsite 2026": "#f08a3c", "Q4 launch": "#3fbf7f" })[t.project] ?? null, synced: (s.synced ?? {})[t.project] ?? null };
         if (t.done) p.done += 1;
         else p.open += 1;
         m.set(t.project, p);
@@ -1178,6 +1194,21 @@ await shot("full-transfer-todoist-csv", FULL, full({ settings: DARK }), async (p
   await p.locator(".tr-preview").waitFor();
   if (!(await p.getByRole("switch", { name: /Bring completed tasks/ }).isDisabled())) throw new Error("completed tasks should be off for CSV");
 });
+await shot("full-transfer-syncing", FULL, full({ settings: DARK, mirror: { things: { since: "2026-10-20T10:00:00Z", last: new Date(Date.now() - 120_000).toISOString(), error: null, projects: 4 }, todoist: null } }), async (p) => {
+  await tab(p, "Import Data");
+  await p.locator(".tr-sync").waitFor();
+  const text = await p.locator(".tr-sync").textContent();
+  if (!text.includes("Syncing with Things") || !text.includes("2 min ago")) throw new Error(`sync card wrong: ${text}`);
+  if (await p.getByRole("button", { name: "Find my Things library" }).count()) throw new Error("the import flow should hide while syncing");
+});
+await shot("full-transfer-sync-start", FULL, full({ settings: DARK }), async (p) => {
+  await tab(p, "Import Data");
+  await p.getByRole("button", { name: "Find my Things library" }).click();
+  await p.getByRole("switch", { name: /Keep in sync/ }).waitFor();
+  await p.getByRole("button", { name: /^Import \d/ }).click();
+  await p.locator(".tr-done").waitFor();
+  if (!(await p.locator(".tr-done").textContent()).includes("flow in on their own")) throw new Error("done message should say it keeps syncing");
+});
 await shot("panel-transfer-done", PANEL, scenario(), async (p) => {
   await tab(p, "Data transfer");
   await p.getByRole("button", { name: "Find my Things library" }).click();
@@ -1555,6 +1586,13 @@ await shot("full-floor-menu", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
   await p.locator(".sb-b", { hasText: "Offsite 2026" }).hover();
   await p.getByRole("button", { name: "More for Offsite 2026" }).click();
+});
+await shot("full-project-synced", FULL, full({ settings: DARK, synced: { "Offsite 2026": "things3" } }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.locator(".sb-b", { hasText: "Offsite 2026" }).hover();
+  await p.getByRole("button", { name: "More for Offsite 2026" }).click();
+  await p.getByText("Synced from Things 3").waitFor();
+  await p.getByRole("menuitem", { name: /Stop syncing/ }).waitFor();
 });
 await shot("full-project-color", FULL, full({ settings: DARK }), async (p) => {
   await side(/Q4 launch/)(p);

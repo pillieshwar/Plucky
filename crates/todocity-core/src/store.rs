@@ -291,6 +291,20 @@ CREATE TRIGGER sync_dirty_floor_del AFTER DELETE ON floors BEGIN UPDATE sync_sta
     r#"
 ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 3);
 "#,
+    // Keeping in step with Things 3 or Todoist (see `crate::mirror`): each
+    // brought-in task remembers how the other app last had it, and each of
+    // the other app's projects which project it is here.
+    r#"
+ALTER TABLE imports ADD COLUMN base TEXT;
+CREATE TABLE mirror_projects (
+    source      TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    project     TEXT NOT NULL,
+    source_name TEXT NOT NULL,
+    stopped     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source, key)
+);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -298,6 +312,8 @@ ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority
 pub struct Imported {
     /// The other app's id for it, unique within `source`.
     pub ext_id: String,
+    /// The other app's project (or area) it's in, or the loose key.
+    pub building: String,
     pub task: NewTask,
     pub done: bool,
     /// RFC 3339 UTC; when it was finished (done tasks) and created.
@@ -355,6 +371,8 @@ pub struct ProjectSummary {
     pub done: i64,
     /// The color the user picked (`#rrggbb`), if any.
     pub color: Option<String>,
+    /// The app it's kept in step with (`things3`, `todoist`), if any.
+    pub synced: Option<String>,
 }
 
 pub struct Store {
@@ -734,7 +752,8 @@ impl Store {
     pub fn projects(&self) -> Result<Vec<ProjectSummary>, StoreError> {
         let mut stmt = self.conn.prepare(
             "SELECT p.name, COALESCE(SUM(t.done = 0), 0), COALESCE(SUM(t.done = 1), 0),
-                    (SELECT color FROM projects c WHERE c.name = p.name)
+                    (SELECT color FROM projects c WHERE c.name = p.name),
+                    (SELECT source FROM mirror_projects m WHERE m.project = p.name AND m.stopped = 0 LIMIT 1)
              FROM (SELECT name FROM projects UNION SELECT project FROM tasks WHERE project IS NOT NULL) p
              LEFT JOIN tasks t ON t.project = p.name
              GROUP BY p.name ORDER BY p.name COLLATE NOCASE",
@@ -745,6 +764,7 @@ impl Store {
                 open: r.get(1)?,
                 done: r.get(2)?,
                 color: r.get(3)?,
+                synced: r.get(4)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -858,6 +878,11 @@ impl Store {
             .execute("DELETE FROM floors WHERE project = ?1", [name])?;
         self.conn
             .execute("DELETE FROM projects WHERE name = ?1", [name])?;
+        // A kept-in-step project that's taken down stays down.
+        self.conn.execute(
+            "UPDATE mirror_projects SET stopped = 1 WHERE project = ?1",
+            [name],
+        )?;
         Ok(true)
     }
 
@@ -895,6 +920,10 @@ impl Store {
         )?;
         self.conn
             .execute("DELETE FROM floors WHERE project = ?1", params![from])?;
+        self.conn.execute(
+            "UPDATE mirror_projects SET project = ?2 WHERE project = ?1",
+            params![from, to],
+        )?;
         Ok(self.conn.execute(
             "UPDATE tasks SET project = ?2 WHERE project = ?1",
             params![from, to],
@@ -1978,7 +2007,8 @@ mod tests {
                 name: "P".into(),
                 open: 1,
                 done: 3,
-                color: None
+                color: None,
+                synced: None
             }]
         );
         s.set_project_color("P", Some("#ff8800")).unwrap();

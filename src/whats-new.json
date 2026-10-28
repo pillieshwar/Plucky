@@ -1,4 +1,10 @@
 {
+  "0.4.56": [
+    "Keep in sync with Things 3 or Todoist: changes there flow into TodoCity on their own",
+    "Synced tasks stay editable — your edits stick until the same thing changes in the other app",
+    "Stop syncing a single project from its ⋯ menu, or everything from Import Data",
+    "Your Todoist token is kept in the macOS Keychain, and deleted when you stop syncing"
+  ],
   "0.4.55": [
     "A cleaner Add Task: chips for where it goes, its date and time; icons for priority, deadline, sub-tasks and tags",
     "Priority: P1, P2 and P3 — click the flag, or type p1 in a task",
@@ -7,7 +13,9 @@
     "Grey icons, Settings next to your name, and a slimmer footer",
     "Personal mode by default, with Home and Office projects"
   ],
-  "0.4.54": ["A cleaner logo, and a colour menu-bar icon"],
+  "0.4.54": [
+    "A cleaner logo, and a colour menu-bar icon"
+  ],
   "0.4.53": [
     "Calendar week lines line up",
     "Boards fill the screen, with their scrollbar at the bottom",
@@ -21,7 +29,9 @@
     "A footer with the AI model, your city and the version",
     "Show or hide the calendar pane; Logbook is now Completed"
   ],
-  "0.4.51": ["TodoCity, one word, everywhere"],
+  "0.4.51": [
+    "TodoCity, one word, everywhere"
+  ],
   "0.4.50": [
     "Pick a floor when adding a task",
     "Drag tasks onto buildings and floors",

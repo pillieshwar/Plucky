@@ -1458,6 +1458,15 @@ export default function App() {
                 .then(() => refresh())
                 .catch((e) => setError(String(e)))
             }
+            onStopSync={(project) =>
+              void api
+                .mirrorStopProject(project)
+                .then(() => {
+                  void refresh();
+                  show(`${project} no longer syncs — it's yours now`);
+                })
+                .catch((e) => setError(String(e)))
+            }
             onDeleteFloor={(project, name) =>
               void api
                 .deleteFloor(project, name)

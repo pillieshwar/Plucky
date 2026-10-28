@@ -1,0 +1,496 @@
+//! Keeping TodoCity in step with Things 3 or Todoist, one way (the rules are
+//! in `todocity_core::mirror`).
+//!
+//! * Things 3: its database on this Mac is checked every 15 seconds, and
+//!   read (from a copy, as the import does) only when Things has saved since.
+//! * Todoist: read every 5 minutes over its API, with the person's token
+//!   kept in the macOS Keychain. Disconnecting deletes it.
+//!
+//! Nothing is ever written to either app.
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager, State};
+use todocity_core::mirror::{PassOptions, PassReport, Source};
+use todocity_core::things::{self, Options, Preview};
+use todocity_core::todoist::{self, TodoistError};
+
+use crate::{err, tray, AppState, CmdResult};
+
+const KEYCHAIN_SERVICE: &str = "app.todocity.todoist";
+const KEYCHAIN_ACCOUNT: &str = "api-token";
+/// How often Things' database is checked for a save (cheap: one stat).
+const THINGS_EVERY: Duration = Duration::from_secs(15);
+/// How often Todoist is read.
+const TODOIST_EVERY: Duration = Duration::from_secs(300);
+
+/// One app being kept in step.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Link {
+    /// RFC 3339: when syncing began.
+    pub since: String,
+    /// When the last pass went through.
+    pub last: Option<String>,
+    /// What went wrong on the last try, if it did.
+    pub error: Option<String>,
+    /// Things: a database picked by hand, when it isn't the usual one.
+    pub path: Option<String>,
+    /// Things: the save that was read last (its modification time).
+    pub seen: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct Cfg {
+    things: Option<Link>,
+    todoist: Option<Link>,
+}
+
+pub struct Mirror {
+    path: PathBuf,
+    cfg: Mutex<Cfg>,
+    /// One pass at a time.
+    busy: tokio::sync::Mutex<()>,
+    wake: tokio::sync::Notify,
+    todoist_at: Mutex<Option<Instant>>,
+}
+
+/// What Settings shows about one app.
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkStatus {
+    pub since: String,
+    pub last: Option<String>,
+    pub error: Option<String>,
+    /// Projects kept in step right now.
+    pub projects: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MirrorStatus {
+    pub things: Option<LinkStatus>,
+    pub todoist: Option<LinkStatus>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Which {
+    Things,
+    Todoist,
+}
+
+impl Which {
+    fn parse(s: &str) -> CmdResult<Self> {
+        match s {
+            "things" | "things3" => Ok(Self::Things),
+            "todoist" => Ok(Self::Todoist),
+            _ => Err(format!("Unknown app: {s}")),
+        }
+    }
+    fn source(self) -> &'static str {
+        match self {
+            Self::Things => things::SOURCE,
+            Self::Todoist => todoist::SOURCE,
+        }
+    }
+}
+
+fn now() -> String {
+    Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+fn keychain() -> Option<keyring::Entry> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).ok()
+}
+
+fn modified(p: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
+}
+
+/// When Things last saved: its database or the write-ahead log beside it.
+fn things_saved(db: &Path) -> Option<String> {
+    let mut wal = db.as_os_str().to_owned();
+    wal.push("-wal");
+    let t = [modified(db), modified(Path::new(&wal))]
+        .into_iter()
+        .flatten()
+        .max()?;
+    Some(DateTime::<Utc>::from(t).to_rfc3339())
+}
+
+impl Mirror {
+    pub fn new(data_dir: &Path) -> Self {
+        let path = data_dir.join("mirror.json");
+        let cfg = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        Self {
+            path,
+            cfg: Mutex::new(cfg),
+            busy: tokio::sync::Mutex::new(()),
+            wake: tokio::sync::Notify::new(),
+            todoist_at: Mutex::new(None),
+        }
+    }
+
+    fn cfg(&self) -> Cfg {
+        self.cfg.lock().map(|c| c.clone()).unwrap_or_default()
+    }
+
+    fn edit(&self, which: Which, f: impl FnOnce(&mut Option<Link>)) {
+        let Ok(mut c) = self.cfg.lock() else {
+            return;
+        };
+        f(match which {
+            Which::Things => &mut c.things,
+            Which::Todoist => &mut c.todoist,
+        });
+        if let Ok(json) = serde_json::to_vec_pretty(&*c) {
+            let tmp = self.path.with_extension("json.tmp");
+            if std::fs::write(&tmp, json).is_ok() {
+                let _ = std::fs::rename(&tmp, &self.path);
+            }
+        }
+    }
+
+    fn link(&self, which: Which) -> Option<Link> {
+        let c = self.cfg();
+        match which {
+            Which::Things => c.things,
+            Which::Todoist => c.todoist,
+        }
+    }
+
+    /// Check now rather than at the next tick.
+    fn poke(&self) {
+        if let Ok(mut at) = self.todoist_at.lock() {
+            *at = None;
+        }
+        self.wake.notify_one();
+    }
+
+    /// The background loop: Things every 15 s (when it has saved), Todoist
+    /// every 5 minutes.
+    pub fn start(app: &AppHandle) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            // Let the app finish opening first.
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            loop {
+                let m = app.state::<Mirror>();
+                if m.link(Which::Things).is_some() {
+                    let _ = pass(&app, Which::Things, false).await;
+                }
+                let due = m
+                    .todoist_at
+                    .lock()
+                    .map(|at| (*at).map_or(true, |t| t.elapsed() >= TODOIST_EVERY))
+                    .unwrap_or(true);
+                if due && m.link(Which::Todoist).is_some() {
+                    let _ = pass(&app, Which::Todoist, false).await;
+                }
+                tokio::select! {
+                    _ = tokio::time::sleep(THINGS_EVERY) => {}
+                    _ = m.wake.notified() => {}
+                }
+            }
+        });
+    }
+}
+
+/// One pass for `which`. `Ok(None)`: nothing to do (not connected, or Things
+/// hasn't saved since last time).
+async fn pass(app: &AppHandle, which: Which, force: bool) -> CmdResult<Option<PassReport>> {
+    let m = app.state::<Mirror>();
+    let _one = m.busy.lock().await;
+    let Some(link) = m.link(which) else {
+        return Ok(None);
+    };
+    let result = match which {
+        Which::Things => things_pass(app, &link, force).await,
+        Which::Todoist => {
+            if let Ok(mut at) = m.todoist_at.lock() {
+                *at = Some(Instant::now());
+            }
+            todoist_pass(app, &link).await
+        }
+    };
+    match &result {
+        Ok(Some((report, seen))) => {
+            let (report, seen) = (report.clone(), seen.clone());
+            for e in &report.errors {
+                log::warn!("sync from {}: {e}", which.source());
+            }
+            m.edit(which, |l| {
+                if let Some(l) = l {
+                    l.last = Some(now());
+                    l.error = None;
+                    if seen.is_some() {
+                        l.seen = seen;
+                    }
+                }
+            });
+            if report.added + report.updated + report.removed > 0 {
+                log::info!(
+                    "sync from {}: {} added, {} updated, {} removed",
+                    which.source(),
+                    report.added,
+                    report.updated,
+                    report.removed
+                );
+                let _ = app.emit("tasks-changed", ());
+                tray::refresh(app);
+            }
+        }
+        Ok(None) => {}
+        Err(e) => {
+            log::warn!("sync from {} failed: {e}", which.source());
+            let e = e.clone();
+            m.edit(which, |l| {
+                if let Some(l) = l {
+                    l.error = Some(e);
+                }
+            });
+        }
+    }
+    let _ = app.emit("mirror-changed", ());
+    result.map(|r| r.map(|(report, _)| report))
+}
+
+async fn things_pass(
+    app: &AppHandle,
+    link: &Link,
+    force: bool,
+) -> CmdResult<Option<(PassReport, Option<String>)>> {
+    let db = crate::import::locate(link.path.as_deref())?;
+    let saved = things_saved(&db);
+    if !force && saved.is_some() && saved == link.seen {
+        return Ok(None);
+    }
+    let app = app.clone();
+    let since = link.since.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let lib = things::read_copy(&db, &state.data_dir).map_err(crate::import::friendly)?;
+        let opts = Options {
+            include_done: true,
+            ..Default::default()
+        };
+        // Days as Things has them; the store shows passed ones as today.
+        let plan = things::plan(&lib, &opts, &HashSet::new(), chrono::NaiveDate::MIN);
+        let report = apply(
+            &state,
+            things::SOURCE,
+            &plan.preview,
+            &plan.floors,
+            &plan.items,
+            &since,
+        )?;
+        Ok(Some((report, saved)))
+    })
+    .await
+    .map_err(err)?
+}
+
+async fn todoist_pass(
+    app: &AppHandle,
+    link: &Link,
+) -> CmdResult<Option<(PassReport, Option<String>)>> {
+    let token = keychain().and_then(|k| k.get_password().ok()).ok_or(
+        "Todoist isn't connected on this Mac any more. Connect it again in Settings → Import Data.",
+    )?;
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("TodoCity/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(err)?;
+    let parse = |s: &str| {
+        DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|t| t.with_timezone(&Utc))
+    };
+    let from = link
+        .last
+        .as_deref()
+        .and_then(parse)
+        .or(parse(&link.since))
+        .unwrap_or_else(Utc::now)
+        - chrono::Duration::days(1);
+    let lib = todoist::fetch_live(&client, todoist::API_BASE, &token, from, Utc::now())
+        .await
+        .map_err(|e| match e {
+            TodoistError::BadToken => {
+                "Todoist no longer accepts the saved token. Connect it again in Settings → Import Data.".to_string()
+            }
+            e => e.to_string(),
+        })?;
+    let opts = Options {
+        include_done: true,
+        ..Default::default()
+    };
+    let today = chrono::Local::now().date_naive();
+    let plan = todoist::plan(&lib, &opts, &HashSet::new(), today);
+    let state = app.state::<AppState>();
+    let report = apply(
+        &state,
+        todoist::SOURCE,
+        &plan.preview,
+        &plan.floors,
+        &plan.items,
+        &link.since,
+    )?;
+    Ok(Some((report, None)))
+}
+
+fn apply(
+    state: &AppState,
+    source: &str,
+    preview: &Preview,
+    floors: &[(String, Option<String>)],
+    items: &[todocity_core::Imported],
+    since: &str,
+) -> CmdResult<PassReport> {
+    let store = state.store.lock().map_err(err)?;
+    store
+        .mirror(
+            &Source {
+                source,
+                buildings: preview
+                    .buildings
+                    .iter()
+                    .map(|b| (b.key.clone(), b.name.clone()))
+                    .collect(),
+                floors,
+                items,
+                complete: true,
+            },
+            &PassOptions {
+                today: chrono::Local::now().date_naive(),
+                since,
+            },
+        )
+        .map_err(err)
+}
+
+/// Start keeping `which` in step, right after it was imported. Projects
+/// left out of the import stay out.
+pub fn begin(
+    app: &AppHandle,
+    which: &str,
+    path: Option<String>,
+    token: Option<String>,
+    preview: &Preview,
+    skip: &[String],
+) -> CmdResult<()> {
+    let which = Which::parse(which)?;
+    if which == Which::Todoist {
+        let token = token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .ok_or("Connect Todoist with your API token to keep it in sync.")?;
+        keychain()
+            .ok_or("Couldn't open the Keychain.")?
+            .set_password(&token)
+            .map_err(|e| format!("Couldn't save the Todoist token in the Keychain: {e}"))?;
+    }
+    let skipped: Vec<(String, String)> = preview
+        .buildings
+        .iter()
+        .filter(|b| skip.contains(&b.key) && b.key != things::LOOSE_KEY)
+        .map(|b| (b.key.clone(), b.name.clone()))
+        .collect();
+    {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store
+            .stop_mirroring_keys(which.source(), &skipped)
+            .map_err(err)?;
+    }
+    let m = app.state::<Mirror>();
+    m.edit(which, |l| {
+        *l = Some(Link {
+            since: now(),
+            path: path.filter(|p| !p.trim().is_empty()),
+            ..Default::default()
+        })
+    });
+    m.poke();
+    let _ = app.emit("mirror-changed", ());
+    Ok(())
+}
+
+// ── Commands ────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn mirror_status(
+    state: State<'_, AppState>,
+    mirror: State<'_, Mirror>,
+) -> CmdResult<MirrorStatus> {
+    let c = mirror.cfg();
+    let store = state.store.lock().map_err(err)?;
+    let count = |source: &str| -> usize {
+        store
+            .mirror_projects(Some(source))
+            .map(|v| v.iter().filter(|p| !p.stopped).count())
+            .unwrap_or(0)
+    };
+    let status = |l: Option<Link>, source: &str| {
+        l.map(|l| LinkStatus {
+            since: l.since,
+            last: l.last,
+            error: l.error,
+            projects: count(source),
+        })
+    };
+    Ok(MirrorStatus {
+        things: status(c.things, things::SOURCE),
+        todoist: status(c.todoist, todoist::SOURCE),
+    })
+}
+
+/// Bring changes in now.
+#[tauri::command]
+pub async fn mirror_sync_now(app: AppHandle, source: String) -> CmdResult<Option<PassReport>> {
+    pass(&app, Which::parse(&source)?, true).await
+}
+
+/// Stop keeping an app in step. Its tasks stay, as ordinary tasks; the
+/// Todoist token is deleted from the Keychain.
+#[tauri::command]
+pub async fn mirror_stop(app: AppHandle, source: String) -> CmdResult<()> {
+    let which = Which::parse(&source)?;
+    let m = app.state::<Mirror>();
+    let _one = m.busy.lock().await;
+    m.edit(which, |l| *l = None);
+    if which == Which::Todoist {
+        if let Some(k) = keychain() {
+            let _ = k.delete_credential();
+        }
+    }
+    {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.forget_mirror(which.source()).map_err(err)?;
+    }
+    let _ = app.emit("mirror-changed", ());
+    let _ = app.emit("tasks-changed", ());
+    Ok(())
+}
+
+/// Stop keeping one project in step; the rest carry on.
+#[tauri::command]
+pub fn mirror_stop_project(app: AppHandle, name: String) -> CmdResult<bool> {
+    let stopped = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().map_err(err)?;
+        store.stop_mirroring_project(&name).map_err(err)?
+    };
+    let _ = app.emit("mirror-changed", ());
+    let _ = app.emit("tasks-changed", ());
+    Ok(stopped)
+}

@@ -3089,3 +3089,15 @@ button.tf-chip { cursor: pointer; }
 .tfc-bar { flex-wrap: wrap; }
 .tfc-bar .tf { flex: 1 1 300px; }
 .tfc-bar .tfc-add { margin-left: auto; }
+
+/* Keeping in sync with Things 3 / Todoist. */
+.tr-sync { margin: 4px 0 14px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.tr-sync-head { display: flex; align-items: center; gap: 10px; }
+.tr-sync-head h3 { margin: 0; font-size: 14.5px; }
+.tr-sync-head .tr-small { margin: 2px 0 0; }
+.tr-sync-dot { width: 9px; height: 9px; border-radius: 50%; background: #3fbf7f; flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, #3fbf7f 20%, transparent); }
+.tr-sync-dot.bad { background: #ef5b4f; box-shadow: 0 0 0 3px color-mix(in srgb, #ef5b4f 20%, transparent); }
+.tr-sync-text { margin: 10px 0 0; line-height: 1.5; color: var(--muted); font-size: 12.5px; }
+.tr-sync-error { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: color-mix(in srgb, #ef5b4f 10%, var(--panel)); border: 1px solid color-mix(in srgb, #ef5b4f 30%, var(--line)); }
+.tr-sync .tr-actions { margin-top: 12px; }
+.sb-synced { margin-left: 6px; color: var(--faint); display: inline-flex; vertical-align: -2px; }

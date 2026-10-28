@@ -14,7 +14,7 @@ use todocity_core::things::{self, Options, Preview};
 use todocity_core::todoist;
 use todocity_core::ImportReport;
 
-use crate::{data, err, tray, AppState, CmdResult};
+use crate::{data, err, mirror, tray, AppState, CmdResult};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ThingsSource {
@@ -47,7 +47,7 @@ fn source_of(path: &Path) -> ThingsSource {
     }
 }
 
-fn friendly(e: things::ThingsError) -> String {
+pub(crate) fn friendly(e: things::ThingsError) -> String {
     let denied = matches!(&e, things::ThingsError::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied);
     if denied {
         "macOS didn't let TodoCity read Things' data. Click Allow when macOS asks, or turn on TodoCity in \
@@ -62,7 +62,7 @@ fn friendly(e: things::ThingsError) -> String {
 }
 
 /// The database to read: the one the user picked, or the newest on this Mac.
-fn locate(path: Option<&str>) -> CmdResult<PathBuf> {
+pub(crate) fn locate(path: Option<&str>) -> CmdResult<PathBuf> {
     match path.map(str::trim).filter(|p| !p.is_empty()) {
         Some(p) => things::resolve_pick(Path::new(p)).ok_or_else(|| {
             "That isn't a Things database. Choose main.sqlite, or the \"Things Database.thingsdatabase\" folder."
@@ -143,15 +143,18 @@ pub async fn things_preview(
 }
 
 /// Bring the tasks in. TodoCity's database is backed up first; anything
-/// brought in before is skipped.
+/// brought in before is skipped. With `keep_in_sync`, changes in Things keep
+/// flowing in afterwards (see `mirror`).
 #[tauri::command]
 pub async fn things_import(
     app: AppHandle,
     state: State<'_, AppState>,
     path: Option<String>,
     options: Option<Options>,
+    keep_in_sync: Option<bool>,
 ) -> CmdResult<ImportReport> {
-    let (_, plan) = read_plan(&state, path.as_deref(), &options.unwrap_or_default())?;
+    let options = options.unwrap_or_default();
+    let (_, plan) = read_plan(&state, path.as_deref(), &options)?;
     let report = {
         let store = state.store.lock().map_err(err)?;
         if !plan.items.is_empty() {
@@ -168,6 +171,23 @@ pub async fn things_import(
         report.skipped,
         report.failed
     );
+    if keep_in_sync == Some(true) {
+        // Every project, for the names of the ones left out.
+        let all = Options {
+            include_done: true,
+            include_canceled: true,
+            ..Default::default()
+        };
+        let (_, everything) = read_plan(&state, path.as_deref(), &all)?;
+        mirror::begin(
+            &app,
+            "things",
+            path,
+            None,
+            &everything.preview,
+            &options.skip,
+        )?;
+    }
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
     Ok(report)
@@ -326,15 +346,30 @@ pub async fn todoist_preview(
 }
 
 /// Bring in what the last preview read. TodoCity is backed up first;
-/// anything brought in before is skipped.
+/// anything brought in before is skipped. With `keep_in_sync` (and the
+/// token), changes in Todoist keep flowing in afterwards; the token is then
+/// kept in the Keychain (see `mirror`).
 #[tauri::command]
 pub async fn todoist_import(
     app: AppHandle,
     state: State<'_, AppState>,
     cache: State<'_, TodoistCache>,
     options: Option<Options>,
+    keep_in_sync: Option<bool>,
+    token: Option<String>,
 ) -> CmdResult<ImportReport> {
-    let (_, plan) = todoist_plan(&state, &cache, &options.unwrap_or_default())?;
+    let options = options.unwrap_or_default();
+    let (_, plan) = todoist_plan(&state, &cache, &options)?;
+    let everything = keep_in_sync
+        .unwrap_or(false)
+        .then(|| {
+            let all = Options {
+                include_done: true,
+                ..Default::default()
+            };
+            todoist_plan(&state, &cache, &all).map(|(_, p)| p.preview)
+        })
+        .transpose()?;
     let report = {
         let store = state.store.lock().map_err(err)?;
         if !plan.items.is_empty() {
@@ -352,6 +387,9 @@ pub async fn todoist_import(
         report.skipped,
         report.failed
     );
+    if let Some(preview) = everything {
+        mirror::begin(&app, "todoist", None, token, &preview, &options.skip)?;
+    }
     let _ = app.emit("tasks-changed", ());
     tray::refresh(&app);
     Ok(report)
