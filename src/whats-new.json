@@ -1,4 +1,8 @@
 {
+  "0.4.57": [
+    "Finishing a task plays “Lights on”: a light switch and a warm chime as a window lights up (turn it off in Settings → Notifications)",
+    "Task edits save as you type — no Enter or Save needed, and closing a task keeps what you typed"
+  ],
   "0.4.56": [
     "Keep in sync with Things 3 or Todoist: changes there flow into TodoCity on their own",
     "Synced tasks stay editable — your edits stick until the same thing changes in the other app",

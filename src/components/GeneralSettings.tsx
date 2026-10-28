@@ -1,4 +1,5 @@
 import { MayorAvatar } from "./MayorAvatar";
+import { previewDone } from "../lib/doneSound";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
@@ -410,6 +411,23 @@ export function NotificationsPage(props: SettingsProps) {
                 Send a test
               </button>
             )}
+          </ActionRow>
+        </div>
+      </section>
+      <section className="settings-section">
+        <h2 className="settings-h">Sound</h2>
+        <div className="card-stack">
+          <Toggle
+            label="Play a sound when a task is done"
+            hint="A light switch and a warm chime, as a window lights up"
+            checked={settings?.done_sound ?? true}
+            disabled={!settings}
+            onChange={(v) => void save((s) => ({ ...s, done_sound: v }))}
+          />
+          <ActionRow label="Hear it">
+            <button type="button" className="ghost small" onClick={() => previewDone()}>
+              Play
+            </button>
           </ActionRow>
         </div>
       </section>

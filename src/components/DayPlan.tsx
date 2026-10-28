@@ -1,4 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { playDone } from "../lib/doneSound";
 import { eventsForDay, hourLabel, hourRange, planFor } from "../lib/plan";
 import { relativeLabel } from "../lib/dates";
 import { timeLabel } from "../lib/schedule";
@@ -56,6 +57,7 @@ export function DayPlan({ tasks, day, today, now, locale, events, actions, drag,
   }, [day]);
 
   function complete(t: Task) {
+    playDone(t.id);
     setCompleting((s) => new Set(s).add(t.id));
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => {
