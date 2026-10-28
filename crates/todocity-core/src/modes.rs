@@ -210,7 +210,13 @@ mod tests {
             ..ViewMode::default()
         };
         old.adopt_defaults();
-        assert_eq!(old, ViewMode { icon: "◎".into(), ..ViewMode::personal() });
+        assert_eq!(
+            old,
+            ViewMode {
+                icon: "◎".into(),
+                ..ViewMode::personal()
+            }
+        );
         let mut chosen = ViewMode {
             new_task_project: Some("Q4 launch".into()),
             projects: vec!["Q4 launch".into()],
@@ -218,7 +224,10 @@ mod tests {
         };
         chosen.adopt_defaults();
         assert_eq!(chosen.new_task_project.as_deref(), Some("Q4 launch"));
-        assert_eq!(chosen.projects, vec!["Office".to_string(), "Q4 launch".to_string()]);
+        assert_eq!(
+            chosen.projects,
+            vec!["Office".to_string(), "Q4 launch".to_string()]
+        );
     }
 
     #[test]

@@ -926,7 +926,11 @@ impl Store {
             .map_or(today, |d| d.max(today));
         let next = crate::recurrence::next_due(rule, base, after);
         // The deadline ends the series: there's nothing to skip to past it.
-        if t.deadline.as_deref().and_then(parse).is_some_and(|dl| next > dl) {
+        if t.deadline
+            .as_deref()
+            .and_then(parse)
+            .is_some_and(|dl| next > dl)
+        {
             return Ok(t);
         }
         let next = next.format("%Y-%m-%d").to_string();
@@ -1081,7 +1085,11 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     let next_day = crate::recurrence::next_due(rule, base, after);
     // A deadline is the end of the series: the next one never lands after
     // it, and when it would, this was the last one.
-    if t.deadline.as_deref().and_then(parse).is_some_and(|dl| next_day > dl) {
+    if t.deadline
+        .as_deref()
+        .and_then(parse)
+        .is_some_and(|dl| next_day > dl)
+    {
         return Ok(None);
     }
     let next = next_day.format("%Y-%m-%d").to_string();

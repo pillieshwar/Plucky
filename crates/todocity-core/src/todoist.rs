@@ -1306,10 +1306,7 @@ task,Buy adapter,,4,1,Sam (1),,every month,en,US/Pacific,,,2026-11-20,en\r\n";
         };
         let p = plan(&lib, &opts, &HashSet::new(), today());
         let titles: Vec<&str> = p.items.iter().map(|i| i.task.title.as_str()).collect();
-        assert_eq!(
-            titles,
-            ["Plan trip #travel", "Buy adapter", "Loose one"]
-        );
+        assert_eq!(titles, ["Plan trip #travel", "Buy adapter", "Loose one"]);
         let trip = &p.items[0].task;
         assert_eq!(trip.project.as_deref(), Some("Lisbon"));
         assert_eq!(trip.due_date.as_deref(), Some("2026-10-30"));
