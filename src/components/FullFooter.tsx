@@ -1,31 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cityStats, type City } from "../lib/city";
 import type { UpdateStatus } from "../lib/types";
-import { api } from "../lib/api";
 import { VersionDot } from "./VersionDot";
 
-const REPO = "https://github.com/pillieshwar/TodoCity";
-
-function GitHubIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M8 .2a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.66 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 .2Z" />
-    </svg>
-  );
-}
-
 /**
- * Full screen's footer: the model reading captures on the left, a small
- * skyline of your city in the middle (it glows when someone moves in), and
- * the version on the right — green when it's the latest, red when there's
- * a newer one to update to.
+ * Full screen's footer, kept slim: the model reading captures on the left,
+ * a small skyline of your city in the middle (it glows when someone moves
+ * in), and the version on the right — green when it's the latest, red when
+ * there's a newer one. What's new, release notes and GitHub are in the
+ * version's pop-up.
  */
 export function FullFooter({
   model,
-  captureHint,
   onModel,
   city,
-  cityName,
   showCity,
   onCity,
   now,
@@ -34,10 +22,8 @@ export function FullFooter({
   onError,
 }: {
   model: string | null;
-  captureHint: ReactElement;
   onModel: () => void;
   city: City;
-  cityName: string | null;
   showCity: boolean;
   onCity: () => void;
   now: Date;
@@ -81,10 +67,8 @@ export function FullFooter({
       <div className="ff-left">
         <button type="button" className="ff-model" onClick={onModel} title="Settings → AI model">
           <span className="local-dot" aria-hidden />
-          <span className="ff-strong">On this Mac</span>
-          <span>· {model ?? "No model yet"}</span>
+          <span>On this Mac · {model ?? "No model yet"}</span>
         </button>
-        <span className="ff-hint">{captureHint}</span>
       </div>
       {showCity ? (
         <button type="button" className={pulse ? "ff-city lit-up" : "ff-city"} onClick={onCity} title="Open your city">
@@ -95,22 +79,15 @@ export function FullFooter({
               </span>
             ))}
           </span>
-          <span className="ff-strong">{cityName ?? "Your city"}</span>
-          <span>{city.total}</span>
+          <span>
+            <b className="ff-strong">{city.total}</b> {city.total === 1 ? "resident" : "residents"}
+          </span>
           {stats.today > 0 && <span className="ff-today">+{stats.today} today</span>}
         </button>
       ) : (
         <span />
       )}
       <div className="ff-right">
-        <button
-          type="button"
-          className="ff-star"
-          onClick={() => void api.openUrl(REPO).catch((e) => onError(String(e)))}
-          title="TodoCity on GitHub"
-        >
-          <GitHubIcon /> Star us
-        </button>
         <VersionDot update={update} version={version} onError={onError} />
       </div>
     </footer>

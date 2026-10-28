@@ -2855,3 +2855,237 @@ html[data-full="1"] body { background: var(--paper); }
 .board-mode .full-list.wide { margin: 0; width: 100%; max-width: none; min-width: 0; }
 .board { gap: 12px; padding-left: 20px; padding-right: 20px; }
 .bcol { box-sizing: border-box; flex: 1 1 230px; min-width: 196px; max-width: 320px; }
+
+/* ── 0.4.55: one family of grey line icons ──────────────────────────────── */
+.licon { display: block; flex: none; }
+
+/* Sidebar: grey icons, the accent only where you are; counts in one column */
+.sidebar .sb-item, .sidebar .sb-floor { color: var(--ink); }
+.sidebar .sb-icon { width: 20px; color: var(--faint); }
+.sidebar .sb-item.on .sb-icon, .sidebar .sb-item.on .t-project { color: var(--teal); }
+.sidebar .sb-item.on { color: var(--ink); }
+.sidebar .sb-icon.t-project { color: var(--faint); }
+.sidebar .sb-count { flex: none; width: 28px; text-align: right; font-size: 12px; color: var(--faint); }
+.sidebar .sb-count.late:not(:empty) { color: var(--accent); font-weight: 650; }
+.sidebar .sb-search .licon { color: var(--faint); }
+.sidebar .sb-search { gap: 10px; }
+/* Projects header: the name, and + and fold only on hover */
+.sb-head-row { gap: 6px; }
+.sb-head-btn { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.sb-head-actions { display: inline-flex; gap: 2px; opacity: 0; transition: opacity 120ms; }
+.sb-head-row:hover .sb-head-actions, .sb-head-actions:focus-within { opacity: 1; }
+.sb-act {
+  display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--faint); cursor: pointer; position: relative;
+}
+.sb-act:hover { background: color-mix(in srgb, var(--line) 80%, transparent); color: var(--ink); }
+.sb-act.big { width: 32px; height: 32px; border-radius: 8px; }
+.sb-act.on { background: var(--teal-soft); color: var(--teal); }
+.sb-act .sb-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; }
+/* A project's row: its count at the far right; + and ⋯ take its place on hover */
+.sb-b { padding: 0 10px 0 0; }
+.sb-b .sb-chev { opacity: 0; transition: opacity 120ms, transform 120ms; color: var(--faint); }
+.sb-b:hover .sb-chev, .sb-chev:focus-visible { opacity: 1; }
+.sb-b-main { padding: 0 4px 0 2px; }
+.sb-trail { position: relative; flex: none; display: flex; align-items: center; justify-content: flex-end; min-width: 28px; height: 24px; }
+.sb-row-actions { position: absolute; right: -4px; top: 0; display: flex; gap: 0; opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.sb-b:hover .sb-row-actions, .sb-floor-row:hover .sb-row-actions, .sb-trail.busy .sb-row-actions, .sb-row-actions:focus-within { opacity: 1; pointer-events: auto; }
+.sb-b:hover .sb-trail .sb-count, .sb-floor-row:hover .sb-trail:has(.sb-row-actions) .sb-count, .sb-trail.busy .sb-count { visibility: hidden; }
+.sb-row-actions .sb-act { width: 22px; height: 24px; background: var(--side); }
+.sb-row-actions .sb-act:hover { background: color-mix(in srgb, var(--line) 80%, var(--side)); }
+.sidebar .sb-more { opacity: 1; position: static; width: 22px; height: 24px; }
+.sb-floors { margin-right: 0; }
+.sb-floor-row { padding-right: 10px; }
+.sb-floor-row .sb-floor { color: var(--muted); }
+.sb-floor-row .sb-floor.on { color: var(--ink); }
+/* You, and Settings and shortcuts as icons beside your name */
+.sb-foot { padding-top: 8px; border-top: 1px solid var(--line); margin: 6px -8px 0; padding-left: 8px; padding-right: 6px; }
+.sb-me { display: flex; align-items: center; gap: 2px; }
+.sb-me .sb-mayor { flex: 1; min-width: 0; margin: 0; padding: 6px 6px; border: 0; background: transparent; border-radius: 9px; }
+.sb-me .sb-mayor:hover { background: color-mix(in srgb, var(--line) 70%, transparent); }
+.sb-me .mayor-badge { width: 34px; height: 34px; border-radius: 10px; box-shadow: none; }
+
+/* Settings: the same grey icons, no colored tiles */
+.set-icon { width: 22px; height: 22px; border-radius: 0; background: transparent !important; color: var(--faint); }
+.set-item.on .set-icon { color: var(--teal); }
+
+/* Full screen's header: the page's icon and title, nothing repeated */
+.fh-icon { width: 22px; color: var(--teal); }
+.fh-icon svg { width: 20px; height: 20px; }
+.fh-ring { display: block; width: 15px; height: 15px; border-radius: 50%; border: 2.5px solid var(--teal); box-sizing: border-box; }
+.full-head .mode-chip .mode-btn { height: 26px; padding: 0 10px; font-size: 12px; }
+
+/* A slim footer: model · your city · version */
+.full-foot { height: 30px; font-size: 11.5px; background: var(--side); }
+.ff-model { color: var(--faint); gap: 7px; }
+.ff-city { height: 22px; padding: 0 10px; border-radius: 999px; background: transparent; gap: 7px; }
+.ff-sky { height: 14px; }
+.ff-tower { width: 4px; }
+.ff-strong { color: var(--muted); font-weight: 650; }
+.vdot { height: 22px; padding: 0 8px; background: transparent !important; border-color: transparent !important; color: var(--faint) !important; font-weight: 500; }
+.vdot:hover, .vdot-wrap.open .vdot { background: color-mix(in srgb, var(--line) 70%, transparent) !important; color: var(--ink) !important; filter: none; }
+.vdot.red { color: #e5484d !important; font-weight: 650; }
+.vdot-pop { width: 300px; padding: 16px; }
+.vdot-ver { margin: 4px 0 0 15px; }
+.vdot-cap { margin: 14px 0 6px; font: 650 10.5px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.vdot-notes { margin: 0 0 14px; padding-left: 17px; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.vdot-notes li + li { margin-top: 2px; }
+.vdot-pop .vdot-btn { margin-top: 12px; }
+.vdot-notes + .vdot-btn { margin-top: 0; }
+.vdot-links { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.vdot-links button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font: 500 12px var(--sans); cursor: pointer;
+}
+.vdot-links button:hover { color: var(--ink); border-color: color-mix(in srgb, var(--faint) 50%, var(--line)); }
+
+/* ── Task cards: adding a task, and a task opened ───────────────────────── */
+.tfc {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px 12px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 12px 30px rgba(0, 0, 0, 0.16);
+}
+.add-task.tfc { margin: 0 0 12px; }
+.app-full .add-task.tfc { margin: 14px 24px 8px 18px; max-width: none; }
+.tfc-title {
+  width: 100%; padding: 0; border: 0 !important; outline: none; background: transparent !important; box-shadow: none !important;
+  color: var(--ink); font: 600 15.5px/1.4 var(--sans);
+}
+.tfc-title::placeholder { color: var(--faint); font-weight: 500; }
+.tfc-notes {
+  display: block; width: 100%; min-height: 19px; padding: 0 !important; border: 0 !important; outline: none; resize: none;
+  background: transparent !important; box-shadow: none !important; color: var(--muted); font: 13px/1.5 var(--sans);
+}
+.tfc-notes::placeholder { color: color-mix(in srgb, var(--faint) 75%, transparent); }
+.tfc-steps .checklist { margin: 4px 0 0; }
+.tfc-bar { display: flex; align-items: flex-end; gap: 8px; margin-top: 10px; }
+.tfc-bar .tf { flex: 1; min-width: 0; }
+.tfc-add {
+  flex: none; height: 30px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--teal); color: var(--teal-ink, #fff);
+  font: 650 13px var(--sans); cursor: pointer;
+}
+.tfc-add:disabled { background: color-mix(in srgb, var(--line) 90%, transparent); color: var(--faint); cursor: default; }
+.add-task.compact.tfc { padding: 10px 12px 10px; }
+/* An opened task */
+.task-card.tfc { padding: 14px 16px 12px; }
+.tfc-head { display: flex; align-items: center; gap: 12px; }
+.tfc-head .check { margin-top: 0; }
+.tfc-body { padding-left: 30px; display: flex; flex-direction: column; gap: 4px; }
+.tfc-body .task-notes { margin: 2px 0; cursor: text; white-space: normal; }
+.tfc-body .checklist { margin: 6px 0 0; }
+.tfc-body .tc-suggest { margin: 4px 0; align-self: flex-start; }
+.tfc-body .tf { margin-top: 10px; }
+.detail-pane .task-card.tfc { padding: 2px 0 0; border: 0; box-shadow: none; background: transparent; }
+.detail-pane .task-card.tfc .task-notes { display: block; }
+.detail-pane .tfc-title { font: 650 18px/1.35 var(--sans); }
+.detail-pane .tfc-body { padding-left: 30px; }
+.dp-bar { flex: none; display: flex; align-items: center; gap: 2px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--line); }
+.dp-bar .icon { color: var(--faint); }
+.dp-bar .icon:hover { color: var(--ink); }
+.app-full .task.open .task-card.tfc { padding: 14px 16px 12px; background: var(--paper); }
+
+/* The fields row: chips on the left, icons on the right */
+.tf { display: flex; align-items: flex-start; gap: 8px; }
+.tf-chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-tools { flex: none; display: flex; align-items: center; gap: 2px; }
+.tf-anchor { position: relative; display: inline-flex; }
+.tf-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid transparent; background: transparent; color: var(--muted); font: 500 12.5px var(--sans); cursor: pointer; white-space: nowrap;
+}
+button.tf-chip { cursor: pointer; }
+.tf-chip.ghost { border-color: var(--line); color: var(--faint); }
+.tf-chip.ghost:hover, .tf-chip.ghost.on { border-color: color-mix(in srgb, var(--faint) 55%, var(--line)); color: var(--ink); }
+.tf-chip .licon { color: var(--faint); }
+.tf-chip.set { padding-right: 4px; background: var(--teal-soft); color: var(--ink); }
+.tf-chip.set .licon { color: var(--teal); }
+.tf-chip.set.late, .tf-chip.set.late .licon { color: var(--accent); }
+.tf-chip.on { box-shadow: 0 0 0 1.5px var(--teal); }
+.tf-chip-main { display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.tf-chip-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.tf-x { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--faint); cursor: pointer; }
+.tf-x:hover { background: color-mix(in srgb, var(--teal) 18%, transparent); color: var(--ink); }
+.tf-x .licon { color: inherit; }
+.tf-caret { margin-left: -2px; }
+.tf-ring { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--teal); box-sizing: border-box; flex: none; }
+.tf-tool {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 6px; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: var(--faint); font: 650 12px var(--sans); cursor: pointer;
+}
+.tf-tool:hover, .tf-tool.on { background: color-mix(in srgb, var(--line) 75%, transparent); color: var(--ink); }
+.tf-tool.active { color: var(--teal); }
+.tf-tool.dl { color: #d88a1c; }
+.tf-tool.dl.late { color: var(--accent); }
+:root[data-theme="dark"] .tf-tool.dl:not(.late) { color: #f0a03c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tf-tool.dl:not(.late) { color: #f0a03c; } }
+/* A field's menu, under its chip or icon */
+.tf-menu {
+  position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 260px; max-width: min(300px, calc(100vw - 32px));
+  display: flex; flex-direction: column; padding: 6px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--paper); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32); animation: rise 120ms ease-out; text-align: left;
+}
+.tf-menu.right { left: auto; right: 0; }
+.tf-menu.wide { width: 280px; }
+.tf-menu.narrow { width: 220px; padding: 8px; }
+.tf-head { padding: 6px 9px 6px; font-size: 11.5px; font-weight: 650; color: var(--faint); }
+.tf-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 9px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ink); font: 500 13px var(--sans); text-align: left; cursor: pointer;
+}
+.tf-opt:hover { background: color-mix(in srgb, var(--line) 70%, transparent); }
+.tf-opt.sel { background: var(--teal-soft); }
+.tf-opt.sel .tf-opt-icon { color: var(--teal); }
+.tf-opt em { margin-left: auto; font-style: normal; font-size: 12px; color: var(--faint); }
+.tf-opt.sub { padding-left: 30px; min-height: 28px; font-size: 12.5px; color: var(--muted); }
+.tf-opt.quiet { color: var(--faint); font-size: 12.5px; }
+.tf-opt.danger, .tf-opt.danger .tf-opt-icon { color: var(--accent); }
+.tf-opt-icon { display: grid; place-items: center; width: 18px; flex: none; color: var(--faint); }
+.tf-sep { height: 1px; margin: 4px 2px; background: var(--line); }
+.tf-type { position: relative; margin-bottom: 4px; }
+.tf-type input, .tf-filter {
+  width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; outline: none;
+  background: var(--panel); color: var(--ink); font: 13px var(--sans); box-sizing: border-box;
+}
+.tf-filter { margin-bottom: 4px; }
+.tf-filter.sub { width: calc(100% - 24px); margin: 2px 0 4px 24px; height: 28px; }
+.tf-type input:focus, .tf-filter:focus { border-color: var(--teal); }
+.tf-preview { display: block; padding: 5px 4px 0; font-size: 12px; color: var(--teal); }
+.tf-preview.miss { color: var(--faint); }
+.tf-scope { display: flex; gap: 4px; margin: 2px 0 4px; padding: 3px; border-radius: 8px; background: var(--panel); }
+.tf-scope button { flex: 1; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 500 12px var(--sans); cursor: pointer; }
+.tf-scope button.on { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.tf-cal { margin: 4px 0; padding-top: 6px; border-top: 1px solid var(--line); }
+.tf-cal .calendar { margin: 0; }
+.tf-pair { display: flex; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.tf-pair button {
+  flex: 1; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px; border: 0; border-radius: 7px;
+  background: var(--panel); color: var(--muted); font: 500 12.5px var(--sans); cursor: pointer;
+}
+.tf-pair button.set { color: var(--ink); }
+.tf-pair button:hover { color: var(--ink); background: color-mix(in srgb, var(--line) 90%, var(--panel)); }
+.tf-note {
+  display: flex; gap: 10px; margin: 8px 2px 2px; padding: 10px; border-radius: 9px; font-size: 12.5px;
+  background: color-mix(in srgb, #f0a03c 10%, transparent); border: 1px solid color-mix(in srgb, #f0a03c 28%, transparent);
+}
+.tf-note .licon { color: #d88a1c; margin-top: 1px; }
+.tf-note b { display: block; margin-bottom: 2px; font-weight: 650; color: var(--ink); }
+.tf-note span { color: var(--muted); line-height: 1.45; }
+.tf-help { margin: 4px 6px 6px; font-size: 12px; line-height: 1.45; color: var(--faint); }
+.tf-scroll { max-height: 260px; overflow-y: auto; }
+.tf-menu .time-select { width: 100%; }
+.tf-menu .snooze-bar { padding: 4px; }
+/* A priority flag in a row */
+.pri-flag { display: inline-grid; place-items: center; margin-right: 6px; vertical-align: -2px; }
+.task-meta .pri-flag { margin-right: 8px; }
+.bchip.pri { display: inline-flex; align-items: center; gap: 4px; background: transparent; padding-left: 0; font-weight: 650; }
+/* The old "When / Deadline / Project / Repeat" table and pills are gone. */
+.task-card.tfc .tc-props, .task-card.tfc .tc-pills, .task-card.tfc .tc-foot { display: none; }
+.tfc .tfc-title { padding: 0; border: 0; margin: 0; height: auto; }
+.tfc .tfc-notes { resize: none; min-height: 19px; margin: 0; }
+.tf-cal .cal { margin: 0; padding: 2px 0 0; border: 0; background: transparent; box-shadow: none; }
+/* Narrow (the side panel): the icons drop under the chips, on the right. */
+.tf { flex-wrap: wrap; row-gap: 6px; }
+.tf-chips { flex: 1 1 250px; }
+.tf-tools { margin-left: auto; }
+.tfc-bar { flex-wrap: wrap; }
+.tfc-bar .tf { flex: 1 1 300px; }
+.tfc-bar .tfc-add { margin-left: auto; }

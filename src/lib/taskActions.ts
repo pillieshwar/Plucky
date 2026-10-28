@@ -240,7 +240,40 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
-  return { setDone, remove, reschedule, place, moveAll, snooze, update, fail, skip, pause, batch, completeMany, removeMany };
+  /** A copy of a task, with its sub-tasks unticked, right where it is. */
+  async function duplicate(task: Task) {
+    try {
+      const copy = await api.addTask(
+        {
+          title: task.title,
+          due_date: task.due_date,
+          due_time: task.due_time,
+          recurrence: task.recurrence,
+          source_text: task.source_text,
+          source_app: task.source_app,
+          source_bundle: task.source_bundle,
+          source_url: task.source_url,
+          notes: task.notes,
+          deadline: task.deadline,
+          evening: task.evening,
+          someday: task.someday,
+          project: task.project,
+          heading: task.heading,
+          checklist: (task.checklist ?? []).map((c) => ({ text: c.text, done: false })),
+          priority: task.priority ?? 0,
+        },
+        true,
+      );
+      show(`Duplicated “${short(task.title)}”`, {
+        label: "Undo",
+        run: () => api.deleteTask(copy.id).then(() => undefined, fail),
+      });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  return { setDone, remove, reschedule, place, moveAll, snooze, update, fail, skip, pause, batch, completeMany, removeMany, duplicate };
 }
 
 export type TaskActions = ReturnType<typeof taskActions>;

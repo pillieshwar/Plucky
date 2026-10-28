@@ -9,6 +9,7 @@ import { ModelsTab } from "./ModelsTab";
 import { ModesSection } from "./ModesSettings";
 import { ShortcutEditor } from "./ShortcutEditor";
 import { SyncSection, useSyncStatus } from "./SyncSection";
+import { LineIcon, type IconName } from "./LineIcon";
 
 export type SettingsPage =
   | "general"
@@ -27,42 +28,41 @@ export type SettingsPage =
 interface PageInfo {
   id: SettingsPage;
   label: string;
-  /** A small glyph on a colored tile. */
-  glyph: string;
-  tone: string;
+  /** A grey line icon (the accent when selected). */
+  icon: IconName;
 }
 
 export const PAGE_GROUPS: { label: string; pages: PageInfo[] }[] = [
   {
     label: "App",
     pages: [
-      { id: "general", label: "General", glyph: "⚙", tone: "gray" },
-      { id: "appearance", label: "Appearance", glyph: "◐", tone: "violet" },
-      { id: "notifications", label: "Notifications", glyph: "●", tone: "red" },
-      { id: "capture", label: "Capture & shortcuts", glyph: "⌘", tone: "blue" },
+      { id: "general", label: "General", icon: "gear" },
+      { id: "appearance", label: "Appearance", icon: "appearance" },
+      { id: "notifications", label: "Notifications", icon: "bell" },
+      { id: "capture", label: "Capture & shortcuts", icon: "command" },
     ],
   },
   {
     label: "Tasks",
     pages: [
-      { id: "modes", label: "Modes", glyph: "◑", tone: "amber" },
-      { id: "city", label: "Your city", glyph: "▥", tone: "green" },
+      { id: "modes", label: "Modes", icon: "modes" },
+      { id: "city", label: "Your city", icon: "city" },
     ],
   },
   {
     label: "Connections",
     pages: [
-      { id: "sync", label: "Your other Macs", glyph: "⇄", tone: "blue" },
-      { id: "connectors", label: "Connectors", glyph: "⧉", tone: "teal" },
-      { id: "model", label: "AI model", glyph: "✦", tone: "violet" },
+      { id: "sync", label: "Your other Macs", icon: "macs" },
+      { id: "connectors", label: "Connectors", icon: "plug" },
+      { id: "model", label: "AI model", icon: "sparkle" },
     ],
   },
   {
     label: "Data",
     pages: [
-      { id: "movein", label: "Import Data", glyph: "↓", tone: "gray" },
-      { id: "backups", label: "Backups & export", glyph: "⛁", tone: "gray" },
-      { id: "help", label: "Help", glyph: "?", tone: "gray" },
+      { id: "movein", label: "Import Data", icon: "import" },
+      { id: "backups", label: "Backups & export", icon: "backup" },
+      { id: "help", label: "Help", icon: "help" },
     ],
   },
 ];
@@ -114,8 +114,8 @@ export function SettingsNav({
                 aria-current={on ? "page" : undefined}
                 onClick={() => onPage(p.id)}
               >
-                <span className={`set-icon ${p.tone}`} aria-hidden>
-                  {p.glyph}
+                <span className="set-icon" aria-hidden>
+                  <LineIcon name={p.icon} size={18} />
                 </span>
                 <span className="set-label">{p.label}</span>
                 <span className="set-badge">{badge(p.id)}</span>

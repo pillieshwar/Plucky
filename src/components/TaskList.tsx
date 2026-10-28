@@ -1,20 +1,21 @@
 import { useWords } from "../lib/words";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectColor } from "../lib/colors";
-import { DateEditor } from "./DateEditor";
-import { CalendarIcon, ClockIcon, RepeatIcon, TrashIcon } from "./icons";
+import { CalendarIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
-import { FlagIcon, FolderIcon, ProjectPicker, type ProjectInfo } from "./ProjectPicker";
+import type { ProjectInfo } from "./ProjectPicker";
+import { LineIcon } from "./LineIcon";
+import { TaskFields, type FieldMenu, type FieldValues } from "./TaskFields";
 import { deadlineChip } from "../lib/lists";
 import { dueChip } from "../lib/due";
 import { api } from "../lib/api";
 import type { DayGroup } from "../lib/grouping";
-import { findSchedule, repeatLabel, repeatShort, timeLabel } from "../lib/schedule";
+import { findSchedule, repeatShort, timeLabel } from "../lib/schedule";
 import { dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { TaskActions } from "../lib/taskActions";
-import { linkParts, sourceLabel, titleParts } from "../lib/taskText";
+import { linkParts, priorityColor, sourceLabel, tagsOf, titleParts, toggleTag } from "../lib/taskText";
 import type { ChecklistItem, Task, TaskPatch } from "../lib/types";
 
 /** A keyboard command for one row (from the panel's shortcuts). */
@@ -71,6 +72,8 @@ interface Props {
   plain?: boolean;
   /** With `rich`: show notes and sub-tasks under each row (Preferences). */
   details?: boolean;
+  /** Tags in use, to pick from in an open task. */
+  tags?: string[];
 }
 
 export function TaskList(props: Props) {
@@ -160,6 +163,7 @@ function TaskRow({
   detail,
   rich,
   details = true,
+  tags,
 }: { task: Task } & Props) {
   const ref = useRef<HTMLLIElement>(null);
   // The project's color, if the user picked one: the check and the calendar chips use it.
@@ -170,8 +174,9 @@ function TaskRow({
   const picked = !!detail && openId === task.id;
   const open = !detail && openId === task.id;
   const [completing, setCompleting] = useState(false);
-  // Which part of the open card is expanded: when (date, deadline, repeat), project or snooze.
-  const [panel, setPanel] = useState<Panel>(null);
+  // Which menu of the open card is showing (and whether ⋯ shows snooze).
+  const [menu, setMenu] = useState<FieldMenu | null>(null);
+  const [snooze, setSnooze] = useState(false);
   const [focusPart, setFocusPart] = useState<"title" | "notes" | "steps" | null>(null);
 
   useEffect(() => {
@@ -182,7 +187,8 @@ function TaskRow({
   }, [focused]);
   useEffect(() => {
     if (!open) {
-      setPanel(null);
+      setMenu(null);
+      setSnooze(false);
       setFocusPart(null);
     } else ref.current?.scrollIntoView({ block: "nearest" });
   }, [open]);
@@ -195,9 +201,12 @@ function TaskRow({
     onOpenTask(task.id);
     // (The detail pane picks the part itself.)
     if (detail) return;
-    if (command.kind === "date") setPanel("when");
-    if (command.kind === "project" && !task.done) setPanel("project");
-    if (command.kind === "snooze" && !task.done) setPanel("snooze");
+    if (command.kind === "date") setMenu("date");
+    if (command.kind === "project" && !task.done) setMenu("place");
+    if (command.kind === "snooze" && !task.done) {
+      setMenu("more");
+      setSnooze(true);
+    }
     if (command.kind === "edit") setFocusPart("title");
     if (command.kind === "notes") setFocusPart("notes");
     if (command.kind === "steps") setFocusPart("steps");
@@ -288,12 +297,13 @@ function TaskRow({
           now={now}
           locale={locale}
           projects={projects}
-          panel={panel}
-          onPanel={setPanel}
+          tags={tags ?? []}
+          menu={menu}
+          onMenu={setMenu}
+          snooze={snooze}
+          onSnooze={setSnooze}
           focusPart={focusPart}
           onClose={() => onOpenTask(null)}
-          detail={rich}
-          inline={rich}
         />
       ) : (
         <>
@@ -343,8 +353,6 @@ function TaskRow({
   );
 }
 
-type Panel = "when" | "deadline" | "repeat" | "project" | "snooze" | null;
-
 /** One quiet grey line under a title; only lateness is red. */
 function RowMeta({
   task,
@@ -371,10 +379,17 @@ function RowMeta({
   const dl = deadlineChip(task, now, locale);
   if (dl) parts.push(<span key="dl" className={dl.tone === "overdue" ? "late" : undefined}>{dl.label}</span>);
   if (task.paused && !task.done) parts.push(<span key="p">Paused</span>);
+  const pri = task.done ? null : priorityColor(task.priority);
+  const flag = pri && (
+    <span className="pri-flag" style={{ color: pri }} title={`Priority P${task.priority}`} aria-label={`Priority P${task.priority}`}>
+      <LineIcon name="flagFilled" size={13} />
+    </span>
+  );
   if (whenOnly) {
-    if (!parts.length) return null;
+    if (!parts.length && !flag) return null;
     return (
       <div className="task-meta">
+        {flag}
         {parts.map((p, i) => (
           <span key={i} className="meta-part">
             {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
@@ -415,9 +430,10 @@ function RowMeta({
   if (repeat) parts.push(<span key="r">{repeat.toLowerCase()}</span>);
   const source = sourceLabel(task);
   if (source && !link) parts.push(<span key="src">from {source}</span>);
-  if (!parts.length) return null;
+  if (!parts.length && !flag) return null;
   return (
     <div className="task-meta">
+      {flag}
       {parts.map((p, i) => (
         <span key={i} className="meta-part">
           {i > 0 && <span className="meta-sep" aria-hidden>·</span>}
@@ -518,8 +534,9 @@ export function shortUrl(url: string): string {
 }
 
 /**
- * A task opened in place: title, notes and steps to edit, and one row of
- * pills for when, deadline, project and repeat. Everything saves as you go.
+ * A task opened in place (or in the detail pane): its title, notes and
+ * sub-tasks to edit, and the same row of chips and icons as when adding one.
+ * Everything saves as you go; Esc or a click outside closes it.
  */
 function TaskCard({
   task,
@@ -528,12 +545,13 @@ function TaskCard({
   now,
   locale,
   projects,
-  panel,
-  onPanel,
+  tags,
+  menu,
+  onMenu,
+  snooze,
+  onSnooze,
   focusPart,
   onClose,
-  detail,
-  inline,
 }: {
   task: Task;
   check: ReactNode;
@@ -541,33 +559,37 @@ function TaskCard({
   now: Date;
   locale: string;
   projects: ProjectInfo[];
-  panel: Panel;
-  onPanel: (p: Panel) => void;
+  tags: string[];
+  menu: FieldMenu | null;
+  onMenu: (m: FieldMenu | null) => void;
+  /** The ⋯ menu shows the snooze choices. */
+  snooze: boolean;
+  onSnooze: (on: boolean) => void;
   focusPart: "title" | "notes" | "steps" | null;
   onClose: () => void;
-  /** Properties as labelled rows (full screen). */
-  detail?: boolean;
-  /** Opened in place in the list (full screen): ends with a Done button. */
-  inline?: boolean;
 }) {
-  const w = useWords();
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
+  const [editNotes, setEditNotes] = useState(false);
   const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
   const stepsKey = JSON.stringify(task.checklist ?? []);
   useEffect(() => setSteps(task.checklist ?? []), [stepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setTitle(task.title), [task.title]);
+  useEffect(() => setNotes(task.notes ?? ""), [task.notes]);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    if (focusPart === "notes") notesRef.current?.focus();
+    if (focusPart === "notes") setEditNotes(true);
   }, [focusPart]);
+  useEffect(() => {
+    if (editNotes) notesRef.current?.focus();
+  }, [editNotes]);
   // Grow the notes box with its text.
   useEffect(() => {
     const el = notesRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, detail ? 320 : 160)}px`;
-  }, [notes]);
+    el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+  }, [notes, editNotes]);
 
   function saveTitle() {
     const t = title.trim();
@@ -591,33 +613,40 @@ function TaskCard({
   function saveNotes() {
     const n = notes.trim();
     if (n !== (task.notes ?? "")) void actions.update(task, { notes: n || null });
+    if (n) setEditNotes(false);
   }
   function saveSteps(next: ChecklistItem[]) {
     setSteps(next);
     void actions.update(task, { checklist: next });
   }
-  function applyDate(patch: TaskPatch) {
+  function change(patch: TaskPatch) {
+    if (patch.project !== undefined || patch.heading !== undefined) {
+      void actions.place(task, { project: patch.project === undefined ? task.project : patch.project, heading: patch.heading ?? null });
+      return;
+    }
     const keys = Object.keys(patch).filter((k) => k !== "only_this");
-    if (keys.length === 1 && "due_date" in patch) void actions.reschedule(task, patch);
+    if (keys.length && keys.every((k) => k === "due_date" || k === "due_time")) void actions.reschedule(task, patch);
     else void actions.update(task, patch);
   }
-  const toggle = (p: Panel) => onPanel(panel === p ? null : p);
 
-  const chip = dueChip(task, now, locale);
-  const whenLabel = task.someday
-    ? "Someday"
-    : task.due_date
-      ? [relativeLabel(task.due_date, now, locale), task.due_time && timeLabel(task.due_time, locale), task.evening && "evening"]
-          .filter(Boolean)
-          .join(", ")
-      : "When";
-  const dl = deadlineChip(task, now, locale);
-  const repeat = repeatShort(task.recurrence);
   const source = sourceLabel(task);
+  const showNotesText = !!task.notes && !editNotes;
+  const values: FieldValues = {
+    project: task.project,
+    heading: task.heading,
+    date: task.due_date,
+    time: task.due_time,
+    evening: task.evening,
+    someday: task.someday,
+    repeat: task.recurrence,
+    deadline: task.deadline,
+    priority: task.priority ?? 0,
+    paused: task.paused,
+  };
 
   return (
     <div
-      className="task-card"
+      className="task-card tfc open"
       role="group"
       aria-label={`Editing “${task.title}”`}
       // Keys typed here are for the card, not the list's shortcuts.
@@ -625,17 +654,16 @@ function TaskCard({
         e.stopPropagation();
         if (e.key === "Escape") {
           e.preventDefault();
-          if (panel) onPanel(null);
-          else onClose();
+          onClose();
         }
       }}
     >
-      <div className="tc-head">
+      <div className="tfc-head">
         {check}
         <input
-          className="tc-title"
+          className="tfc-title"
           value={title}
-          autoFocus={focusPart === "title" || (focusPart === null && !detail)}
+          autoFocus={focusPart === "title"}
           maxLength={200}
           aria-label="Title"
           onChange={(e) => setTitle(e.target.value)}
@@ -645,141 +673,148 @@ function TaskCard({
           }}
         />
       </div>
-      {typedWhen && (
-        <button type="button" className="tc-suggest" onMouseDown={(e) => e.preventDefault()} onClick={applyTypedWhen}>
-          <CalendarIcon /> Set {[relativeLabel(typedWhen.date!, now, locale), typedWhen.time && timeLabel(typedWhen.time, locale), typedWhen.repeat && repeatLabel(typedWhen.repeat)?.toLowerCase()].filter(Boolean).join(", ")}
-          <span> and take “{typedWhen.matched}” out of the title</span>
-        </button>
-      )}
-      <textarea
-        ref={notesRef}
-        className="tc-notes"
-        value={notes}
-        rows={1}
-        maxLength={2000}
-        placeholder="Notes"
-        aria-label="Notes"
-        onChange={(e) => setNotes(e.target.value)}
-        onBlur={saveNotes}
-      />
-      {task.notes && linkParts(task.notes).some((p) => p.url) && <Notes text={task.notes} onEdit={() => notesRef.current?.focus()} onError={actions.fail} />}
-      <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
-
-      {detail ? (
-        <div className="tc-props">
-          <span className="tc-prop-label">When</span>
-          <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
-            <CalendarIcon /> {whenLabel === "When" ? "Not planned" : whenLabel}
+      <div className="tfc-body">
+        {typedWhen && (
+          <button type="button" className="tc-suggest" onMouseDown={(e) => e.preventDefault()} onClick={applyTypedWhen}>
+            <CalendarIcon /> Set {[relativeLabel(typedWhen.date!, now, locale), typedWhen.time && timeLabel(typedWhen.time, locale)].filter(Boolean).join(", ")}
           </button>
-          <span className="tc-prop-label">Deadline</span>
-          <button type="button" className={pillClass(panel === "deadline", !!dl, dl?.tone === "overdue")} onClick={() => toggle("deadline")}>
-            <FlagIcon /> {dl ? dl.label : "None"}
-          </button>
-          <span className="tc-prop-label">{w.project}</span>
-          <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
-            <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.city ? w.noProject : "None"}
-          </button>
-          <span className="tc-prop-label">Repeat</span>
-          <button type="button" className={pillClass(panel === "repeat", !!repeat, false)} onClick={() => toggle("repeat")}>
-            <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Doesn’t repeat"}
-          </button>
-        </div>
-      ) : (
-      <div className="tc-pills">
-        <button type="button" className={pillClass(panel === "when", !!task.due_date || task.someday, chip?.tone === "overdue")} onClick={() => toggle("when")}>
-          <CalendarIcon /> {whenLabel}
-        </button>
-        <button type="button" className={pillClass(panel === "deadline", !!dl, dl?.tone === "overdue")} onClick={() => toggle("deadline")}>
-          <FlagIcon /> {dl ? dl.label : "Deadline"}
-        </button>
-        <button type="button" className={pillClass(panel === "project", !!task.project, false)} onClick={() => toggle("project")}>
-          <FolderIcon /> {task.project ? `${task.project}${task.heading ? ` · ${task.heading}` : ""}` : w.project}
-        </button>
-        <button type="button" className={pillClass(panel === "repeat", !!repeat, false)} onClick={() => toggle("repeat")}>
-          <RepeatIcon /> {repeat ? `${repeat}${task.paused ? " · paused" : ""}` : "Repeat"}
-        </button>
-      </div>
-      )}
-
-      {(panel === "when" || panel === "deadline" || panel === "repeat") && (
-        <DateEditor
-          tab={panel}
-          date={task.due_date}
-          time={task.due_time}
-          repeat={task.recurrence}
-          evening={task.evening}
-          someday={task.someday}
-          deadline={task.deadline}
-          paused={task.paused}
-          onSkip={task.recurrence ? () => void actions.skip(task) : undefined}
-          onPause={task.recurrence ? (p) => void actions.pause(task, p) : undefined}
+        )}
+        {showNotesText ? (
+          <Notes text={task.notes!} onEdit={() => setEditNotes(true)} onError={actions.fail} />
+        ) : (
+          <textarea
+            ref={notesRef}
+            className="tfc-notes"
+            value={notes}
+            rows={1}
+            maxLength={2000}
+            placeholder="Notes"
+            aria-label="Notes"
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={saveNotes}
+          />
+        )}
+        <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
+        <TaskFields
+          value={values}
+          onChange={change}
+          places={projects}
           now={now}
           locale={locale}
-          onApply={applyDate}
-          onClose={() => onPanel(null)}
-        />
-      )}
-      {panel === "project" && (
-        <ProjectPicker
-          projects={projects}
-          project={task.project}
-          heading={task.heading}
-          onPick={(project, heading) => {
-            void actions.update(task, { project, heading });
-            onPanel(null);
+          menu={menu}
+          onMenu={(m) => {
+            onMenu(m);
+            if (m !== "more") onSnooze(false);
           }}
-        />
-      )}
-      {panel === "snooze" && !task.done && (
-        <SnoozeBar
-          onSnooze={(kind) => {
-            onPanel(null);
-            void actions.snooze(task, kind);
+          tags={{
+            known: tags,
+            active: tagsOf(task.title),
+            onToggle: (t) => {
+              const next = toggleTag(task.title, t);
+              setTitle(next);
+              void actions.update(task, { title: next });
+            },
           }}
+          series={task.recurrence ? { onSkip: () => void actions.skip(task), onPause: (p) => void actions.pause(task, p) } : undefined}
+          more={(close) =>
+            snooze && !task.done ? (
+              <>
+                <div className="tf-head">Snooze</div>
+                <SnoozeBar
+                  onSnooze={(kind) => {
+                    close();
+                    onSnooze(false);
+                    void actions.snooze(task, kind);
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                {source && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="tf-opt"
+                      title={task.source_url ?? undefined}
+                      onClick={() => {
+                        close();
+                        void api.openSource(task.id).catch(actions.fail);
+                      }}
+                    >
+                      <span className="tf-opt-icon">
+                        <LineIcon name="external" size={16} />
+                      </span>
+                      Open in {source}
+                    </button>
+                    <div className="tf-sep" />
+                  </>
+                )}
+                {!task.done && (
+                  <button type="button" role="menuitem" className="tf-opt" onClick={() => onSnooze(true)}>
+                    <span className="tf-opt-icon">
+                      <LineIcon name="snooze" size={16} />
+                    </span>
+                    Snooze<em>›</em>
+                  </button>
+                )}
+                {!task.done && !task.someday && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="tf-opt"
+                    onClick={() => {
+                      close();
+                      void actions.update(task, { someday: true });
+                    }}
+                  >
+                    <span className="tf-opt-icon">
+                      <LineIcon name="someday" size={16} />
+                    </span>
+                    Move to Someday
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="tf-opt"
+                  onClick={() => {
+                    close();
+                    void actions.duplicate(task);
+                  }}
+                >
+                  <span className="tf-opt-icon">
+                    <LineIcon name="copy" size={16} />
+                  </span>
+                  Duplicate
+                </button>
+                <div className="tf-sep" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="tf-opt danger"
+                  onClick={() => {
+                    close();
+                    void actions.remove(task);
+                  }}
+                >
+                  <span className="tf-opt-icon">
+                    <LineIcon name="trash" size={16} />
+                  </span>
+                  Delete
+                </button>
+              </>
+            )
+          }
         />
-      )}
-
-      <div className="tc-foot">
-        {source ? (
-          <button
-            type="button"
-            className="tc-link"
-            onClick={() => void api.openSource(task.id).catch(actions.fail)}
-            title={task.source_url ?? `Open ${source}`}
-          >
-            From {source} ↗
-          </button>
-        ) : (
-          <span className="tc-hint">{detail ? "Saves as you go" : "Esc to close · saves as you go"}</span>
-        )}
-        <span className="tc-gap" />
-        {!task.done && (
-          <button type="button" className={panel === "snooze" ? "tc-link on" : "tc-link"} onClick={() => toggle("snooze")}>
-            <ClockIcon /> Snooze
-          </button>
-        )}
-        <button type="button" className="tc-link danger" onClick={() => void actions.remove(task)} aria-label={`Delete “${task.title}”`}>
-          <TrashIcon /> Delete
-        </button>
-        {inline && (
-          <button
-            type="button"
-            className="primary sp-done"
-            onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
-            onClick={onClose}
-            title="Done (Esc)"
-          >
-            Done
-          </button>
-        )}
       </div>
     </div>
   );
 }
 
 /**
- * Full screen's detail pane: the task opened beside the list, with its
- * properties as rows. ↑ ↓ step through the list; Esc closes.
+ * Full screen's detail pane: the task opened beside the list, in the same
+ * card as everywhere. ↑ ↓ step through the list; Esc closes.
  */
 export function TaskDetail({
   task,
@@ -787,8 +822,8 @@ export function TaskDetail({
   now,
   locale,
   projects,
+  tags = [],
   command,
-  crumbs,
   onClose,
   onStep,
 }: {
@@ -797,24 +832,28 @@ export function TaskDetail({
   now: Date;
   locale: string;
   projects: ProjectInfo[];
+  tags?: string[];
   command: RowCommand | null;
-  /** Where the task lives ("Q4 launch", "Design"). */
-  crumbs: string[];
   onClose: () => void;
   /** Open the task before (-1) or after (1) in the list. */
   onStep?: (d: -1 | 1) => void;
 }) {
-  const [panel, setPanel] = useState<Panel>(null);
+  const [menu, setMenu] = useState<FieldMenu | null>(null);
+  const [snooze, setSnooze] = useState(false);
   const [focusPart, setFocusPart] = useState<"title" | "notes" | "steps" | null>(null);
   useEffect(() => {
-    setPanel(null);
+    setMenu(null);
+    setSnooze(false);
     setFocusPart(null);
   }, [task.id]);
   useEffect(() => {
     if (!command || command.id !== task.id) return;
-    if (command.kind === "date") setPanel("when");
-    if (command.kind === "project" && !task.done) setPanel("project");
-    if (command.kind === "snooze" && !task.done) setPanel("snooze");
+    if (command.kind === "date") setMenu("date");
+    if (command.kind === "project" && !task.done) setMenu("place");
+    if (command.kind === "snooze" && !task.done) {
+      setMenu("more");
+      setSnooze(true);
+    }
     if (command.kind === "edit") setFocusPart("title");
     if (command.kind === "notes") setFocusPart("notes");
     if (command.kind === "steps") setFocusPart("steps");
@@ -836,38 +875,28 @@ export function TaskDetail({
   );
   return (
     <aside className="side-pane detail-pane" aria-label="Task details">
-      <div className="sp-head">
-        <span className="sp-crumbs">
-          {crumbs.map((c, i) => (
-            <span key={i}>
-              {i > 0 && <span className="sp-crumb-sep" aria-hidden>›</span>}
-              {c}
-            </span>
-          ))}
-        </span>
+      <div className="dp-bar">
         {onStep && (
           <>
             <button type="button" className="icon" onClick={() => onStep(-1)} aria-label="Previous task" title="Previous task (↑)">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M4 10l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <LineIcon name="chevronUp" size={16} />
             </button>
             <button type="button" className="icon" onClick={() => onStep(1)} aria-label="Next task" title="Next task (↓)">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <LineIcon name="chevronDown" size={16} />
             </button>
           </>
         )}
+        <span className="topbar-gap" />
         <button
           type="button"
-          className="primary sp-done"
+          className="icon"
           // Finish any edit in progress (it saves on blur) before closing.
           onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
           onClick={onClose}
-          title="Done (Esc)"
+          aria-label="Close"
+          title="Close (Esc)"
         >
-          Done
+          <LineIcon name="close" size={16} />
         </button>
       </div>
       <div className="sp-body">
@@ -879,19 +908,17 @@ export function TaskDetail({
           now={now}
           locale={locale}
           projects={projects}
-          panel={panel}
-          onPanel={setPanel}
+          tags={tags}
+          menu={menu}
+          onMenu={setMenu}
+          snooze={snooze}
+          onSnooze={setSnooze}
           focusPart={focusPart}
           onClose={onClose}
-          detail
         />
       </div>
     </aside>
   );
-}
-
-function pillClass(on: boolean, set: boolean, late: boolean): string {
-  return ["tc-pill", on ? "on" : "", set ? "set" : "", late ? "late" : ""].filter(Boolean).join(" ");
 }
 
 /** The description: one quiet line, links clickable, click to edit. */

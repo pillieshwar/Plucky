@@ -8,6 +8,8 @@ import type { NewTask, Task } from "../lib/types";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import { stepsLabel } from "./Checklist";
 import { firstLink, linkHost, whenText } from "./TaskList";
+import { LineIcon } from "./LineIcon";
+import { priorityColor } from "../lib/taskText";
 
 /** One column of a board: Inbox's "Tomorrow", or a building's floor. */
 export interface BoardColumn {
@@ -137,6 +139,7 @@ function Card({
   const day = showDay && task.due_date && !when?.late ? new Date(`${task.due_date}T12:00:00`).toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" }) : null;
   const dl = deadlineChip(task, now, locale);
   const steps = task.checklist ?? [];
+  const pri = task.done ? null : priorityColor(task.priority);
   const toggle = () => {
     if (task.done) return void actions.setDone(task, false);
     setLeaving(true);
@@ -174,8 +177,13 @@ function Card({
             {noteLine ?? (source ? `from ${source}` : "")}
           </span>
         )}
-        {(when || day || dl || steps.length > 0) && (
+        {(when || day || dl || steps.length > 0 || pri) && (
           <span className="bcard-chips">
+            {pri && (
+              <span className="bchip pri" style={{ color: pri }} title={`Priority P${task.priority}`}>
+                <LineIcon name="flagFilled" size={12} /> P{task.priority}
+              </span>
+            )}
             {(day || when) && (
               <span className={when?.late ? "bchip late" : when?.soon ? "bchip soon" : "bchip"}>{[day, when?.text].filter(Boolean).join(" · ")}</span>
             )}

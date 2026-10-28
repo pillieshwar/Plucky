@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::store::Task;
 
+/// The project every Mac starts with for personal things, and for work.
+pub const HOME: &str = "Home";
+pub const OFFICE: &str = "Office";
+
 /// The most modes anyone needs, and the longest name.
 pub const MAX_MODES: usize = 12;
 const MAX_NAME: usize = 30;
@@ -51,24 +55,48 @@ impl Default for ViewMode {
 }
 
 impl ViewMode {
-    /// Work: starts with no projects ticked (plus tasks with no project).
+    /// Work: starts with the Office project (plus tasks with no project),
+    /// and new tasks go to Office.
     pub fn work() -> Self {
         Self {
             id: "work".into(),
             name: "Work".into(),
             icon: "💼".into(),
+            projects: vec![OFFICE.into()],
+            new_task_project: Some(OFFICE.into()),
             ..Self::default()
         }
     }
 
-    /// Personal: starts with every project, including ones made later.
+    /// Personal: every project but Office, including ones made later, and
+    /// new tasks go to Home.
     pub fn personal() -> Self {
         Self {
             id: "personal".into(),
             name: "Personal".into(),
             icon: "🏠".into(),
             new_projects: true,
+            projects: vec![OFFICE.into()],
+            new_task_project: Some(HOME.into()),
             ..Self::default()
+        }
+    }
+
+    /// Give a Work or Personal mode made before 0.4.55 its default project
+    /// (Office or Home), unless the person already picked one.
+    pub fn adopt_defaults(&mut self) {
+        let (project, hide) = match self.id.as_str() {
+            "work" => (OFFICE, false),
+            "personal" => (HOME, true),
+            _ => return,
+        };
+        if self.new_task_project.is_none() {
+            self.new_task_project = Some(project.into());
+        }
+        // Work shows Office; Personal (which lists what it hides) hides it.
+        if self.new_projects == hide && !self.projects.iter().any(|p| p == OFFICE) {
+            self.projects.push(OFFICE.into());
+            self.projects.sort();
         }
     }
 
@@ -165,6 +193,32 @@ mod tests {
         assert!(work.shows(&task(None)));
         work.no_project = false;
         assert!(!work.shows(&task(None)));
+    }
+
+    #[test]
+    fn work_and_personal_start_with_office_and_home() {
+        let (work, personal) = (ViewMode::work(), ViewMode::personal());
+        assert!(work.shows(&task(Some(OFFICE))) && !work.shows(&task(Some(HOME))));
+        assert!(personal.shows(&task(Some(HOME))) && !personal.shows(&task(Some(OFFICE))));
+        assert_eq!(work.new_task_project.as_deref(), Some(OFFICE));
+        assert_eq!(personal.new_task_project.as_deref(), Some(HOME));
+        // Older modes adopt them; a choice already made stays.
+        let mut old = ViewMode {
+            id: "personal".into(),
+            name: "Personal".into(),
+            new_projects: true,
+            ..ViewMode::default()
+        };
+        old.adopt_defaults();
+        assert_eq!(old, ViewMode { icon: "◎".into(), ..ViewMode::personal() });
+        let mut chosen = ViewMode {
+            new_task_project: Some("Q4 launch".into()),
+            projects: vec!["Q4 launch".into()],
+            ..ViewMode::work()
+        };
+        chosen.adopt_defaults();
+        assert_eq!(chosen.new_task_project.as_deref(), Some("Q4 launch"));
+        assert_eq!(chosen.projects, vec!["Office".to_string(), "Q4 launch".to_string()]);
     }
 
     #[test]

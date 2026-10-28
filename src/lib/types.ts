@@ -34,6 +34,8 @@ export interface Task {
   series_date: string | null;
   /** A paused repeating task (no reminders). */
   paused: boolean;
+  /** 0 (none), 1 (urgent), 2 (high), 3 (medium). Missing before 0.4.55. */
+  priority?: number;
 }
 
 export interface ChecklistItem {
@@ -67,6 +69,7 @@ export interface NewTask {
   project?: string | null;
   heading?: string | null;
   checklist?: ChecklistItem[];
+  priority?: number;
 }
 
 /** Mirrors `todocity_core::TaskPatch`. Omit a key to leave it unchanged. */
@@ -85,6 +88,8 @@ export interface TaskPatch {
   heading?: string | null;
   checklist?: ChecklistItem[];
   paused?: boolean;
+  /** 0 clears it. */
+  priority?: number;
   /** Moving a repeating task: just this one (the series keeps its days). */
   only_this?: boolean;
 }

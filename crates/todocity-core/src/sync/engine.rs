@@ -40,6 +40,7 @@ pub const TASK_FIELDS: &[&str] = &[
     "done",
     "completed_at",
     "paused",
+    "priority",
     "series_date",
     "created_at",
     "created_tz",

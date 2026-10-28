@@ -70,7 +70,7 @@ export function ModeSwitch({
           {mode ? mode.icon : "◎"}
         </span>
         <span className={variant === "icon" ? "mode-name sr-only" : "mode-name"}>
-          {mode ? (variant === "side" ? mode.name : `${mode.name} mode`) : "Everything"}
+          {mode ? mode.name : "Everything"}
         </span>
         <svg className="mode-caret" width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
           <path d="M3.5 6 8 10.5 12.5 6" strokeLinecap="round" strokeLinejoin="round" />

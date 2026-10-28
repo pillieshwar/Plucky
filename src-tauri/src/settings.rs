@@ -52,6 +52,13 @@ pub struct AppSettings {
     /// settings from before were moved over once.
     #[serde(default)]
     pub look_v2: bool,
+    /// 0.4.55: Personal is on by default, and Work and Personal file new
+    /// tasks in Office and Home. Settings from before were moved over once.
+    #[serde(default)]
+    pub modes_v2: bool,
+    /// The Home and Office projects were made (once, so deleting them sticks).
+    #[serde(default)]
+    pub default_projects_made: bool,
     /// Press ⌘C twice quickly to capture what was just copied.
     pub double_copy: bool,
     /// The name the user gave their city (every finished task lights a window).
@@ -297,6 +304,8 @@ impl Default for AppSettings {
             theme: "dark".into(),
             theme_v2: true,
             look_v2: true,
+            modes_v2: true,
+            default_projects_made: false,
             double_copy: true,
             city_name: None,
             city_corner: true,
@@ -313,7 +322,7 @@ impl Default for AppSettings {
             watch: WatchSettings::default(),
             look: LookSettings::default(),
             modes: ViewMode::defaults(),
-            mode: None,
+            mode: Some("personal".into()),
             open_full: true,
         }
     }
@@ -331,7 +340,7 @@ impl Settings {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
-        let migrate = !value.theme_v2 || !value.look_v2;
+        let migrate = !value.theme_v2 || !value.look_v2 || !value.modes_v2;
         if !value.theme_v2 {
             // Dark is the default from 0.4.27; "follow the Mac" moves over once.
             if value.theme == "system" {
@@ -344,6 +353,16 @@ impl Settings {
             value.look.compact = true;
             value.look.list_views.clear();
             value.look_v2 = true;
+        }
+        if !value.modes_v2 {
+            // Personal by default, with Home and Office, from 0.4.55.
+            if value.mode.is_none() {
+                value.mode = Some("personal".into());
+            }
+            for m in &mut value.modes {
+                m.adopt_defaults();
+            }
+            value.modes_v2 = true;
         }
         let me = Self {
             path,
@@ -443,9 +462,10 @@ mod tests {
         assert!(s.onboarding_done && s.auto_update && s.remember_source);
         assert!(s.double_copy);
         assert!(s.city_corner && s.city_name.is_none());
-        // Modes arrive with 0.4.48: Work and Personal, none on yet.
+        // Modes: Work and Personal, with Personal on (0.4.55).
         assert_eq!(s.modes, ViewMode::defaults());
-        assert!(s.mode.is_none() && s.open_full);
+        assert_eq!(s.mode.as_deref(), Some("personal"));
+        assert!(s.open_full && s.modes_v2 && !s.default_projects_made);
         // Compact rows from 0.4.53.
         assert!(s.look.compact && s.look_v2);
     }

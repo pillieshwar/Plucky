@@ -10,6 +10,8 @@ interface Props {
   now?: Date;
   /** Text when no time is set. */
   placeholder?: string;
+  /** Focus the field (and so open the list) when it appears. */
+  autoFocus?: boolean;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -57,7 +59,7 @@ export function parseTimeInput(text: string): string | null {
  * every quarter hour below it, plus "No time" and "In 1 hour". Arrow keys
  * move through the list; Return picks.
  */
-export function TimePicker({ value, onChange, locale, now, placeholder = "Add a time" }: Props) {
+export function TimePicker({ value, onChange, locale, now, placeholder = "Add a time", autoFocus }: Props) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [hi, setHi] = useState(0);
@@ -65,6 +67,10 @@ export function TimePicker({ value, onChange, locale, now, placeholder = "Add a 
   const boxRef = useRef<HTMLDivElement>(null);
   const soon = now ? inAnHour(now) : null;
   const typed = parseTimeInput(text);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   type Item = { key: string; time: string | null; label: string; hint?: string };
   const items = useMemo<Item[]>(() => {
@@ -126,6 +132,7 @@ export function TimePicker({ value, onChange, locale, now, placeholder = "Add a 
     <div className={value ? "time-select set" : "time-select"} ref={boxRef}>
       <ClockGlyph />
       <input
+        ref={inputRef}
         value={shownValue}
         placeholder={open ? "Type a time… 3pm, 9:30" : placeholder}
         aria-label="Time"
