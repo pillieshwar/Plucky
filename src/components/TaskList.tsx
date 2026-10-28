@@ -1,4 +1,5 @@
 import { useWords } from "../lib/words";
+import { playDone } from "../lib/doneSound";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectColor } from "../lib/colors";
 import { CalendarIcon } from "./icons";
@@ -230,7 +231,8 @@ function TaskRow({
       void actions.setDone(task, false);
       return;
     }
-    // Let the check animation play before the row leaves.
+    // Let the check animation play before the row leaves; the sound plays now.
+    playDone(task.id);
     setCompleting(true);
     if (open) onOpenTask(null);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -574,8 +576,51 @@ function TaskCard({
   const [steps, setSteps] = useState<ChecklistItem[]>(task.checklist ?? []);
   const stepsKey = JSON.stringify(task.checklist ?? []);
   useEffect(() => setSteps(task.checklist ?? []), [stepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setTitle(task.title), [task.title]);
-  useEffect(() => setNotes(task.notes ?? ""), [task.notes]);
+  // Edits save as you type (and at once when you leave the field or close
+  // the card). What comes back from the save doesn't overwrite the field
+  // while you're still typing in it.
+  const saved = useRef({ title: task.title, notes: task.notes ?? "" });
+  const live = useRef({ title, notes });
+  live.current = { title, notes };
+  const timer = useRef<number | null>(null);
+  useEffect(() => {
+    if (task.title !== saved.current.title) {
+      saved.current.title = task.title;
+      setTitle(task.title);
+    }
+  }, [task.title]);
+  useEffect(() => {
+    if ((task.notes ?? "") !== saved.current.notes) {
+      saved.current.notes = task.notes ?? "";
+      setNotes(task.notes ?? "");
+    }
+  }, [task.notes]);
+  function flush() {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const patch: TaskPatch = {};
+    const t = live.current.title.trim();
+    if (t && t !== saved.current.title) {
+      patch.title = t;
+      saved.current.title = t;
+    }
+    const n = live.current.notes.trim();
+    if (n !== saved.current.notes) {
+      patch.notes = n || null;
+      saved.current.notes = n;
+    }
+    if (Object.keys(patch).length) void actions.update(task, patch);
+  }
+  function soon() {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(flush, 500);
+  }
+  // Closing the card (Esc, a click outside, another task) keeps what was typed.
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => () => flushRef.current(), []);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (focusPart === "notes") setEditNotes(true);
@@ -592,9 +637,9 @@ function TaskCard({
   }, [notes, editNotes]);
 
   function saveTitle() {
-    const t = title.trim();
-    if (t && t !== task.title) void actions.update(task, { title: t });
-    else setTitle(task.title);
+    flush();
+    // A title can't be blank: an emptied one goes back to what it was.
+    if (!title.trim()) setTitle(saved.current.title);
   }
   // A date typed into the title ("call Sam tomorrow 3pm"): offer to use it.
   const typedWhen = useMemo(() => {
@@ -608,12 +653,12 @@ function TaskCard({
     const patch: TaskPatch = { title: typedWhen.title, due_date: typedWhen.date, due_time: typedWhen.time, someday: false };
     if (typedWhen.repeat) patch.recurrence = typedWhen.repeat;
     setTitle(typedWhen.title);
+    saved.current.title = typedWhen.title;
     void actions.update(task, patch);
   }
   function saveNotes() {
-    const n = notes.trim();
-    if (n !== (task.notes ?? "")) void actions.update(task, { notes: n || null });
-    if (n) setEditNotes(false);
+    flush();
+    if (notes.trim()) setEditNotes(false);
   }
   function saveSteps(next: ChecklistItem[]) {
     setSteps(next);
@@ -666,7 +711,10 @@ function TaskCard({
           autoFocus={focusPart === "title"}
           maxLength={200}
           aria-label="Title"
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            soon();
+          }}
           onBlur={saveTitle}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -690,7 +738,10 @@ function TaskCard({
             maxLength={2000}
             placeholder="Notes"
             aria-label="Notes"
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              soon();
+            }}
             onBlur={saveNotes}
           />
         )}
@@ -710,8 +761,9 @@ function TaskCard({
             known: tags,
             active: tagsOf(task.title),
             onToggle: (t) => {
-              const next = toggleTag(task.title, t);
+              const next = toggleTag(saved.current.title, t);
               setTitle(next);
+              saved.current.title = next;
               void actions.update(task, { title: next });
             },
           }}

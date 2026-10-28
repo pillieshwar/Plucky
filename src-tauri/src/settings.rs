@@ -67,6 +67,8 @@ pub struct AppSettings {
     pub city_corner: bool,
     /// What the city calls its mayor (the user).
     pub mayor_name: Option<String>,
+    /// Play the "Lights on" sound when a task is done.
+    pub done_sound: bool,
     /// The highest population the city has reached: milestones built at it
     /// stay built, even if tasks are un-ticked later. Only ever goes up.
     pub city_peak: u32,
@@ -310,6 +312,7 @@ impl Default for AppSettings {
             city_name: None,
             city_corner: true,
             mayor_name: None,
+            done_sound: true,
             city_peak: 0,
             city_seen: 0,
             undated_nudge: true,

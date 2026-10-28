@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { playDone } from "../lib/doneSound";
 import { useProjectColor } from "../lib/colors";
 import { deadlineChip } from "../lib/lists";
 import type { DropTarget } from "../lib/plan";
@@ -142,6 +143,7 @@ function Card({
   const pri = task.done ? null : priorityColor(task.priority);
   const toggle = () => {
     if (task.done) return void actions.setDone(task, false);
+    playDone(task.id);
     setLeaving(true);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => void actions.setDone(task, true), reduce ? 0 : 380);

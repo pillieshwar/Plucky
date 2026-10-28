@@ -356,6 +356,7 @@ function mockTauri(s) {
       const t = s.tasks.find((x) => x.id === a.id);
       if (!t) return null;
       const { only_this, ...patch } = a.patch ?? {};
+      (window.__updates ??= []).push({ id: a.id, patch });
       Object.assign(t, patch);
       // The app refreshes when the backend says tasks changed.
       setTimeout(() => window.__emit?.("tasks-changed", null), 0);
@@ -1120,6 +1121,25 @@ await shot("full-overdue", FULL, full({ settings: DARK }), async (p) => {
 });
 await shot("full-task-open", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();
+});
+await shot("full-task-autosave", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row").nth(1).click();
+  const title = p.locator(".tfc-title");
+  await title.click();
+  await title.press("End");
+  await p.keyboard.type(" today");
+  // Saves while typing, with no Enter and no Save button.
+  await p.waitForTimeout(800);
+  let ups = await p.evaluate(() => window.__updates ?? []);
+  if (!ups.some((u) => (u.patch.title ?? "").endsWith(" today"))) throw new Error(`the title didn't save as typed: ${JSON.stringify(ups)}`);
+  // Notes typed and closed straight away with Esc are kept too.
+  await p.locator(".task-card .tfc-notes, .task-card .task-notes").first().click();
+  await p.waitForTimeout(100);
+  await p.keyboard.type("Ask about the budget");
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+  ups = await p.evaluate(() => window.__updates ?? []);
+  if (!ups.some((u) => (u.patch.notes ?? "").includes("Ask about the budget"))) throw new Error(`notes typed before Esc were lost: ${JSON.stringify(ups)}`);
 });
 await shot("full-task-open-light", FULL, full({ settings: LIGHT }), async (p) => {
   await p.locator(".task .task-row").nth(1).click();

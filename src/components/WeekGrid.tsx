@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { playDone } from "../lib/doneSound";
 import { api, onCalendarChanged } from "../lib/api";
 import { useProjectColors } from "../lib/colors";
 import { addDays, parseISODate, relativeLabel, toISODate } from "../lib/dates";
@@ -91,6 +92,7 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
   const weekday = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: "short" }), [locale]);
 
   function complete(t: Task) {
+    playDone(t.id);
     setCompleting((s) => new Set(s).add(t.id));
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => {

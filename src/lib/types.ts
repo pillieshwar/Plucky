@@ -160,6 +160,8 @@ export interface AppSettings {
   city_name: string | null;
   /** Show the city in the corner of full screen. */
   city_corner: boolean;
+  /** Play the "Lights on" sound when a task is done. */
+  done_sound?: boolean;
   /** What the city calls its mayor (the user). */
   mayor_name: string | null;
   /** Highest population reached (milestones stay built); only goes up. */

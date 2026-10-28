@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { linesToSteps } from "../lib/lists";
 import { useWords } from "../lib/words";
 import type { ChecklistItem } from "../lib/types";
@@ -31,7 +31,19 @@ export function Checklist({
     if (!clean.length) return;
     onChange([...items, ...clean.map((text) => ({ text, done: false }))]);
     setDraft("");
+    draftRef.current = "";
   }
+  // A step being typed when the card closes is kept, not lost.
+  const draftRef = useRef("");
+  const latest = useRef({ items, onChange });
+  latest.current = { items, onChange };
+  useEffect(
+    () => () => {
+      const text = draftRef.current.trim();
+      if (text) latest.current.onChange([...latest.current.items, { text, done: false }]);
+    },
+    [],
+  );
 
   return (
     <div
@@ -91,7 +103,10 @@ export function Checklist({
           maxLength={200}
           placeholder={`Add a ${w.step}`}
           aria-label={`Add a ${w.step}`}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            draftRef.current = e.target.value;
+          }}
           onPaste={(e) => {
             const text = e.clipboardData.getData("text");
             if (/\n/.test(text.trim())) {
@@ -104,10 +119,7 @@ export function Checklist({
               e.preventDefault();
               add([draft]);
             }
-            if (e.key === "Escape") {
-              setDraft("");
-              addRef.current?.blur();
-            }
+            if (e.key === "Escape") addRef.current?.blur();
           }}
           onBlur={() => add([draft])}
         />
@@ -124,6 +136,16 @@ function StepEditor({ initial, onDone }: { initial: string; onDone: (text: strin
     done.current = true;
     onDone(v);
   };
+  // Closed mid-edit: keep the change.
+  const live = useRef({ value, finish });
+  live.current = { value, finish };
+  useEffect(
+    () => () => {
+      if (live.current.value !== initial) live.current.finish(live.current.value);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   return (
     <input
       className="step-edit"
@@ -135,7 +157,7 @@ function StepEditor({ initial, onDone }: { initial: string; onDone: (text: strin
       onBlur={() => finish(value)}
       onKeyDown={(e) => {
         if (e.key === "Enter") finish(value);
-        if (e.key === "Escape") finish(null);
+        if (e.key === "Escape") finish(value);
       }}
     />
   );

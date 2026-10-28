@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { playDone } from "./doneSound";
 import { relativeLabel } from "./dates";
 import { timeLabel } from "./schedule";
 import type { Task, TaskPatch } from "./types";
@@ -28,6 +29,7 @@ export function taskActions(show: Show, locale: string) {
   };
 
   async function setDone(task: Task, done: boolean) {
+    if (done && !task.done) playDone(task.id);
     try {
       await api.updateTask(task.id, { done });
       if (!done) return;
@@ -201,6 +203,7 @@ export function taskActions(show: Show, locale: string) {
 
   async function completeMany(tasks: Task[]) {
     const open = tasks.filter((t) => !t.done);
+    if (open.length) playDone();
     try {
       for (const t of open) await api.updateTask(t.id, { done: true });
       show(`Completed ${plural(open.length)}`, {
