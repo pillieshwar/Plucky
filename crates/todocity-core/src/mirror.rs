@@ -576,7 +576,7 @@ mod tests {
 
     fn find(store: &Store, title: &str) -> crate::store::Task {
         store
-            .list_all()
+            .all()
             .unwrap()
             .into_iter()
             .find(|t| t.title == title)
