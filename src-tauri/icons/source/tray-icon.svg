@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 100 100">
+  <!-- Menu-bar icon, in colour (not a template image): the app icon's building,
+       simplified for 16 pt — three gold windows joined by a faint tick.
+       Indigo and gold read on light and dark menu bars alike. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a43a8"/><stop offset="1" stop-color="#262a6b"/></linearGradient>
+  </defs>
+  <rect x="14" y="4" width="72" height="92" rx="14" fill="url(#g)"/>
+  <path d="M33 52 L50 70 L67 32" fill="none" stroke="#ffd27a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+  <g fill="#ffd27a">
+    <rect x="24" y="43" width="18" height="18" rx="4"/>
+    <rect x="41" y="61" width="18" height="18" rx="4"/>
+    <rect x="58" y="23" width="18" height="18" rx="4"/>
+  </g>
+</svg>
