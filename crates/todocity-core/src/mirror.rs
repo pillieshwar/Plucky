@@ -106,6 +106,9 @@ pub struct MirrorProject {
     pub stopped: bool,
 }
 
+/// A change to a task here: its id, the patch, and done (with when).
+type Update = (i64, TaskPatch, Option<(bool, Option<String>)>);
+
 /// Removing more than this many tasks in one pass, and more than half of
 /// those kept in step, looks like a bad read rather than a clear-out.
 const MAX_SAFE_REMOVALS: usize = 20;
@@ -370,7 +373,7 @@ impl Store {
         };
 
         // Changes to tasks already here, applied once the rest is saved.
-        let mut updates: Vec<(i64, TaskPatch, Option<(bool, Option<String>)>)> = Vec::new();
+        let mut updates: Vec<Update> = Vec::new();
         let mut seen: HashSet<&str> = HashSet::new();
         for item in src.items {
             seen.insert(item.ext_id.as_str());
