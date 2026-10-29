@@ -207,7 +207,13 @@ export function Onboarding({
           )}
           {modelError && <p className="model-error">{modelError}</p>}
           <div className="onboard-actions">
-            <span />
+            {hasModel || progress !== null ? (
+              <span />
+            ) : (
+              <button type="button" className="link-btn" onClick={() => setStep(1)}>
+                Later — I’ll type tasks myself
+              </button>
+            )}
             {hasModel || progress !== null ? (
               <button type="button" className="primary" onClick={() => setStep(1)}>
                 Continue
@@ -288,7 +294,12 @@ export function Onboarding({
         <div className="onboard-body">
           <h2>Try it</h2>
           {captured ? (
-            <p className="onboard-ok">✓ Your first task is in TodoCity.</p>
+            <>
+              <p className="onboard-ok">✓ Your first task is in TodoCity.</p>
+              <p className="onboard-muted">
+                Each project becomes a building in your city. Every task you finish moves a resident in and lights a window.
+              </p>
+            </>
           ) : (
             <>
               <p>
@@ -297,7 +308,13 @@ export function Onboarding({
               <blockquote className="onboard-sample" tabIndex={0}>
                 {SAMPLE}
               </blockquote>
-              {!hasModel && <p className="onboard-muted">The model is still downloading, so this time you’ll type the task yourself.</p>}
+              {!hasModel && (
+                <p className="onboard-muted">
+                  {progress !== null
+                    ? "The model is still downloading, so this time you’ll fill in the card yourself."
+                    : "You’ll fill in the card yourself for now. Add the AI model anytime in Settings → AI model."}
+                </p>
+              )}
               <button type="button" className="link-btn" onClick={() => onTry(SAMPLE)}>
                 Or just use the sample
               </button>

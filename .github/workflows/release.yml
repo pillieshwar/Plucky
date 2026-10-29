@@ -213,7 +213,7 @@ jobs:
           **[Download TodoCity for Mac](https://github.com/REPO/releases/latest/download/TodoCity-macOS.dmg)** — Apple silicon and Intel, macOS 11 or later.
 
           1. Open `TodoCity-macOS.dmg` and drag **TodoCity** into **Applications**.
-          2. Open TodoCity. If macOS says it can't verify the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          2. Open TodoCity from Applications.
           3. The tour walks you through the rest: permission, model download (about 2 GB, once), shortcuts and a first capture.
 
 

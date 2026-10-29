@@ -22,11 +22,11 @@ function liveLine(s: WatchStatus, locale: string): { tone: "ok" | "warn" | "mute
         text: s.settings.paused_until ? `Paused until ${hhmm(s.settings.paused_until, locale)}.` : "Paused.",
       };
     case "on_battery":
-      return { tone: "muted", text: "Waiting for power — you chose to watch only when plugged in." };
+      return { tone: "muted", text: "Starts again when your Mac is plugged in." };
     case "no_model":
-      return { tone: "warn", text: "Download a model in Settings → AI model first; it reads your screen on this Mac." };
+      return { tone: "warn", text: "Add the AI model in Settings → AI model to start watching. It runs on this Mac." };
     case "no_access":
-      return { tone: "warn", text: "TodoCity needs Accessibility access (the same as the capture shortcut)." };
+      return { tone: "warn", text: "Allow Accessibility to start watching — the same permission as the capture shortcut." };
     case "unsupported":
       return { tone: "muted", text: "Watching is available on macOS." };
     default:

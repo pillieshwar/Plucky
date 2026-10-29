@@ -194,7 +194,7 @@ function AppRow({
         <span className="agent-app-name">
           <b>{app.name}</b>
           {app.connected && !app.stale && <span className="agent-ok">✓ Connected</span>}
-          {app.stale && <span className="agent-warn">Needs updating</span>}
+          {app.stale && <span className="agent-warn">Update available</span>}
         </span>
         {app.connected && !app.stale ? (
           <button type="button" className="link-btn quiet" disabled={busy} onClick={onDisconnect}>

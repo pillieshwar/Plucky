@@ -49,7 +49,7 @@ const TODOIST_MAP: [string, string][] = [
   ["Inbox", "Tasks with no project (houses)"],
   ["Section", "Floor"],
   ["Task", "Task (a home)"],
-  ["Sub-tasks (any depth)", "Sub-tasks — their own dates are dropped"],
+  ["Sub-tasks (any depth)", "Sub-tasks"],
   ["Labels", "#tags on the task"],
   ["Priority 1–3", "Priority P1, P2, P3"],
   ["Description and comments", "Notes"],
@@ -545,7 +545,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
       <MapTable
         from="Todoist"
         rows={TODOIST_MAP}
-        foot="Deleted tasks stay behind. Archived projects only come for their completed tasks. Repeats TodoCity doesn't have yet come once, with a note."
+        foot="Deleted tasks stay behind. Archived projects only come for their completed tasks. Custom repeats come once, with a note so you can pick a repeat."
       />
     </>
   );
@@ -662,8 +662,8 @@ function PreviewPanel({
         {p.unmapped_repeats > 0 && (
           <li>
             {p.unmapped_repeats === 1
-              ? "1 repeat uses a pattern TodoCity doesn't have yet; it comes once, with a note to set a repeat."
-              : `${n(p.unmapped_repeats)} repeats use patterns TodoCity doesn't have yet; they come once, with a note to set a repeat.`}
+              ? "1 custom repeat comes once, with a note so you can pick a repeat."
+              : `${n(p.unmapped_repeats)} custom repeats come once, with a note so you can pick a repeat.`}
           </li>
         )}
       </ul>
@@ -705,7 +705,7 @@ function DonePanel({
           ? `${plural(report.added, "task")} imported${report.done ? ` — ${plural(report.done, "window")} lit up in your city` : ""}.`
           : "Everything was already here — nothing new to import."}
         {report.skipped > 0 && ` ${plural(report.skipped, "task")} were already here.`}
-        {report.failed > 0 && ` ${plural(report.failed, "task")} couldn't be read and stayed in ${app}.`}
+        {report.failed > 0 && ` ${plural(report.failed, "task")} stayed in ${app} — import again to bring them over.`}
         {synced && ` From now on, changes in ${app} flow in on their own.`}
       </p>
       <p className="tr-small">

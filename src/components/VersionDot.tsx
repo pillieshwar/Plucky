@@ -79,7 +79,7 @@ export function VersionDot({ update, version, onError }: { update: UpdateStatus;
         : update.state === "checking"
           ? "Checking for updates…"
           : update.state === "failed"
-            ? "Couldn't check for updates"
+            ? "TodoCity checks for updates on its own"
             : "You're up to date";
   // What's new: in the version that's ready, or the one running.
   const nextNotes =

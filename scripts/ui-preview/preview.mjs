@@ -1249,6 +1249,9 @@ await shot("full-no-sidebar", FULL, full({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Hide sidebar" }).click();
 });
 await shot("full-tour", FULL, full({ settings: { ...DARK, onboarding_done: false }, status: { accessibility: true, engine: "bundled", active_model: null, version: "0.4.28", platform: "macos" } }));
+await shot("full-setup-banners", FULL, full({ settings: { ...DARK, onboarding_done: true, double_copy: false }, status: { accessibility: false, engine: "bundled", active_model: null, version: "0.4.28", platform: "macos" } }), async (p) => {
+  await p.locator(".banner-later").first().waitFor();
+});
 await shot("full-footer-city-hover", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".ff-city").hover();
 });

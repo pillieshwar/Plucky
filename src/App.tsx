@@ -117,6 +117,13 @@ export default function App() {
   const allTasksRef = useRef(allTasks);
   allTasksRef.current = allTasks;
   const [capture, setCapture] = useState<CaptureState | null>(null);
+  const [hidden, setHidden] = useState<string[]>(() => {
+    try {
+      return (localStorage.getItem("todocity.banners.hidden") ?? "").split(",").filter(Boolean);
+    } catch {
+      return [];
+    }
+  });
   const [status, setStatus] = useState<Status | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   // The mode this Mac is in (Work, Personal…): lists show only its projects.
@@ -928,7 +935,7 @@ export default function App() {
       ? page === "model"
         ? status?.active_model
           ? `Using ${status.active_model}`
-          : "No model yet"
+          : "Pick a model to get started"
         : `TodoCity ${status?.version ?? ""}`
       : list === "today"
         ? `${now.toLocaleDateString(LOCALE, { weekday: "long", month: "short", day: "numeric" })} · ${w.toDo(listCounts.today)}`
@@ -948,19 +955,41 @@ export default function App() {
                   ? w.progress(stats.open, stats.done)
                   : "";
 
+  const hideBanner = (id: string) => {
+    const next = [...hidden, id];
+    setHidden(next);
+    remember("todocity.banners.hidden", next.join(","));
+  };
   const banners = (
     <>
       {tab !== "settings" && <UpdateBanner update={update} onError={setError} />}
-      {status && !status.accessibility && !capture && !onboarding && (
-        <Banner tone="warn" action={{ label: "Grant access", run: grantAccess }}>
-          TodoCity needs Accessibility permission to read selected text.
-        </Banner>
-      )}
-      {tab === "tasks" && status?.engine === "bundled" && !status.active_model && !onboarding && (
-        <Banner tone="warn" action={{ label: "Get a model", run: () => openSettings("model") }}>
-          Download a model so TodoCity can read your selections.
-        </Banner>
-      )}
+      {status &&
+        !status.accessibility &&
+        settings?.double_copy === false &&
+        !capture &&
+        !onboarding &&
+        !hidden.includes("access") && (
+          <Banner
+            tone="info"
+            action={{ label: "Allow", run: grantAccess }}
+            onDismiss={() => hideBanner("access")}
+          >
+            Allow Accessibility so your shortcut can pick up selected text.
+          </Banner>
+        )}
+      {tab === "tasks" &&
+        status?.engine === "bundled" &&
+        !status.active_model &&
+        !onboarding &&
+        !hidden.includes("model") && (
+          <Banner
+            tone="info"
+            action={{ label: "Set up", run: () => openSettings("model") }}
+            onDismiss={() => hideBanner("model")}
+          >
+            Add the on-device model to turn selected text into tasks.
+          </Banner>
+        )}
       {error && (
         <Banner tone="error" action={{ label: "Dismiss", run: () => setError(null) }}>
           {error}
@@ -1924,19 +1953,28 @@ function Banner({
   tone,
   children,
   action,
+  onDismiss,
 }: {
   tone: "warn" | "error" | "info";
   children: ReactNode;
   action?: { label: string; run: () => void | Promise<void> };
+  onDismiss?: () => void;
 }) {
   return (
     <div className={`banner ${tone}`} role={tone === "error" ? "alert" : "status"}>
       <p>{children}</p>
-      {action && (
-        <button type="button" onClick={() => void action.run()}>
-          {action.label}
-        </button>
-      )}
+      <span className="banner-actions">
+        {onDismiss && (
+          <button type="button" className="banner-later" onClick={onDismiss}>
+            Not now
+          </button>
+        )}
+        {action && (
+          <button type="button" onClick={() => void action.run()}>
+            {action.label}
+          </button>
+        )}
+      </span>
     </div>
   );
 }

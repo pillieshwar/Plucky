@@ -213,7 +213,13 @@ export function Sidebar(p: Props) {
 
       <div className="sb-scroll">
         <h2 className="sb-head sb-head-row">
-          <button type="button" className="sb-head-btn" onClick={fold} aria-expanded={!folded}>
+          <button
+            type="button"
+            className="sb-head-btn"
+            onClick={fold}
+            aria-expanded={!folded}
+            title="Each project is a building in your city, and its sections are floors."
+          >
             {w.projects} <span className="sb-head-aka">(Buildings)</span>
           </button>
           <span className="sb-head-actions">

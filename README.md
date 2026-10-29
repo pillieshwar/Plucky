@@ -213,7 +213,8 @@ Settings → **Import Data** brings your whole Things 3 library into TodoCity. I
 1. **Open Things 3 on this Mac** and let it finish syncing. If you only use Things on iPhone or iPad, install Things 3 for Mac and sign in to Things Cloud first.
 2. In TodoCity, open **Settings → Import Data** and click **Find my Things library**. If macOS asks whether TodoCity may access data from other apps, click **Allow**.
 3. **Check the preview.** Untick any project you'd rather leave behind, and choose whether to bring the Logbook and cancelled to-dos.
-4. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"), so you can undo it.
+4. **Keep in sync** (optional). Leave it on and new to-dos and changes in Things keep flowing into TodoCity on their own. Your edits in TodoCity stay, and nothing is sent back to Things. **Stop syncing** any time, for one project (its ⋯ menu) or all of Things (Settings → Import Data).
+5. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"), so you can undo it.
 
 Running it again later only brings to-dos that are new since last time, even if you've deleted some here.
 
@@ -239,11 +240,12 @@ Trashed to-dos stay behind. **Can't find your library?** Click **Choose the data
 Settings → **Import Data** → **Todoist** brings your Todoist into TodoCity. Todoist isn't changed, so you can keep using it while you try TodoCity.
 
 1. In Todoist (web or app), open **Settings → Integrations → Developer** and click **Copy API token**.
-2. In TodoCity, paste it and click **Connect**. TodoCity reads your projects, sections, tasks, sub-tasks, labels, comments and completed tasks straight from Todoist's servers to your Mac. The token is used for that and never saved; big accounts take a minute while completed tasks come in, year by year.
-3. **Check the preview.** Untick any project you'd rather leave behind; choose whether to bring completed tasks and whether priorities 1–3 become `#p1`–`#p3`.
-4. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"). Running it again later only brings tasks that are new since last time.
+2. In TodoCity, paste it and click **Connect**. TodoCity reads your projects, sections, tasks, sub-tasks, labels, comments and completed tasks straight from Todoist's servers to your Mac. Big accounts take a minute while completed tasks come in, year by year.
+3. **Check the preview.** Untick any project you'd rather leave behind, and choose whether to bring completed tasks.
+4. **Keep in sync** (optional). Leave it on and Todoist changes keep flowing in every few minutes. The token is then kept in your Keychain; with sync off, it's used once and forgotten. Your edits in TodoCity stay, and nothing is sent back to Todoist.
+5. **Click Import.** TodoCity backs itself up first (Settings → Backups & export → "before import"). Running it again later only brings tasks that are new since last time.
 
-**No token?** Export each project with **⋯ → Export as CSV** in Todoist (or, on Pro, download a backup from Settings → Backups and unzip it), then choose **No token? Use CSV files instead** and pick all the .csv files. CSV exports don't include completed tasks, so your city starts dark.
+**No token?** Export each project with **⋯ → Export as CSV** in Todoist (or, on Pro, download a backup from Settings → Backups and unzip it), then choose **No token? Use CSV files instead** and pick all the .csv files. CSV exports carry your open tasks; connect with a token to bring completed ones too.
 
 | Todoist | TodoCity |
 |---|---|
@@ -251,9 +253,9 @@ Settings → **Import Data** → **Todoist** brings your Todoist into TodoCity. 
 | Inbox | Tasks with no project (houses) |
 | Section | Floor |
 | Task | Task (a home) |
-| Sub-tasks, any depth | Sub-tasks (their own dates are dropped) |
+| Sub-tasks, any depth | Sub-tasks |
 | Labels | `#tags` on the task |
-| Priority 1–3 | `#p1`–`#p3`, if you choose |
+| Priority 1–3 | Priority P1–P3 |
 | Description and comments | Notes |
 | Date and time, deadline | Day and time, deadline |
 | Recurring date | The same repeat when it's daily, weekdays, weekly, every 2 weeks, monthly or yearly; other patterns come once, with a note |
@@ -281,7 +283,7 @@ From then on, changes on either Mac show up on the other within about 30 seconds
 
 1. **Download** [`TodoCity-macOS.dmg`](https://github.com/pillieshwar/TodoCity/releases/latest/download/TodoCity-macOS.dmg).
 2. **Open it** and drag **TodoCity** into **Applications**.
-3. **Launch TodoCity.** If macOS says it can't verify the developer, open **System Settings → Privacy & Security**, click **Open Anyway** and confirm. You do this once.
+3. **Launch TodoCity.** It's signed and notarized by Apple, so it opens like any other Mac app.
 4. **Follow the three-step tour.** Pick the on-device model (TodoCity recommends the best one for your Mac and downloads it once), choose how to capture — <kbd>⌘C</kbd> twice, or a shortcut (which needs **Accessibility** access, how macOS lets an app read selected text) — and try a capture on a sample message.
 
 There's nothing else to install. TodoCity opens at login and updates itself — look for **Restart to update** when a new version is ready.
@@ -344,7 +346,7 @@ select text ─▶ read selection ─▶ local model ─▶ resolve the date ─
 3. **Resolve the date** ([`src/lib/dates.ts`](src/lib/dates.ts), [`src/lib/schedule.ts`](src/lib/schedule.ts)): the model only copies the phrase; deterministic code turns it into a day, time and repeat rule. Ambiguous phrases ("next Friday" on a Tuesday, `3/4`) offer both readings.
 4. **Store and remind** ([`crates/todocity-core/src/store.rs`](crates/todocity-core/src/store.rs), [`src-tauri/src/notifications/`](src-tauri/src/notifications)) keeps tasks in SQLite and shows native notifications with actions when they're due.
 
-Selected text is treated as untrusted input: it's wrapped and sanitized as data, instructions live only in the system prompt, and the strict schema means an injection can at worst produce an odd task title.
+Selected text is treated as untrusted input: it's wrapped and sanitized as data, instructions live only in the system prompt, and the strict schema means the most any text can do is suggest a task, which you review.
 
 ## Build from source
 
@@ -384,10 +386,9 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 
 | Problem | Fix |
 | --- | --- |
-| "Apple could not verify TodoCity…" | Expected for this build. **System Settings → Privacy & Security → Open Anyway**. |
 | <kbd>⌘C</kbd> twice does nothing | Check that **Settings → Capture & shortcuts → Press ⌘C twice to capture** is on and the TodoCity icon is in the menu bar. Copies made inside TodoCity itself are ignored. |
 | <kbd>⇧⌘S</kbd> does nothing | Check that the TodoCity icon is in the menu bar and Accessibility is allowed. If another app uses the same shortcut, pick a new one in **Settings → Capture & shortcuts**. |
-| "No selected text found" | Select the text again. Password fields and some secure apps can't be read, by design. |
+| "Select some text first" | Select the text again, then press the shortcut. Password fields always stay private. |
 | **Add to TodoCity** isn't in the right-click menu | Open TodoCity from **Applications** once, then log out and back in. You can also enable it in **System Settings → Keyboard → Keyboard Shortcuts → Services → Text**. Some apps list it under **Services**. |
 | No reminders appear | **Settings → Notifications** shows whether they're allowed and can send a test notification. |
 | Accessibility is asked for again after an update | In **Privacy & Security → Accessibility**, remove TodoCity with **–**, then capture again and re-allow it. |
