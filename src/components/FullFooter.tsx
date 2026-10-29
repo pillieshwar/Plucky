@@ -67,11 +67,11 @@ export function FullFooter({
       <div className="ff-left">
         <button type="button" className="ff-model" onClick={onModel} title="Settings → AI model">
           <span className="local-dot" aria-hidden />
-          <span>On this Mac · {model ?? "No model yet"}</span>
+          <span>On this Mac · {model ?? "Add AI model"}</span>
         </button>
       </div>
       {showCity ? (
-        <button type="button" className={pulse ? "ff-city lit-up" : "ff-city"} onClick={onCity} title="Open your city">
+        <button type="button" className={pulse ? "ff-city lit-up" : "ff-city"} onClick={onCity} title="Every task you finish moves a resident into your city. Click to look around.">
           <span className="ff-sky" aria-hidden>
             {skyline.map((b) => (
               <span key={b.key} className="ff-tower" style={{ height: b.h }}>

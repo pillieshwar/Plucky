@@ -1,4 +1,10 @@
 {
+  "0.4.58": [
+    "Skip the model download in the tour and type tasks yourself — add the AI model whenever you like",
+    "Reminders to set things up are quieter, and “Not now” hides them",
+    "Hover your city or the Projects heading to see how buildings and residents work",
+    "Clearer wording throughout the app"
+  ],
   "0.4.57": [
     "Finishing a task plays “Lights on”: a light switch and a warm chime as a window lights up (turn it off in Settings → Notifications)",
     "Task edits save as you type — no Enter or Save needed, and closing a task keeps what you typed"

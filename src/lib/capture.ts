@@ -25,7 +25,7 @@ export async function processCapture(
       phase: "manual",
       selection,
       source,
-      error: "No model downloaded yet — add this one by hand, or get a model in Settings → AI model.",
+      error: "Fill this one in yourself, or add the AI model in Settings → AI model and TodoCity will do it for you.",
     });
     return;
   }
@@ -34,6 +34,6 @@ export async function processCapture(
     const extraction = await api.extract(selection);
     if (isCurrent()) set({ phase: "review", selection, source, extraction });
   } catch (e) {
-    if (isCurrent()) set({ phase: "manual", selection, source, error: String(e) });
+    if (isCurrent()) set({ phase: "manual", selection, source, error: "Check the details below, then press Return." });
   }
 }

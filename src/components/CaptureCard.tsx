@@ -166,7 +166,7 @@ function Review({
     >
       <Kicker
         source={state.source}
-        text={state.phase === "manual" ? "Couldn’t read it — edit it yourself" : "New task"}
+        text={state.phase === "manual" ? "New task — check the details" : "New task"}
       />
       {state.phase === "manual" && <p className="capture-error">{state.error}</p>}
 
@@ -281,12 +281,12 @@ function Single({ draft, now, onChange }: { draft: Draft; now: Date; onChange: (
   );
 
   const question = !draft.dateText
-    ? "No date in the text. When is this due?"
+    ? "When is this due?"
     : draft.mustAsk && draft.date
       ? `“${draft.dateText}” could mean more than one day. Which one?`
       : draft.date
         ? `Read “${draft.dateText}” as ${whenLabel(draft, now)}.`
-        : `Couldn’t pin down “${draft.dateText}”. Pick a day?`;
+        : `Which day is “${draft.dateText}”?`;
 
   return (
     <>
@@ -410,20 +410,20 @@ function Notice({
 }) {
   const copy = {
     nothing_selected: {
-      title: "No selected text found",
-      body: "Select some text in any app, then press the shortcut again. Password fields and some secure apps can’t be read. Tip: you can also right-click selected text and choose Add to TodoCity.",
+      title: "Select some text first",
+      body: "Select text in any app, then press the shortcut again. Password fields always stay private. Tip: you can also right-click selected text and choose Add to TodoCity.",
     },
     permission_needed: {
-      title: "TodoCity needs Accessibility access",
-      body: "macOS only lets apps read selected text with your permission. Grant access in System Settings → Privacy & Security → Accessibility, then try again.",
+      title: "Allow Accessibility to capture",
+      body: "macOS asks before an app can pick up selected text. Turn on TodoCity in System Settings → Privacy & Security → Accessibility, then press the shortcut again.",
     },
     clipboard_busy: {
-      title: "Couldn’t read this selection safely",
-      body: "Your clipboard holds something very large (like a big image) that TodoCity can’t safely set aside. Copy the text yourself (⌘C), then press the shortcut again.",
+      title: "Copy the text first",
+      body: "Your clipboard is holding something large, like an image. Copy the text (⌘C), then press the shortcut again.",
     },
     failed: {
-      title: "Couldn’t read the selection",
-      body: `${result.kind === "failed" ? result.message : ""} If this keeps happening, use Settings → Help → Log file and send it along.`,
+      title: "Let’s try that again",
+      body: "Select the text and press the shortcut again — or copy it and press ⌘C twice.",
     },
   }[result.kind];
   return (
@@ -436,7 +436,7 @@ function Notice({
         </button>
         {result.kind === "permission_needed" && (
           <button type="button" className="primary" onClick={onGrantAccess}>
-            Grant access
+            Allow access
           </button>
         )}
       </div>

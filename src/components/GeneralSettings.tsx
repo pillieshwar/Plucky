@@ -68,7 +68,7 @@ export function updateText(u: UpdateStatus): string {
     case "ready":
       return `TodoCity ${u.version} is ready to install.`;
     case "failed":
-      return `Couldn't check for updates (${u.message}).`;
+      return "Can’t reach the update server right now. TodoCity checks again on its own.";
     default:
       return "";
   }
@@ -605,7 +605,7 @@ export function HelpPage({ onTour, onKeys }: { onTour: () => void; onKeys: () =>
             Show
           </button>
         </ActionRow>
-        <ActionRow label="Report a problem">
+        <ActionRow label="Send feedback or ideas">
           <button type="button" className="ghost small" onClick={() => void api.openUrl("https://github.com/pillieshwar/TodoCity/issues").catch(() => undefined)}>
             Open GitHub
           </button>

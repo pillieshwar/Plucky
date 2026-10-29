@@ -37,7 +37,7 @@ function City3D(props: {
   onInteract?: () => void;
 }) {
   const dark = useDark();
-  if (!hasWebGL()) return <div className="city3d city3d-none">Your city needs 3D graphics, which aren't available on this Mac right now.</div>;
+  if (!hasWebGL()) return <div className="city3d city3d-none">Your city appears here when 3D graphics are turned on for TodoCity.</div>;
   return (
     <Suspense fallback={<div className="city3d" />}>
       <CityScene {...props} dark={dark} />
@@ -278,7 +278,7 @@ export function CityView({
                   ? `${hb.open} ${hb.open === 1 ? "idea" : "ideas"} for someday`
                   : hb.planned
                     ? "An empty lot · no tasks yet"
-                    : `${hb.done} lived in · ${hb.open} still empty${hb.finished ? " · every light on" : ""}`}
+                    : `${hb.done} lived in · ${hb.open} to go${hb.finished ? " · every light on" : ""}`}
               </span>
               <span className="cv-tip-go">Click to open</span>
             </>
@@ -320,7 +320,7 @@ export function CityView({
         {city.buildings.map((b) => (
           <li key={b.key}>
             <button type="button" onClick={() => (b.key === SOMEDAY_KEY ? onOpenSomeday() : onOpenProject(b.project))}>
-              {b.name}: {b.done} lived in, {b.open} still empty. Open it.
+              {b.name}: {b.done} lived in, {b.open} to go. Open it.
             </button>
           </li>
         ))}
@@ -502,7 +502,7 @@ function ShareSheet({
   const preview = useMemo(() => canvas?.toDataURL("image/png") ?? null, [canvas]);
   const blob = () =>
     new Promise<Blob>((res, rej) =>
-      canvas ? canvas.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't make the picture."))), "image/png") : rej(new Error("The picture isn't ready yet.")),
+      canvas ? canvas.toBlob((b) => (b ? res(b) : rej(new Error("The picture didn’t come out. Try again."))), "image/png") : rej(new Error("The picture is still being made. Try again in a moment.")),
     );
 
   async function copy() {
