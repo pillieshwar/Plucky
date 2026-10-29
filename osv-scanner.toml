@@ -66,3 +66,14 @@ reason = "zvariant_derive is unmaintained; only used by zbus (D-Bus) under notif
 id = "GHSA-qwgh-2vcv-g2f7"
 ignoreUntil = 2027-01-15
 reason = "block-buffer 0.10.4 via digest 0.10 (sha2). The fix is only in 0.12.1, which digest 0.10 can't use. The bug needs a panic caught mid-hash and the buffer reused; TodoCity never catches panics around hashing."
+
+# New zip 4.x advisories keep landing (Oct 2026: CVE-2026-115905 and others),
+# all fixed only in zip 9. Same reasoning as the entries above, so the package
+# is covered as a whole until Tauri's updater moves to zip >= 9.
+[[PackageOverrides]]
+name = "zip"
+version = "4.6.1"
+ecosystem = "crates.io"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-15
+reason = "zip 4.6.1 via tauri-plugin-updater (requires zip ^4; fixes are in zip 9). Windows-only, and the updater only extracts signature-verified packages. See deny.toml."
