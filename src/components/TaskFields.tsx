@@ -742,7 +742,7 @@ function PlaceMenu({
               {open && !q && p.name === project && (
                 newFloor === null ? (
                   <button type="button" className="tf-opt sub quiet" onClick={() => setNewFloor("")}>
-                    + New floor
+                    + New section
                   </button>
                 ) : (
                   <input
@@ -750,8 +750,8 @@ function PlaceMenu({
                     autoFocus
                     value={newFloor}
                     maxLength={60}
-                    placeholder="Floor name"
-                    aria-label="New floor's name"
+                    placeholder="Section name"
+                    aria-label="Section name"
                     onChange={(e) => setNewFloor(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {

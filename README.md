@@ -144,20 +144,20 @@ Anything whose day, time or deadline has passed gathers in **Overdue** in the si
 
 <img src="docs/screenshots/task-details.png" alt="A task opened in place in the list, with its notes, sub-tasks, date, deadline, project and repeat" width="860">
 
-In full screen, every task shows its **notes** and **sub-tasks** right under it — tick sub-tasks without opening anything. Click a task and it opens **in place**: its title, notes, sub-tasks, **When** (a day, a time, this evening or someday), a separate **deadline**, its **project** and **floor**, and **repeat**. Snooze, skip one repeat, pause a series or delete — everything saves as you go, and **Done** closes it.
+In full screen, every task shows its **notes** and **sub-tasks** right under it — tick sub-tasks without opening anything. Click a task and it opens **in place**: its title, notes, sub-tasks, **When** (a day, a time, this evening or someday), a separate **deadline**, its **project** and **section**, and **repeat**. Snooze, skip one repeat, pause a series or delete — everything saves as you go, and **Done** closes it.
 
-### Projects and floors
+### Projects and sections
 
-<img src="docs/screenshots/building.png" alt="A project in the sidebar opened to its floors, and one floor's tasks in the list" width="860">
+<img src="docs/screenshots/building.png" alt="A project in the sidebar opened to its sections, and one section's tasks in the list" width="860">
 
-- **Start a project** with the **+** next to **Projects (Buildings)** in the sidebar — even before it has any tasks.
-- **Open a project** in the sidebar to see its floors from the top down ("2nd Floor: Program", "1st Floor: Travel", "Ground floor"), with how many tasks each has to do. Click a floor for its own page: done tasks stay there, crossed out, and **Add Task** puts the new task straight on that floor.
+- **Start a project** with the **+** next to **Projects** in the sidebar — even before it has any tasks.
+- **Open a project** in the sidebar to see its sections, listed like Slack channels ("# General", "# Travel", "# Program"), with how many tasks each has to do. **General** holds the project's tasks with no section. Click a section for its own page: done tasks stay there, crossed out, and **Add Task** puts the new task straight in that section. In the city, each section is a floor of the project's building.
 - **Give a project its own color** from its **⋯** menu: its tasks' checkboxes, calendar blocks and dots on the month all take that color.
-- **The calendar on the right follows you**: inside a project (or on one floor), the month and the day's hours show only that project's (or floor's) tasks.
-- **Rename or delete** a project or a floor from its **⋯** menu. A project or floor can be deleted once it has no tasks left in it.
-- **Add Task** at the top right picks the **project**, **floor**, **date** and **time** right in the form. The form closes once the task is added.
+- **The calendar on the right follows you**: inside a project (or one section), the month and the day's hours show only that project's (or section's) tasks.
+- **Rename or delete** a project or a section from its **⋯** menu. Move or delete its tasks first, then delete it.
+- **Add Task** at the top right picks the **project**, **section**, **date** and **time** right in the form. The form closes once the task is added.
 
-<img src="docs/screenshots/add-room.png" alt="Adding a task with project, floor, date and time pickers" width="860">
+<img src="docs/screenshots/add-room.png" alt="Adding a task with project, section, date and time pickers" width="860">
 
 Finished tasks go to the **Logbook**. A task added with no date and no project goes straight to **Someday**, where ideas wait until you plan them.
 
@@ -220,12 +220,12 @@ Running it again later only brings to-dos that are new since last time, even if 
 
 | Things 3 | TodoCity |
 |---|---|
-| Project | Project (a building) |
-| Heading | Floor |
-| To-do | Task (a home) |
+| Project | Project |
+| Heading | Section |
+| To-do | Task |
 | Checklist | Sub-tasks |
 | Area | Its projects come as they are; to-dos right in the area become a project named after it |
-| Inbox, loose to-dos | Tasks with no project (houses) |
+| Inbox, loose to-dos | Tasks with no project |
 | Today, This Evening, Upcoming | The same day (and evening). Today items from earlier days come in for today, not as overdue |
 | Anytime / Someday | No day / Someday |
 | Deadline, reminder time | Deadline, time of day |
@@ -249,10 +249,10 @@ Settings → **Import Data** → **Todoist** brings your Todoist into TodoCity. 
 
 | Todoist | TodoCity |
 |---|---|
-| Project (and sub-projects) | Project (a building) |
-| Inbox | Tasks with no project (houses) |
-| Section | Floor |
-| Task | Task (a home) |
+| Project (and sub-projects) | Project |
+| Inbox | Tasks with no project |
+| Section | Section |
+| Task | Task |
 | Sub-tasks, any depth | Sub-tasks |
 | Labels | `#tags` on the task |
 | Priority 1–3 | Priority P1–P3 |

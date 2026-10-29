@@ -17,6 +17,7 @@ import { MonthCalendar } from "./components/MonthCalendar";
 import { applyLook, lookOf, weekStartOf } from "./lib/look";
 import { ProjectColors } from "./lib/colors";
 import { Toasts, useToasts } from "./components/Toasts";
+import { SourceDisplay } from "./components/SourceChip";
 import { GearIcon, PlusIcon, SearchIcon } from "./components/icons";
 import { ViewSwitch } from "./components/ViewSwitch";
 import { WeekView } from "./components/WeekView";
@@ -43,7 +44,7 @@ import {
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
-import { groupByHeading, groupInbox, headingsOf, inboxColumnDay, type InboxColumn, listTitle, normalizeList, projectList, projectOf, tasksForList, type ListId } from "./lib/lists";
+import { bySection, groupByHeading, groupInbox, headingsOf, inboxColumnDay, type InboxColumn, listTitle, normalizeList, projectList, projectOf, tasksForList, type ListId, withEmptySections } from "./lib/lists";
 import { ListPicker } from "./components/ListPicker";
 import { Logbook } from "./components/Logbook";
 import type { ProjectInfo } from "./components/ProjectPicker";
@@ -208,6 +209,13 @@ export default function App() {
   // The task opened as a card.
   const [openId, setOpenId] = useState<number | null>(null);
   const [planDay, setPlanDay] = useState(() => toISODate(new Date()));
+  // Calendar opens on seven days from today: a slid or paged week isn't kept
+  // once you leave it.
+  const wasCalendar = useRef(upcoming);
+  useEffect(() => {
+    if (wasCalendar.current && !upcoming) setPlanDay(toISODate(new Date()));
+    wasCalendar.current = upcoming;
+  }, [upcoming]);
   // Full screen's right side: the day picked in the month calendar.
   const [sideDay, setSideDay] = useState(() => toISODate(new Date()));
   // The user's own touches: clock, accent, first day of the week, the city.
@@ -417,16 +425,26 @@ export default function App() {
     if (list === "inbox") return groupInbox(visible, now);
     if (viewedProject === null) return groupTasks(visible, now, LOCALE);
     const all = groupByHeading(visible, full);
-    // A floor's page: just that floor's tasks.
-    return floorOpen ? all.filter((g) => g.key === `h:${floorOpen.floor ?? ""}`) : all;
-  }, [visible, now, list, viewedProject, floorOpen, full]);
+    // A section's page: just that section's tasks.
+    if (floorOpen) return all.filter((g) => g.key === `h:${floorOpen.floor ?? ""}`);
+    // The whole project: every section shows, even empty ones, so tasks can be dragged between them.
+    if (!all.length || query.trim()) return all;
+    return withEmptySections(all, floorList.filter((f) => f.project === viewedProject).map((f) => f.name));
+  }, [visible, now, list, viewedProject, floorOpen, full, floorList, query]);
   const doneHidden = useMemo(
     () => (showDone ? 0 : rawGroups.reduce((n, g) => n + g.tasks.filter((t) => t.done).length, 0)),
     [rawGroups, showDone],
   );
   const groups = useMemo(
-    () => (showDone ? rawGroups : rawGroups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => !t.done) })).filter((g) => g.tasks.length > 0)),
-    [rawGroups, showDone],
+    () => {
+      if (showDone) return rawGroups;
+      // A project's sections stay even when empty (somewhere to drag tasks into).
+      const keepEmpty = viewedProject !== null && !floorOpen;
+      const open = rawGroups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => !t.done) }));
+      const left = open.filter((g) => g.tasks.length > 0 || (keepEmpty && g.key.startsWith("h:")));
+      return left.some((g) => g.tasks.length > 0) ? left : [];
+    },
+    [rawGroups, showDone, viewedProject, floorOpen],
   );
   // Inbox and projects as a board (full screen; each remembers list or board).
   const boardKey = list === "inbox" ? "inbox" : viewedProject !== null ? `project:${viewedProject}` : null;
@@ -434,7 +452,22 @@ export default function App() {
   const boardView = full && boardKey !== null && !floorOpen && viewMode === "board" && !query.trim();
   // A board needs the room: the calendar pane stays closed there unless asked for.
   const [boardPane, setBoardPane] = useState(false);
-  const paneShown = boardView ? boardPane : lookOf(settings).side_open;
+  // Calendar has its own week grid, so its pane starts closed too; opening or
+  // closing it there is remembered for Calendar only.
+  const [calPane, setCalPane] = useState(() => saved("todocity.calendar.pane", ["open", "closed"], "closed") === "open");
+  const calView = upcoming && !boardView && tab === "tasks";
+  const paneShown = boardView ? boardPane : calView ? calPane : lookOf(settings).side_open;
+  const togglePane = () => {
+    if (boardView) setBoardPane((o) => !o);
+    else if (calView)
+      setCalPane((o) => {
+        remember("todocity.calendar.pane", o ? "closed" : "open");
+        return !o;
+      });
+    else void patchLook({ side_open: !lookOf(settingsRef.current).side_open });
+  };
+  const togglePaneRef = useRef(togglePane);
+  togglePaneRef.current = togglePane;
   const setViewMode = (m: "list" | "board") => {
     if (!boardKey) return;
     void patchLook({ list_views: { ...lookOf(settings).list_views, [boardKey]: m } });
@@ -573,13 +606,12 @@ export default function App() {
     }
     const name = viewedProject!;
     const b = city.buildings.find((x) => x.project === name);
-    const floors = b ? [...b.floors].sort((x, y) => x.level - y.level) : [];
-    if (!floors.some((f) => f.name === null)) floors.unshift({ name: null, label: "Ground floor", level: 0, rooms: [], per: 1, levels: 1, size: 1 });
+    const floors = b ? [...b.floors].sort(bySection) : [];
+    if (!floors.some((f) => f.name === null)) floors.unshift({ name: null, label: CITY.looseHeading, level: 0, rooms: [], per: 1, levels: 1, size: 1 });
     const shown = keep(rawGroups.flatMap((g) => g.tasks));
     return floors.map((f) => ({
       key: `fl:${f.name ?? ""}`,
-      label: f.name ?? "Ground floor",
-      lvl: f.level ? String(f.level) : "G",
+      label: f.name ?? CITY.looseHeading,
       tasks: shown.filter((t) => (t.heading ?? null) === f.name),
       drop: { place: { project: name, heading: f.name } },
       add: { project: name, heading: f.name },
@@ -672,7 +704,7 @@ export default function App() {
       }
       if (s.full && mod && e.altKey && e.code === "Backslash") {
         e.preventDefault();
-        void patchLook({ side_open: !lookOf(settingsRef.current).side_open });
+        togglePaneRef.current();
         return;
       }
       if (s.full && mod && e.key === "\\") {
@@ -913,10 +945,10 @@ export default function App() {
   }
 
   const stats = viewedProject !== null ? projectStats.find((p) => p.name === viewedProject) : undefined;
-  // Full screen: plain words, with floors for a project's sections.
+  // Plain words in the task screens; the city keeps its own.
   const w = full ? CITY : PLAIN;
-  const floorShown = floorOpen ? city.buildings.find((b) => b.project === floorOpen.project)?.floors.find((f) => f.name === floorOpen.floor) : undefined;
-  const floorTitle = floorShown?.label ?? (floorOpen?.floor ? floorOpen.floor : CITY.looseHeading);
+  // Task screens show the section's own name ("Travel"); floor numbers stay in the city.
+  const floorTitle = floorOpen?.floor ?? CITY.looseHeading;
   const weekDays = sevenDays(planDay);
   const rangeText = (() => {
     const a = parseISODate(weekDays[0]);
@@ -1148,6 +1180,7 @@ export default function App() {
         <TaskList
           groups={viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
           plain={!!floorOpen}
+          dropProject={viewedProject !== null && !floorOpen && !query.trim() ? viewedProject : undefined}
           actions={actions}
           now={now}
           locale={LOCALE}
@@ -1186,7 +1219,7 @@ export default function App() {
               </>
             ) : floorOpen && !query.trim() ? (
               <>
-                <p className="empty-big">{floorOpen.floor ? "No tasks on this floor yet" : "Nothing on the ground floor"}</p>
+                <p className="empty-big">{floorOpen.floor ? `Add a task to ${floorOpen.floor}` : "Tasks with no section go here"}</p>
                 <p>
                   <button type="button" className="primary floor-add" onClick={() => setAdding(true)}>
                     <PlusIcon /> {w.addButton}
@@ -1286,7 +1319,7 @@ export default function App() {
     // The right-hand pane: a task opened from the calendar or a board always
     // shows; the rest (the month and hours, the week's undated tasks) only
     // while the pane is open (the button at the top right).
-    const paneOn = boardView ? boardPane : look.side_open;
+    const paneOn = paneShown;
     const sidePane = !tasksShown ? null : openTask && !inList ? (
       <TaskDetail
         task={openTask}
@@ -1374,6 +1407,7 @@ export default function App() {
     );
     return (
       <ProjectColors.Provider value={projectColors}>
+      <SourceDisplay.Provider value={look.show_source}>
       <WordsContext.Provider value={CITY}>
       <div
         className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}
@@ -1436,7 +1470,7 @@ export default function App() {
                   if (made) {
                     setTab("tasks");
                     setList(projectList(made));
-                    show(`Started ${made} — a new building in your city`);
+                    show(`Created ${made}`);
                   }
                 })
                 .catch((e) => setError(String(e)))
@@ -1463,11 +1497,11 @@ export default function App() {
                 .then((gone) => {
                   void refresh();
                   if (!gone) {
-                    show(`${name} still has tasks — delete or move them first`);
+                    show(`Move or delete the tasks in ${name} first`);
                     return;
                   }
                   if (projectOf(list) === name) setList("today");
-                  show(`Took down ${name}`);
+                  show(`Deleted ${name}`);
                 })
                 .catch((e) => setError(String(e)))
             }
@@ -1477,7 +1511,7 @@ export default function App() {
                 .then(() => {
                   void refresh();
                   setFloorView((f) => (f && f.project === project && f.floor === from ? { project, floor: to } : f));
-                  show(`Renamed the floor to ${to}`);
+                  show(`Renamed the section to ${to}`);
                 })
                 .catch((e) => setError(String(e)))
             }
@@ -1502,11 +1536,11 @@ export default function App() {
                 .then((gone) => {
                   void refresh();
                   if (!gone) {
-                    show(`${name} still has tasks — delete or move them first`);
+                    show(`Move or delete the tasks in ${name} first`);
                     return;
                   }
                   setFloorView((f) => (f && f.project === project && f.floor === name ? null : f));
-                  show(`Removed the ${name} floor`);
+                  show(`Deleted the ${name} section`);
                 })
                 .catch((e) => setError(String(e)))
             }
@@ -1557,7 +1591,7 @@ export default function App() {
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), -7)))} aria-label="Previous week" title="Previous week (←)">
                   ‹
                 </button>
-                <button type="button" className="fh-btn" onClick={() => setPlanDay(today)} title="From today (T)">
+                <button type="button" className="fh-btn" onClick={() => setPlanDay(today)} title="Seven days from today (T)">
                   Today
                 </button>
                 <button type="button" className="fh-btn" onClick={() => setPlanDay((d) => toISODate(addDays(parseISODate(d), 7)))} aria-label="Next week" title="Next week (→)">
@@ -1611,7 +1645,7 @@ export default function App() {
               <button
                 type="button"
                 className={paneShown ? "icon pane-toggle" : "icon pane-toggle on"}
-                onClick={() => (boardView ? setBoardPane((o) => !o) : void patchLook({ side_open: !look.side_open }))}
+                onClick={togglePane}
                 aria-label={paneShown ? "Hide calendar pane" : "Show calendar pane"}
                 aria-pressed={paneShown}
                 title={`${paneShown ? "Hide" : "Show"} calendar (⌥⌘\\)`}
@@ -1659,6 +1693,7 @@ export default function App() {
                     onAdd={addFromPlan}
                     onOpen={(t) => setOpenId(t.id)}
                     openId={openId}
+                    onSlide={(n) => setPlanDay((d) => toISODate(addDays(parseISODate(d), n)))}
                   />
                 </main>
               ) : (
@@ -1739,12 +1774,14 @@ export default function App() {
         {keysSheet}
       </div>
       </WordsContext.Provider>
+      </SourceDisplay.Provider>
       </ProjectColors.Provider>
     );
   }
 
   return (
     <ProjectColors.Provider value={projectColors}>
+    <SourceDisplay.Provider value={look.show_source}>
     <div className={drag.drag ? "panel dragging" : "panel"}>
       <header className="topbar" data-tauri-drag-region>
         {controls}
@@ -1937,6 +1974,7 @@ export default function App() {
         </button>
       </footer>
     </div>
+    </SourceDisplay.Provider>
     </ProjectColors.Provider>
   );
 }

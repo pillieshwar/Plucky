@@ -72,6 +72,50 @@ export function sourceLabel(task: Pick<Task, "source_app" | "source_url">): stri
   return task.source_app;
 }
 
+/** What kind of place a task came from, for its chip's icon. */
+export type SourceKind = "mail" | "chat" | "web" | "doc" | "app";
+
+const MAIL_APPS = /^(com\.apple\.mail|com\.microsoft\.outlook|com\.readdle\.smartemail|com\.superhuman|com\.google\.gmail|it\.bloop\.airmail|com\.mimestream)/i;
+const CHAT_APPS = /^(com\.tinyspeck\.slackmacgap|com\.microsoft\.teams|com\.apple\.ichat|com\.apple\.messages|net\.whatsapp|ru\.keepcoder\.telegram|com\.hnc\.discord|us\.zoom)/i;
+const BROWSERS = /chrome|safari|firefox|edge|brave|arc|opera|vivaldi/i;
+
+type Source = Pick<Task, "source_app" | "source_bundle" | "source_url">;
+
+export function sourceKind(task: Source): SourceKind {
+  const bundle = task.source_bundle ?? "";
+  const app = task.source_app ?? "";
+  if (MAIL_APPS.test(bundle) || /^(mail|outlook|microsoft outlook|spark|superhuman|mimestream|airmail)$/i.test(app)) return "mail";
+  if (CHAT_APPS.test(bundle) || /^(slack|microsoft teams|teams|messages|whatsapp|telegram|discord|zoom)$/i.test(app)) return "chat";
+  const url = (task.source_url ?? "").toLowerCase();
+  if (url.startsWith("file://")) return "doc";
+  if (url.startsWith("http://") || url.startsWith("https://") || BROWSERS.test(app)) return "web";
+  return "app";
+}
+
+/** A source that can be opened: a web page or file it came from, or at least its app. */
+export function canOpenSource(task: Source): boolean {
+  const url = (task.source_url ?? "").toLowerCase();
+  return /^(https?|file):\/\//.test(url) || !!task.source_bundle;
+}
+
+/**
+ * The chip's tooltip: what clicking it opens. The exact message, page or file
+ * when TodoCity kept a link; otherwise the app itself ("Opens Outlook").
+ */
+export function sourceTooltip(task: Source): string | null {
+  if (!canOpenSource(task)) return null;
+  const url = task.source_url ?? "";
+  const app = task.source_app ?? "the app";
+  if (/^file:\/\//i.test(url)) return `Open ${sourceLabel(task) ?? "the file"}`;
+  if (/^https?:\/\//i.test(url)) {
+    const kind = sourceKind(task);
+    if (kind === "chat") return `Open the message in ${app}`;
+    if (kind === "mail") return `Open the email in ${app}`;
+    return `Open ${sourceLabel(task) ?? "the page"}`;
+  }
+  return `Opens ${app}`;
+}
+
 /** Priority names, by number (1 is the most urgent). */
 export const PRIORITIES: { n: 1 | 2 | 3; label: string; name: string; color: string }[] = [
   { n: 1, label: "P1", name: "Urgent", color: "#ef5b4f" },

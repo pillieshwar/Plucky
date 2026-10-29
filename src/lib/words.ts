@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
 
 /**
- * What things are called. The side panel uses plain words; full screen adds
- * the city's: a project's sections are floors. (The city itself tells the
- * Lights On story: projects are buildings, tasks are homes.)
+ * What things are called in the task screens: plain words (projects,
+ * sections, tasks). The city view keeps its own words — buildings, floors,
+ * homes and residents — and never uses these.
  */
 export interface Words {
   city: boolean;
@@ -42,9 +42,9 @@ export const PLAIN: Words = {
   newProject: "+ New project",
   newProjectName: "New project name",
   noProject: "No project",
-  heading: "Floor",
-  newHeading: "+ Floor",
-  headingIn: (p) => `Floor in ${p}`,
+  heading: "Section",
+  newHeading: "+ Section",
+  headingIn: (p) => `Section in ${p}`,
   task: "task",
   tasks: "tasks",
   newTask: "New task",
@@ -55,14 +55,13 @@ export const PLAIN: Words = {
   progress: (o, d) => `${o} open · ${d} done`,
   toDo: (k) => `${k} to do`,
   open: (k) => `${k} open`,
-  looseHeading: "Ground floor",
+  looseHeading: "General",
   emptyProject: (p) => `No tasks in ${p}`,
 };
 
 /**
- * Full screen: plain words for the work (task, sub-task, project), with the
- * city's names where they help you picture it — a project's sections are its
- * floors, and tasks on no floor are on the ground floor.
+ * Full screen: the same plain words, with a roomier add button. Tasks in a
+ * project with no section are under "General", like Slack's default channel.
  */
 export const CITY: Words = {
   city: true,
@@ -71,9 +70,9 @@ export const CITY: Words = {
   newProject: "+ New project",
   newProjectName: "New project's name",
   noProject: "No project",
-  heading: "Floor",
-  newHeading: "+ Floor",
-  headingIn: (p) => `Floor in ${p}`,
+  heading: "Section",
+  newHeading: "+ Section",
+  headingIn: (p) => `Section in ${p}`,
   task: "task",
   tasks: "tasks",
   newTask: "New task",
@@ -84,7 +83,7 @@ export const CITY: Words = {
   progress: (o, d) => `${o} to do · ${d} done`,
   toDo: (k) => `${k} to do`,
   open: (k) => `${k} open`,
-  looseHeading: "Ground floor",
+  looseHeading: "General",
   emptyProject: (p) => `No tasks in ${p} yet`,
 };
 

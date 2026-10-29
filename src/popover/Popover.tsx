@@ -29,6 +29,7 @@ import { linkParts, sourceLabel } from "../lib/taskText";
 import type { AppSettings, CalendarEvent, InboxItem, NewTask, Task, UpdateStatus, WatchStatus } from "../lib/types";
 import { safeLocale } from "../lib/locale";
 import { Toasts, useToasts } from "../components/Toasts";
+import { SourceChip, SourceDisplay, useSourceDisplay } from "../components/SourceChip";
 import { DueNowCard } from "../components/DueNowCard";
 import { dueChip, dueNow, type DueChip } from "../lib/due";
 import { FocusCard, type Focus } from "./FocusCard";
@@ -402,6 +403,7 @@ export default function Popover() {
   }
 
   return (
+    <SourceDisplay.Provider value={settings?.look?.show_source ?? "always"}>
     <div
       ref={rootRef}
       className={["pop", drag ? "dragging" : "", focusing ? "focusing" : ""].filter(Boolean).join(" ")}
@@ -693,6 +695,7 @@ export default function Popover() {
       <Toasts toasts={toasts} onDismiss={dismiss} />
       {drag && <DragGhost drag={drag} now={now} locale={LOCALE} />}
     </div>
+    </SourceDisplay.Provider>
   );
 }
 
@@ -718,8 +721,6 @@ function rowMeta(t: Task): string[] {
   if (t.project) parts.push(t.project);
   const r = repeatShort(t.recurrence);
   if (r) parts.push(r);
-  const src = sourceLabel(t);
-  if (src) parts.push(`from ${src}`);
   return parts;
 }
 
@@ -743,6 +744,7 @@ function Row({
   dragging?: boolean;
 }) {
   const deadline = task.done ? null : deadlineChip(task, new Date(), LOCALE);
+  const hasSource = useSourceDisplay() !== "never" && !!sourceLabel(task);
   return (
     <li
       className={`pop-row ${tone}${task.done ? " checked" : ""}${dragging ? " lifted" : ""}`}
@@ -768,14 +770,16 @@ function Row({
           title="Open in TodoCity · drag onto a day to move it"
         >
           <span className="pop-title">{task.title}</span>
-          {(chip || meta || deadline) && (
-            <span className="pop-meta">
-              {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
-              {deadline && <span className={`due-chip deadline ${deadline.tone}`}>⚑ {deadline.label}</span>}
-              {meta && <span className="pop-meta-text">{meta}</span>}
-            </span>
-          )}
         </button>
+        {/* Outside the row's button, so where it came from can be a link of its own. */}
+        {(chip || meta || deadline || hasSource) && (
+          <span className="pop-meta" onClick={() => onOpen(task)}>
+            {chip && <span className={`due-chip ${chip.tone}`}>{chip.label}</span>}
+            {deadline && <span className={`due-chip deadline ${deadline.tone}`}>⚑ {deadline.label}</span>}
+            {meta && <span className="pop-meta-text">{meta}</span>}
+            {hasSource && <SourceChip task={task} />}
+          </span>
+        )}
         {task.notes?.trim() && !task.done && <RowNotes text={task.notes} />}
       </div>
     </li>

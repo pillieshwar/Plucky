@@ -17,6 +17,7 @@ export const DEFAULT_LOOK: LookSettings = {
   side_open: true,
   show_done: false,
   list_views: {},
+  show_source: "always",
 };
 
 export const lookOf = (s: AppSettings | null | undefined): LookSettings => ({ ...DEFAULT_LOOK, ...(s?.look ?? {}) });

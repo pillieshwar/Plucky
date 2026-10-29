@@ -134,6 +134,8 @@ pub struct LookSettings {
     pub show_done: bool,
     /// List or board, per view: "inbox" or "project:<name>" → "list" | "board".
     pub list_views: std::collections::BTreeMap<String, String>,
+    /// Where a task came from ("from Mail"): "always", "hover" or "never".
+    pub show_source: String,
 }
 
 impl Default for LookSettings {
@@ -152,6 +154,7 @@ impl Default for LookSettings {
             side_open: true,
             show_done: false,
             list_views: std::collections::BTreeMap::new(),
+            show_source: "always".into(),
         }
     }
 }
@@ -202,6 +205,7 @@ impl LookSettings {
                 .filter(|(k, v)| k.len() <= 200 && (v == "list" || v == "board"))
                 .take(500)
                 .collect(),
+            show_source: pick(self.show_source, &["always", "hover", "never"], "always"),
         }
     }
 }
@@ -431,10 +435,18 @@ mod tests {
             accent: "neon".into(),
             mayor_look: "robot".into(),
             side_width: 9000,
+            show_source: "sometimes".into(),
             ..LookSettings::default()
         }
         .clean();
         assert_eq!(odd.mayor_look, "man");
+        assert_eq!(odd.show_source, "always");
+        let hover = LookSettings {
+            show_source: "hover".into(),
+            ..LookSettings::default()
+        }
+        .clean();
+        assert_eq!(hover.show_source, "hover");
         assert_eq!(odd.side_width, SIDE_MAX);
         let views = LookSettings {
             list_views: [
@@ -471,6 +483,7 @@ mod tests {
         assert!(s.open_full && s.modes_v2 && !s.default_projects_made);
         // Compact rows from 0.4.53.
         assert!(s.look.compact && s.look_v2);
+        assert_eq!(s.look.show_source, "always");
     }
 
     #[test]

@@ -196,6 +196,23 @@ export function GeneralPage(props: SettingsProps & { status: Status | null; upda
         </div>
       </section>
       <section className="settings-section">
+        <h2 className="settings-h">Tasks</h2>
+        <div className="card-stack">
+          <Choice
+            label="Show where tasks came from"
+            hint="Click “from Mail” or “from Slack” to open the email, message or page"
+            value={lookOf(settings).show_source}
+            disabled={off}
+            options={[
+              ["always", "Always"],
+              ["hover", "On hover"],
+              ["never", "Never"],
+            ]}
+            onChange={(v) => void save((s) => ({ ...s, look: { ...lookOf(s), show_source: v } }))}
+          />
+        </div>
+      </section>
+      <section className="settings-section">
         <h2 className="settings-h">Updates</h2>
         <div className="card-stack">
           <Toggle
@@ -690,9 +707,19 @@ export function DataSection({ onError }: { onError: (message: string) => void })
           ))}
         </ul>
       )}
-      <button type="button" className="link-btn" onClick={() => void api.revealBackups().catch(() => undefined)}>
-        Show backups folder
-      </button>
+      <span className="bk-links">
+        <button type="button" className="link-btn" onClick={() => void api.revealBackups().catch(() => undefined)}>
+          Show backups folder
+        </button>
+        <button
+          type="button"
+          className="link-btn"
+          title="Where TodoCity keeps everything on this Mac: your tasks, backups, AI models and settings"
+          onClick={() => void api.revealDataFolder().catch(() => undefined)}
+        >
+          Show data folder
+        </button>
+      </span>
     </section>
   );
 }

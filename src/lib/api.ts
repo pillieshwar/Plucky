@@ -167,6 +167,7 @@ export const api = {
   backupNow: () => invoke<BackupInfo[]>("backup_now"),
   restoreBackup: (name: string) => invoke<void>("restore_backup", { name }),
   revealBackups: () => invoke<void>("reveal_backups"),
+  revealDataFolder: () => invoke<void>("reveal_data_folder"),
   exportTasks: (format: "csv" | "json") => invoke<string>("export_tasks", { format }),
   /** Things 3 libraries on this Mac, newest first. */
   thingsFind: () => invoke<ThingsSource[]>("things_find"),

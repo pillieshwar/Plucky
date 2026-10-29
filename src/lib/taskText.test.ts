@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkParts, matchesQuery, sourceLabel, tagsOf, titleParts, topTags } from "./taskText";
+import { canOpenSource, linkParts, matchesQuery, sourceKind, sourceLabel, sourceTooltip, tagsOf, titleParts, topTags } from "./taskText";
 import type { Task } from "./types";
 
 let id = 0;
@@ -84,5 +84,29 @@ describe("linkParts", () => {
 
   it("searches descriptions too", () => {
     expect(matchesQuery(task("Pay rent", { notes: "portal at bank.example" }), "portal")).toBe(true);
+  });
+});
+
+describe("source chip", () => {
+  const src = (source_app: string | null, source_bundle: string | null, source_url: string | null) => ({ source_app, source_bundle, source_url });
+  it("picks an icon for where a task came from", () => {
+    expect(sourceKind(src("Mail", "com.apple.mail", null))).toBe("mail");
+    expect(sourceKind(src("Microsoft Outlook", "com.microsoft.Outlook", null))).toBe("mail");
+    expect(sourceKind(src("Slack", "com.tinyspeck.slackmacgap", "https://app.slack.com/client/T1/C2"))).toBe("chat");
+    expect(sourceKind(src("Google Chrome", "com.google.Chrome", "https://example.com/a"))).toBe("web");
+    expect(sourceKind(src("Preview", "com.apple.Preview", "file:///Users/sam/Plan.pdf"))).toBe("doc");
+    expect(sourceKind(src("Notes", "com.apple.Notes", null))).toBe("app");
+  });
+  it("opens the exact thing when there's a link, or else the app", () => {
+    expect(sourceTooltip(src("Slack", "com.tinyspeck.slackmacgap", "https://app.slack.com/client/T1/C2"))).toBe("Open the message in Slack");
+    expect(sourceTooltip(src("Safari", "com.apple.Safari", "https://www.example.com/a"))).toBe("Open example.com");
+    expect(sourceTooltip(src("Preview", "com.apple.Preview", "file:///Users/sam/Q3%20plan.pdf"))).toBe("Open Q3 plan.pdf");
+    expect(sourceTooltip(src("Microsoft Outlook", "com.microsoft.Outlook", null))).toBe("Opens Microsoft Outlook");
+  });
+  it("is plain text when there's nothing to open", () => {
+    expect(canOpenSource(src("Notes", null, null))).toBe(false);
+    expect(sourceTooltip(src("Notes", null, null))).toBeNull();
+    expect(canOpenSource(src(null, null, "javascript:alert(1)"))).toBe(false);
+    expect(canOpenSource(src("Notes", "com.apple.Notes", null))).toBe(true);
   });
 });

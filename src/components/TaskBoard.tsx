@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { SourceChip, useSourceDisplay } from "./SourceChip";
 import { playDone } from "../lib/doneSound";
 import { useProjectColor } from "../lib/colors";
 import { deadlineChip } from "../lib/lists";
@@ -135,7 +136,8 @@ function Card({
       .split(/\r?\n/)
       .map((l) => l.trim())
       .find(Boolean) ?? null;
-  const source = sourceLabel(task);
+  const showSource = useSourceDisplay();
+  const source = showSource === "never" ? null : sourceLabel(task);
   const when = whenText(task, now, locale);
   const day = showDay && task.due_date && !when?.late ? new Date(`${task.due_date}T12:00:00`).toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" }) : null;
   const dl = deadlineChip(task, now, locale);
@@ -176,7 +178,7 @@ function Card({
         {(link || noteLine || source) && (
           <span className="bcard-note">
             {link && <span className="bcard-link">↗ {linkHost(link)}</span>}
-            {noteLine ?? (source ? `from ${source}` : "")}
+            {noteLine ?? (source ? <SourceChip task={task} /> : "")}
           </span>
         )}
         {(when || day || dl || steps.length > 0 || pri) && (

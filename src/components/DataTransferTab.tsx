@@ -26,12 +26,12 @@ const plural = (x: number, one: string, many = `${one}s`) => `${n(x)} ${x === 1 
 
 /** What goes where, Things 3 → TodoCity. */
 const THINGS_MAP: [string, string][] = [
-  ["Project", "Project (a building)"],
-  ["Heading", "Floor"],
-  ["To-do", "Task (a home)"],
+  ["Project", "Project"],
+  ["Heading", "Section"],
+  ["To-do", "Task"],
   ["Checklist", "Sub-tasks"],
   ["Area", "Its projects come as they are; to-dos sitting right in the area become a project named after it"],
-  ["Inbox and loose to-dos", "Tasks with no project (houses)"],
+  ["Inbox and loose to-dos", "Tasks with no project"],
   ["Today, This Evening, Upcoming", "The same day (and evening)"],
   ["Anytime", "No day"],
   ["Someday", "Someday"],
@@ -45,10 +45,10 @@ const THINGS_MAP: [string, string][] = [
 
 /** What goes where, Todoist → TodoCity. */
 const TODOIST_MAP: [string, string][] = [
-  ["Project", "Project (a building) — sub-projects too"],
-  ["Inbox", "Tasks with no project (houses)"],
-  ["Section", "Floor"],
-  ["Task", "Task (a home)"],
+  ["Project", "Project, sub-projects too"],
+  ["Inbox", "Tasks with no project"],
+  ["Section", "Section"],
+  ["Task", "Task"],
   ["Sub-tasks (any depth)", "Sub-tasks"],
   ["Labels", "#tags on the task"],
   ["Priority 1–3", "Priority P1, P2, P3"],
@@ -324,7 +324,7 @@ function ThingsMoveIn({ onFinished }: { onFinished: () => void }) {
           app="Things"
           canSync
           unit="to-do"
-          loose="No project — Inbox and loose to-dos (houses)"
+          loose="No project — Inbox and loose to-dos"
           toggles={
             <>
               <Toggle
@@ -517,7 +517,7 @@ function TodoistMoveIn({ onFinished }: { onFinished: () => void }) {
           app="Todoist"
           canSync={kind === "api"}
           unit="task"
-          loose="Inbox (houses — tasks in no project)"
+          loose="Inbox (tasks with no project)"
           toggles={
             <>
               <Toggle
@@ -620,7 +620,7 @@ function PreviewPanel({
         {toggles}
       </div>
 
-      <h3 className="tr-h">Buildings</h3>
+      <h3 className="tr-h">Projects</h3>
       <ul className="tr-list">
         {p.buildings.map((b) => {
           const on = !skip.has(b.key);
@@ -645,7 +645,7 @@ function PreviewPanel({
                   {b.kind === "area" && <span className="tr-tag">area</span>}
                 </span>
                 <span className="tr-count">
-                  {[b.open && `${n(b.open)} to do`, includeDone && b.done && `${n(b.done)} done`, b.floors && plural(b.floors, "floor")]
+                  {[b.open && `${n(b.open)} to do`, includeDone && b.done && `${n(b.done)} done`, b.floors && plural(b.floors, "section")]
                     .filter(Boolean)
                     .join(" · ") || "empty"}
                 </span>
