@@ -86,6 +86,9 @@ pub struct AppSettings {
     pub agents_enabled: bool,
     /// Agents may add to-dos they notice without being asked (still reviewed).
     pub agents_proactive: bool,
+    /// Full access: connected agents can read, add, change, complete and
+    /// delete tasks, projects and sections, with no review. Off by default.
+    pub agents_full_access: bool,
     /// Check email for to-dos through Claude Code on a schedule.
     pub email: EmailSchedule,
     /// Notice to-dos in Slack and Outlook as they appear on screen.
@@ -325,6 +328,7 @@ impl Default for AppSettings {
             due_spotlight: true,
             agents_enabled: false,
             agents_proactive: true,
+            agents_full_access: false,
             email: EmailSchedule::default(),
             watch: WatchSettings::default(),
             look: LookSettings::default(),

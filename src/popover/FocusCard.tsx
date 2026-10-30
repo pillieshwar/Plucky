@@ -130,7 +130,7 @@ function InboxFocus({
       <p className="focus-meta">
         {noticed
           ? "TodoCity spotted these in new messages, on this Mac. Add the ones you want."
-          : "Add the ones you want. Agents can add tasks, but never see your list."}
+          : "Add the ones you want."}
       </p>
       <ul className="focus-list">
         {open.map((item) => {

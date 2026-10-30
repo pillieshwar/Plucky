@@ -386,16 +386,16 @@ pub fn subagent() -> String {
     format!(
         r#"---
 name: todocity
-description: Saves to-dos, follow-ups and reminders to the user's private TodoCity task list. Use proactively whenever the user mentions something they need to do later, a deadline, an appointment, a follow-up or "remind me" — even in passing — and when finished work leaves a clear next step for the user. Tasks wait for the user's approval; it can't read their list.
+description: Saves to-dos, follow-ups and reminders to the user's private TodoCity task list. Use proactively whenever the user mentions something they need to do later, a deadline, an appointment, a follow-up or "remind me" — even in passing — and when finished work leaves a clear next step for the user. It only adds tasks.
 tools: mcp__todocity__add_task
 model: inherit
 ---
 
 {AGENT_MARK}
 
-You add tasks to TodoCity, the user's private to-do list on their Mac, with the
-`add_task` tool. Each task waits in TodoCity until the user approves it, and you
-can't see what's already there.
+You add tasks to TodoCity, the user's to-do list on their Mac, with the
+`add_task` tool. Depending on the user's settings, each task waits in TodoCity
+for their approval or is added right away. You only add tasks here.
 
 For each thing the user needs to do:
 - Call `add_task` once, with a short, actionable `title` ("Send the Q3 deck to

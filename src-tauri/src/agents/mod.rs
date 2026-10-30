@@ -1,15 +1,18 @@
-//! AI agents: a write-only way in.
+//! AI agents: add-only by default, full access when the user turns it on.
 //!
 //! AI apps on this Mac (Claude Desktop, Claude Code, Cursor…) launch
-//! `TodoCity --mcp`, a tiny MCP server with one tool, `add_task` (see `mcp.rs`).
-//! It hands each task to the running app over a Unix socket that only this
-//! user can open. The app puts it in an inbox; nothing is added to the task
-//! list until the user approves it in the menu-bar dropdown.
+//! `TodoCity --mcp`, an MCP server (see `mcp.rs`) that talks to the running
+//! app over a Unix socket only this user can open.
 //!
-//! Write-only means more than "no read tool": every accepted task gets the
-//! same reply, with no id, no duplicate check and no counts, so an agent can't
-//! learn anything about the user's tasks by probing. Nothing leaves the Mac,
-//! and agents in the cloud can't reach it.
+//! By default it has one tool, `add_task`: the app puts each task in an inbox
+//! and nothing is added until the user approves it in the menu-bar dropdown.
+//! Every accepted task gets the same reply, with no id, no duplicate check
+//! and no counts, so an agent learns nothing about the user's tasks.
+//!
+//! With full access on (`agents_full_access`), every tool in
+//! `todocity_core::agent_tools` works: read, add, change, complete and
+//! delete, with no review (`ToolCall` / `on_call`). The app checks the
+//! setting on every call.
 
 // The socket listener is Unix-only; elsewhere most of this is unused.
 #![cfg_attr(not(unix), allow(dead_code))]
@@ -63,6 +66,85 @@ pub struct TaskDraft {
     /// due_date. Used by watch mode.
     #[serde(default)]
     pub date_text: Option<String>,
+}
+
+/// What `TodoCity --mcp` sends for a full-access tool: one JSON line.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    /// The AI app, from its MCP `clientInfo`.
+    pub agent: String,
+    /// One of `todocity_core::agent_tools::names()`.
+    pub tool: String,
+    #[serde(default)]
+    pub args: serde_json::Value,
+}
+
+/// The app's answer to a tool call.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallReply {
+    pub ok: bool,
+    #[serde(default)]
+    pub result: Option<serde_json::Value>,
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// Turned off, or not set up: what agents are told.
+pub const FULL_ACCESS_OFF: &str = "Full access is off. The user can turn it on in TodoCity → Settings → Connectors → AI agents → Full access.";
+
+/// Run a full-access tool for an agent, then refresh what the change touches.
+fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {
+    let settings = app.state::<Settings>().get();
+    if !settings.agents_enabled || !settings.agents_full_access {
+        return CallReply {
+            ok: false,
+            result: None,
+            error: Some(FULL_ACCESS_OFF.into()),
+        };
+    }
+    let now = chrono::Local::now().naive_local();
+    let outcome = {
+        let state = app.state::<crate::AppState>();
+        let Ok(store) = state.store.lock() else {
+            return CallReply {
+                ok: false,
+                result: None,
+                error: Some("TodoCity is busy; try again.".into()),
+            };
+        };
+        todocity_core::agent_tools::call(&store, &call.tool, &call.args, now)
+    };
+    match outcome {
+        Ok(result) => {
+            if !todocity_core::agent_tools::is_read_only(&call.tool) {
+                log::info!(
+                    "agent {} used {}",
+                    call.agent.chars().take(40).collect::<String>(),
+                    call.tool
+                );
+                if matches!(call.tool.as_str(), "complete_task" | "delete_task") {
+                    if let Some(id) = call.args["id"].as_i64() {
+                        crate::notifications::clear_task(id);
+                    }
+                }
+                let _ = app.emit("tasks-changed", ());
+                crate::tray::refresh(app);
+                if let Some(r) = app.try_state::<crate::reminders::Reminders>() {
+                    r.nudge();
+                }
+            }
+            CallReply {
+                ok: true,
+                result: Some(result),
+                error: None,
+            }
+        }
+        Err(e) => CallReply {
+            ok: false,
+            result: None,
+            error: Some(e),
+        },
+    }
 }
 
 /// The app's one-line answer. The same for every accepted task.
@@ -501,17 +583,31 @@ fn listen(app: &AppHandle, socket: &Path) {
         let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
         let mut line = String::new();
         let read = BufReader::new((&stream).take(16 * 1024)).read_line(&mut line);
-        let reply = match read {
-            Ok(_) => match serde_json::from_str::<Submission>(&line) {
+        let Ok(_) = read else { continue };
+        // A full-access tool call names its tool; anything else is a task to review.
+        let is_call = serde_json::from_str::<serde_json::Value>(&line)
+            .ok()
+            .is_some_and(|v| v.get("tool").is_some());
+        let answer = if is_call {
+            match serde_json::from_str::<ToolCall>(&line) {
+                Ok(call) => serde_json::to_string(&on_call(app, call)),
+                Err(_) => serde_json::to_string(&CallReply {
+                    ok: false,
+                    result: None,
+                    error: Some("TodoCity couldn't read that request.".into()),
+                }),
+            }
+        } else {
+            let reply = match serde_json::from_str::<Submission>(&line) {
                 Ok(sub) => on_submission(app, sub),
                 Err(_) => Reply {
                     ok: false,
                     error: Some("TodoCity couldn't read that request.".into()),
                 },
-            },
-            Err(_) => continue,
+            };
+            serde_json::to_string(&reply)
         };
-        if let Ok(mut out) = serde_json::to_string(&reply) {
+        if let Ok(mut out) = answer {
             out.push('\n');
             let _ = stream.write_all(out.as_bytes());
         }
@@ -527,6 +623,10 @@ pub struct Status {
     pub enabled: bool,
     /// Agents add to-dos they notice on their own (still reviewed).
     pub proactive: bool,
+    /// Agents can read and change everything, with no review.
+    pub full_access: bool,
+    /// How many tools full access gives agents.
+    pub tool_count: usize,
     /// The program AI apps should launch, with `--mcp`.
     pub command: String,
     /// TodoCity is running from somewhere temporary (a disk image, or moved by
@@ -554,6 +654,8 @@ fn status(app: &AppHandle) -> Status {
         supported: cfg!(unix),
         enabled: settings.agents_enabled,
         proactive: settings.agents_proactive,
+        full_access: settings.agents_full_access,
+        tool_count: todocity_core::agent_tools::names().len(),
         temporary_location: is_temporary(&command),
         apps: apps::statuses(&command),
         command,
@@ -570,6 +672,14 @@ pub fn agents_status(app: AppHandle) -> Status {
 pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
     app.state::<Settings>()
         .update(|s| s.agents_enabled = enabled);
+    status(&app)
+}
+
+/// Full access for agents: read and change everything, with no review.
+#[tauri::command]
+pub fn agents_set_full_access(app: AppHandle, on: bool) -> Status {
+    app.state::<Settings>()
+        .update(|s| s.agents_full_access = on);
     status(&app)
 }
 
