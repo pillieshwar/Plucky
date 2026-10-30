@@ -96,6 +96,12 @@ describe("hourRange", () => {
 describe("dropPatch", () => {
   const t = task("Write", TODAY, { due_time: "12:30" });
 
+  it("drops at the minute in the Calendar, snapped to 5", () => {
+    expect(dropPatch(t, { iso: TODAY, hour: 9, minute: 5 })).toEqual({ due_time: "09:05" });
+    expect(dropPatch(t, { iso: "2026-10-26", hour: 12, minute: 30 })).toEqual({ due_date: "2026-10-26" });
+    expect(dropPatch(t, { iso: TODAY, hour: 12, minute: 30 })).toBeNull();
+  });
+
   it("moves to another hour on the hour", () => {
     expect(dropPatch(t, { iso: TODAY, hour: 15 })).toEqual({ due_time: "15:00" });
   });

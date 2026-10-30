@@ -93,6 +93,9 @@ pub struct Task {
     /// 0 (none), or 1 (urgent), 2 (high), 3 (medium).
     #[serde(default)]
     pub priority: u8,
+    /// How long it takes, in minutes (1 to 1440); `None` for no set length.
+    #[serde(default)]
+    pub duration: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -116,6 +119,8 @@ pub struct NewTask {
     pub checklist: Vec<ChecklistItem>,
     /// 0 (none) to 3; see [`Task::priority`].
     pub priority: u8,
+    /// Minutes; see [`Task::duration`].
+    pub duration: Option<u32>,
 }
 
 /// Partial update. `due_date: Some(None)` clears the date (and the time).
@@ -148,6 +153,9 @@ pub struct TaskPatch {
     pub paused: Option<bool>,
     /// 0 clears it; 1 (urgent) to 3 (medium).
     pub priority: Option<u8>,
+    /// Minutes, 1 to 1440; `Some(None)` (or 0) clears it.
+    #[serde(default, with = "double_option")]
+    pub duration: Option<Option<u32>>,
     /// Moving a repeating task: `true` moves just this one (the series keeps
     /// its days), otherwise the series moves with it.
     pub only_this: Option<bool>,
@@ -164,13 +172,16 @@ pub struct UpdateEffects {
 
 mod double_option {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    pub fn serialize<S: Serializer>(v: &Option<Option<String>>, s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<T: Serialize, S: Serializer>(
+        v: &Option<Option<T>>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
         v.serialize(s)
     }
-    pub fn deserialize<'de, D: Deserializer<'de>>(
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
         d: D,
-    ) -> Result<Option<Option<String>>, D::Error> {
-        Option::<String>::deserialize(d).map(Some)
+    ) -> Result<Option<Option<T>>, D::Error> {
+        Option::<T>::deserialize(d).map(Some)
     }
 }
 
@@ -325,6 +336,10 @@ CREATE TRIGGER next_id_on_delete AFTER DELETE ON tasks BEGIN
     UPDATE tasks SET next_id = NULL WHERE next_id = OLD.id;
 END;
 "#,
+    // How long a task takes, in minutes (none: no set length).
+    r#"
+ALTER TABLE tasks ADD COLUMN duration INTEGER CHECK (duration IS NULL OR duration BETWEEN 1 AND 1440);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -453,7 +468,7 @@ impl Store {
         let heading = project.as_ref().and(clean_name(t.heading));
         self.conn.execute(
             "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, someday = ?4, project = ?5,
-                 heading = ?6, checklist = ?7, priority = ?8 WHERE id = ?9",
+                 heading = ?6, checklist = ?7, priority = ?8, duration = ?9 WHERE id = ?10",
             params![
                 clean_notes(t.notes.as_deref()),
                 deadline,
@@ -463,6 +478,7 @@ impl Store {
                 heading,
                 checklist_json(&t.checklist),
                 clean_priority(t.priority),
+                clean_duration(t.duration),
                 id
             ],
         )?;
@@ -646,6 +662,12 @@ impl Store {
             tx.execute(
                 "UPDATE tasks SET priority = ?1 WHERE id = ?2",
                 params![clean_priority(priority), id],
+            )?;
+        }
+        if let Some(duration) = patch.duration {
+            tx.execute(
+                "UPDATE tasks SET duration = ?1 WHERE id = ?2",
+                params![clean_duration(duration), id],
             )?;
         }
         if let Some(paused) = patch.paused {
@@ -1085,7 +1107,7 @@ impl Store {
 
 const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
     due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes,
-    deadline, evening, someday, project, heading, checklist, series_date, paused, priority FROM tasks";
+    deadline, evening, someday, project, heading, checklist, series_date, paused, priority, duration FROM tasks";
 
 /// By day, all-day tasks before timed ones, then by time.
 const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
@@ -1121,6 +1143,7 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
         series_date: r.get(23)?,
         paused: r.get(24)?,
         priority: r.get(25)?,
+        duration: r.get(26)?,
     })
 }
 
@@ -1206,7 +1229,7 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     let next_id = tx.last_insert_rowid();
     tx.execute(
         "UPDATE tasks SET notes = ?1, deadline = ?2, evening = ?3, project = ?4, heading = ?5,
-             checklist = ?6, priority = ?7 WHERE id = ?8",
+             checklist = ?6, priority = ?7, duration = ?8 WHERE id = ?9",
         params![
             t.notes,
             t.deadline,
@@ -1215,6 +1238,7 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
             t.heading,
             checklist_json(&fresh),
             t.priority,
+            t.duration,
             next_id
         ],
     )?;
@@ -1278,6 +1302,14 @@ fn unspawn_next(tx: &rusqlite::Transaction<'_>, before: &Task) -> Result<Option<
     }
     tx.execute("UPDATE tasks SET next_id = NULL WHERE id = ?1", [before.id])?;
     Ok((removed > 0).then_some(next))
+}
+
+/// Longest task, in minutes: a whole day.
+pub const MAX_DURATION_MIN: u32 = 1440;
+
+/// 1 to 1440 minutes; 0 (or nothing) is no set length, more is a whole day.
+fn clean_duration(d: Option<u32>) -> Option<u32> {
+    d.filter(|m| *m > 0).map(|m| m.min(MAX_DURATION_MIN))
 }
 
 /// 0 to 3; anything else is no priority.
@@ -2135,5 +2167,89 @@ mod tests {
         let s = Store::open(&path).unwrap();
         assert_eq!(s.list(None).unwrap()[0].title, "old task");
         assert!(s.reminder_links().unwrap().is_empty());
+    }
+
+    #[test]
+    fn durations_are_kept_cleaned_and_cleared() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Stand-up".into(),
+                due_date: Some("2026-11-02".into()),
+                due_time: Some("09:07".into()),
+                duration: Some(7),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            (t.due_time.as_deref(), t.duration),
+            (Some("09:07"), Some(7))
+        );
+        let set = |d: Option<u32>| {
+            s.update(
+                t.id,
+                TaskPatch {
+                    duration: Some(d),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .0
+            .duration
+        };
+        assert_eq!(set(Some(45)), Some(45));
+        assert_eq!(set(Some(5000)), Some(MAX_DURATION_MIN));
+        assert_eq!(set(Some(0)), None);
+        assert_eq!(set(Some(30)), Some(30));
+        assert_eq!(set(None), None);
+        // Other edits leave it alone.
+        set(Some(25));
+        let t = s
+            .update(
+                t.id,
+                TaskPatch {
+                    title: Some("Stand-up with Maya".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .0;
+        assert_eq!(t.duration, Some(25));
+        // And a patch from JSON can set or clear it.
+        let p: TaskPatch = serde_json::from_str(r#"{"duration": 15}"#).unwrap();
+        assert_eq!(p.duration, Some(Some(15)));
+        let p: TaskPatch = serde_json::from_str(r#"{"duration": null}"#).unwrap();
+        assert_eq!(p.duration, Some(None));
+        let p: TaskPatch = serde_json::from_str("{}").unwrap();
+        assert_eq!(p.duration, None);
+    }
+
+    #[test]
+    fn the_next_repeat_keeps_its_length() {
+        let s = Store::open_in_memory().unwrap();
+        let t = s
+            .insert(NewTask {
+                title: "Run".into(),
+                due_date: Some("2026-11-02".into()),
+                due_time: Some("06:30".into()),
+                recurrence: Some("daily".into()),
+                duration: Some(40),
+                ..Default::default()
+            })
+            .unwrap();
+        let (_, fx) = s
+            .update(
+                t.id,
+                TaskPatch {
+                    done: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let next = s.get(fx.spawned.unwrap()).unwrap();
+        assert_eq!(
+            (next.due_time.as_deref(), next.duration),
+            (Some("06:30"), Some(40))
+        );
     }
 }

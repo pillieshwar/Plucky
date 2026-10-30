@@ -36,6 +36,8 @@ export interface Task {
   paused: boolean;
   /** 0 (none), 1 (urgent), 2 (high), 3 (medium). Missing before 0.4.55. */
   priority?: number;
+  /** Minutes, 1–1440; null: no set length. */
+  duration?: number | null;
 }
 
 export interface ChecklistItem {
@@ -72,6 +74,8 @@ export interface NewTask {
   heading?: string | null;
   checklist?: ChecklistItem[];
   priority?: number;
+  /** Minutes, 1–1440. */
+  duration?: number | null;
 }
 
 /** Mirrors `todocity_core::TaskPatch`. Omit a key to leave it unchanged. */
@@ -92,6 +96,8 @@ export interface TaskPatch {
   paused?: boolean;
   /** 0 clears it. */
   priority?: number;
+  /** Minutes, 1–1440; null (or 0) clears it. */
+  duration?: number | null;
   /** Moving a repeating task: just this one (the series keeps its days). */
   only_this?: boolean;
 }

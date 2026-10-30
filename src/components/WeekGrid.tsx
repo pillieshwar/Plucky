@@ -10,6 +10,10 @@ import type { TaskActions } from "../lib/taskActions";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { CalendarEvent, NewTask, Task } from "../lib/types";
 import { daysForDrag, isSideways, swipeDays } from "../lib/weekSlide";
+import { DEFAULT_BLOCK_MIN, SNAP_MIN, durationLabel, endOf, layoutBlocks, minutesOf, takeDuration, timeOf } from "../lib/timeblock";
+
+/** One hour of the Calendar, in pixels (matches `--wg-hour` in styles.css). */
+const HOUR_PX = 52;
 import { NewTaskField } from "./DayPlan";
 
 interface Props {
@@ -35,7 +39,7 @@ export function sevenDays(day: string): string[] {
 }
 
 /** Where the inline new-task field is: a day and an hour, or the day's Any time. */
-type AddAt = { iso: string; hour: number | "any" } | null;
+type AddAt = { iso: string; hour: number | "any"; minute?: number } | null;
 
 /**
  * Full screen's Calendar: the whole week as a calendar. Tasks sit in the
@@ -51,6 +55,8 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
   const [eventsKey, setEventsKey] = useState(0);
   const [addAt, setAddAt] = useState<AddAt>(null);
   const [completing, setCompleting] = useState<Set<number>>(new Set());
+  // Dragging a task's bottom edge: its length so far, in minutes.
+  const [resizing, setResizing] = useState<{ id: number; y: number; from: number; to: number } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const over = drag.drag?.over;
@@ -180,6 +186,123 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
     );
   };
 
+  /** A task at its real time and length in the hours. */
+  const taskBlock = (t: Task, iso: string, top: number, height: number, left: string, width: string) => {
+    const end = endOf(t.due_time!, t.duration);
+    const span = `${timeLabel(t.due_time!, locale)}${end ? ` – ${timeLabel(end, locale)}` : ""}`;
+    const tiny = height < 34;
+    return (
+      <div
+        key={t.id}
+        className={[
+          "wg-task",
+          "wg-block",
+          tiny ? "tiny" : "",
+          t.deadline && t.deadline <= iso ? "deadline" : "",
+          completing.has(t.id) ? "completing" : "",
+          openId === t.id ? "picked" : "",
+          drag.drag?.task.id === t.id ? "lifted" : "",
+          resizing?.id === t.id ? "resizing" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={{ top, height, left, width, ...(t.project && colors[t.project] ? { "--pc": colors[t.project] } : {}) } as CSSProperties}
+        onPointerDown={(e) => drag.start(e, t)}
+      >
+        <button type="button" className="plan-check" data-nodrag onClick={() => complete(t)} aria-label={`Mark “${t.title}” done`}>
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.6">
+            <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="wg-title"
+          onClick={() => !drag.wasDrag() && onOpen(t)}
+          title={`${t.title}\n${span}${t.duration ? ` (${durationLabel(t.duration)})` : ""}\nDrag to move · drag the bottom edge to change its length`}
+        >
+          {tiny ? (
+            <>
+              <span className="wg-time">{timeLabel(t.due_time!, locale)} </span>
+              {t.title}
+            </>
+          ) : (
+            <>
+              {t.title}
+              <span className="wg-span">{span}</span>
+            </>
+          )}
+        </button>
+        <span
+          className="wg-resize"
+          data-nodrag
+          aria-hidden
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setResizing({ id: t.id, y: e.clientY, from: t.duration ?? DEFAULT_BLOCK_MIN, to: t.duration ?? DEFAULT_BLOCK_MIN });
+          }}
+          onPointerMove={(e) => {
+            if (!resizing || resizing.id !== t.id) return;
+            const raw = resizing.from + ((e.clientY - resizing.y) / HOUR_PX) * 60;
+            const max = 24 * 60 - minutesOf(t.due_time!);
+            const to = Math.max(SNAP_MIN, Math.min(max, Math.round(raw / SNAP_MIN) * SNAP_MIN));
+            if (to !== resizing.to) setResizing({ ...resizing, to });
+          }}
+          onPointerUp={() => {
+            if (resizing && resizing.id === t.id && resizing.to !== t.duration) void actions.update(t, { duration: resizing.to });
+            setResizing(null);
+          }}
+          onPointerCancel={() => setResizing(null)}
+        />
+      </div>
+    );
+  };
+
+  /** A calendar event at its real time and length in the hours. */
+  const eventBlock = (e: CalendarEvent, iso: string, top: number, height: number, left: string, width: string) => (
+    <div
+      key={`${e.id}${e.start}`}
+      className={["wg-event", "wg-block", height < 34 ? "tiny" : ""].filter(Boolean).join(" ")}
+      style={{ top, height, left, width, "--ev": e.color ?? "var(--faint)" } as CSSProperties}
+      title={`${e.title || "Busy"} · ${e.start.slice(0, 10) < iso ? "until " : ""}${timeLabel(e.start.slice(11, 16), locale)} – ${timeLabel(e.end.slice(11, 16), locale)} · ${e.calendar}`}
+    >
+      <span className="wg-event-title">{e.title || "Busy"}</span>
+      {height >= 34 && (
+        <span className="wg-event-time">
+          {timeLabel(e.start.slice(11, 16), locale)} – {timeLabel(e.end.slice(11, 16), locale)}
+        </span>
+      )}
+    </div>
+  );
+
+  /** Everything timed on one day, placed: tasks and events side by side where they overlap. */
+  const lane = (iso: string, tasksAt: Task[], eventsAt: CalendarEvent[]) => {
+    const dayStart = `${iso}T00:00`;
+    const nextDay = toISODate(addDays(parseISODate(iso), 1));
+    const items: { key: string; start: number; len: number; draw: (top: number, h: number, l: string, w: string) => ReactNode }[] = [];
+    for (const t of tasksAt) {
+      const start = minutesOf(t.due_time!);
+      const shown = resizing?.id === t.id ? resizing.to : (t.duration ?? DEFAULT_BLOCK_MIN);
+      items.push({ key: `t${t.id}`, start, len: Math.min(shown, 24 * 60 - start), draw: (top, h, l, w) => taskBlock(t, iso, top, h, l, w) });
+    }
+    for (const e of eventsAt) {
+      const s = e.start.slice(0, 16);
+      const en = e.end.slice(0, 16);
+      const start = s < dayStart ? 0 : minutesOf(s.slice(11, 16));
+      const end = en.slice(0, 10) >= nextDay ? 24 * 60 : minutesOf(en.slice(11, 16));
+      items.push({ key: `e${e.id}${e.start}`, start, len: Math.max(end - start, 15), draw: (top, h, l, w) => eventBlock(e, iso, top, h, l, w) });
+    }
+    const placed = layoutBlocks(items);
+    return items.map((it) => {
+      const p = placed.get(it.key) ?? { col: 0, cols: 1 };
+      const top = (it.start / 60) * HOUR_PX + 1;
+      const height = Math.max((it.len / 60) * HOUR_PX - 2, 20);
+      const w = 100 / p.cols;
+      return it.draw(top, height, `calc(${p.col * w}% + 3px)`, `calc(${w}% - 6px)`);
+    });
+  };
+
   const eventChip = (e: CalendarEvent, iso: string) => {
     const at = e.all_day
       ? null
@@ -199,21 +322,28 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
     );
   };
 
-  const field = (iso: string, hour: number | "any") => (
-    <NewTaskField
-      placeholder={hour === "any" ? "New task…" : `New task at ${hourLabel(hour, locale)}…`}
-      onDone={async (title) => {
-        setAddAt(null);
-        if (!title) return;
-        await onAdd({
-          title,
-          due_date: iso,
-          due_time: hour === "any" ? null : `${String(hour).padStart(2, "0")}:00`,
-          source_text: null,
-        });
-      }}
-    />
-  );
+  const field = (iso: string, hour: number | "any", minute = 0) => {
+    const at = hour === "any" ? null : timeOf(hour * 60 + minute);
+    return (
+      <NewTaskField
+        placeholder={at === null ? "New task…" : `New task at ${timeLabel(at, locale)}…`}
+        onDone={async (typed) => {
+          setAddAt(null);
+          // "Stand-up for 7 min": the length comes off the title.
+          const { minutes, rest } = takeDuration(typed ?? "");
+          const title = rest || typed;
+          if (!title) return;
+          await onAdd({
+            title,
+            due_date: iso,
+            due_time: at,
+            duration: at === null ? null : minutes,
+            source_text: null,
+          });
+        }}
+      />
+    );
+  };
 
   const nowHour = now.getHours();
   return (
@@ -286,38 +416,54 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
         ))}
       </div>
       <div className="wg-body" ref={bodyRef} data-autoscroll>
-        {hours.map((h) => (
-          <div key={h} className="wg-row" data-row={h}>
-            <span className="wg-hour">{hourLabel(h, locale)}</span>
-            {cols.map(({ iso, plan, evs }) => {
-              const isToday = iso === today;
-              const past = iso < today || (isToday && h < nowHour);
-              return (
-                <div
-                  key={iso}
-                  className={[
-                    "wg-cell",
-                    isToday ? "today" : "",
-                    past ? "past" : "",
-                    over?.iso === iso && over.hour === h ? "drop" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  data-iso={iso}
-                  data-hour={h}
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget && !addAt) setAddAt({ iso, hour: h });
-                  }}
-                >
-                  {(evs.byHour.get(h) ?? []).map((e) => eventChip(e, iso))}
-                  {(plan.byHour.get(h) ?? []).map((t) => chip(t, iso))}
-                  {addAt?.iso === iso && addAt.hour === h && field(iso, h)}
-                  {isToday && h === nowHour && <span className="plan-now" style={{ top: `${(now.getMinutes() / 60) * 100}%` }} aria-hidden />}
-                </div>
-              );
-            })}
+        <div className="wg-hours">
+          {hours.map((h) => (
+            <div key={h} className="wg-row" data-row={h}>
+              <span className="wg-hour">{hourLabel(h, locale)}</span>
+              {cols.map(({ iso }) => {
+                const isToday = iso === today;
+                const past = iso < today || (isToday && h < nowHour);
+                const dropHere = over?.iso === iso && over.hour === h;
+                return (
+                  <div
+                    key={iso}
+                    className={["wg-cell", isToday ? "today" : "", past ? "past" : "", dropHere ? "drop" : ""].filter(Boolean).join(" ")}
+                    data-iso={iso}
+                    data-hour={h}
+                    data-minutes
+                    onClick={(e) => {
+                      if (e.target !== e.currentTarget || addAt) return;
+                      // Where in the hour you clicked, to the nearest 5 minutes.
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const m = Math.min(55, Math.round((((e.clientY - r.top) / r.height) * 60) / SNAP_MIN) * SNAP_MIN);
+                      setAddAt({ iso, hour: h, minute: m });
+                    }}
+                  >
+                    {dropHere && over?.minute !== undefined && (
+                      <span className="wg-drop-at" style={{ top: `${(over.minute / 60) * 100}%` }}>
+                        {timeLabel(timeOf(h * 60 + over.minute), locale)}
+                      </span>
+                    )}
+                    {addAt?.iso === iso && addAt.hour === h && field(iso, h, addAt.minute)}
+                    {isToday && h === nowHour && <span className="plan-now" style={{ top: `${(now.getMinutes() / 60) * 100}%` }} aria-hidden />}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <div className="wg-layer" aria-hidden={false}>
+            <span />
+            {cols.map(({ iso, plan, evs }) => (
+              <div key={iso} className="wg-lane">
+                {lane(
+                  iso,
+                  [...plan.byHour.values()].flat(),
+                  [...evs.byHour.values()].flat(),
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );

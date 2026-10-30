@@ -97,6 +97,8 @@ export interface DropTarget {
   /** No date: Inbox's Someday column. */
   nodate?: boolean;
   hour?: number | null;
+  /** With `hour`: the minute in that hour, snapped to 5. */
+  minute?: number;
   place?: { project: string; heading?: string | null };
 }
 
@@ -121,9 +123,15 @@ export function dropPatch(task: Task, to: DropTarget): TaskPatch | null {
   if (to.hour === null) {
     if (task.due_time) patch.due_time = null;
   } else if (to.hour !== undefined) {
-    const sameBlock = task.due_time && hourOf(task.due_time) === to.hour;
-    // Keep the minutes when it stays in its block (only the day moved).
-    if (!sameBlock) patch.due_time = `${String(to.hour).padStart(2, "0")}:00`;
+    if (to.minute !== undefined) {
+      // Dropped at a point in the hour: start there (snapped to 5 minutes).
+      const at = `${String(to.hour).padStart(2, "0")}:${String(to.minute).padStart(2, "0")}`;
+      if (at !== task.due_time) patch.due_time = at;
+    } else {
+      const sameBlock = task.due_time && hourOf(task.due_time) === to.hour;
+      // Keep the minutes when it stays in its block (only the day moved).
+      if (!sameBlock) patch.due_time = `${String(to.hour).padStart(2, "0")}:00`;
+    }
   }
   if (!Object.keys(patch).length) return null;
   // Dragging one day of a repeating task moves just that one.

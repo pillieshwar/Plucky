@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { DropTarget } from "./plan";
 import type { Task } from "./types";
+import { snapMinute } from "./timeblock";
 
 export interface DragState {
   task: Task;
@@ -27,7 +28,13 @@ function targetAt(x: number, y: number): DropTarget | null {
   if (!t?.dataset.iso) return null;
   const h = t.dataset.hour;
   if (h === undefined) return { iso: t.dataset.iso };
-  return { iso: t.dataset.iso, hour: h === "any" ? null : Number(h) };
+  if (h === "any") return { iso: t.dataset.iso, hour: null };
+  // An hour that takes minutes (the Calendar): where in it, snapped to 5.
+  if (t.dataset.minutes !== undefined) {
+    const r = t.getBoundingClientRect();
+    return { iso: t.dataset.iso, hour: Number(h), minute: snapMinute((y - r.top) / r.height) };
+  }
+  return { iso: t.dataset.iso, hour: Number(h) };
 }
 
 export function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
@@ -35,6 +42,7 @@ export function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean 
     a?.iso === b?.iso &&
     a?.nodate === b?.nodate &&
     a?.hour === b?.hour &&
+    a?.minute === b?.minute &&
     a?.place?.project === b?.place?.project &&
     a?.place?.heading === b?.place?.heading
   );

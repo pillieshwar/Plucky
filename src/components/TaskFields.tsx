@@ -7,6 +7,7 @@ import { useProjectColor } from "../lib/colors";
 import { addDays, dayOrderForLocale, daysBetween, parseISODate, relativeLabel, toISODate } from "../lib/dates";
 import { REPEATS, repeatDates, repeatLabel, resolveSchedule, timeLabel } from "../lib/schedule";
 import { PRIORITIES, priorityColor } from "../lib/taskText";
+import { DURATION_PRESETS, durationLabel, parseDuration } from "../lib/timeblock";
 import type { TaskPatch } from "../lib/types";
 
 /** What the chips show, for a new task or a saved one. */
@@ -21,9 +22,11 @@ export interface FieldValues {
   deadline: string | null;
   priority: number;
   paused?: boolean;
+  /** How long it takes, in minutes. */
+  duration?: number | null;
 }
 
-export type FieldMenu = "place" | "date" | "time" | "repeat" | "priority" | "deadline" | "tags" | "more";
+export type FieldMenu = "place" | "date" | "time" | "length" | "repeat" | "priority" | "deadline" | "tags" | "more";
 
 /**
  * The fields of a task as one quiet row: where it goes, its day and time
@@ -185,6 +188,29 @@ export function TaskFields({
           )}
         </span>
 
+        {(value.time || value.duration) && (
+          <span className="tf-anchor">
+            <Chip
+              set={!!value.duration}
+              on={menu === "length"}
+              icon="timer"
+              label={durationLabel(value.duration) ?? "Length"}
+              title="Length"
+              onClick={() => toggle("length")}
+              onClear={() => onChange({ duration: null })}
+            />
+            {menu === "length" && (
+              <LengthMenu
+                value={value.duration ?? null}
+                onPick={(m) => {
+                  onChange({ duration: m });
+                  close();
+                }}
+              />
+            )}
+          </span>
+        )}
+
         {value.repeat && (
           <span className="tf-anchor">
             <Chip
@@ -334,6 +360,45 @@ function shortDay(iso: string, now: Date, locale: string): string {
   return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
+/** How long a task takes: quick picks, or any number of minutes typed ("7", "1h30"). */
+function LengthMenu({ value, onPick }: { value: number | null; onPick: (minutes: number | null) => void }) {
+  const [text, setText] = useState("");
+  const typed = parseDuration(text);
+  return (
+    <div className="tf-menu narrow" role="dialog" aria-label="Length">
+      <input
+        className="tf-filter"
+        autoFocus
+        value={text}
+        placeholder="Minutes, e.g. 7 or 1h30"
+        aria-label="Length in minutes"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && typed) {
+            e.preventDefault();
+            onPick(typed);
+          }
+        }}
+      />
+      {typed && !DURATION_PRESETS.includes(typed) && (
+        <button type="button" className="tf-opt sel" onClick={() => onPick(typed)}>
+          {durationLabel(typed)}
+        </button>
+      )}
+      {DURATION_PRESETS.map((m) => (
+        <button key={m} type="button" className={value === m ? "tf-opt sel" : "tf-opt"} onClick={() => onPick(m)}>
+          {durationLabel(m)}
+        </button>
+      ))}
+      {value !== null && (
+        <button type="button" className="tf-opt quiet" onClick={() => onPick(null)}>
+          No set length
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Chip({
   set,
   on,
@@ -347,7 +412,7 @@ function Chip({
   set: boolean;
   on: boolean;
   late?: boolean;
-  icon: "calendar" | "clock" | "repeat";
+  icon: "calendar" | "clock" | "repeat" | "timer";
   label: string;
   title: string;
   onClick: () => void;

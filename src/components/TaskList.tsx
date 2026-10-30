@@ -7,6 +7,7 @@ import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
 import type { ProjectInfo } from "./ProjectPicker";
 import { SourceChip, useSourceDisplay } from "./SourceChip";
+import { endOf } from "../lib/timeblock";
 import { LineIcon } from "./LineIcon";
 import { TaskFields, type FieldMenu, type FieldValues } from "./TaskFields";
 import { deadlineChip } from "../lib/lists";
@@ -532,7 +533,9 @@ function RowSub({
 export function whenText(t: Task, now: Date, locale: string): { text: string; late?: boolean; soon?: boolean } | null {
   if (t.done) return null;
   const chip = dueChip(t, now, locale);
-  const time = t.due_time ? timeLabel(t.due_time, locale) : null;
+  // With a length: "9:07 – 9:14 AM".
+  const end = t.due_time ? endOf(t.due_time, t.duration) : null;
+  const time = t.due_time ? (end ? `${timeLabel(t.due_time, locale)} – ${timeLabel(end, locale)}` : timeLabel(t.due_time, locale)) : null;
   if (chip?.tone === "overdue") {
     const today = toISODate(now);
     if (t.due_date && t.due_date < today) {
@@ -709,6 +712,7 @@ function TaskCard({
     deadline: task.deadline,
     priority: task.priority ?? 0,
     paused: task.paused,
+    duration: task.duration ?? null,
   };
 
   return (
