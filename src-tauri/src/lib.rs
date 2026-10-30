@@ -1211,6 +1211,22 @@ fn deliver_capture(app: &AppHandle, result: &CaptureResult) {
     }
 }
 
+/// On a Mac, the data folder is `Application Support/TodoCity`; the old
+/// `app.pluck.desktop` folder (Tauri's default, from the bundle identifier,
+/// which stays unchanged) is moved there once and left as a link. Other
+/// platforms keep Tauri's default.
+fn settle_data_dir(tauri_default: std::path::PathBuf) -> std::path::PathBuf {
+    if !cfg!(target_os = "macos") {
+        return tauri_default;
+    }
+    let Some(parent) = tauri_default.parent() else {
+        return tauri_default;
+    };
+    let (dir, outcome) = todocity_core::data_folder::settle(parent);
+    log::info!("data folder {} ({outcome:?})", dir.display());
+    dir
+}
+
 /// Up to 0.4.1 the app was called Pluck, then Plucky until 0.4.36, then
 /// "Todo City" (two words) until 0.4.50. An update keeps the old bundle
 /// path, so finish the rename on first launch: move it to `TodoCity.app`
@@ -1510,7 +1526,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = settle_data_dir(app.path().app_data_dir()?);
             std::fs::create_dir_all(&data_dir)?;
             let log_dir = app.path().app_log_dir()?;
             std::fs::create_dir_all(&log_dir)?;

@@ -51,7 +51,7 @@ Docs-only changes (like this file) don't need a version bump or a release.
   - Say what to do: "Select some text first", not "No selected text found"; "Add AI model", not "No model yet".
   - Real errors on genuine failures are fine if they're specific and say how to fix the problem.
 - **Privacy claims must stay true.** TodoCity is private by default: nothing leaves the Mac unless the user turns it on. A feature that would break a claim ("agents can never read your tasks", "no analytics") must update that claim in the same release, in the app, `README.md` and the website.
-- **Never rename the data folder** `~/Library/Application Support/app.pluck.desktop/`. It's left over from the old name, and renaming it would orphan users' data.
+- **The data folder is** `~/Library/Application Support/TodoCity/` (since 0.4.61). `data_folder::settle` moves the old `app.pluck.desktop` folder there once at launch and leaves a link at the old name. **Never change the bundle identifier** `app.pluck.desktop`: macOS permissions, Keychain items and login items are tied to it.
 - **Synced tasks stay editable.** Things/Todoist keep-in-sync is one-way into TodoCity, but synced tasks are never read-only.
 - **Sync must never lose or resurrect tasks.** For any change touching `sync/`, `mirror.rs`, `reminders_sync.rs` or how tasks are deleted or repeated, think through two Macs, offline edits, and deletes on both sides, and add tests (`sync/engine.rs` has a `send(a, b)` helper).
 - **No real personal data** in code, tests, fixtures, screenshots or docs. Use made-up names (Sam, Maya, Priya, Dana).

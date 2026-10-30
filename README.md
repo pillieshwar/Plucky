@@ -325,7 +325,7 @@ gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 ## Privacy
 
 - **Your selections never leave your Mac.** Text is read through macOS Accessibility and sent only to the model runtime listening on `127.0.0.1`, with a random port and key for each session.
-- **Tasks are stored locally** in `~/Library/Application Support/app.pluck.desktop/`, with seven days of backups in `backups/`.
+- **Tasks are stored locally** in `~/Library/Application Support/TodoCity/` (**Settings → Backups & export → Show data folder**), with seven days of backups in `backups/`.
 - **TodoCity uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Settings → General**), and — only if you pair your Macs — sync.
 - **Sync is end-to-end encrypted.** Paired Macs pass changes through a relay as sealed boxes it can't open; the key exists only on your Macs, in the Keychain. The relay keeps no logs, deletes each box once every Mac has it (30 days at most), and has no accounts. See [Sync between your Macs](#sync-between-your-macs).
 - **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to TodoCity over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
@@ -400,7 +400,7 @@ Built with [Tauri 2](https://tauri.app), Rust, React and TypeScript, [llama.cpp]
 Quit TodoCity from its menu-bar icon, move it from Applications to the Bin and remove it from **Privacy & Security → Accessibility**. To delete your tasks and models too:
 
 ```bash
-rm -rf ~/Library/Application\ Support/app.pluck.desktop
+rm -rf ~/Library/Application\ Support/TodoCity ~/Library/Application\ Support/app.pluck.desktop
 ```
 
 If you used sync, turn it off first (Settings → Your other Macs), or delete the "app.todocity.sync" item in Keychain Access afterwards.
