@@ -1036,4 +1036,125 @@ mod tests {
         };
         assert_eq!(b.sync_apply("B", &[junk]).unwrap().fields, 0);
     }
+
+    fn weekly(store: &Store, title: &str) -> i64 {
+        store
+            .insert(NewTask {
+                title: title.into(),
+                due_date: Some("2026-11-02".into()),
+                recurrence: Some("weekly".into()),
+                ..Default::default()
+            })
+            .unwrap()
+            .id
+    }
+
+    fn set_done(store: &Store, id: i64, done: bool) {
+        store
+            .update(
+                id,
+                TaskPatch {
+                    done: Some(done),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+
+    fn by_title(store: &Store, title: &str) -> i64 {
+        store
+            .all()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.title == title && !t.done)
+            .or_else(|| store.all().unwrap().into_iter().find(|t| t.title == title))
+            .unwrap()
+            .id
+    }
+
+    #[test]
+    fn a_repeat_finished_on_both_macs_while_apart_makes_one_next_task() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let ta = weekly(&a, "Water plants");
+        send(&a, "A", &b, "B");
+        let tb = by_title(&b, "Water plants");
+
+        // Both Macs tick it off while they can't reach each other.
+        set_done(&a, ta, true);
+        set_done(&b, tb, true);
+        assert_eq!(a.all().unwrap().len(), 2);
+        assert_eq!(b.all().unwrap().len(), 2);
+
+        send(&a, "A", &b, "B");
+        send(&b, "B", &a, "A");
+        for s in [&a, &b] {
+            let all = s.all().unwrap();
+            assert_eq!(all.len(), 2, "one done, one next: {:?}", titles(s));
+            assert_eq!(all.iter().filter(|t| !t.done).count(), 1);
+        }
+        // And it stays that way.
+        send(&a, "A", &b, "B");
+        assert_eq!(b.all().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn un_ticking_on_the_other_mac_removes_the_next_one_everywhere() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let ta = weekly(&a, "Water plants");
+        send(&a, "A", &b, "B");
+        set_done(&a, ta, true);
+        send(&a, "A", &b, "B");
+        assert_eq!(b.all().unwrap().len(), 2);
+
+        // Mac B un-ticks it: the next one goes, on B and then on A.
+        let tb = b.all().unwrap().into_iter().find(|t| t.done).unwrap().id;
+        set_done(&b, tb, false);
+        assert_eq!(b.all().unwrap().len(), 1);
+        send(&b, "B", &a, "A");
+        let left = a.all().unwrap();
+        assert_eq!(left.len(), 1, "{:?}", titles(&a));
+        assert!(!left[0].done);
+
+        // Ticking it again (on A) makes the next one once more, on both.
+        set_done(&a, ta, true);
+        send(&a, "A", &b, "B");
+        for s in [&a, &b] {
+            assert_eq!(s.all().unwrap().len(), 2);
+            assert_eq!(s.all().unwrap().iter().filter(|t| !t.done).count(), 1);
+        }
+    }
+
+    #[test]
+    fn a_finished_next_one_is_kept_when_the_first_is_un_ticked_and_ticked() {
+        let a = Store::open_in_memory().unwrap();
+        let ta = weekly(&a, "Water plants");
+        set_done(&a, ta, true);
+        let next = a.all().unwrap().into_iter().find(|t| !t.done).unwrap().id;
+        set_done(&a, next, true); // the next one is done too (and spawns its own)
+        set_done(&a, ta, false); // un-tick the first: the done next one stays
+        set_done(&a, ta, true); // tick again: no error, no duplicate
+        let all = a.all().unwrap();
+        assert_eq!(all.len(), 3, "first, its next (done) and the one after");
+        assert_eq!(all.iter().filter(|t| !t.done).count(), 1);
+    }
+
+    #[test]
+    fn the_next_one_gets_the_same_uid_on_every_mac() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let ta = weekly(&a, "Water plants");
+        send(&a, "A", &b, "B");
+        set_done(&a, ta, true);
+        set_done(&b, by_title(&b, "Water plants"), true);
+        let uid = |s: &Store| -> String {
+            let next = s.all().unwrap().into_iter().find(|t| !t.done).unwrap().id;
+            s.conn
+                .query_row("SELECT uid FROM tasks WHERE id = ?1", [next], |r| r.get(0))
+                .unwrap()
+        };
+        assert_eq!(uid(&a), uid(&b));
+        assert_eq!(uid(&a).len(), 32);
+    }
 }

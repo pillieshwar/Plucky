@@ -2,7 +2,7 @@
   "name": "todocity",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
-  "version": "0.4.59",
+  "version": "0.4.60",
   "type": "module",
   "description": "Select text anywhere, get a private, dated task. Runs a small model locally.",
   "scripts": {
