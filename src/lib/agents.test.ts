@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentCounts, byAgent, filterWho, latestBatch, latestByTask, markLabel } from "./agents";
+import { agentCounts, agentsBy, byAgent, filterWho, latestBatch, latestByTask, markLabel } from "./agents";
 import type { AgentChange, Task } from "./types";
 
 const NOW = new Date("2026-11-02T10:00:00Z");
@@ -45,6 +45,8 @@ describe("agent labels", () => {
   it("counts by agent", () => {
     const m = latestByTask([change(1, 1), change(2, 2), change(3, 3, { agent: "Cursor" })]);
     expect(agentCounts([1, 2, 3], m)).toBe("Claude 2, Cursor 1");
+    expect(agentsBy("Claude 2, Cursor 1")).toBe("Claude 2, Cursor 1");
+    expect(agentsBy("Claude 3")).toBe("by Claude");
   });
 });
 

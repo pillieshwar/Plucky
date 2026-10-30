@@ -394,11 +394,11 @@ html[data-view="popover"] body {
 .pop-meta .src-chip { flex: none; }
 
 /* What AI agents last did */
-.pop-agent-note { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent, #6b5cff) 9%, transparent); font-size: 12px; }
-.pop-agent-icon { color: var(--accent, #6b5cff); padding-top: 2px; }
-.pop-agent-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pop-agent-note { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 8px; padding: 8px 8px 6px 10px; border-radius: 10px; background: var(--teal-soft); font-size: 12.5px; line-height: 1.4; }
+.pop-agent-icon { color: var(--teal); padding-top: 2px; }
+.pop-agent-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .pop-agent-text b { font-weight: 600; }
-.pop-agent-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-.pop-agent-btn { border: 0; background: transparent; color: var(--accent, #6b5cff); font: inherit; font-weight: 500; padding: 2px 4px; border-radius: 5px; cursor: pointer; }
-.pop-agent-btn:hover { background: color-mix(in srgb, var(--accent, #6b5cff) 12%, transparent); }
-.pop-agent-x { border: 0; background: transparent; color: inherit; opacity: .5; font-size: 14px; line-height: 1; padding: 2px 4px; cursor: pointer; }
+.pop-agent-actions { display: flex; gap: 2px; margin-left: -4px; }
+.pop-agent-btn { border: 0; background: transparent; color: var(--teal); font: inherit; font-weight: 600; padding: 2px 4px; border-radius: 5px; cursor: pointer; }
+.pop-agent-btn:hover { background: color-mix(in srgb, var(--teal) 14%, transparent); }
+.pop-agent-x { border: 0; background: transparent; color: inherit; opacity: .5; font-size: 15px; line-height: 1; padding: 2px 4px; cursor: pointer; }

@@ -1005,23 +1005,24 @@ function AgentNote({ note, onUndo, onSee, onDismiss }: { note: BatchNote; onUndo
       <span className="pop-agent-icon" aria-hidden>
         <AgentIcon size={12} />
       </span>
-      <span className="pop-agent-text">
-        <b>
-          {note.agent} · {at}
-        </b>
-        <span>{note.summary}</span>
+      <span className="pop-agent-body">
+        <span className="pop-agent-text">
+          <b>{note.agent}</b> · {at}
+          <br />
+          {note.summary}
+        </span>
+        <span className="pop-agent-actions">
+          <button type="button" className="pop-agent-btn" onClick={onUndo}>
+            Undo
+          </button>
+          <button type="button" className="pop-agent-btn" onClick={onSee}>
+            See what changed
+          </button>
+        </span>
       </span>
-      <span className="pop-agent-actions">
-        <button type="button" className="pop-agent-btn" onClick={onUndo}>
-          Undo
-        </button>
-        <button type="button" className="pop-agent-btn" onClick={onSee}>
-          See what changed
-        </button>
-        <button type="button" className="pop-agent-x" aria-label="Hide" onClick={onDismiss}>
-          ×
-        </button>
-      </span>
+      <button type="button" className="pop-agent-x" aria-label="Hide" onClick={onDismiss}>
+        ×
+      </button>
     </div>
   );
 }

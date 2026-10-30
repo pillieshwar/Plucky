@@ -43,7 +43,7 @@ import {
   onAgentChanges,
   onInboxChanged,
 } from "./lib/api";
-import { agentCounts, byAgent, filterWho, latestByTask, type Who } from "./lib/agents";
+import { agentCounts, agentsBy, byAgent, filterWho, latestByTask, type Who } from "./lib/agents";
 import { AgentMarks, AgentsSetUpDialog, WhoSwitch } from "./components/WhoSwitch";
 import { openConnectorNext } from "./components/ConnectorsTab";
 import type { AgentChange, AgentsStatus } from "./lib/types";
@@ -435,7 +435,7 @@ export default function App() {
   const agentsOn = !!agentsSt?.enabled;
   const latestAgent = useMemo(() => latestByTask(activity), [activity]);
   // Agents not set up (or off): nothing to filter by.
-  const whoShown: Who = agentsOn ? who : who === "agents" ? "all" : who;
+  const whoShown: Who = agentsOn ? who : "all";
   const visible = useMemo(() => {
     // A project's page and search see every task, whatever the mode.
     let base = tasksForList(viewing !== null || query.trim() ? allTasks : tasks, list, today, nowTime);
@@ -451,6 +451,7 @@ export default function App() {
     () => ({
       latest: latestAgent,
       now,
+      on: agentsOn,
       undo:
         whoShown === "agents"
           ? (id: number) =>
@@ -461,7 +462,7 @@ export default function App() {
           : undefined,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [latestAgent, now, whoShown],
+    [latestAgent, now, whoShown, agentsOn],
   );
   const viewedProject = projectOf(list);
   const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
@@ -1235,7 +1236,7 @@ export default function App() {
             <b>
               Agents added or changed {visible.filter((t) => !t.done).length} {visible.filter((t) => !t.done).length === 1 ? "task" : "tasks"} here
             </b>{" "}
-            <span className="muted">· {agentCounts(visible.map((t) => t.id), latestAgent)}</span>
+            <span className="muted">· {agentsBy(agentCounts(visible.map((t) => t.id), latestAgent))}</span>
           </span>
           <span className="spacer" />
           <button
@@ -1252,7 +1253,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {full && tab === "tasks" && whoShown === "you" && tasks.some((t) => byAgent(t, now)) && (
+      {full && tab === "tasks" && whoShown === "you" && agentsOn && tasks.some((t) => byAgent(t, now)) && (
         <p className="who-hint">Tasks you added yourself. Tasks from agents are under All and Agents.</p>
       )}
       {showList && list !== "logbook" && !boardView && (

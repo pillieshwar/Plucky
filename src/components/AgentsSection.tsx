@@ -307,7 +307,7 @@ export function AgentDeletes({ onError }: { onError: (e: string) => void }) {
           </li>
         ))}
       </ul>
-      <p className="setting-line muted">Kept for 7 days.</p>
+      <p className="agent-deletes-note">Kept for 7 days.</p>
     </>
   );
 }

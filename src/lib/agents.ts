@@ -59,6 +59,12 @@ export function agentCounts(ids: number[], latest: Map<number, AgentChange>): st
     .join(", ");
 }
 
+/** "by Claude" for one agent, else the counts ("Claude 5, Cursor 1"). */
+export function agentsBy(counts: string): string {
+  const parts = counts.split(", ").filter(Boolean);
+  return parts.length === 1 ? `by ${parts[0].replace(/ \d+$/, "")}` : counts;
+}
+
 /** The latest agent call (batch) still standing, for the menu bar's note. */
 export interface BatchNote {
   batch: string;

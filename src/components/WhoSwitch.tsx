@@ -6,6 +6,8 @@ import type { AgentChange, Task } from "../lib/types";
 export interface AgentMarksValue {
   latest: Map<number, AgentChange>;
   now: Date;
+  /** AI agents are on; with them off, nothing is marked. */
+  on?: boolean;
   /** Set in the Agents view: undo what agents did to this task. */
   undo?: (taskId: number) => void;
 }
@@ -14,7 +16,7 @@ export const AgentMarks = createContext<AgentMarksValue>({ latest: new Map(), no
 /** "Claude scheduled", for a task an agent touched (and Undo in the Agents view). */
 export function AgentMark({ task }: { task: Task }) {
   const m = useContext(AgentMarks);
-  if (!byAgent(task, m.now)) return null;
+  if (!m.on || !byAgent(task, m.now)) return null;
   const c = m.latest.get(task.id);
   return (
     <>
@@ -33,7 +35,7 @@ export function AgentMark({ task }: { task: Task }) {
 
 export function useIsAgentTask(task: Task): boolean {
   const m = useContext(AgentMarks);
-  return byAgent(task, m.now);
+  return !!m.on && byAgent(task, m.now);
 }
 
 const PersonIcon = () => (

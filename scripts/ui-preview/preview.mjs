@@ -1261,6 +1261,7 @@ await shot("full-who-you", FULL, agentsFull({ settings: LIGHT }), async (p) => {
 });
 await shot("full-who-setup", FULL, full({ settings: LIGHT, tasks: AGENT_FULL_TASKS }), async (p) => {
   await p.locator(".who-setup", { hasText: "Set up" }).waitFor();
+  if (await p.locator(".agent-mark").count()) throw new Error("no agent marks while agents are off");
   await who("Agents")(p);
   await p.getByRole("dialog", { name: "Let your AI apps help with your tasks" }).waitFor();
 });
