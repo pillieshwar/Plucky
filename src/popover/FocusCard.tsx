@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SourceChip } from "../components/SourceChip";
 import { SnoozeBar } from "../components/SnoozeBar";
 import { addDays, dayOrderForLocale, relativeLabel, toISODate } from "../lib/dates";
 import { findSchedule, timeLabel } from "../lib/schedule";
@@ -222,7 +223,7 @@ function DueFocus({
       <h2 className="focus-title" id="focus-title">
         {task.title}
       </h2>
-      {(detail || from) && <p className="focus-meta">{detail ?? `From ${from}`}</p>}
+      {(detail || from) && <p className="focus-meta">{detail ?? <SourceChip task={task} />}</p>}
       <SnoozeBar
         compact
         onDone={() => next(actions.setDone(task, true))}

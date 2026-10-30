@@ -94,6 +94,42 @@ export function groupByHeading(tasks: Task[], doneInPlace = false): DayGroup[] {
   return groups;
 }
 
+/**
+ * A project's list with every section showing, even ones with no tasks yet,
+ * so a task can be dragged into any of them: General ("h:") first, then the
+ * sections A–Z, like Slack channels and the sidebar.
+ */
+export function withEmptySections(groups: DayGroup[], sections: string[]): DayGroup[] {
+  const byKey = new Map(groups.map((g) => [g.key, g]));
+  const out: DayGroup[] = [];
+  const take = (key: string, label: string) => {
+    out.push(byKey.get(key) ?? { key, label, tone: "upcoming", tasks: [] });
+    byKey.delete(key);
+  };
+  take("h:", "Tasks");
+  const names = new Set(sections.filter(Boolean));
+  for (const g of groups) if (g.key.startsWith("h:") && g.key !== "h:") names.add(g.key.slice(2));
+  for (const name of [...names].sort(sectionOrder)) take(`h:${name}`, name);
+  for (const g of groups) if (byKey.has(g.key)) out.push(g);
+  return out;
+}
+
+const sectionOrder = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+
+/** Sidebar order for a project's sections: General (no name) first, then A–Z. */
+export function bySection(a: { name: string | null }, b: { name: string | null }): number {
+  if (a.name === null) return b.name === null ? 0 : -1;
+  if (b.name === null) return 1;
+  return sectionOrder(a.name, b.name);
+}
+
+/** Where a moved task went, for its toast: "Offsite › Travel", or "Offsite › General" within one project. */
+export function placeLabel(from: { project: string | null }, to: { project: string | null; heading: string | null }): string {
+  if (!to.project) return "no project";
+  if (to.heading) return `${to.project} › ${to.heading}`;
+  return from.project === to.project ? `${to.project} › General` : to.project;
+}
+
 /** Headings used in a project, in first-use order. */
 export function headingsOf(tasks: Task[], project: string): string[] {
   const seen: string[] = [];

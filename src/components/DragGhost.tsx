@@ -8,7 +8,7 @@ export function DragGhost({ drag, now, locale }: { drag: DragState; now: Date; l
   const where = o?.nodate
     ? "Someday"
     : o?.place
-    ? [o.place.project, o.place.heading === undefined ? null : (o.place.heading ?? "Ground floor")].filter(Boolean).join(" › ")
+    ? [o.place.project, o.place.heading === undefined ? null : (o.place.heading ?? "General")].filter(Boolean).join(" › ")
     : o?.iso
     ? [
         relativeLabel(o.iso, now, locale),

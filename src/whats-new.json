@@ -1,4 +1,14 @@
 {
+  "0.4.59": [
+    "Plain words for your work: projects, sections and tasks — buildings and floors live in your city",
+    "Sections in the sidebar look like Slack channels (# Travel), with General for tasks in no section",
+    "Drag a task from one section to another right in a project's list",
+    "In Calendar, drag the row of dates sideways (or swipe with two fingers) to move a day at a time",
+    "Calendar opens with more room: the side pane starts closed there, and remembers if you open it",
+    "Click “from Mail” or “from Slack” on any task to open the email, message or page it came from — show it always, on hover or never in Settings → General",
+    "Finishing a task shows a green check",
+    "Show data folder in Settings → Backups & export"
+  ],
   "0.4.58": [
     "Skip the model download in the tour and type tasks yourself — add the AI model whenever you like",
     "Reminders to set things up are quieter, and “Not now” hides them",

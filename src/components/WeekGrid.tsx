@@ -9,6 +9,7 @@ import { timeLabel } from "../lib/schedule";
 import type { TaskActions } from "../lib/taskActions";
 import type { TaskDrag } from "../lib/useTaskDrag";
 import type { CalendarEvent, NewTask, Task } from "../lib/types";
+import { daysForDrag, isSideways, swipeDays } from "../lib/weekSlide";
 import { NewTaskField } from "./DayPlan";
 
 interface Props {
@@ -23,6 +24,8 @@ interface Props {
   onAdd: (task: NewTask) => Promise<void>;
   onOpen: (task: Task) => void;
   openId: number | null;
+  /** Slide the week by whole days (drag the dates, or swipe sideways). */
+  onSlide?: (days: number) => void;
 }
 
 /** Seven days from `day` on: Upcoming looks ahead from today, not back to the week's start. */
@@ -39,7 +42,7 @@ type AddAt = { iso: string; hour: number | "any" } | null;
  * hour of their time beside calendar events; untimed ones in Any time. Drag
  * a task to another day or hour, click an empty hour to add one there.
  */
-export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd, onOpen, openId }: Props) {
+export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd, onOpen, openId, onSlide }: Props) {
   const colors = useProjectColors();
   const days = sevenDays(day);
   const from = days[0];
@@ -49,7 +52,41 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
   const [addAt, setAddAt] = useState<AddAt>(null);
   const [completing, setCompleting] = useState<Set<number>>(new Set());
   const bodyRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const over = drag.drag?.over;
+  // Sliding the week a day at a time keeps the hours where they are.
+  const slid = useRef(false);
+  const [sliding, setSliding] = useState(false);
+  const slide = useRef<{ x: number; moved: number; width: number } | null>(null);
+  const onSlideRef = useRef(onSlide);
+  onSlideRef.current = onSlide;
+  const move = (n: number) => {
+    if (!n || !onSlideRef.current) return;
+    slid.current = true;
+    onSlideRef.current(n);
+  };
+
+  // A two-finger sideways swipe slides the week too.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    let gathered = 0;
+    let idle = 0;
+    const wheel = (e: WheelEvent) => {
+      if (!onSlideRef.current || !isSideways(e.deltaX, e.deltaY)) return;
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => (gathered = 0), 250);
+      const r = swipeDays(gathered, e.deltaX, 70);
+      gathered = r.left;
+      move(r.days);
+    };
+    el.addEventListener("wheel", wheel, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", wheel);
+      window.clearTimeout(idle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -81,10 +118,14 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
   useEffect(() => {
     const box = bodyRef.current;
     if (!box) return;
+    setAddAt(null);
+    if (slid.current) {
+      slid.current = false;
+      return;
+    }
     const target = days.includes(today) ? Math.max(now.getHours() - 2, hours[0]) : Math.max(8, hours[0]);
     const row = box.querySelector<HTMLElement>(`[data-row="${target}"]`);
     box.scrollTop = row ? row.offsetTop : 0;
-    setAddAt(null);
     // Only when the week changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from]);
@@ -176,8 +217,36 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
 
   const nowHour = now.getHours();
   return (
-    <div className="week-grid">
-      <div className="wg-row wg-days">
+    <div className="week-grid" ref={gridRef}>
+      <div
+        className={["wg-row wg-days", onSlide ? "slidable" : "", sliding ? "sliding" : ""].filter(Boolean).join(" ")}
+        title={onSlide ? "Drag the dates sideways to move a day at a time" : undefined}
+        onPointerDown={(e) => {
+          if (!onSlide || e.button !== 0 || drag.drag) return;
+          const row = e.currentTarget.getBoundingClientRect();
+          const gutter = (e.currentTarget.firstElementChild as HTMLElement | null)?.getBoundingClientRect().width ?? 0;
+          slide.current = { x: e.clientX, moved: 0, width: (row.width - gutter) / 7 };
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const s = slide.current;
+          if (!s) return;
+          const want = daysForDrag(e.clientX - s.x, s.width);
+          if (want !== s.moved) {
+            setSliding(true);
+            move(want - s.moved);
+            s.moved = want;
+          }
+        }}
+        onPointerUp={() => {
+          slide.current = null;
+          setSliding(false);
+        }}
+        onPointerCancel={() => {
+          slide.current = null;
+          setSliding(false);
+        }}
+      >
         <span />
         {cols.map(({ iso }) => {
           const d = parseISODate(iso);

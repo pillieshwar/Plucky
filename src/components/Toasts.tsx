@@ -5,7 +5,8 @@ export interface Toast {
   text: string;
   /** Undo, or another single follow-up action. */
   action?: { label: string; run: () => void | Promise<void> };
-  tone?: "info" | "error";
+  /** "done": a finished task, in green with a check. */
+  tone?: "info" | "error" | "done";
 }
 
 const LIFETIME = 5500;
@@ -64,7 +65,14 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
   return (
     <div className="toasts" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} className={t.tone === "error" ? "toast error" : "toast"}>
+        <div key={t.id} className={t.tone === "error" ? "toast error" : t.tone === "done" ? "toast done" : "toast"}>
+          {t.tone === "done" && (
+            <span className="toast-check" aria-hidden>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M2.5 6.2 5 8.6 9.6 3.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          )}
           <span className="toast-text">{t.text}</span>
           {t.action && (
             <button

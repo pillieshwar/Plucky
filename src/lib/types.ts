@@ -229,6 +229,8 @@ export interface LookSettings {
   show_done: boolean;
   /** List or board, per view ("inbox", "project:<name>"). */
   list_views: Record<string, "list" | "board">;
+  /** Where a task came from ("from Mail"): always, only on hover, or never. */
+  show_source: "always" | "hover" | "never";
 }
 
 /** Mirrors `agents::InboxItem`: a task an AI agent sent, waiting for review. */

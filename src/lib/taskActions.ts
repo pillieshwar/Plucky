@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { playDone } from "./doneSound";
 import { relativeLabel } from "./dates";
+import { placeLabel } from "./lists";
 import { timeLabel } from "./schedule";
 import type { Task, TaskPatch } from "./types";
 import type { Toast } from "../components/Toasts";
@@ -37,7 +38,7 @@ export function taskActions(show: Show, locale: string) {
       show(`Completed “${short(task.title)}”${next}`, {
         label: "Undo",
         run: () => api.updateTask(task.id, { done: false }).then(() => undefined, fail),
-      });
+      }, "done");
     } catch (e) {
       fail(e);
     }
@@ -79,13 +80,12 @@ export function taskActions(show: Show, locale: string) {
     }
   }
 
-  /** Put a task in a building, or on one of its floors. */
+  /** Put a task in a project, or in one of its sections. */
   async function place(task: Task, patch: TaskPatch) {
     const before: TaskPatch = { project: task.project, heading: task.heading };
     try {
       const t = await api.updateTask(task.id, patch);
-      const where = [t.project, t.heading].filter(Boolean).join(" › ");
-      show(`Moved to ${where || "no project"} · “${short(task.title)}”`, {
+      show(`Moved to ${placeLabel(task, t)} · “${short(task.title)}”`, {
         label: "Undo",
         run: () => api.updateTask(task.id, before).then(() => undefined, fail),
       });
@@ -215,7 +215,7 @@ export function taskActions(show: Show, locale: string) {
             fail(e);
           }
         },
-      });
+      }, "done");
     } catch (e) {
       fail(e);
     }

@@ -4,6 +4,7 @@ import { projectList, projectOf, type ListId } from "../lib/lists";
 import type { ProjectSummary } from "../lib/types";
 import { Pie } from "./ListPicker";
 import { initials, type Building } from "../lib/city";
+import { bySection } from "../lib/lists";
 import { PROJECT_COLORS } from "../lib/colors";
 import { MayorAvatar } from "./MayorAvatar";
 import { LineIcon, type IconName } from "./LineIcon";
@@ -218,12 +219,12 @@ export function Sidebar(p: Props) {
             className="sb-head-btn"
             onClick={fold}
             aria-expanded={!folded}
-            title="Each project is a building in your city, and its sections are floors."
+            title="Each project is a building in your city"
           >
-            {w.projects} <span className="sb-head-aka">(Buildings)</span>
+            {w.projects}
           </button>
           <span className="sb-head-actions">
-            <button type="button" className="sb-act" onClick={() => setAdding({ kind: "building" })} aria-label="New project" title="New project (a new building)">
+            <button type="button" className="sb-act" onClick={() => setAdding({ kind: "building" })} aria-label="New project" title="New project">
               <LineIcon name="plus" size={15} />
             </button>
             <button
@@ -242,7 +243,7 @@ export function Sidebar(p: Props) {
         {!folded && <>
         {p.buildings.length === 0 && !adding && (
           <p className="sb-empty">
-            Press + to start your first project — a new building in your city — or type “@Name” in a task.
+            Press + to start your first project, or type “@Name” in a task.
           </p>
         )}
         {shownB.length === 0 && hiddenB.length > 0 && !adding && <p className="sb-empty">No projects in {p.modeName ?? "this mode"} yet.</p>}
@@ -272,7 +273,7 @@ export function Sidebar(p: Props) {
                   type="button"
                   className={expanded ? "sb-chev open" : "sb-chev"}
                   onClick={() => toggle(name)}
-                  aria-label={expanded ? `Hide ${name}'s floors` : `Show ${name}'s floors`}
+                  aria-label={expanded ? `Hide ${name}'s sections` : `Show ${name}'s sections`}
                   aria-expanded={expanded}
                 >
                   <LineIcon name="chevronRight" size={13} />
@@ -289,8 +290,8 @@ export function Sidebar(p: Props) {
                     <button
                       type="button"
                       className="sb-act"
-                      aria-label={`New floor in ${name}`}
-                      title="New floor"
+                      aria-label={`New section in ${name}`}
+                      title="New section"
                       onClick={() => {
                         setOpenB((s) => new Set(s).add(name));
                         setAdding({ kind: "floor", project: name });
@@ -332,7 +333,7 @@ export function Sidebar(p: Props) {
                         setAdding({ kind: "floor", project: name });
                       }}
                     >
-                      Add a floor…
+                      Add a section…
                     </button>
                     <p className="sb-menu-label">Color</p>
                     <div className="sb-swatches" role="radiogroup" aria-label={`${name}'s color`}>
@@ -380,7 +381,7 @@ export function Sidebar(p: Props) {
                       role="menuitem"
                       className="danger"
                       disabled={total > 0}
-                      title={total > 0 ? "Delete or move its tasks first — a building with homes can't be taken down" : undefined}
+                      title={total > 0 ? "Move or delete its tasks first" : undefined}
                       onClick={() => {
                         setMenu(null);
                         p.onDeleteBuilding(name);
@@ -394,10 +395,11 @@ export function Sidebar(p: Props) {
               </div>
               {expanded && (
                 <div className="sb-floors">
-                  {[...b.floors].reverse().map((f) => {
+                  {/* Like Slack channels: General first, then the sections A–Z (the list uses the same order). */}
+                  {[...b.floors].sort(bySection).map((f) => {
                     const fname = f.name;
                     if (fname && adding?.kind === "rename-floor" && adding.project === name && adding.floor === fname) {
-                      return <div key={f.label}>{field("Floor's new name")}</div>;
+                      return <div key={f.label}>{field("Section's new name")}</div>;
                     }
                     const fOn = !!p.floorOn && p.floorOn.project === name && p.floorOn.floor === fname;
                     const todo = f.rooms.filter((r) => !r.lit).length;
@@ -413,15 +415,14 @@ export function Sidebar(p: Props) {
                           type="button"
                           className={fOn ? "sb-floor on" : "sb-floor"}
                           aria-current={fOn ? "page" : undefined}
-                          aria-label={f.label}
+                          aria-label={fname ?? w.looseHeading}
                           onClick={() => p.onFloor(name, fname)}
-                          title={fname ? f.label : "Tasks in this project on no floor"}
+                          title={fname ? undefined : "Tasks with no section"}
                         >
-                          {/* Like a lift's button: the floor's number, G for the ground floor. */}
-                          <span className={fname ? "sb-lvl" : "sb-lvl g"} aria-hidden>
-                            {f.level || "G"}
+                          <span className="sb-hash" aria-hidden>
+                            #
                           </span>
-                          <span className="sb-floor-name">{fname ?? "Ground floor"}</span>
+                          <span className="sb-floor-name">{fname ?? w.looseHeading}</span>
                         </button>
                         <span className={menu && menu.project === name && menu.floor === fname ? "sb-trail busy" : "sb-trail"}>
                           <span className="sb-count" title={`${todo} to do · ${f.rooms.length - todo} done`}>
@@ -453,7 +454,7 @@ export function Sidebar(p: Props) {
                                 setAdding({ kind: "rename-floor", project: name, floor: fname });
                               }}
                             >
-                              Rename floor…
+                              Rename section…
                             </button>
                             <button
                               type="button"
@@ -466,7 +467,7 @@ export function Sidebar(p: Props) {
                                 p.onDeleteFloor(name, fname);
                               }}
                             >
-                              Delete floor
+                              Delete section
                               {f.rooms.length > 0 && <span className="sb-menu-note">Only when it has no tasks</span>}
                             </button>
                           </div>

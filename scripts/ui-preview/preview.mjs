@@ -351,6 +351,14 @@ function mockTauri(s) {
       return null;
     },
     list_backups: () => s.backups,
+    open_source: (a) => {
+      (window.__opened ??= []).push(a.id);
+      return null;
+    },
+    reveal_data_folder: () => {
+      window.__revealedData = true;
+      return null;
+    },
     extract: () => (s.extract === "pending" ? new Promise(() => {}) : s.extract),
     update_task: (a) => {
       const t = s.tasks.find((x) => x.id === a.id);
@@ -1308,7 +1316,7 @@ await shot("full-project-building", FULL, full({ settings: DARK }), async (p) =>
 });
 await shot("full-building-floors", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.getByRole("button", { name: "Show Q4 launch's floors" }).click();
+  await p.getByRole("button", { name: "Show Q4 launch's sections" }).click();
 });
 await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
@@ -1317,9 +1325,9 @@ await shot("full-add-room", FULL, full({ settings: DARK }), async (p) => {
 });
 const openFloor = async (p) => {
   await side(/Offsite 2026/)(p);
-  await p.getByRole("button", { name: "1st Floor: Travel", exact: true }).click();
+  await p.getByRole("button", { name: "Travel", exact: true }).click();
   await p.waitForTimeout(250);
-  if (!(await p.locator(".fh-title", { hasText: "Floor: Travel" }).count())) throw new Error("the floor's page didn't open");
+  if (!(await p.locator(".fh-title", { hasText: /^Travel$/ }).count())) throw new Error("the section's page didn't open");
   if (!(await p.locator(".fh-crumb", { hasText: "Offsite 2026" }).count())) throw new Error("no breadcrumb back to the project");
   if (!(await p.locator(".mcal-scope", { hasText: "Offsite 2026" }).count())) throw new Error("the month isn't narrowed to the floor");
 };
@@ -1433,20 +1441,22 @@ await shot("full-today-completed", FULL, full({ settings: DARK }), async (p) => 
   await p.waitForTimeout(200);
   if (!(await p.locator(".task.done").count())) throw new Error("Show didn't bring the finished tasks back");
 });
-// Floors in the sidebar: a small number, then the name.
+// Sections in the sidebar, like Slack channels: "# General" first, then "# Travel"…
 await shot("full-sidebar-floors", FULL, full({ settings: DARK }), async (p) => {
   await side(/Offsite 2026/)(p);
-  const lvl = await p.locator(".sb-floor-row .sb-lvl").allTextContents();
-  if (!lvl.includes("G") || !lvl.includes("1")) throw new Error(`floor numbers missing: ${lvl.join(",")}`);
-  if (await p.locator(".sb-floor-name", { hasText: "Floor:" }).count()) throw new Error("floor names still carry the 'Nth Floor:' prefix");
+  const hashes = await p.locator(".sb-floor-row .sb-hash").allTextContents();
+  if (!hashes.length || hashes.some((h) => h.trim() !== "#")) throw new Error(`sections don't start with #: ${hashes.join(",")}`);
+  const names = (await p.locator(".sb-floor-row .sb-floor-name").allTextContents()).map((x) => x.trim());
+  if (names[0] !== "General") throw new Error(`General isn't first: ${names.join(",")}`);
+  if (await p.locator(".sidebar", { hasText: /Floor|Ground floor|Buildings/ }).count()) throw new Error("city words left in the sidebar");
 });
 // Drag a task from Today onto a floor of another building.
 await shot("full-drag-to-floor", FULL, full({ settings: DARK }), async (p) => {
-  await p.getByRole("button", { name: "Show Offsite 2026's floors" }).click();
+  await p.getByRole("button", { name: "Show Offsite 2026's sections" }).click();
   const task = p.locator(".task .task-row").first();
   const name = (await task.locator(".task-title").first().textContent())?.trim();
   const from = await task.boundingBox();
-  const to = await p.getByRole("button", { name: "1st Floor: Travel", exact: true }).boundingBox();
+  const to = await p.getByRole("button", { name: "Travel", exact: true }).boundingBox();
   await p.mouse.move(from.x + 40, from.y + from.height / 2);
   await p.mouse.down();
   await p.mouse.move(from.x + 60, from.y + 30, { steps: 4 });
@@ -1688,6 +1698,101 @@ await shot("full-city-house", FULL, full({ settings: DARK }), async (p) => {
     if (strong === "Houses") throw new Error("hovering a house shows the whole neighbourhood, not its task");
   }
 });
+// ── v0.4.59 ────────────────────────────────────────────────────────────────
+// A project's list shows every section; drag a task from one section to another.
+await shot("full-section-drag", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  const heads = (await p.locator("section.group[data-drop-floor] h2").allTextContents()).map((t) => t.replace(/\d+$/, "").trim());
+  if (heads.join(",") !== "General,Program,Travel") throw new Error(`sections: ${heads.join(",")}`);
+  const row = p.locator(".task .task-row", { hasText: "Book flights" }).first();
+  const from = await row.boundingBox();
+  const to = await p.locator('section.group[data-drop-floor="Program"]').boundingBox();
+  await p.mouse.move(from.x + 60, from.y + from.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 80, from.y + 30, { steps: 4 });
+  await p.mouse.move(to.x + 120, to.y + to.height / 2, { steps: 10 });
+  await p.waitForTimeout(150);
+  if (!(await p.locator('section.group.drop[data-drop-floor="Program"]').count())) throw new Error("the Program section doesn't light up under a dragged task");
+  await p.mouse.up();
+  await p.waitForTimeout(400);
+  if (!(await p.locator(".toast", { hasText: "Moved to Offsite 2026 › Program" }).count())) throw new Error("no 'Moved to … › Program' note");
+});
+// Finishing a task: a green toast with a check.
+await shot("full-done-toast", FULL, full({ settings: DARK }), async (p) => {
+  await p.locator(".task:not(.done) .check").first().click();
+  await p.waitForTimeout(800);
+  if (!(await p.locator(".toast.done .toast-check").count())) throw new Error("the Completed toast isn't green");
+});
+await shot("full-done-toast-light", FULL, full({ settings: LIGHT }), async (p) => {
+  await p.locator(".task:not(.done) .check").first().click();
+  await p.waitForTimeout(800);
+  if (!(await p.locator(".toast.done").count())) throw new Error("the Completed toast isn't green");
+});
+// Calendar opens with the side pane closed; opening it there is remembered for Calendar only.
+await shot("full-calendar-pane", FULL, full({ settings: DARK }), async (p) => {
+  if (!(await p.getByRole("button", { name: "Hide calendar pane" }).count())) throw new Error("Today lost its pane");
+  await side(/Calendar/)(p);
+  if (!(await p.getByRole("button", { name: "Show calendar pane" }).count())) throw new Error("Calendar opened with the pane showing");
+  await p.getByRole("button", { name: "Show calendar pane" }).click();
+  await side(/^Today/)(p);
+  await side(/Calendar/)(p);
+  if (!(await p.getByRole("button", { name: "Hide calendar pane" }).count())) throw new Error("Calendar forgot its pane was opened");
+});
+// Drag the row of dates two days to the right: two new days come in on the right.
+await shot("full-calendar-slide", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Calendar/)(p);
+  const first = () => p.locator(".wg-days .wg-day").first().getAttribute("data-iso");
+  if ((await first()) !== day(0)) throw new Error("Calendar doesn't start today");
+  const a = await p.locator(".wg-days .wg-day").nth(1).boundingBox();
+  await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(a.x + a.width / 2 + a.width * 2, a.y + a.height / 2, { steps: 12 });
+  await p.mouse.up();
+  await p.waitForTimeout(200);
+  if ((await first()) !== day(2)) throw new Error(`dragging two days didn't move two days: ${await first()}`);
+  if ((await p.locator(".wg-days .wg-day").count()) !== 7) throw new Error("the week isn't seven days wide");
+  await side(/^Today/)(p);
+  await side(/Calendar/)(p);
+  if ((await first()) !== day(0)) throw new Error("coming back to Calendar didn't reset to today");
+});
+// Where a task came from: a chip that opens the exact message.
+await shot("full-source-chip", FULL, full({ settings: DARK }), async (p) => {
+  const chip = p.locator(".task .src-chip.link", { hasText: "from Slack" }).first();
+  await chip.waitFor();
+  if ((await chip.getAttribute("title")) !== "Open the message in Slack") throw new Error(`tooltip: ${await chip.getAttribute("title")}`);
+  await chip.hover();
+  await chip.click();
+  if (!(await p.evaluate(() => (window.__opened ?? []).length))) throw new Error("clicking the chip didn't open the source");
+  if (await p.locator(".task.open").count()) throw new Error("clicking the chip opened the task instead");
+});
+await shot("full-source-hover", FULL, full({ settings: { ...DARK, look: { ...(DARK.look ?? {}), show_source: "hover" } } }), async (p) => {
+  const chip = p.locator(".task .src-chip", { hasText: "from Slack" }).first();
+  if ((await chip.evaluate((el) => getComputedStyle(el).opacity)) !== "0") throw new Error("the chip shows before hovering");
+  await p.locator(".task", { hasText: "Send Q3 numbers" }).first().locator(".task-row").first().hover();
+  await p.waitForTimeout(250);
+  if ((await chip.evaluate((el) => getComputedStyle(el).opacity)) !== "1") throw new Error("the chip doesn't show on hover");
+});
+await shot("full-source-never", FULL, full({ settings: { ...DARK, look: { ...(DARK.look ?? {}), show_source: "never" } } }), async (p) => {
+  if (await p.locator(".src-chip").count()) throw new Error("chips show with Never");
+});
+await shot("full-settings-source", FULL, full({ settings: DARK }), async (p) => {
+  await tab(p, "General");
+  await p.getByText("Show where tasks came from").waitFor();
+});
+await shot("full-settings-data-folder", FULL, full({ settings: DARK }), async (p) => {
+  await tab(p, "Backups & export");
+  await p.getByRole("button", { name: "Show data folder" }).click();
+  if (!(await p.evaluate(() => window.__revealedData))) throw new Error("Show data folder didn't ask to open it");
+});
+// Plain words in the task screens: no buildings, floors or houses outside the city.
+await shot("full-plain-words", FULL, full({ settings: DARK }), async (p) => {
+  await side(/Offsite 2026/)(p);
+  await p.getByRole("button", { name: /^Add Task$/ }).first().click();
+  const text = await p.locator(".full-content, .sidebar, .add-task").allInnerTexts();
+  const hit = text.join("\n").match(/\b(Buildings?|Ground floor|New floor|a house|houses)\b/);
+  if (hit) throw new Error(`city word in a task screen: ${hit[0]}`);
+});
+
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
 });

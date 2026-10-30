@@ -6,6 +6,7 @@ import { CalendarIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
 import type { ProjectInfo } from "./ProjectPicker";
+import { SourceChip, useSourceDisplay } from "./SourceChip";
 import { LineIcon } from "./LineIcon";
 import { TaskFields, type FieldMenu, type FieldValues } from "./TaskFields";
 import { deadlineChip } from "../lib/lists";
@@ -69,8 +70,10 @@ interface Props {
    * task opens in place with every property as a labelled row.
    */
   rich?: boolean;
-  /** No section headers (a floor's own page already says which floor). */
+  /** No section headers (a section's own page already says which section). */
   plain?: boolean;
+  /** In a project's list: each section takes dropped tasks (drag a task between sections). */
+  dropProject?: string;
   /** With `rich`: show notes and sub-tasks under each row (Preferences). */
   details?: boolean;
   /** Tags in use, to pick from in an open task. */
@@ -116,8 +119,25 @@ export function TaskList(props: Props) {
   }
   return (
     <div className={props.openId !== null && !props.detail ? "groups has-open" : "groups"}>
-      {groups.map((g) => (
-        <section key={g.key} className={`group tone-${g.tone}`} aria-label={g.label} data-group={g.key}>
+      {groups.map((g) => {
+        // A section of the project being viewed: drop a dragged task here to move it in.
+        const section = props.dropProject && g.key.startsWith("h:") ? g.key.slice(2) : null;
+        const over = props.drag?.drag?.over?.place;
+        const dropHere =
+          section !== null &&
+          !!over &&
+          over.project === props.dropProject &&
+          (over.heading ?? "") === section &&
+          (props.drag?.drag?.task.heading ?? "") !== section;
+        return (
+        <section
+          key={g.key}
+          className={[`group tone-${g.tone}`, dropHere ? "drop" : ""].filter(Boolean).join(" ")}
+          aria-label={g.label}
+          data-group={g.key}
+          data-drop-project={section !== null ? props.dropProject : undefined}
+          data-drop-floor={section !== null ? section : undefined}
+        >
           <h2 className={props.plain ? "day sr-only" : "day"}>
             {g.label}
             <span className="count">{g.tasks.length}</span>
@@ -136,9 +156,11 @@ export function TaskList(props: Props) {
             {g.tasks.map((t) => (
               <TaskRow key={t.id} task={t} {...props} />
             ))}
+            {section !== null && !g.tasks.length && <li className="group-empty">Drag a task here</li>}
           </ul>
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -374,6 +396,7 @@ function RowMeta({
   /** Full screen: just when (and the deadline) on the right; the rest goes under the title. */
   whenOnly?: boolean;
 }) {
+  const showSource = useSourceDisplay();
   const w = useWords();
   const parts: ReactNode[] = [];
   const when = whenText(task, now, locale);
@@ -430,8 +453,7 @@ function RowMeta({
   }
   const repeat = repeatShort(task.recurrence);
   if (repeat) parts.push(<span key="r">{repeat.toLowerCase()}</span>);
-  const source = sourceLabel(task);
-  if (source && !link) parts.push(<span key="src">from {source}</span>);
+  if (sourceLabel(task) && !link && showSource !== "never") parts.push(<SourceChip key="src" task={task} onFail={onError} />);
   if (!parts.length && !flag) return null;
   return (
     <div className="task-meta">
@@ -462,6 +484,7 @@ function RowSub({
   onOpenProject: (name: string) => void;
   hasNotes: boolean;
 }) {
+  const showSource = useSourceDisplay();
   const parts: ReactNode[] = [];
   if (task.project && task.project !== inProject) {
     parts.push(
@@ -491,8 +514,7 @@ function RowSub({
       </a>,
     );
   }
-  const source = sourceLabel(task);
-  if (source) parts.push(<span key="src">from {source}</span>);
+  if (sourceLabel(task) && showSource !== "never") parts.push(<SourceChip key="src" task={task} />);
   if (!parts.length) return null;
   return (
     <div className="task-sub">
@@ -744,6 +766,11 @@ function TaskCard({
             }}
             onBlur={saveNotes}
           />
+        )}
+        {source && (
+          <div className="tfc-source">
+            <SourceChip task={task} onFail={actions.fail} />
+          </div>
         )}
         <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
         <TaskFields

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SourceChip } from "./SourceChip";
 import { api, onTasksChanged } from "../lib/api";
 import { relativeLabel, toISODate } from "../lib/dates";
 import type { TaskActions } from "../lib/taskActions";
-import { matchesQuery, sourceLabel } from "../lib/taskText";
+import { matchesQuery } from "../lib/taskText";
 import type { Task } from "../lib/types";
 import { FolderIcon } from "./ProjectPicker";
 import { clockHour12 } from "../lib/schedule";
@@ -114,7 +115,7 @@ export function Logbook({
                           <FolderIcon /> {t.project}
                         </button>
                       )}
-                      {sourceLabel(t) && <span>{sourceLabel(t)}</span>}
+                      <SourceChip task={t} prefix={false} />
                     </div>
                   </div>
                 </div>

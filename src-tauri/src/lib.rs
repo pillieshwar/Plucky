@@ -881,6 +881,13 @@ fn reveal_backups(state: State<'_, AppState>) -> CmdResult<()> {
     reveal(&dir, false)
 }
 
+/// Open TodoCity's data folder in Finder: tasks.db, backups, models and settings.
+#[tauri::command]
+fn reveal_data_folder(state: State<'_, AppState>) -> CmdResult<()> {
+    std::fs::create_dir_all(&state.data_dir).map_err(err)?;
+    reveal(&state.data_dir, false)
+}
+
 /// Save every task to Downloads as CSV or JSON and show it.
 #[tauri::command]
 fn export_tasks(state: State<'_, AppState>, format: String) -> CmdResult<String> {
@@ -1772,6 +1779,7 @@ pub fn run() {
             backup_now,
             restore_backup,
             reveal_backups,
+            reveal_data_folder,
             export_tasks,
             show_quick_add,
             hide_quick_add

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulletSteps, effectiveDay, groupByHeading, groupInbox, inboxColumnDay, isDeadlinePhrase, isOverdue, linesToSteps, normalizeList, tasksForList } from "./lists";
+import { bulletSteps, bySection, effectiveDay, groupByHeading, groupInbox, inboxColumnDay, isDeadlinePhrase, isOverdue, linesToSteps, normalizeList, placeLabel, tasksForList, withEmptySections } from "./lists";
 import { groupTasks } from "./grouping";
 import { atProject } from "../components/AddTaskForm";
 import type { Task } from "./types";
@@ -168,5 +168,35 @@ describe("Inbox", () => {
     expect(normalizeList("all")).toBe("inbox");
     expect(normalizeList("someday")).toBe("inbox");
     expect(normalizeList("today")).toBe("today");
+  });
+});
+
+describe("sections in a project", () => {
+  const p = (extra: Partial<Task>) => task("t", { project: "Offsite", ...extra });
+  it("shows every section, even empty ones, General first then A–Z", () => {
+    const groups = groupByHeading([p({ heading: "Travel" }), p({}), p({ heading: "Budget" })]);
+    const all = withEmptySections(groups, ["Travel", "Program", "Budget"]);
+    expect(all.map((g) => g.key)).toEqual(["h:", "h:Budget", "h:Program", "h:Travel"]);
+    expect(all.find((g) => g.key === "h:Program")!.tasks).toEqual([]);
+  });
+  it("keeps General as a place to drop, and done tasks last", () => {
+    const groups = groupByHeading([p({ heading: "Travel" }), p({ heading: "Travel", done: true, completed_at: "2026-10-02T00:00:00Z" })]);
+    const all = withEmptySections(groups, []);
+    expect(all.map((g) => g.key)).toEqual(["h:", "h:Travel", "done"]);
+    expect(all[0].tasks).toEqual([]);
+  });
+  it("keeps a heading only its tasks know about", () => {
+    const all = withEmptySections(groupByHeading([p({ heading: "Zoo" })]), ["Alpha"]);
+    expect(all.map((g) => g.key)).toEqual(["h:", "h:Alpha", "h:Zoo"]);
+  });
+  it("orders the sidebar like the list", () => {
+    const floors = [{ name: "Travel" }, { name: null }, { name: "budget" }, { name: "Program 10" }, { name: "Program 2" }];
+    expect([...floors].sort(bySection).map((f) => f.name)).toEqual([null, "budget", "Program 2", "Program 10", "Travel"]);
+  });
+  it("says where a moved task went", () => {
+    expect(placeLabel({ project: "Offsite" }, { project: "Offsite", heading: "Travel" })).toBe("Offsite › Travel");
+    expect(placeLabel({ project: "Offsite" }, { project: "Offsite", heading: null })).toBe("Offsite › General");
+    expect(placeLabel({ project: null }, { project: "Offsite", heading: null })).toBe("Offsite");
+    expect(placeLabel({ project: "Offsite" }, { project: null, heading: null })).toBe("no project");
   });
 });
