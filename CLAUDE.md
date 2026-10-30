@@ -71,4 +71,6 @@ Docs-only changes (like this file) don't need a version bump or a release.
   - A safety brake stops mass removals.
 - **Repeats:** completing a repeating task calls `spawn_next`, which creates the next occurrence as a new task. `next_id` is local only.
 - **Task editing autosaves:** 500 ms after typing stops, and on blur or close.
+- **AI agents (MCP):** add-only by default (`add_task` → review inbox, same reply every time). With **Full access** (`agents_full_access`, off by default) the `--mcp` helper lists every tool in `todocity_core::agent_tools` and forwards calls to the app as `ToolCall` lines on `agents.sock`; the app checks the setting on every call. New agent tools go in `agent_tools.rs` with tests there.
+- **Tasks have a length:** `duration` in minutes (1–1440) next to `due_time` (any minute). Calendar draws blocks at their real start and size (`src/lib/timeblock.ts`).
 - **Capture is untrusted input.** Selected text is treated as data, never as instructions. The model returns three fields under a JSON Schema, and code (not the model) works out dates.

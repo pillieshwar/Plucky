@@ -185,7 +185,7 @@ The sidebar's switch at the top picks a **mode**. In **Work**, Today, Calendar, 
 - **Your other Macs** keeps the same tasks on your work and personal Macs — end-to-end encrypted, no iCloud or account needed. See [Sync between your Macs](#sync-between-your-macs).
 - **Calendar** shows your meetings beside your tasks (read-only; includes Google, Outlook and iCloud calendars added to the Mac).
 - **Apple Reminders** syncs both ways — off by default.
-- **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a TodoCity task to send the deck Friday 3pm"). They can never read your list, and you approve every task.
+- **AI agents** — Claude Code, Claude Desktop, Cursor, VS Code, Windsurf and LM Studio can *add* tasks ("add a TodoCity task to send the deck Friday 3pm"), and you approve each one. Turn on **Full access** and they can run your list for you: read, add, change, schedule (to the minute, with lengths), complete and delete tasks, sub-tasks, reminders, projects and sections, through 28 MCP tools.
 - **Watch my screen** (optional) suggests tasks from what's in front of you — asks of you and things you promised — using the on-device model. Password managers, Keychain and terminals are never read.
 - **Email to tasks** has Claude Code check your new Outlook email on a schedule and send the action items to TodoCity for review.
 
@@ -330,9 +330,9 @@ gh attestation verify ~/Downloads/TodoCity-macOS.dmg --repo pillieshwar/TodoCity
 - **Tasks are stored locally** in `~/Library/Application Support/TodoCity/` (**Settings → Backups & export → Show data folder**), with seven days of backups in `backups/`.
 - **TodoCity uses the internet only for:** model downloads you start (from Hugging Face, verified against their SHA-256), checking GitHub for updates (you can turn this off in **Settings → General**), and — only if you pair your Macs — sync.
 - **Sync is end-to-end encrypted.** Paired Macs pass changes through a relay as sealed boxes it can't open; the key exists only on your Macs, in the Keychain. The relay keeps no logs, deletes each box once every Mac has it (30 days at most), and has no accounts. See [Sync between your Macs](#sync-between-your-macs).
-- **AI agents can write, never read.** If you turn on **Connectors → AI agents**, apps on your Mac like Claude Desktop and Claude Code can send tasks to TodoCity over MCP. They can't see, change or delete anything; each task waits in the menu bar until you add it. It works only on this Mac, through a private local connection — no network.
+- **AI agents get only the access you give them.** Turn on **Connectors → AI agents** and apps on your Mac like Claude Desktop and Claude Code can send tasks to TodoCity over MCP; each task waits in the menu bar until you add it, and they can't see, change or delete anything. Turn on **Full access** as well and they can read and change your tasks, projects and sections directly. What an agent reads, it may send to its AI service, as with anything you share with it. Either way TodoCity talks to them only on this Mac, through a private local connection.
 - **Watching your screen stays on your Mac.** If you turn on **Connectors → Watch my screen**, TodoCity reads the text of the window in front (never password managers, Keychain, System Settings or terminals, and never what you type), runs the on-device model on new text, and keeps none of it.
-- **No accounts, analytics or telemetry.** Notifications are scheduled by your Mac, not a server.
+- **Private by default.** Your tasks live on your Mac, and nothing leaves it unless you turn it on (sync, Reminders in iCloud, or agent access). No accounts, analytics or telemetry; notifications are scheduled by your Mac, not a server.
 - **The one exception you control:** if you turn on Apple Reminders sync with a list stored in iCloud, those tasks sync through iCloud. TodoCity warns you and asks first; pick an "On My Mac" list to stay fully local.
 
 ## How it works

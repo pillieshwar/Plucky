@@ -117,6 +117,7 @@ export const api = {
   agentsStatus: () => invoke<AgentsStatus>("agents_status"),
   agentsSetEnabled: (enabled: boolean) => invoke<AgentsStatus>("agents_set_enabled", { enabled }),
   agentsSetProactive: (on: boolean) => invoke<AgentsStatus>("agents_set_proactive", { on }),
+  agentsSetFullAccess: (on: boolean) => invoke<AgentsStatus>("agents_set_full_access", { on }),
   /** One app by id, or "all" installed apps. Also turns agent access on. */
   agentsConnect: (id: string) => invoke<AgentsStatus>("agents_connect", { id }),
   agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),

@@ -78,7 +78,7 @@ export function ConnectorsTab() {
         icon={<SparkGlyph />}
         tone="agents"
         name="AI agents"
-        description="Let AI apps add tasks — never read them."
+        description={agents?.full_access ? "AI apps work with your tasks: full access." : "Let AI apps add tasks for you to review."}
         connected={!!agents?.enabled}
         open={open === "agents"}
         onToggle={() => toggle("agents")}

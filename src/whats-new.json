@@ -1,4 +1,9 @@
 {
+  "0.4.63": [
+    "Full access for AI agents: turn it on in Settings → Connectors → AI agents and Claude, Cursor and other AI apps can run your list for you",
+    "With it, agents can read, add, change, schedule, snooze, complete and delete tasks, sub-tasks, projects and sections — 28 tools in all",
+    "It's off until you turn it on; without it, agents still only add tasks for you to approve"
+  ],
   "0.4.62": [
     "Give a task any length — 7 minutes, 45, 1h30 — with the new Length chip, or type “for 30 min” when you add it",
     "Start tasks at any minute, like 9:07",

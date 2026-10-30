@@ -20,8 +20,10 @@
 //! * [`mirror`] — keeping TodoCity in step with Things 3 or Todoist.
 //! * [`sync`] — end-to-end encrypted sync between a person's Macs.
 //! * [`modes`] — which projects a Mac shows right now (Work, Personal…).
+//! * [`agent_tools`] — what AI agents can do over MCP with full access.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
+pub mod agent_tools;
 pub mod clipboard_guard;
 pub mod data_folder;
 pub mod double_copy;

@@ -28,11 +28,27 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
       <div className="card-stack">
         <Toggle
           label="Let AI agents on this Mac add tasks"
-          hint="Their tasks wait in the menu bar until you add them. Agents can never read, change or delete your tasks."
+          hint={
+            status.full_access
+              ? "Connected agents work with your tasks directly (Full access is on, below)."
+              : "Their tasks wait in the menu bar until you add them. With add-only access, agents can't read, change or delete your tasks."
+          }
           checked={status.enabled}
           onChange={(v) =>
             void api
               .agentsSetEnabled(v)
+              .then(onStatus)
+              .catch((e) => setError(String(e)))
+          }
+        />
+        <Toggle
+          label="Full access"
+          hint={`Agents can read, add, change, schedule, complete and delete your tasks, sub-tasks, reminders, projects and sections — ${status.tool_count} tools in all, with no review. They may send what they read to their AI service, as with anything you share with them. Daily backups are in Settings → Backups & export.`}
+          checked={status.full_access}
+          disabled={!status.enabled}
+          onChange={(v) =>
+            void api
+              .agentsSetFullAccess(v)
               .then(onStatus)
               .catch((e) => setError(String(e)))
           }

@@ -153,6 +153,8 @@ const AGENT_STATUS = {
   supported: true,
   enabled: false,
   proactive: true,
+  full_access: false,
+  tool_count: 28,
   command: "/Applications/TodoCity.app/Contents/MacOS/TodoCity",
   temporary_location: false,
   apps: [
@@ -242,6 +244,11 @@ function mockTauri(s) {
     }),
     notification_permission: () => "granted",
     agents_status: () => s.agents,
+    agents_set_full_access: (a) => {
+      s.agents = { ...s.agents, full_access: a.on };
+      window.__fullAccess = a.on;
+      return s.agents;
+    },
     agents_test: () => "Working — AI apps can send tasks to TodoCity.",
     inbox_list: () => s.inbox ?? [],
     watch_status: () =>
@@ -1036,6 +1043,19 @@ await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
+});
+// v0.4.63: full access for agents, behind one switch.
+await shot("panel-connectors-agents-full", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
+  await tab(p, "Connectors");
+  await p.locator(".connector-action").nth(3).click();
+  const sw = p.getByRole("switch", { name: /^Full access/ });
+  await sw.scrollIntoViewIfNeeded();
+  if (await sw.isChecked()) throw new Error("Full access should start off");
+  await sw.click();
+  await p.waitForTimeout(200);
+  if (!(await p.evaluate(() => window.__fullAccess))) throw new Error("turning on Full access didn't reach the app");
+  if (!(await p.getByText(/28 tools in all/).count())) throw new Error("the switch doesn't say what agents can do");
+  if (await p.getByText(/never (read|see)/i).count()) throw new Error("an old 'never read' claim is still showing");
 });
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));
 await shot("quick-typed", QUICK, scenario({ label: "quick" }), async (p) => {

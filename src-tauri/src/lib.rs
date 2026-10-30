@@ -1483,7 +1483,7 @@ fn reveal_logs() -> CmdResult<String> {
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
-/// `TodoCity --mcp`: serve the write-only MCP tool over stdio. Returns the
+/// `TodoCity --mcp`: serve TodoCity's MCP tools over stdio. Returns the
 /// process exit code.
 pub fn run_mcp() -> i32 {
     agents::mcp::run()
@@ -1759,6 +1759,7 @@ pub fn run() {
             agents::agents_status,
             agents::agents_set_enabled,
             agents::agents_set_proactive,
+            agents::agents_set_full_access,
             agents::agents_connect,
             agents::agents_disconnect,
             agents::agents_test,

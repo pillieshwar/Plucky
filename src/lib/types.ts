@@ -302,6 +302,10 @@ export interface AgentsStatus {
   enabled: boolean;
   /** Agents may add to-dos they notice on their own (still reviewed). */
   proactive: boolean;
+  /** Agents can read and change everything, with no review. */
+  full_access: boolean;
+  /** How many tools full access gives agents. */
+  tool_count: number;
   command: string;
   temporary_location: boolean;
   apps: AgentApp[];
