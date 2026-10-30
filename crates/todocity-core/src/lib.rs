@@ -24,6 +24,7 @@
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
 pub mod agent_tools;
+pub mod calendar_sync;
 pub mod clipboard_guard;
 pub mod data_folder;
 pub mod double_copy;
