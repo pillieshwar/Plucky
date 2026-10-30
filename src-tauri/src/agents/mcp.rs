@@ -200,17 +200,21 @@ impl<D: Deliver> Server<D> {
 /// Delivers over the app's Unix socket.
 struct Socket;
 
-/// TodoCity's data folder (Tauri's app data dir for `app.pluck.desktop`).
+/// TodoCity's data folder: `TodoCity` on a Mac (or `app.pluck.desktop` until
+/// the app has moved it), Tauri's default elsewhere. This helper only looks;
+/// the app itself does the move.
 fn data_dir() -> Option<std::path::PathBuf> {
+    use todocity_core::data_folder;
     let home = std::path::PathBuf::from(std::env::var_os("HOME")?);
-    let data = if cfg!(target_os = "macos") {
-        home.join("Library/Application Support")
-    } else {
-        std::env::var_os("XDG_DATA_HOME")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| home.join(".local/share"))
-    };
-    Some(data.join("app.pluck.desktop"))
+    if cfg!(target_os = "macos") {
+        return Some(data_folder::locate(
+            &home.join("Library/Application Support"),
+        ));
+    }
+    let data = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| home.join(".local/share"));
+    Some(data.join(data_folder::OLD_NAME))
 }
 
 /// Whether the user lets agents add to-dos on their own (default yes).

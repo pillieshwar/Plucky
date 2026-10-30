@@ -1,4 +1,7 @@
 {
+  "0.4.61": [
+    "Your tasks, backups and models now live in a folder called TodoCity, in ~/Library/Application Support — moved for you, nothing to do"
+  ],
   "0.4.60": [
     "A task deleted on one Mac now deletes its reminder too, so it stays deleted everywhere",
     "A repeating task ticked off on two Macs while they were apart makes just one next task",
