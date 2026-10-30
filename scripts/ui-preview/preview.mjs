@@ -1793,6 +1793,82 @@ await shot("full-plain-words", FULL, full({ settings: DARK }), async (p) => {
   if (hit) throw new Error(`city word in a task screen: ${hit[0]}`);
 });
 
+// ── v0.4.62: tasks at any minute, for any length ──────────────────────────
+const TIMED = [
+  ...FULL_TASKS,
+  task("Stand-up with Priya", { due_date: day(1), due_time: "09:07", duration: 7 }),
+  task("Deep work: pricing page", { due_date: day(1), due_time: "13:05", duration: 95 }),
+  task("Review Maya's draft", { due_date: day(1), due_time: "13:30", duration: 30 }),
+];
+const updatesFor = (p, id) => p.evaluate((i) => (window.__updates ?? []).filter((u) => u.id === i).map((u) => u.patch), id);
+const idOf = (title) => TIMED.find((t) => t.title === title).id;
+await shot("full-week-blocks", FULL, full({ settings: DARK, tasks: TIMED }), async (p) => {
+  await side(/Calendar/)(p);
+  const lane = p.locator(".wg-lane").nth(1);
+  const stand = lane.locator(".wg-task", { hasText: "Stand-up with Priya" });
+  const deep = lane.locator(".wg-task", { hasText: "Deep work" });
+  const review = lane.locator(".wg-task", { hasText: "Review Maya" });
+  for (const b of [stand, deep, review]) await b.scrollIntoViewIfNeeded();
+  const [sb, db, rb] = [await stand.boundingBox(), await deep.boundingBox(), await review.boundingBox()];
+  const hour = await p.locator(".wg-body .wg-row").first().boundingBox();
+  // 95 minutes is about 1.6 hours tall; 7 minutes is drawn small.
+  if (Math.abs(db.height - (95 / 60) * hour.height) > 6) throw new Error(`a 95-minute task is ${Math.round(db.height)}px, an hour is ${Math.round(hour.height)}px`);
+  if (sb.height > hour.height / 2) throw new Error("a 7-minute task is drawn as big as an hour");
+  // 13:05–14:40 and 13:30–14:00 overlap: side by side.
+  if (Math.abs(db.width - rb.width) > 2 || Math.abs(db.x - rb.x) < 10) throw new Error("overlapping tasks aren't side by side");
+  if (!(await deep.innerText()).match(/1:05.*2:40/)) throw new Error(`no time range on the block: ${await deep.innerText()}`);
+});
+await shot("full-week-resize", FULL, full({ settings: DARK, tasks: TIMED }), async (p) => {
+  await side(/Calendar/)(p);
+  const block = p.locator(".wg-lane").nth(1).locator(".wg-task", { hasText: "Review Maya" });
+  await block.scrollIntoViewIfNeeded();
+  const b = await block.boundingBox();
+  const hour = await p.locator(".wg-body .wg-row").first().boundingBox();
+  await p.mouse.move(b.x + b.width / 2, b.y + b.height - 2);
+  await p.mouse.down();
+  await p.mouse.move(b.x + b.width / 2, b.y + b.height - 2 + hour.height / 4, { steps: 6 }); // +15 minutes
+  await p.mouse.up();
+  await p.waitForTimeout(300);
+  const ups = await updatesFor(p, idOf("Review Maya's draft"));
+  if (!ups.some((u) => u.duration === 45)) throw new Error(`dragging the edge didn't make it 45 minutes: ${JSON.stringify(ups)}`);
+});
+await shot("full-week-drop-minute", FULL, full({ settings: DARK, tasks: TIMED }), async (p) => {
+  await side(/Calendar/)(p);
+  const block = p.locator(".wg-lane").nth(1).locator(".wg-task", { hasText: "Stand-up with Priya" });
+  await block.scrollIntoViewIfNeeded();
+  const from = await block.boundingBox();
+  const cell = p.locator(`.wg-cell[data-iso="${day(2)}"][data-hour="10"]`);
+  const to = await cell.boundingBox();
+  await p.mouse.move(from.x + 40, from.y + from.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 60, from.y + 20, { steps: 4 });
+  await p.mouse.move(to.x + 30, to.y + to.height * 0.5, { steps: 10 });
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".wg-drop-at").count())) throw new Error("no time label while dropping");
+  await p.mouse.up();
+  await p.waitForTimeout(300);
+  const ups = await updatesFor(p, idOf("Stand-up with Priya"));
+  const t = ups.map((u) => u.due_time).find(Boolean);
+  if (!t || !/^10:(2|3)[05]$/.test(t)) throw new Error(`dropped mid-hour but got ${t}`);
+});
+await shot("full-length-menu", FULL, full({ settings: DARK, tasks: TIMED }), async (p) => {
+  await side(/Calendar/)(p);
+  await p.locator(".wg-lane").nth(1).locator(".wg-task", { hasText: "Stand-up with Priya" }).locator(".wg-title").click();
+  await p.waitForTimeout(250);
+  await p.getByRole("button", { name: "Length: 7 min" }).first().click();
+  await p.getByRole("textbox", { name: "Length in minutes" }).fill("12");
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(250);
+  const ups = await updatesFor(p, idOf("Stand-up with Priya"));
+  if (!ups.some((u) => u.duration === 12)) throw new Error(`typing 12 didn't set 12 minutes: ${JSON.stringify(ups)}`);
+});
+await shot("full-add-length", FULL, full({ settings: DARK }), async (p) => {
+  await p.getByRole("button", { name: /^Add Task$/ }).first().click();
+  await p.keyboard.type("Stand-up tomorrow 9:07am for 7 min");
+  await p.waitForTimeout(150);
+  if (!(await p.locator(".add-task .tf-chip.set", { hasText: "7 min" }).count())) throw new Error("“for 7 min” didn't set the length");
+});
+
 await shot("panel-full-button", PANEL, scenario({ settings: DARK }), async (p) => {
   await p.getByRole("button", { name: "Open full screen" }).hover();
 });

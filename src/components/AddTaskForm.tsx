@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { takeDuration } from "../lib/timeblock";
 import { dayOrderForLocale } from "../lib/dates";
 import { findSchedule } from "../lib/schedule";
 import { isDeadlinePhrase } from "../lib/lists";
@@ -71,7 +72,9 @@ export function AddTaskForm({
   // "@Project" files it there, "p1" sets its priority, a date phrase plans it.
   const at = useMemo(() => atProject(title, names), [title, names]);
   const pr = useMemo(() => takePriority(at.rest), [at.rest]);
-  const typed = useMemo(() => (pr.rest.trim() ? findSchedule(pr.rest, now, order) : null), [pr.rest, now, order]);
+  // "for 30 min" (or "for 1h30") sets how long it takes.
+  const len = useMemo(() => takeDuration(pr.rest), [pr.rest]);
+  const typed = useMemo(() => (len.rest.trim() ? findSchedule(len.rest, now, order) : null), [len.rest, now, order]);
 
   const auto: FieldValues = {
     project: at.project ?? extra?.project ?? defaultPlace?.project ?? null,
@@ -83,6 +86,7 @@ export function AddTaskForm({
     repeat: typed?.repeat ?? null,
     deadline: typed?.date && isDeadlinePhrase(typed.matched) ? typed.date : (extra?.deadline ?? null),
     priority: pr.priority ?? 0,
+    duration: len.minutes,
   };
   const v: FieldValues = { ...auto, ...over };
 
@@ -104,13 +108,14 @@ export function AddTaskForm({
       if (p.recurrence !== undefined) n.repeat = p.recurrence;
       if (p.deadline !== undefined) n.deadline = p.deadline;
       if (p.priority !== undefined) n.priority = p.priority;
+      if (p.duration !== undefined) n.duration = p.duration;
       return n;
     });
   }
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
-    const clean = (typed?.title || pr.rest).trim();
+    const clean = (typed?.title || len.rest).trim();
     if (!clean || busy) return;
     setBusy(true);
     try {
@@ -129,6 +134,7 @@ export function AddTaskForm({
         project: v.project,
         heading: v.project ? v.heading : null,
         priority: v.priority,
+        duration: v.duration ?? null,
       });
       setOver({});
       setTitle("");

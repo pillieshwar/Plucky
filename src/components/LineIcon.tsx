@@ -117,6 +117,13 @@ const PATHS = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  // A stopwatch: how long a task takes.
+  timer: (
+    <>
+      <circle cx="12" cy="13.5" r="7.5" />
+      <path d="M12 9.5v4l2.5 1.5M9.5 2.5h5M12 2.5V6" />
+    </>
+  ),
   repeat: (
     <>
       <path d="M17 3.5 20 6.5l-3 3" />

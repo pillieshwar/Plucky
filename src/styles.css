@@ -3141,3 +3141,37 @@ button.tf-chip { cursor: pointer; }
 .group[data-drop-floor].drop { background: var(--teal-soft); box-shadow: inset 0 0 0 1.5px var(--teal); border-radius: 10px; }
 .group-empty { list-style: none; padding: 8px 10px; color: var(--faint); font-size: 12px; border: 1px dashed var(--line); border-radius: 8px; }
 .group[data-drop-floor].drop .group-empty { border-color: var(--teal); color: var(--teal); }
+
+/* Calendar hours: each task and event at its real start and length. */
+.week-grid { --wg-hour: 52px; }
+.wg-hours { position: relative; }
+.wg-body .wg-row { height: var(--wg-hour); }
+.wg-body .wg-cell { min-height: 0; height: 100%; overflow: visible; }
+.wg-layer {
+  position: absolute; inset: 0; display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr));
+  pointer-events: none; z-index: 2;
+}
+.wg-lane { position: relative; min-width: 0; }
+.wg-block { position: absolute; box-sizing: border-box; overflow: hidden; pointer-events: auto; z-index: 1; }
+.wg-block:hover, .wg-block.picked, .wg-block.resizing { z-index: 3; }
+.wg-task.wg-block { align-items: flex-start; padding-top: 4px; padding-bottom: 4px; }
+.wg-task.wg-block .wg-title { -webkit-line-clamp: 3; }
+.wg-task.wg-block.tiny { align-items: center; padding-top: 1px; padding-bottom: 1px; }
+.wg-task.wg-block.tiny .wg-title { -webkit-line-clamp: 1; font-size: 11px; }
+.wg-task.wg-block.tiny .plan-check { margin-top: 0; }
+.wg-span { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 500; color: var(--faint); }
+.wg-event.wg-block.tiny { flex-direction: row; align-items: center; padding-top: 1px; padding-bottom: 1px; }
+/* Drag the bottom edge to change a task's length. */
+.wg-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+.wg-block:hover .wg-resize::after, .wg-block.resizing .wg-resize::after {
+  content: ""; position: absolute; left: 50%; bottom: 2px; width: 18px; height: 2px; margin-left: -9px; border-radius: 2px;
+  background: color-mix(in srgb, var(--faint) 70%, transparent);
+}
+.wg-block.resizing { box-shadow: 0 0 0 1.5px var(--teal); }
+/* While a task is dragged, the hours underneath take the drop. */
+.dragging .wg-block { pointer-events: none; }
+.wg-drop-at {
+  position: absolute; left: 4px; z-index: 4; transform: translateY(-50%); padding: 1px 6px; border-radius: 5px;
+  background: var(--teal); color: #fff; font-size: 10.5px; font-weight: 650; pointer-events: none;
+}
+.wg-cell.drop { overflow: visible; }

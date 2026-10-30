@@ -41,6 +41,7 @@ pub const TASK_FIELDS: &[&str] = &[
     "completed_at",
     "paused",
     "priority",
+    "duration",
     "series_date",
     "created_at",
     "created_tz",
@@ -1156,5 +1157,36 @@ mod tests {
         };
         assert_eq!(uid(&a), uid(&b));
         assert_eq!(uid(&a).len(), 32);
+    }
+
+    #[test]
+    fn a_tasks_length_travels_to_the_other_mac() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let t = a
+            .insert(NewTask {
+                title: "Deep work".into(),
+                due_date: Some("2026-11-02".into()),
+                due_time: Some("13:05".into()),
+                duration: Some(95),
+                ..Default::default()
+            })
+            .unwrap();
+        send(&a, "A", &b, "B");
+        let on_b = b.all().unwrap()[0].clone();
+        assert_eq!(
+            (on_b.due_time.as_deref(), on_b.duration),
+            (Some("13:05"), Some(95))
+        );
+        b.update(
+            on_b.id,
+            TaskPatch {
+                duration: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        send(&b, "B", &a, "A");
+        assert_eq!(a.get(t.id).unwrap().duration, None);
     }
 }

@@ -138,7 +138,9 @@ Anything whose day, time or deadline has passed gathers in **Overdue** in the si
 
 <img src="docs/screenshots/week.png" alt="Seven days as a calendar with tasks and events, and tasks with no date beside it" width="860">
 
-**Calendar** shows the next seven days, every hour of the day, filling the window — your tasks beside your calendar events. Drag tasks between days and hours, click an empty hour to add one there, and drag tasks with no date onto the week to plan them.
+**Calendar** shows the next seven days, every hour of the day, filling the window — your tasks beside your calendar events, each at its real start and length. Drag tasks between days and times (they snap to 5 minutes), drag a task's bottom edge to change how long it takes, click anywhere in an hour to add one there, and drag tasks with no date onto the week to plan them.
+
+**Any time, any length.** Start a task at any minute (9:07) and give it any length: the **Length** chip has quick picks, or type any number of minutes (7, 45, 1h30). Typing "for 30 min" in a new task sets it too.
 
 ### Every detail of a task
 

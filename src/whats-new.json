@@ -1,4 +1,10 @@
 {
+  "0.4.62": [
+    "Give a task any length — 7 minutes, 45, 1h30 — with the new Length chip, or type “for 30 min” when you add it",
+    "Start tasks at any minute, like 9:07",
+    "Calendar draws each task at its real time and length, side by side when they overlap",
+    "Drag a task's bottom edge in Calendar to make it longer or shorter; drops snap to 5 minutes"
+  ],
   "0.4.61": [
     "Your tasks, backups and models now live in a folder called TodoCity, in ~/Library/Application Support — moved for you, nothing to do"
   ],
