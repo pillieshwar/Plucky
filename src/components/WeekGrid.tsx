@@ -221,10 +221,8 @@ export function WeekGrid({ tasks, day, today, now, locale, actions, drag, onAdd,
           title={`${t.title}\n${span}${t.duration ? ` (${durationLabel(t.duration)})` : ""}\nDrag to move · drag the bottom edge to change its length`}
         >
           {tiny ? (
-            <>
-              <span className="wg-time">{timeLabel(t.due_time!, locale)} </span>
-              {t.title}
-            </>
+            // Where it sits says when; the title gets the room.
+            t.title
           ) : (
             <>
               {t.title}
