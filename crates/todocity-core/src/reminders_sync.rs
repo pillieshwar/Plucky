@@ -113,6 +113,8 @@ pub trait RemindersBackend {
     ) -> Result<String, String>;
     /// Incomplete reminders currently in `list_id`.
     fn incomplete_in_list(&mut self, list_id: &str) -> Result<Vec<(String, SyncState)>, String>;
+    /// Delete a reminder. One that's already gone is `Ok`.
+    fn delete(&mut self, id: &str) -> Result<(), String>;
 }
 
 pub struct PassOptions<'a> {
@@ -136,6 +138,9 @@ pub struct PassReport {
     pub imported: usize,
     /// Tasks detached because their reminder was deleted.
     pub unlinked: usize,
+    /// Reminders deleted because their task was deleted in TodoCity (on
+    /// this Mac or another).
+    pub deleted: usize,
     /// Per-item failures; the rest of the pass still ran.
     pub errors: Vec<String>,
 }
@@ -166,6 +171,20 @@ pub fn run_pass(
     let mut report = PassReport::default();
     let mut linked_tasks = HashSet::new();
     let mut linked_reminders = HashSet::new();
+
+    // 0. Reminders whose tasks were deleted go too. Until that works they
+    // are never brought back in as new tasks.
+    let mut trashed = HashSet::new();
+    for id in store.reminder_trash()? {
+        match backend.delete(&id) {
+            Ok(()) => {
+                store.clear_reminder_trash(&id)?;
+                report.deleted += 1;
+            }
+            Err(e) => report.errors.push(e),
+        }
+        trashed.insert(id);
+    }
 
     // 1. Reconcile every linked pair.
     for link in store.reminder_links()? {
@@ -243,7 +262,11 @@ pub fn run_pass(
     let remote_new: Vec<(String, SyncState)> = match backend.incomplete_in_list(opts.list_id) {
         Ok(items) => items
             .into_iter()
-            .filter(|(id, s)| !linked_reminders.contains(id) && !s.title.trim().is_empty())
+            .filter(|(id, s)| {
+                !linked_reminders.contains(id)
+                    && !trashed.contains(id)
+                    && !s.title.trim().is_empty()
+            })
             .collect(),
         Err(e) => {
             report.errors.push(e);
@@ -408,6 +431,7 @@ mod tests {
         items: HashMap<String, (String, SyncState, Option<String>)>, // id -> (list, state, notes)
         next: usize,
         fail_get: bool,
+        fail_delete: bool,
     }
 
     impl FakeReminders {
@@ -453,6 +477,13 @@ mod tests {
                 .collect();
             v.sort_by(|a, b| a.0.cmp(&b.0));
             Ok(v)
+        }
+        fn delete(&mut self, id: &str) -> Result<(), String> {
+            if self.fail_delete {
+                return Err("Reminders is busy".into());
+            }
+            self.items.remove(id);
+            Ok(())
         }
     }
 
@@ -617,5 +648,126 @@ mod tests {
         run_pass(&store, &mut rem, &o).unwrap();
         let (_, _, notes) = rem.items.values().next().unwrap();
         assert_eq!(notes.as_deref(), Some("original selection"));
+    }
+
+    // ── Deletes from another Mac (two Macs, one Reminders list) ─────────────
+
+    fn none() -> HashSet<String> {
+        HashSet::new()
+    }
+
+    /// Send everything pending from `a` to `b`, like Mac-to-Mac sync does.
+    fn send(a: &Store, a_dev: &str, b: &Store, b_dev: &str) {
+        a.sync_collect(a_dev, a_dev, &none()).unwrap();
+        let p = a.sync_pending(100_000).unwrap();
+        a.sync_mark_sent(&p).unwrap();
+        b.sync_apply(b_dev, &p).unwrap();
+    }
+
+    #[test]
+    fn a_delete_from_another_mac_deletes_the_reminder_and_never_comes_back() {
+        let a = Store::open_in_memory().unwrap();
+        let b = Store::open_in_memory().unwrap();
+        let mut rem = FakeReminders::default();
+        let t = new_task(&a, "Renew passport", Some("2026-11-03"));
+        send(&a, "A", &b, "B");
+        // Mac B syncs with Reminders: the task gets a reminder there.
+        let on_b = b.all().unwrap()[0].clone();
+        run_pass(&b, &mut rem, &opts()).unwrap();
+        assert_eq!(rem.items.len(), 1);
+        assert!(b.reminder_link(on_b.id).unwrap().is_some());
+
+        // Deleted on Mac A; Mac B hears about it.
+        a.delete(t.id).unwrap();
+        send(&a, "A", &b, "B");
+        assert!(b.all().unwrap().is_empty());
+        assert_eq!(b.reminder_trash().unwrap().len(), 1);
+
+        // The next pass deletes the reminder instead of importing it again.
+        let r = run_pass(&b, &mut rem, &opts()).unwrap();
+        assert_eq!((r.deleted, r.imported), (1, 0));
+        assert!(rem.items.is_empty());
+        assert!(b.all().unwrap().is_empty());
+        assert!(b.reminder_trash().unwrap().is_empty());
+        // And nothing comes back on later passes, or on Mac A.
+        assert_eq!(
+            run_pass(&b, &mut rem, &opts()).unwrap(),
+            PassReport::default()
+        );
+        send(&b, "B", &a, "A");
+        assert!(a.all().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_reminder_that_cant_be_deleted_yet_is_not_imported_meanwhile() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rem = FakeReminders::default();
+        let t = new_task(&store, "Pay rent", None);
+        run_pass(&store, &mut rem, &opts()).unwrap();
+        store.delete(t.id).unwrap();
+        rem.fail_delete = true;
+        let r = run_pass(&store, &mut rem, &opts()).unwrap();
+        assert_eq!((r.deleted, r.imported, r.errors.len()), (0, 0, 1));
+        assert!(store.all().unwrap().is_empty());
+        // Tried again next time, and then it's gone.
+        rem.fail_delete = false;
+        let r = run_pass(&store, &mut rem, &opts()).unwrap();
+        assert_eq!((r.deleted, r.imported), (1, 0));
+        assert!(rem.items.is_empty());
+    }
+
+    #[test]
+    fn detached_tasks_leave_reminders_alone() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rem = FakeReminders::default();
+        let t = new_task(&store, "Keep me", None);
+        run_pass(&store, &mut rem, &opts()).unwrap();
+        rem.items.clear();
+        run_pass(&store, &mut rem, &opts()).unwrap(); // detached now
+        let other = rem.add(LIST, s("Someone else's reminder", None, false));
+        store.delete(t.id).unwrap();
+        assert!(store.reminder_trash().unwrap().is_empty());
+        run_pass(&store, &mut rem, &opts()).unwrap();
+        assert!(rem.items.contains_key(&other));
+    }
+
+    #[test]
+    fn un_ticking_a_repeat_deletes_its_next_reminder_too() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rem = FakeReminders::default();
+        let t = store
+            .insert(NewTask {
+                title: "Water plants".into(),
+                due_date: Some("2026-11-02".into()),
+                recurrence: Some("weekly".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        store
+            .update(
+                t.id,
+                TaskPatch {
+                    done: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        run_pass(&store, &mut rem, &opts()).unwrap(); // the next one gets a reminder
+        assert_eq!(rem.items.values().filter(|(_, s, _)| !s.done).count(), 1);
+        store
+            .update(
+                t.id,
+                TaskPatch {
+                    done: Some(false),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let r = run_pass(&store, &mut rem, &opts()).unwrap();
+        assert_eq!(
+            r.imported, 0,
+            "the next one's reminder must not come back as a task"
+        );
+        assert_eq!(store.all().unwrap().len(), 1);
     }
 }

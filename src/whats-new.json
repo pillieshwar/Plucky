@@ -1,4 +1,9 @@
 {
+  "0.4.60": [
+    "A task deleted on one Mac now deletes its reminder too, so it stays deleted everywhere",
+    "A repeating task ticked off on two Macs while they were apart makes just one next task",
+    "Un-ticking a repeating task on your other Mac removes its next one there too"
+  ],
   "0.4.59": [
     "Plain words for your work: projects, sections and tasks — buildings and floors live in your city",
     "Sections in the sidebar look like Slack channels (# Travel), with General for tasks in no section",

@@ -305,6 +305,26 @@ CREATE TABLE mirror_projects (
     PRIMARY KEY (source, key)
 );
 "#,
+    // Reminders to delete: whenever a task linked to a reminder is deleted —
+    // here, by another Mac, by keep-in-sync or by un-ticking a repeat — its
+    // reminder is queued so the next Reminders pass deletes it too, instead
+    // of bringing it back as a new task.
+    r#"
+CREATE TABLE reminder_trash (
+    reminder_id TEXT PRIMARY KEY,
+    queued_at   TEXT NOT NULL
+);
+CREATE TRIGGER reminder_trash_on_delete BEFORE DELETE ON tasks BEGIN
+    INSERT OR IGNORE INTO reminder_trash (reminder_id, queued_at)
+        SELECT reminder_id, strftime('%Y-%m-%dT%H:%M:%SZ', 'now') FROM reminder_links
+        WHERE task_id = OLD.id AND detached = 0;
+END;
+-- A next occurrence deleted any way (here or by another Mac) is no longer
+-- the next one: ticking its task again makes a new one.
+CREATE TRIGGER next_id_on_delete AFTER DELETE ON tasks BEGIN
+    UPDATE tasks SET next_id = NULL WHERE next_id = OLD.id;
+END;
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -715,6 +735,24 @@ impl Store {
         Ok(())
     }
 
+    /// Reminders whose tasks were deleted, waiting to be deleted in Reminders.
+    pub fn reminder_trash(&self) -> Result<Vec<String>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT reminder_id FROM reminder_trash ORDER BY queued_at, reminder_id")?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The reminder is gone from Reminders: stop trying to delete it.
+    pub fn clear_reminder_trash(&self, reminder_id: &str) -> Result<(), StoreError> {
+        self.conn.execute(
+            "DELETE FROM reminder_trash WHERE reminder_id = ?1",
+            [reminder_id],
+        )?;
+        Ok(())
+    }
+
     /// Completed tasks, newest first: up to `limit` finished before
     /// `before` (an RFC 3339 completion time; `None` = from the newest).
     pub fn logbook(&self, before: Option<&str>, limit: u32) -> Result<Vec<Task>, StoreError> {
@@ -1122,6 +1160,23 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
         return Ok(None);
     }
     let next = next_day.format("%Y-%m-%d").to_string();
+    // The same next one on every Mac: its uid comes from the series, so two
+    // Macs that both finish this occurrence while apart make the same task.
+    let uid = next_uid(tx, id, base)?;
+    if let Some(uid) = &uid {
+        let existing: Option<i64> = tx
+            .query_row("SELECT id FROM tasks WHERE uid = ?1", [uid], |r| r.get(0))
+            .optional()?;
+        if let Some(next_id) = existing {
+            // Already here (finished earlier, un-ticked, now finished again
+            // after the next one was done): point at it, don't make another.
+            tx.execute(
+                "UPDATE tasks SET next_id = ?1 WHERE id = ?2",
+                params![next_id, id],
+            )?;
+            return Ok(Some(next_id));
+        }
+    }
     let fresh: Vec<ChecklistItem> = t
         .checklist
         .iter()
@@ -1132,8 +1187,8 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
         .collect();
     tx.execute(
         "INSERT INTO tasks (title, due_date, due_time, recurrence, source_text, source_app,
-                            source_bundle, source_url, created_at, created_tz)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                            source_bundle, source_url, created_at, created_tz, uid)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             t.title,
             next,
@@ -1144,7 +1199,8 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
             t.source_bundle,
             t.source_url,
             now(),
-            t.created_tz
+            t.created_tz,
+            uid
         ],
     )?;
     let next_id = tx.last_insert_rowid();
@@ -1169,12 +1225,57 @@ fn spawn_next(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Option<i64>, St
     Ok(Some(next_id))
 }
 
+/// The uid of the occurrence that follows task `id`, whose series day is
+/// `base`: the same on every Mac, since the task's own uid and series day
+/// are synced. `None` for a task with no uid (it then gets a random one).
+fn next_uid(
+    tx: &rusqlite::Transaction<'_>,
+    id: i64,
+    base: Option<NaiveDate>,
+) -> Result<Option<String>, StoreError> {
+    let uid: Option<String> = tx
+        .query_row("SELECT uid FROM tasks WHERE id = ?1", [id], |r| r.get(0))
+        .optional()?
+        .flatten();
+    Ok(uid.map(|u| series_uid(&u, base)))
+}
+
+/// `next_uid`'s formula: 32 hex characters, like a random uid.
+pub(crate) fn series_uid(parent_uid: &str, base: Option<NaiveDate>) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write;
+    let day = base.map_or_else(|| "none".to_string(), |d| d.format("%Y-%m-%d").to_string());
+    let digest = Sha256::digest(format!("todocity-next\u{1f}{parent_uid}\u{1f}{day}").as_bytes());
+    let mut out = String::with_capacity(32);
+    for b in &digest[..16] {
+        let _ = write!(out, "{b:02x}");
+    }
+    out
+}
+
 /// Undo `spawn_next`: remove the next occurrence unless it was completed.
+/// It's found by its series uid as well as `next_id`, which only the Mac
+/// that made it knows: un-ticking on another Mac removes it too.
 fn unspawn_next(tx: &rusqlite::Transaction<'_>, before: &Task) -> Result<Option<i64>, StoreError> {
-    let Some(next) = before.next_id else {
+    let parse = |d: &str| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+    let base = before
+        .series_date
+        .as_deref()
+        .or(before.due_date.as_deref())
+        .and_then(parse);
+    let by_uid = match next_uid(tx, before.id, base)? {
+        Some(uid) => tx
+            .query_row("SELECT id FROM tasks WHERE uid = ?1", [uid], |r| r.get(0))
+            .optional()?,
+        None => None,
+    };
+    let Some(next) = before.next_id.or(by_uid) else {
         return Ok(None);
     };
-    let removed = tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [next])?;
+    let mut removed = tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [next])?;
+    if let Some(other) = by_uid.filter(|o| *o != next) {
+        removed += tx.execute("DELETE FROM tasks WHERE id = ?1 AND done = 0", [other])?;
+    }
     tx.execute("UPDATE tasks SET next_id = NULL WHERE id = ?1", [before.id])?;
     Ok((removed > 0).then_some(next))
 }

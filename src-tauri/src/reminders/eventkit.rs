@@ -210,6 +210,10 @@ impl EventKit {
 }
 
 impl RemindersBackend for EventKit {
+    fn delete(&mut self, id: &str) -> Result<(), String> {
+        EventKit::delete(self, id)
+    }
+
     fn get(&mut self, id: &str) -> Result<Option<SyncState>, String> {
         Ok(self.reminder(id).map(|r| state_of(&r)))
     }
