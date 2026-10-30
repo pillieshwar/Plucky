@@ -38,6 +38,10 @@ export interface Task {
   priority?: number;
   /** Minutes, 1–1440; null: no set length. */
   duration?: number | null;
+  /** The AI agent that last added or changed it, until you change it yourself. */
+  agent?: string | null;
+  /** When (RFC 3339). */
+  agent_at?: string | null;
 }
 
 export interface ChecklistItem {
@@ -637,4 +641,18 @@ export interface CalendarSyncStatus {
   last_sync: string | null;
   last_error: string | null;
   synced: number;
+}
+
+/** Mirrors `agents::ChangeInfo`: one thing an agent did to one task. */
+export interface AgentChange {
+  id: number;
+  at: string;
+  /** "Claude", "Cursor"… */
+  agent: string;
+  batch: string;
+  task_id: number;
+  kind: string;
+  title: string;
+  summary: string;
+  undone: boolean;
 }

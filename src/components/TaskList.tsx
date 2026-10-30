@@ -7,6 +7,7 @@ import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
 import type { ProjectInfo } from "./ProjectPicker";
 import { SourceChip, useSourceDisplay } from "./SourceChip";
+import { AgentMark, useIsAgentTask } from "./WhoSwitch";
 import { endOf } from "../lib/timeblock";
 import { LineIcon } from "./LineIcon";
 import { TaskFields, type FieldMenu, type FieldValues } from "./TaskFields";
@@ -198,6 +199,7 @@ function TaskRow({
   const picked = !!detail && openId === task.id;
   const open = !detail && openId === task.id;
   const [completing, setCompleting] = useState(false);
+  const byAgentTask = useIsAgentTask(task);
   // Which menu of the open card is showing (and whether ⋯ shows snooze).
   const [menu, setMenu] = useState<FieldMenu | null>(null);
   const [snooze, setSnooze] = useState(false);
@@ -290,6 +292,7 @@ function TaskRow({
         completing ? "completing" : "",
         selected.has(task.id) ? "selected" : "",
         drag?.drag?.task.id === task.id ? "lifted" : "",
+        byAgentTask ? "by-agent" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -398,6 +401,7 @@ function RowMeta({
   whenOnly?: boolean;
 }) {
   const showSource = useSourceDisplay();
+  const agentTask = useIsAgentTask(task);
   const w = useWords();
   const parts: ReactNode[] = [];
   const when = whenText(task, now, locale);
@@ -454,6 +458,7 @@ function RowMeta({
   }
   const repeat = repeatShort(task.recurrence);
   if (repeat) parts.push(<span key="r">{repeat.toLowerCase()}</span>);
+  if (agentTask) parts.unshift(<AgentMark key="ag" task={task} />);
   if (sourceLabel(task) && !link && showSource !== "never") parts.push(<SourceChip key="src" task={task} onFail={onError} />);
   if (!parts.length && !flag) return null;
   return (
@@ -486,7 +491,9 @@ function RowSub({
   hasNotes: boolean;
 }) {
   const showSource = useSourceDisplay();
+  const agentTask = useIsAgentTask(task);
   const parts: ReactNode[] = [];
+  if (agentTask) parts.push(<AgentMark key="ag" task={task} />);
   if (task.project && task.project !== inProject) {
     parts.push(
       <button key="pr" type="button" className="meta-link" data-nodrag onClick={() => onOpenProject(task.project!)}>

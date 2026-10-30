@@ -772,6 +772,8 @@ pub fn agents_status(app: AppHandle) -> Status {
 pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
     app.state::<Settings>()
         .update(|s| s.agents_enabled = enabled);
+    // The header's You · All · Agents switch follows this.
+    let _ = app.emit("agent-changes", ());
     status(&app)
 }
 
@@ -780,6 +782,8 @@ pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
 pub fn agents_set_full_access(app: AppHandle, on: bool) -> Status {
     app.state::<Settings>()
         .update(|s| s.agents_full_access = on);
+    // The header's You · All · Agents switch follows this.
+    let _ = app.emit("agent-changes", ());
     status(&app)
 }
 

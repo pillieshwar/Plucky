@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { api } from "../lib/api";
-import type { AgentApp, AgentsStatus } from "../lib/types";
+import { useCallback, useEffect, useState } from "react";
+import { api, onAgentChanges } from "../lib/api";
+import type { AgentApp, AgentChange, AgentsStatus } from "../lib/types";
 import { EmailTasksSection } from "./EmailTasksSection";
 import { Toggle } from "./GeneralSettings";
 import { safeLocale } from "../lib/locale";
@@ -66,6 +66,8 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
           }
         />
       </div>
+
+      {status.full_access && <AgentDeletes onError={setError} />}
 
       {status.temporary_location && (
         <div className="setting-line">
@@ -257,5 +259,55 @@ function ManualSetup({ command, onError }: { command: string; onError: (m: strin
         </button>
       </div>
     </details>
+  );
+}
+
+/** Tasks agents deleted in the last 7 days, each with "Bring back". */
+export function AgentDeletes({ onError }: { onError: (e: string) => void }) {
+  const [gone, setGone] = useState<AgentChange[]>([]);
+  const load = useCallback(
+    () =>
+      void api
+        .agentActivity()
+        .then((cs) => setGone(cs.filter((c) => c.kind === "deleted" && !c.undone).sort((a, b) => b.id - a.id)))
+        .catch(() => undefined),
+    [],
+  );
+  useEffect(() => {
+    load();
+    const sub = onAgentChanges(load);
+    return () => void sub.then((u) => u());
+  }, [load]);
+  if (!gone.length) return null;
+  const fmt = new Intl.DateTimeFormat(safeLocale(), { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return (
+    <>
+      <h4 className="connector-subhead">Deleted by agents</h4>
+      <ul className="agent-deletes" aria-label="Deleted by agents">
+        {gone.slice(0, 20).map((c) => (
+          <li key={c.id}>
+            <span className="agent-deletes-text">
+              <b>{c.title}</b>
+              <small>
+                {c.agent} · {fmt.format(new Date(c.at))}
+              </small>
+            </span>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() =>
+                void api
+                  .agentUndo({ change: c.id })
+                  .then(load)
+                  .catch((e) => onError(String(e)))
+              }
+            >
+              Bring back
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="setting-line muted">Kept for 7 days.</p>
+    </>
   );
 }

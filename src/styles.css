@@ -3183,3 +3183,52 @@ button.tf-chip { cursor: pointer; }
 .calsync-group-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; font-size: 12px; font-weight: 650; color: var(--muted); cursor: pointer; }
 .calsync-group-name { letter-spacing: 0.01em; }
 .calsync-lanes { margin: 0 0 0 22px; }
+
+/* You · All · Agents: whose tasks the lists show. */
+.who-switch { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.who-opt {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--faint); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.who-opt:hover { color: var(--ink); }
+.who-opt.on { background: color-mix(in srgb, var(--line) 85%, var(--paper)); color: var(--ink); }
+.who-switch.agents .who-opt.on { background: var(--teal-soft); color: var(--teal); }
+.who-opt:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.who-count { min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: var(--teal); color: var(--paper); font-size: 10px; font-weight: 700; display: inline-grid; place-items: center; }
+.who-setup { padding: 0 6px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--teal) 45%, transparent); color: var(--teal); font-size: 10px; font-weight: 700; line-height: 15px; }
+/* A task an agent added or changed. */
+.task.by-agent > .task-row .check { border-color: var(--teal); }
+.agent-mark { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 5px; background: var(--teal-soft); color: var(--teal); font-weight: 600; }
+.agent-undo { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; padding: 1px 8px; border-radius: 6px; cursor: pointer; }
+.agent-undo:hover { color: var(--ink); border-color: var(--teal); }
+.agents-banner {
+  display: flex; align-items: center; gap: 12px; margin: 12px 18px 4px; padding: 9px 12px; border-radius: 10px;
+  background: var(--teal-soft); border: 1px solid color-mix(in srgb, var(--teal) 35%, transparent); font-size: 12.5px;
+}
+.agents-banner b { font-weight: 600; }
+.agents-banner .muted { color: var(--muted); }
+.agents-banner .spacer, .agent-note .spacer { flex: 1; }
+.who-hint { margin: 12px 18px 0; color: var(--faint); font-size: 12px; }
+/* Agents not set up: what they'd do, and where to turn them on. */
+.who-scrim { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(6, 7, 8, 0.55); }
+.who-dialog {
+  width: min(460px, calc(100vw - 32px)); box-sizing: border-box; padding: 24px 24px 20px; border-radius: 16px;
+  background: var(--paper); border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 12px;
+}
+.who-dialog-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--teal-soft); color: var(--teal); display: grid; place-items: center; }
+.who-dialog h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.who-dialog p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+.who-dialog ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.who-dialog li { display: flex; gap: 11px; align-items: flex-start; font-size: 13px; }
+.who-dialog li > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.who-dialog small { color: var(--faint); font-size: 12px; }
+.who-step { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--teal-soft); color: var(--teal); font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
+.who-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* Connectors → AI agents: tasks agents deleted */
+.agent-deletes { list-style: none; margin: 0 0 6px; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
+.agent-deletes li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.agent-deletes li + li { border-top: 1px solid var(--line); }
+.agent-deletes-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.agent-deletes-text b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-deletes-text small { color: var(--muted); font-size: 11.5px; }

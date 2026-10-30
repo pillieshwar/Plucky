@@ -1,3 +1,5 @@
+import { latestBatch, type BatchNote } from "../lib/agents";
+import { AgentIcon } from "../components/WhoSwitch";
 import {
   useCallback,
   useEffect,
@@ -15,7 +17,7 @@ import { ViewSwitch } from "../components/ViewSwitch";
 import { dropPatch } from "../lib/plan";
 import { useTaskDrag } from "../lib/useTaskDrag";
 import { agendaFor, agendaHeading, dayMarks, overdueLabel, undatedCount, weekRows } from "../lib/agenda";
-import { api, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onSettingsChanged, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
+import { api, onAgentChanges, onCalendarChanged, onCapture, onInboxChanged, onPopoverFocus, onWatchChanged, onPopoverShown, onSettingsChanged, onShortcutsChanged, onTasksChanged, onUpdateStatus } from "../lib/api";
 import { activeMode, showsTask } from "../lib/modes";
 import { ModeSwitch } from "../components/ModeSwitch";
 import { processCapture } from "../lib/capture";
@@ -99,6 +101,15 @@ export default function Popover() {
   const [focus, setFocus] = useState<Focus | null>(null);
   // Tasks AI agents sent, waiting for review.
   const [inbox, setInbox] = useState<InboxItem[]>([]);
+  // What AI agents last did (last day), until it's undone or dismissed.
+  const [agentNote, setAgentNote] = useState<BatchNote | null>(null);
+  const [noteSeen, setNoteSeen] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("todocity.agentNoteSeen");
+    } catch {
+      return null;
+    }
+  });
   // Watch mode, for the eye in the header (pause / resume).
   const [watch, setWatch] = useState<WatchStatus | null>(null);
 
@@ -118,6 +129,7 @@ export default function Popover() {
       setTasks(await api.listTasks(toISODate(new Date())));
       setError(null);
       setInbox(await api.inboxList().catch(() => []));
+      setAgentNote(latestBatch(await api.agentActivity().catch(() => []), new Date()));
     } catch (e) {
       setError(String(e));
     }
@@ -158,6 +170,7 @@ export default function Popover() {
       .catch(() => undefined);
     const subs = [
       onTasksChanged(() => void load()),
+      onAgentChanges(() => void load()),
       onSettingsChanged(setSettings),
       onInboxChanged(() => void api.inboxList().then(setInbox, () => undefined)),
       onWatchChanged(() => void api.watchStatus().then(setWatch, () => undefined)),
@@ -552,6 +565,34 @@ export default function Popover() {
             label="Show the day as (H)"
           />
         </div>
+
+        {agentNote && agentNote.batch !== noteSeen && (
+          <AgentNote
+            note={agentNote}
+            onUndo={() =>
+              void api
+                .agentUndo({ batch: agentNote.batch })
+                .then(load)
+                .catch((e) => setError(String(e)))
+            }
+            onSee={() => {
+              try {
+                localStorage.setItem("todocity.who", "agents");
+              } catch {
+                // The main window opens on its last view.
+              }
+              void api.openMain(null, "tasks");
+            }}
+            onDismiss={() => {
+              setNoteSeen(agentNote.batch);
+              try {
+                localStorage.setItem("todocity.agentNoteSeen", agentNote.batch);
+              } catch {
+                // Hidden for this session.
+              }
+            }}
+          />
+        )}
 
         {inbox.length > 0 && (
           <button type="button" className="pop-inbox" onClick={() => setFocus({ kind: "inbox" })}>
@@ -953,5 +994,34 @@ function QuickField({
         }}
       />
     </label>
+  );
+}
+
+/** "Claude planned your day: timed 5 tasks." with Undo and See what changed. */
+function AgentNote({ note, onUndo, onSee, onDismiss }: { note: BatchNote; onUndo: () => void; onSee: () => void; onDismiss: () => void }) {
+  const at = new Date(note.at).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
+  return (
+    <div className="pop-agent-note" role="status">
+      <span className="pop-agent-icon" aria-hidden>
+        <AgentIcon size={12} />
+      </span>
+      <span className="pop-agent-text">
+        <b>
+          {note.agent} · {at}
+        </b>
+        <span>{note.summary}</span>
+      </span>
+      <span className="pop-agent-actions">
+        <button type="button" className="pop-agent-btn" onClick={onUndo}>
+          Undo
+        </button>
+        <button type="button" className="pop-agent-btn" onClick={onSee}>
+          See what changed
+        </button>
+        <button type="button" className="pop-agent-x" aria-label="Hide" onClick={onDismiss}>
+          ×
+        </button>
+      </span>
+    </div>
   );
 }

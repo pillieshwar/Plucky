@@ -288,6 +288,19 @@ function mockTauri(s) {
     },
     agents_test: () => "Working — AI apps can send tasks to TodoCity.",
     inbox_list: () => s.inbox ?? [],
+    agent_activity: () => s.activity ?? [],
+    agent_undo: (a) => {
+      window.__agentUndo = a;
+      const ids = new Set(a.tasks ?? []);
+      for (const c of s.activity ?? []) {
+        if (c.id === a.change || c.batch === a.batch) ids.add(c.task_id);
+      }
+      s.activity = (s.activity ?? []).map((c) => (ids.has(c.task_id) ? { ...c, undone: true } : c));
+      s.tasks = s.tasks.map((t) => (ids.has(t.id) ? { ...t, agent: null, agent_at: null } : t));
+      window.__emit("tasks-changed", null);
+      window.__emit("agent-changes", null);
+      return ids.size;
+    },
     watch_status: () =>
       s.watch ?? {
         supported: true,
@@ -1040,6 +1053,26 @@ await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }),
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
 await shot("popover-inbox-banner", POP, scenario({ label: "popover", inbox: INBOX }));
+const POP_AGENT = [0, 1, 2].map((i) => ({
+  id: 200 + i,
+  at: localStamp(-8),
+  agent: "Claude",
+  batch: "pop1",
+  task_id: TASKS[i].id,
+  kind: "scheduled",
+  title: TASKS[i].title,
+  summary: "Time set",
+  undone: false,
+}));
+await shot("popover-agent-note", POP, scenario({ label: "popover", activity: POP_AGENT }), async (p) => {
+  await p.locator(".pop-agent-note", { hasText: "Timed 3 tasks." }).waitFor();
+});
+await shot("popover-agent-note-undo", POP, scenario({ label: "popover", activity: POP_AGENT }), async (p) => {
+  await p.locator(".pop-agent-note").getByRole("button", { name: "Undo" }).click();
+  await p.waitForFunction(() => window.__agentUndo?.batch === "pop1");
+  await p.locator(".pop-agent-note").waitFor({ state: "detached" });
+});
+
 const AGENTS_ON = {
   ...AGENT_STATUS,
   enabled: true,
@@ -1080,6 +1113,21 @@ await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
+});
+// v0.4.65: tasks an agent deleted come back from Connectors → AI agents.
+const AGENTS_FULL = { ...AGENTS_ON, full_access: true };
+const DELETED_BY_AGENT = [
+  { id: 41, at: localStamp(-50), agent: "Claude", batch: "b9", task_id: 900, kind: "deleted", title: "Old flight reminder", summary: "Deleted", undone: false },
+  { id: 42, at: localStamp(-50), agent: "Claude", batch: "b9", task_id: 901, kind: "deleted", title: "Duplicate: Send Q3 numbers", summary: "Deleted", undone: false },
+];
+await shot("panel-connectors-agents-deleted", PANEL, scenario({ agents: AGENTS_FULL, activity: DELETED_BY_AGENT }), async (p) => {
+  await tab(p, "Connectors");
+  await p.locator(".connector-action").nth(3).click();
+  const list = p.locator(".agent-deletes");
+  await list.scrollIntoViewIfNeeded();
+  await list.getByRole("button", { name: "Bring back" }).first().click();
+  await p.waitForFunction(() => window.__agentUndo?.change === 42);
+  if ((await list.locator("li").count()) !== 1) throw new Error("brought-back task still listed");
 });
 // v0.4.64: tasks in Apple Calendar, one calendar per project under Work and Personal.
 await shot("panel-connectors-calendar-sync", PANEL, scenario({}), async (p) => {
@@ -1165,6 +1213,63 @@ const side = (name) => async (p) => {
 };
 await shot("full-today", FULL, full({ settings: DARK }));
 await shot("full-today-light", FULL, full({ settings: LIGHT }));
+// v0.4.65: You · All · Agents. Claude timed two tasks and added one.
+const BY_CLAUDE = { agent: "Claude", agent_at: localStamp(-20) };
+const AGENT_PICKS = FULL_TASKS.filter((t) => t.due_date === day(0) && !t.done && !t.project).slice(0, 2).map((t) => t.id)
+  .concat(FULL_TASKS.filter((t) => t.title === "Draft the offsite agenda").map((t) => t.id));
+const AGENT_FULL_TASKS = FULL_TASKS.map((t) => (AGENT_PICKS.includes(t.id) ? { ...t, ...BY_CLAUDE } : t));
+const AGENT_ACTIVITY = AGENT_FULL_TASKS.filter((t) => t.agent).map((t, i) => ({
+  id: 100 + i,
+  at: localStamp(-20),
+  agent: "Claude",
+  batch: "plan1",
+  task_id: t.id,
+  kind: i === 2 ? "added" : "scheduled",
+  title: t.title,
+  summary: i === 2 ? "Added" : "Time set",
+  undone: false,
+}));
+const agentsFull = (o = {}) => full({ tasks: AGENT_FULL_TASKS, activity: AGENT_ACTIVITY, agents: { ...AGENT_STATUS, enabled: true, full_access: true }, ...o });
+const who = (name) => async (p) => {
+  await p.getByRole("radio", { name: new RegExp(`^${name}`) }).click();
+  await p.waitForTimeout(250);
+};
+await shot("full-who-all", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  if ((await p.locator(".task.by-agent").count()) < 2) throw new Error("agent tasks not marked");
+  if (!(await p.locator(".task:not(.by-agent)").count())) throw new Error("All shows your tasks too");
+  await p.locator(".agent-mark", { hasText: "Claude scheduled" }).first().waitFor();
+});
+await shot("full-who-agents", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await who("Agents")(p);
+  await p.locator(".agents-banner", { hasText: "Claude" }).waitFor();
+  if (await p.locator(".task:not(.by-agent)").count()) throw new Error("Agents shows only agents' tasks");
+  await p.locator(".agent-undo").first().waitFor();
+});
+await shot("full-who-agents-dark", FULL, agentsFull({ settings: DARK }), async (p) => {
+  await who("Agents")(p);
+}, true);
+await shot("full-who-agents-undo", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await who("Agents")(p);
+  await p.locator(".agents-banner").getByRole("button", { name: "Undo all" }).click();
+  await p.waitForFunction(() => window.__agentUndo?.tasks?.length >= 2);
+  await p.waitForTimeout(300);
+});
+await shot("full-who-you", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await who("You")(p);
+  if (await p.locator(".task.by-agent").count()) throw new Error("You hides agents' tasks");
+  await p.locator(".who-hint").waitFor();
+});
+await shot("full-who-setup", FULL, full({ settings: LIGHT, tasks: AGENT_FULL_TASKS }), async (p) => {
+  await p.locator(".who-setup", { hasText: "Set up" }).waitFor();
+  await who("Agents")(p);
+  await p.getByRole("dialog", { name: "Let your AI apps help with your tasks" }).waitFor();
+});
+await shot("full-who-setup-go", FULL, full({ settings: LIGHT }), async (p) => {
+  await who("Agents")(p);
+  await p.getByRole("button", { name: "Set up AI agents" }).click();
+  await p.locator(".connector-subhead", { hasText: "Your AI apps" }).waitFor();
+});
+
 // Modes: the work laptop in Work mode shows only work projects.
 const WORK_MODES = [
   MODE("work", "Work", "💼", { projects: ["Hiring", "Q4 launch"] }),
