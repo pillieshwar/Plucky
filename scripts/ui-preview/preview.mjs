@@ -149,6 +149,26 @@ const agentApp = (id, name, installed, connected = false) => ({
   stale: false,
   restart_hint: "Restart the app to finish.",
 });
+const CALSYNC_OFF = {
+  supported: true,
+  access: "full",
+  enabled: false,
+  source: null,
+  sources: [
+    { id: "local", title: "On My Mac", local: true },
+    { id: "icloud", title: "iCloud", local: false },
+  ],
+  lanes: [
+    { key: "p:Q4 launch", group: "Work", name: "Q4 launch", on: true },
+    { key: "p:Hiring", group: "Work", name: "Hiring", on: true },
+    { key: "p:Home", group: "Personal", name: "Home", on: true },
+    { key: "p:Offsite 2026", group: "Personal", name: "Offsite 2026", on: true },
+    { key: "inbox", group: "Personal", name: "Inbox", on: true },
+  ],
+  last_sync: null,
+  last_error: null,
+  synced: 0,
+};
 const AGENT_STATUS = {
   supported: true,
   enabled: false,
@@ -182,6 +202,7 @@ function scenario(overrides = {}) {
     status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
     agents: AGENT_STATUS,
+    calsync: CALSYNC_OFF,
     extract: null,
     backups: [
       { name: `tasks-${day(0)}.db`, day: day(0), size: 48_000 },
@@ -244,6 +265,22 @@ function mockTauri(s) {
     }),
     notification_permission: () => "granted",
     agents_status: () => s.agents,
+    calsync_status: () => s.calsync,
+    calsync_apple_enable: (a) => {
+      s.calsync = { ...s.calsync, enabled: true, source: a.source, synced: 4, last_sync: new Date().toISOString() };
+      window.__calsyncSource = a.source;
+      return s.calsync;
+    },
+    calsync_set_group: (a) => {
+      const c = s.calsync;
+      s.calsync = { ...c, lanes: c.lanes.map((l) => (l.group === a.group ? { ...l, on: a.on } : l)) };
+      return s.calsync;
+    },
+    calsync_set_lane: (a) => {
+      const c = s.calsync;
+      s.calsync = { ...c, lanes: c.lanes.map((l) => (l.key === a.key ? { ...l, on: a.on } : l)) };
+      return s.calsync;
+    },
     agents_set_full_access: (a) => {
       s.agents = { ...s.agents, full_access: a.on };
       window.__fullAccess = a.on;
@@ -1043,6 +1080,24 @@ await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON
   await p.getByRole("button", { name: "Send test task" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
+});
+// v0.4.64: tasks in Apple Calendar, one calendar per project under Work and Personal.
+await shot("panel-connectors-calendar-sync", PANEL, scenario({}), async (p) => {
+  await tab(p, "Connectors");
+  await p.locator(".connector-action").first().click();
+  const sw = p.getByRole("switch", { name: /^Put my tasks in Calendar/ });
+  await sw.scrollIntoViewIfNeeded();
+  await p.getByRole("combobox", { name: "Account for TodoCity's calendars" }).selectOption("icloud");
+  await sw.click();
+  await p.waitForTimeout(200);
+  if ((await p.evaluate(() => window.__calsyncSource)) !== "icloud") throw new Error("the picked account didn't reach the app");
+  const groups = (await p.locator(".calsync-group-name").allTextContents()).map((t) => t.trim());
+  if (groups.join("|") !== "TodoCity · Work|TodoCity · Personal") throw new Error(`groups: ${groups.join("|")}`);
+  await p.getByRole("checkbox", { name: "Sync every Work project" }).click();
+  await p.waitForTimeout(150);
+  const work = p.locator(".calsync-group").first().locator(".calsync-lanes input");
+  if ((await work.evaluateAll((els) => els.filter((e) => e.checked).length)) !== 0) throw new Error("turning off Work didn't turn off its projects");
+  await p.locator(".calsync-lead").scrollIntoViewIfNeeded();
 });
 // v0.4.63: full access for agents, behind one switch.
 await shot("panel-connectors-agents-full", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {

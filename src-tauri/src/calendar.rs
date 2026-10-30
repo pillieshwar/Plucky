@@ -420,8 +420,18 @@ mod macos {
         }
     }
 
+    /// The Mac's calendars, without the ones TodoCity keeps its own tasks in
+    /// (those tasks are already beside the meetings).
     fn all(store: &EKEventStore) -> Vec<Retained<EKCalendar>> {
-        unsafe { store.calendarsForEntityType(EKEntityType::Event) }.to_vec()
+        unsafe { store.calendarsForEntityType(EKEntityType::Event) }
+            .to_vec()
+            .into_iter()
+            .filter(|c| {
+                !unsafe { c.title() }
+                    .to_string()
+                    .starts_with(crate::calsync::TITLE_PREFIX)
+            })
+            .collect()
     }
 
     fn local(secs: f64) -> String {

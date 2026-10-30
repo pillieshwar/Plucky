@@ -40,7 +40,7 @@ tempfile = "3"
 core-foundation = "0.10"
 # "exception": AppKit can throw when a live window changes style; catch it.
 objc2 = { version = "0.6", features = ["exception"] }
-objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSCalendar", "NSError", "NSDate", "NSPredicate", "NSSet", "NSUserDefaults", "NSNotification", "NSOperation"] }
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString", "NSURL", "NSCalendar", "NSError", "NSDate", "NSPredicate", "NSSet", "NSUserDefaults", "NSNotification", "NSOperation"] }
 block2 = "0.6"
 # Slack tokens live in the login Keychain.
 keyring = { version = "3", features = ["apple-native"] }

@@ -9,6 +9,7 @@
 
 mod agents;
 mod calendar;
+mod calsync;
 mod capture;
 mod data;
 mod double_copy;
@@ -1563,6 +1564,7 @@ pub fn run() {
             app.manage(Shortcuts::new(&data_dir));
             app.manage(reminders::Reminders::start(app.handle(), &data_dir));
             app.manage(sync::SyncService::new(&data_dir));
+            app.manage(calsync::CalendarSync::start(app.handle(), &data_dir));
             mirror::Mirror::start(app.handle());
 
             // Every 30 s: release the model's memory when idle, and roll the
@@ -1760,6 +1762,12 @@ pub fn run() {
             agents::agents_set_enabled,
             agents::agents_set_proactive,
             agents::agents_set_full_access,
+            calsync::calsync_status,
+            calsync::calsync_apple_enable,
+            calsync::calsync_apple_disable,
+            calsync::calsync_set_lane,
+            calsync::calsync_set_group,
+            calsync::calsync_sync_now,
             agents::agents_connect,
             agents::agents_disconnect,
             agents::agents_test,

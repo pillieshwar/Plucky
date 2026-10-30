@@ -3175,3 +3175,11 @@ button.tf-chip { cursor: pointer; }
   background: var(--teal); color: #fff; font-size: 10.5px; font-weight: 650; pointer-events: none;
 }
 .wg-cell.drop { overflow: visible; }
+
+/* Apple Calendar → your tasks in Calendar: calendars grouped like the Calendar app's sidebar. */
+.calsync { margin-top: 18px; }
+.calsync-lead { margin: 10px 2px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.calsync-group { margin: 8px 0 4px; }
+.calsync-group-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; font-size: 12px; font-weight: 650; color: var(--muted); cursor: pointer; }
+.calsync-group-name { letter-spacing: 0.01em; }
+.calsync-lanes { margin: 0 0 0 22px; }

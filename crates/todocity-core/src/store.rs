@@ -340,6 +340,41 @@ END;
     r#"
 ALTER TABLE tasks ADD COLUMN duration INTEGER CHECK (duration IS NULL OR duration BETWEEN 1 AND 1440);
 "#,
+    // Two-way calendar sync (see `crate::calendar_sync`): each timed task's
+    // event in a calendar app, the calendar made for each project, and events
+    // to delete because their task was deleted (any way: here, another Mac,
+    // keep-in-sync).
+    r#"
+CREATE TABLE calendar_links (
+    provider    TEXT    NOT NULL,
+    task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    event_id    TEXT    NOT NULL,
+    lane        TEXT    NOT NULL,
+    base_title  TEXT    NOT NULL,
+    base_start  TEXT    NOT NULL,
+    base_end    TEXT    NOT NULL,
+    PRIMARY KEY (provider, task_id),
+    UNIQUE (provider, event_id)
+);
+CREATE TABLE calendar_lanes (
+    provider    TEXT NOT NULL,
+    lane        TEXT NOT NULL,
+    calendar_id TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    PRIMARY KEY (provider, lane)
+);
+CREATE TABLE calendar_trash (
+    provider  TEXT NOT NULL,
+    event_id  TEXT NOT NULL,
+    queued_at TEXT NOT NULL,
+    PRIMARY KEY (provider, event_id)
+);
+CREATE TRIGGER calendar_trash_on_delete BEFORE DELETE ON tasks BEGIN
+    INSERT OR IGNORE INTO calendar_trash (provider, event_id, queued_at)
+        SELECT provider, event_id, strftime('%Y-%m-%dT%H:%M:%SZ', 'now') FROM calendar_links
+        WHERE task_id = OLD.id;
+END;
+"#,
 ];
 
 /// One task to bring in from another app, with its history.

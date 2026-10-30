@@ -18,6 +18,7 @@ import type {
   CalendarEvent,
   CalendarInfo,
   CalendarStatus,
+  CalendarSyncStatus,
   CityWindow,
   FloorSummary,
   CaptureResult,
@@ -105,6 +106,12 @@ export const api = {
   remindersSetIncludeNotes: (include: boolean) => invoke<void>("reminders_set_include_notes", { include }),
   remindersOpenPrivacySettings: () => invoke<void>("reminders_open_privacy_settings"),
   calendarStatus: () => invoke<CalendarStatus>("calendar_status"),
+  calsyncStatus: () => invoke<CalendarSyncStatus>("calsync_status"),
+  calsyncAppleEnable: (source: string) => invoke<CalendarSyncStatus>("calsync_apple_enable", { source }),
+  calsyncAppleDisable: (remove: boolean) => invoke<CalendarSyncStatus>("calsync_apple_disable", { remove }),
+  calsyncSetLane: (key: string, on: boolean) => invoke<CalendarSyncStatus>("calsync_set_lane", { key, on }),
+  calsyncSetGroup: (group: string, on: boolean) => invoke<CalendarSyncStatus>("calsync_set_group", { group, on }),
+  calsyncSyncNow: () => invoke<CalendarSyncStatus>("calsync_sync_now"),
   calendarRequestAccess: () => invoke<RemindersAccess>("calendar_request_access"),
   calendarCalendars: () => invoke<CalendarInfo[]>("calendar_calendars"),
   calendarSet: (enabled: boolean, hidden: string[]) => invoke<CalendarStatus>("calendar_set", { enabled, hidden }),
@@ -283,6 +290,11 @@ export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("reminders-changed", () => handler());
 }
 
+
+/** Calendar sync ran, or its choices changed. */
+export function onCalendarSyncChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("calendar-sync-changed", () => handler());
+}
 
 /** The Calendar connector was turned on or off, or its calendars changed. */
 export function onCalendarChanged(handler: () => void): Promise<UnlistenFn> {
