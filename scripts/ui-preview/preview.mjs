@@ -174,7 +174,7 @@ const AGENT_STATUS = {
   enabled: false,
   proactive: true,
   full_access: false,
-  tool_count: 28,
+  tool_count: 30,
   command: "/Applications/TodoCity.app/Contents/MacOS/TodoCity",
   temporary_location: false,
   apps: [
@@ -1109,7 +1109,7 @@ await shot("panel-connectors-agents-full", PANEL, scenario({ agents: AGENTS_ON }
   await sw.click();
   await p.waitForTimeout(200);
   if (!(await p.evaluate(() => window.__fullAccess))) throw new Error("turning on Full access didn't reach the app");
-  if (!(await p.getByText(/28 tools in all/).count())) throw new Error("the switch doesn't say what agents can do");
+  if (!(await p.getByText(/30 tools in all/).count())) throw new Error("the switch doesn't say what agents can do");
   if (await p.getByText(/never (read|see)/i).count()) throw new Error("an old 'never read' claim is still showing");
 });
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));

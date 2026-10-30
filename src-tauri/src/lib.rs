@@ -1762,6 +1762,8 @@ pub fn run() {
             agents::agents_set_enabled,
             agents::agents_set_proactive,
             agents::agents_set_full_access,
+            agents::agent_activity,
+            agents::agent_undo,
             calsync::calsync_status,
             calsync::calsync_apple_enable,
             calsync::calsync_apple_disable,
