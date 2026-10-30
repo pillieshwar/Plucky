@@ -19,6 +19,7 @@ import type {
   CalendarInfo,
   CalendarStatus,
   CalendarSyncStatus,
+  AgentChange,
   CityWindow,
   FloorSummary,
   CaptureResult,
@@ -125,6 +126,9 @@ export const api = {
   agentsSetEnabled: (enabled: boolean) => invoke<AgentsStatus>("agents_set_enabled", { enabled }),
   agentsSetProactive: (on: boolean) => invoke<AgentsStatus>("agents_set_proactive", { on }),
   agentsSetFullAccess: (on: boolean) => invoke<AgentsStatus>("agents_set_full_access", { on }),
+  agentActivity: () => invoke<AgentChange[]>("agent_activity"),
+  agentUndo: (what: { change?: number; batch?: string; tasks?: number[] }) =>
+    invoke<number>("agent_undo", { change: what.change ?? null, batch: what.batch ?? null, tasks: what.tasks ?? null }),
   /** One app by id, or "all" installed apps. Also turns agent access on. */
   agentsConnect: (id: string) => invoke<AgentsStatus>("agents_connect", { id }),
   agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),
@@ -290,6 +294,11 @@ export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("reminders-changed", () => handler());
 }
 
+
+/** An agent changed tasks, or its changes were undone. */
+export function onAgentChanges(handler: () => void): Promise<UnlistenFn> {
+  return listen("agent-changes", () => handler());
+}
 
 /** Calendar sync ran, or its choices changed. */
 export function onCalendarSyncChanged(handler: () => void): Promise<UnlistenFn> {

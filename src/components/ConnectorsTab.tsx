@@ -14,12 +14,22 @@ import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, Reminders
  * macOS on this Mac; nothing signs in to a server. (Sync with your other Macs
  * passes end-to-end encrypted boxes through a relay that can't read them.)
  */
+/** Open this card the next time Connectors shows (from "Set up AI agents"). */
+let openNext: Id | null = null;
+export function openConnectorNext(id: Id) {
+  openNext = id;
+}
+
 export function ConnectorsTab() {
   const [reminders, setReminders] = useState<RemindersStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [agents, setAgents] = useState<AgentsStatus | null>(null);
   const [watch, setWatch] = useState<WatchStatus | null>(null);
-  const [open, setOpen] = useState<Id | null>(null);
+  const [open, setOpen] = useState<Id | null>(() => {
+    const id = openNext;
+    openNext = null;
+    return id;
+  });
 
   const refresh = useCallback(() => {
     api.remindersStatus().then(setReminders).catch(() => undefined);
@@ -92,7 +102,7 @@ export function ConnectorsTab() {
   );
 }
 
-type Id = "reminders" | "calendar" | "agents" | "watch";
+export type Id = "reminders" | "calendar" | "agents" | "watch";
 
 function ConnectorCard({
   icon,

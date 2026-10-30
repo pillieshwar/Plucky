@@ -40,7 +40,13 @@ import {
   onShortcutsChanged,
   onTasksChanged,
   onUpdateStatus,
+  onAgentChanges,
+  onInboxChanged,
 } from "./lib/api";
+import { agentCounts, agentsBy, byAgent, filterWho, latestByTask, type Who } from "./lib/agents";
+import { AgentMarks, AgentsSetUpDialog, WhoSwitch } from "./components/WhoSwitch";
+import { openConnectorNext } from "./components/ConnectorsTab";
+import type { AgentChange, AgentsStatus } from "./lib/types";
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
@@ -400,6 +406,36 @@ export default function App() {
       live = false;
     };
   }, [full, viewing, tasks]);
+  // You · All · Agents (full screen): whose tasks the lists show.
+  const [who, setWhoState] = useState<Who>(() => saved("todocity.who", ["you", "all", "agents"], "all"));
+  const setWho = (w: Who) => {
+    remember("todocity.who", w);
+    setWhoState(w);
+  };
+  useEffect(() => {
+    // The menu bar's "See what changed" switches to Agents from its window.
+    const sync = (e: StorageEvent) => {
+      if (e.key === "todocity.who" && (e.newValue === "you" || e.newValue === "all" || e.newValue === "agents")) setWhoState(e.newValue);
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+  const [agentsSt, setAgentsSt] = useState<AgentsStatus | null>(null);
+  const [activity, setActivity] = useState<AgentChange[]>([]);
+  const [askAgents, setAskAgents] = useState(false);
+  useEffect(() => {
+    const load = () => {
+      api.agentsStatus().then(setAgentsSt).catch(() => undefined);
+      api.agentActivity().then(setActivity).catch(() => undefined);
+    };
+    load();
+    const subs = [onTasksChanged(load), onAgentChanges(load), onInboxChanged(load), onSettingsChanged(load)];
+    return () => subs.forEach((p) => void p.then((u) => u()));
+  }, []);
+  const agentsOn = !!agentsSt?.enabled;
+  const latestAgent = useMemo(() => latestByTask(activity), [activity]);
+  // Agents not set up (or off): nothing to filter by.
+  const whoShown: Who = agentsOn ? who : "all";
   const visible = useMemo(() => {
     // A project's page and search see every task, whatever the mode.
     let base = tasksForList(viewing !== null || query.trim() ? allTasks : tasks, list, today, nowTime);
@@ -407,9 +443,27 @@ export default function App() {
       const have = new Set(base.map((t) => t.id));
       base = [...base, ...projectAll.filter((t) => t.done && !have.has(t.id) && t.project === viewing)];
     }
-    return base.filter((t) => !query.trim() || matchesQuery(t, query));
-  }, [tasks, allTasks, query, list, today, nowTime, viewing, projectAll]);
+    const shown = base.filter((t) => !query.trim() || matchesQuery(t, query));
+    return full ? filterWho(shown, whoShown, now) : shown;
+  }, [tasks, allTasks, query, list, today, nowTime, viewing, projectAll, full, whoShown, now]);
   const firing = useMemo(() => dueNow(tasks, now), [tasks, now]);
+  const agentMarks = useMemo(
+    () => ({
+      latest: latestAgent,
+      now,
+      on: agentsOn,
+      undo:
+        whoShown === "agents"
+          ? (id: number) =>
+              void api
+                .agentUndo({ tasks: [id] })
+                .then(() => show("Put back as it was"))
+                .catch((e) => setError(String(e)))
+          : undefined,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [latestAgent, now, whoShown, agentsOn],
+  );
   const viewedProject = projectOf(list);
   const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
   useEffect(() => {
@@ -1176,6 +1230,32 @@ export default function App() {
           onAdd={addFromPlan}
         />
       )}
+      {full && tab === "tasks" && whoShown === "agents" && visible.some((t) => !t.done) && (
+        <div className="agents-banner" role="status">
+          <span>
+            <b>
+              Agents added or changed {visible.filter((t) => !t.done).length} {visible.filter((t) => !t.done).length === 1 ? "task" : "tasks"} here
+            </b>{" "}
+            <span className="muted">· {agentsBy(agentCounts(visible.map((t) => t.id), latestAgent))}</span>
+          </span>
+          <span className="spacer" />
+          <button
+            type="button"
+            className="ghost small"
+            onClick={() =>
+              void api
+                .agentUndo({ tasks: visible.map((t) => t.id) })
+                .then((n) => show(n ? `Undid what agents did to ${n} ${n === 1 ? "task" : "tasks"}` : "Already as it was"))
+                .catch((e) => setError(String(e)))
+            }
+          >
+            Undo all
+          </button>
+        </div>
+      )}
+      {full && tab === "tasks" && whoShown === "you" && agentsOn && tasks.some((t) => byAgent(t, now)) && (
+        <p className="who-hint">Tasks you added yourself. Tasks from agents are under All and Agents.</p>
+      )}
       {showList && list !== "logbook" && !boardView && (
         <TaskList
           groups={viewedProject !== null ? groups.map((g) => (g.key === "h:" ? { ...g, label: w.looseHeading } : g)) : groups}
@@ -1408,6 +1488,7 @@ export default function App() {
     return (
       <ProjectColors.Provider value={projectColors}>
       <SourceDisplay.Provider value={look.show_source}>
+      <AgentMarks.Provider value={agentMarks}>
       <WordsContext.Provider value={CITY}>
       <div
         className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}
@@ -1600,6 +1681,15 @@ export default function App() {
               </div>
             )}
             <span className="topbar-gap" data-tauri-drag-region />
+            {tasksShown && list !== "logbook" && (
+              <WhoSwitch
+                who={whoShown}
+                onWho={setWho}
+                agentCount={tasks.filter((t) => byAgent(t, now)).length}
+                setUp={agentsOn}
+                onSetUp={() => setAskAgents(true)}
+              />
+            )}
             {tasksShown && boardKey && !floorOpen && (
               <div className="view-toggle" role="group" aria-label="View">
                 <button type="button" aria-label="List view" title="List" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
@@ -1683,7 +1773,7 @@ export default function App() {
                     />
                   )}
                   <WeekGrid
-                    tasks={tasks}
+                    tasks={filterWho(tasks, whoShown, now)}
                     day={planDay}
                     today={today}
                     now={now}
@@ -1772,8 +1862,19 @@ export default function App() {
         <Toasts toasts={toasts} onDismiss={dismiss} />
         {drag.drag && <DragGhost drag={drag.drag} now={now} locale={LOCALE} />}
         {keysSheet}
+        {askAgents && (
+          <AgentsSetUpDialog
+            onClose={() => setAskAgents(false)}
+            onSetUp={() => {
+              setAskAgents(false);
+              openConnectorNext("agents");
+              openSettings("connectors");
+            }}
+          />
+        )}
       </div>
       </WordsContext.Provider>
+      </AgentMarks.Provider>
       </SourceDisplay.Provider>
       </ProjectColors.Provider>
     );

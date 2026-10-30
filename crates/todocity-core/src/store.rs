@@ -96,6 +96,13 @@ pub struct Task {
     /// How long it takes, in minutes (1 to 1440); `None` for no set length.
     #[serde(default)]
     pub duration: Option<u32>,
+    /// The AI agent that last added or changed it ("claude-code"), until
+    /// the person changes it themselves. This Mac only; see `agent_log`.
+    #[serde(default)]
+    pub agent: Option<String>,
+    /// When the agent did (RFC 3339 UTC).
+    #[serde(default)]
+    pub agent_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -375,6 +382,28 @@ CREATE TRIGGER calendar_trash_on_delete BEFORE DELETE ON tasks BEGIN
         WHERE task_id = OLD.id;
 END;
 "#,
+    // What AI agents did (see `crate::agent_log`): every task an agent added,
+    // changed or deleted, with how it was before, so it can be undone. The
+    // task remembers the agent until the person changes it themselves.
+    r#"
+ALTER TABLE tasks ADD COLUMN agent TEXT;
+ALTER TABLE tasks ADD COLUMN agent_at TEXT;
+CREATE TABLE agent_changes (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    at       TEXT    NOT NULL,
+    agent    TEXT    NOT NULL,
+    batch    TEXT    NOT NULL,
+    tool     TEXT    NOT NULL,
+    task_id  INTEGER NOT NULL,
+    kind     TEXT    NOT NULL,
+    title    TEXT    NOT NULL,
+    summary  TEXT    NOT NULL,
+    before   TEXT,
+    undone   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX agent_changes_at ON agent_changes (at);
+CREATE INDEX agent_changes_task ON agent_changes (task_id);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.
@@ -582,6 +611,12 @@ impl Store {
         let before = self.get(id)?;
         let mut effects = UpdateEffects::default();
         let tx = self.conn.unchecked_transaction()?;
+        // Changed by the person (or anything else): no longer the agent's.
+        // `agent_log` marks it again when an agent made this change.
+        tx.execute(
+            "UPDATE tasks SET agent = NULL, agent_at = NULL WHERE id = ?1 AND agent IS NOT NULL",
+            [id],
+        )?;
         if let Some(title) = patch.title {
             tx.execute(
                 "UPDATE tasks SET title = ?1 WHERE id = ?2",
@@ -1142,7 +1177,7 @@ impl Store {
 
 const SELECT: &str = "SELECT id, title, due_date, source_text, done, created_at, created_tz, completed_at,
     due_time, recurrence, source_app, source_bundle, source_url, snoozed_until, notified_at, next_id, notes,
-    deadline, evening, someday, project, heading, checklist, series_date, paused, priority, duration FROM tasks";
+    deadline, evening, someday, project, heading, checklist, series_date, paused, priority, duration, agent, agent_at FROM tasks";
 
 /// By day, all-day tasks before timed ones, then by time.
 const ORDER: &str = "due_date IS NULL, due_date, due_time IS NOT NULL, due_time, done, created_at";
@@ -1179,6 +1214,8 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Task> {
         paused: r.get(24)?,
         priority: r.get(25)?,
         duration: r.get(26)?,
+        agent: r.get(27)?,
+        agent_at: r.get(28)?,
     })
 }
 

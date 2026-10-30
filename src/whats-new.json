@@ -1,4 +1,11 @@
 {
+  "0.4.65": [
+    "You · All · Agents in the header: see just your tasks, everything, or only what AI agents added or changed this week",
+    "Everything an agent does is marked (\"Claude scheduled\") and one click undoes it — a task, or everything from one request",
+    "Ask Claude to plan your day: it finds the free time between your meetings and puts tasks there",
+    "Tasks an agent deleted come back from Connectors → AI agents for 7 days",
+    "The menu bar shows what an agent just did, with Undo"
+  ],
   "0.4.64": [
     "Put your tasks in Apple Calendar: Connectors → Apple Calendar",
     "Each project gets its own calendar, grouped like TodoCity · Work · Launch — tick in Calendar exactly what you want to see",

@@ -112,7 +112,35 @@ fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {
                 error: Some("TodoCity is busy; try again.".into()),
             };
         };
-        todocity_core::agent_tools::call(&store, &call.tool, &call.args, now)
+        // Meetings, for find_free_time and get_schedule: only when the
+        // person shows their calendars in TodoCity, and never hidden ones.
+        let busy = |from: chrono::NaiveDate,
+                    to: chrono::NaiveDate|
+         -> Vec<todocity_core::agent_tools::Busy> {
+            if !settings.calendar_enabled {
+                return Vec::new();
+            }
+            let fmt = |d: chrono::NaiveDate| d.format("%Y-%m-%d").to_string();
+            let parse =
+                |s: &str| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").ok();
+            crate::calendar::events(&fmt(from), &fmt(to), &settings.calendar_hidden)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|e| !e.all_day)
+                .filter_map(|e| {
+                    Some(todocity_core::agent_tools::Busy {
+                        title: e.title,
+                        start: parse(&e.start)?,
+                        end: parse(&e.end)?,
+                    })
+                })
+                .collect()
+        };
+        let ctx = todocity_core::agent_tools::Ctx {
+            agent: &call.agent,
+            busy: &busy,
+        };
+        todocity_core::agent_tools::run(&store, &ctx, &call.tool, &call.args, now)
     };
     match outcome {
         Ok(result) => {
@@ -127,11 +155,7 @@ fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {
                         crate::notifications::clear_task(id);
                     }
                 }
-                let _ = app.emit("tasks-changed", ());
-                crate::tray::refresh(app);
-                if let Some(r) = app.try_state::<crate::reminders::Reminders>() {
-                    r.nudge();
-                }
+                after_agent_change(app);
             }
             CallReply {
                 ok: true,
@@ -145,6 +169,82 @@ fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {
             error: Some(e),
         },
     }
+}
+
+/// Tasks changed by (or undone from) an agent: refresh everything that shows them.
+fn after_agent_change(app: &AppHandle) {
+    let _ = app.emit("tasks-changed", ());
+    let _ = app.emit("agent-changes", ());
+    crate::tray::refresh(app);
+    if let Some(r) = app.try_state::<crate::reminders::Reminders>() {
+        r.nudge();
+    }
+}
+
+/// One agent change, as the app shows it.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChangeInfo {
+    pub id: i64,
+    pub at: String,
+    /// "Claude", "Cursor"…
+    pub agent: String,
+    pub batch: String,
+    pub task_id: i64,
+    pub kind: String,
+    pub title: String,
+    pub summary: String,
+    pub undone: bool,
+}
+
+/// What agents did in the last 7 days, newest first.
+#[tauri::command]
+pub fn agent_activity(app: AppHandle) -> Result<Vec<ChangeInfo>, String> {
+    let state = app.state::<crate::AppState>();
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    let _ = store.agent_prune();
+    Ok(store
+        .agent_changes(todocity_core::agent_log::KEEP_DAYS)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|c| ChangeInfo {
+            id: c.id,
+            at: c.at,
+            agent: agent_label(&c.agent),
+            batch: c.batch,
+            task_id: c.task_id,
+            kind: c.kind,
+            title: c.title,
+            summary: c.summary,
+            undone: c.undone,
+        })
+        .collect())
+}
+
+/// Undo agent changes: one change, one batch, or everything done to some tasks.
+#[tauri::command]
+pub fn agent_undo(
+    app: AppHandle,
+    change: Option<i64>,
+    batch: Option<String>,
+    tasks: Option<Vec<i64>>,
+) -> Result<usize, String> {
+    let n = {
+        let state = app.state::<crate::AppState>();
+        let store = state.store.lock().map_err(|e| e.to_string())?;
+        let mut n = 0;
+        if let Some(id) = change {
+            n += store.agent_undo_change(id).map_err(|e| e.to_string())?;
+        }
+        if let Some(b) = batch {
+            n += store.agent_undo_batch(&b).map_err(|e| e.to_string())?;
+        }
+        for id in tasks.unwrap_or_default() {
+            n += store.agent_undo_task(id).map_err(|e| e.to_string())?;
+        }
+        n
+    };
+    after_agent_change(&app);
+    Ok(n)
 }
 
 /// The app's one-line answer. The same for every accepted task.
@@ -672,6 +772,8 @@ pub fn agents_status(app: AppHandle) -> Status {
 pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
     app.state::<Settings>()
         .update(|s| s.agents_enabled = enabled);
+    // The header's You · All · Agents switch follows this.
+    let _ = app.emit("agent-changes", ());
     status(&app)
 }
 
@@ -680,6 +782,8 @@ pub fn agents_set_enabled(app: AppHandle, enabled: bool) -> Status {
 pub fn agents_set_full_access(app: AppHandle, on: bool) -> Status {
     app.state::<Settings>()
         .update(|s| s.agents_full_access = on);
+    // The header's You · All · Agents switch follows this.
+    let _ = app.emit("agent-changes", ());
     status(&app)
 }
 

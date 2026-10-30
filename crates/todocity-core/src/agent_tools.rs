@@ -21,6 +21,35 @@ const MAX_BATCH: usize = 200;
 
 type Args = Map<String, Value>;
 
+/// A meeting from the person's calendars (busy time).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Busy {
+    pub title: String,
+    pub start: NaiveDateTime,
+    pub end: NaiveDateTime,
+}
+
+/// What a call knows besides the store: who's calling, and the person's
+/// meetings (from the Mac's calendars, when they share them).
+pub struct Ctx<'a> {
+    pub agent: &'a str,
+    pub busy: &'a dyn Fn(NaiveDate, NaiveDate) -> Vec<Busy>,
+}
+
+fn no_meetings(_: NaiveDate, _: NaiveDate) -> Vec<Busy> {
+    Vec::new()
+}
+
+impl Ctx<'static> {
+    /// No agent name and no calendar (tests).
+    pub fn none() -> Self {
+        Ctx {
+            agent: "agent",
+            busy: &no_meetings,
+        }
+    }
+}
+
 // ── Definitions ────────────────────────────────────────────────────────────
 
 fn s(desc: &str) -> Value {
@@ -194,10 +223,48 @@ pub fn tools() -> Vec<Value> {
         tool(
             "get_schedule",
             "Get the schedule",
-            "Day by day: timed tasks in order with their start, end and length, then the day's untimed tasks. Defaults to the next 7 days.",
+            "Day by day: meetings from the person's calendars, timed tasks in order with their start, end and length, then the day's untimed tasks. Defaults to the next 7 days.",
             json!({ "from": s(&format!("First day, {DATE}")), "to": s(&format!("Last day, {DATE}")) }),
             &[],
             Kind::Read,
+        ),
+        tool(
+            "find_free_time",
+            "Find free time",
+            "Free stretches between meetings and timed tasks, day by day, within working hours. Use it before scheduling. Defaults to today, 08:00–18:00, stretches of 15 minutes or more.",
+            json!({
+                "from": s(&format!("First day, {DATE}")),
+                "to": s(&format!("Last day, {DATE}")),
+                "day_start": s("Start of the working day, HH:MM (default 08:00)."),
+                "day_end": s("End of the working day, HH:MM (default 18:00)."),
+                "min_minutes": int("Shortest stretch worth listing (default 15).")
+            }),
+            &[],
+            Kind::Read,
+        ),
+        tool(
+            "schedule_tasks",
+            "Schedule several tasks",
+            "Plan several tasks at once (a day plan): each gets a day, a start time and a length. All or nothing: if one is wrong, none change. It's one change the person can undo in one click.",
+            json!({
+                "items": {
+                    "type": "array",
+                    "description": "The tasks to schedule.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": id_prop(),
+                            "date": s(DATE),
+                            "time": s(TIME),
+                            "duration": int(DURATION)
+                        },
+                        "required": ["id", "date"],
+                        "additionalProperties": false
+                    }
+                }
+            }),
+            &["items"],
+            Kind::Set,
         ),
         tool(
             "list_reminders",
@@ -523,6 +590,33 @@ fn found(store: &Store, id: i64) -> Result<Task, String> {
 /// Run one tool. `now` is the user's local time. The result is JSON for the
 /// agent; `Err` is a message saying what to change.
 pub fn call(store: &Store, name: &str, args: &Value, now: NaiveDateTime) -> Result<Value, String> {
+    call_with(store, &Ctx::none(), name, args, now)
+}
+
+/// Run one tool for an agent, and record what it changed (see
+/// `crate::agent_log`) so the person can see it and undo it.
+pub fn run(
+    store: &Store,
+    ctx: &Ctx<'_>,
+    name: &str,
+    args: &Value,
+    now: NaiveDateTime,
+) -> Result<Value, String> {
+    if is_read_only(name) {
+        return call_with(store, ctx, name, args, now);
+    }
+    crate::agent_log::record(store, ctx.agent, name, || {
+        call_with(store, ctx, name, args, now)
+    })
+}
+
+fn call_with(
+    store: &Store,
+    ctx: &Ctx<'_>,
+    name: &str,
+    args: &Value,
+    now: NaiveDateTime,
+) -> Result<Value, String> {
     let empty = Map::new();
     let a = match args {
         Value::Object(m) => m,
@@ -534,7 +628,9 @@ pub fn call(store: &Store, name: &str, args: &Value, now: NaiveDateTime) -> Resu
         "get_overview" => overview(store, today, now),
         "list_tasks" => list_tasks(store, a, today, now),
         "get_task" => Ok(task_json(&found(store, id_arg(a)?)?)),
-        "get_schedule" => schedule(store, a, today),
+        "get_schedule" => schedule(store, ctx, a, today),
+        "find_free_time" => free_time(store, ctx, a, today),
+        "schedule_tasks" => schedule_many(store, a),
         "list_reminders" => reminders(store, a, today),
         "list_projects" => projects(store),
         "list_sections" => sections(store, &need_str(a, "project")?),
@@ -747,9 +843,10 @@ fn span(a: &Args, today: NaiveDate) -> Result<(NaiveDate, NaiveDate), String> {
     Ok((from, to))
 }
 
-fn schedule(store: &Store, a: &Args, today: NaiveDate) -> Result<Value, String> {
+fn schedule(store: &Store, ctx: &Ctx<'_>, a: &Args, today: NaiveDate) -> Result<Value, String> {
     let (from, to) = span(a, today)?;
     let open = open_tasks(store)?;
+    let busy = (ctx.busy)(from, to);
     let mut days = Vec::new();
     let mut d = from;
     while d <= to {
@@ -765,9 +862,15 @@ fn schedule(store: &Store, a: &Args, today: NaiveDate) -> Result<Value, String> 
             .map(task_json)
             .collect();
         let planned: u32 = timed.iter().filter_map(|t| t.duration).sum();
+        let meetings: Vec<Value> = busy
+            .iter()
+            .filter(|b| b.start.date() <= d && b.end.date() >= d)
+            .map(|b| json!({ "title": b.title, "start": b.start.format("%Y-%m-%dT%H:%M").to_string(), "end": b.end.format("%Y-%m-%dT%H:%M").to_string() }))
+            .collect();
         days.push(json!({
             "date": iso,
             "weekday": d.format("%A").to_string(),
+            "meetings": meetings,
             "timed": timed.into_iter().map(task_json).collect::<Vec<_>>(),
             "anytime": untimed,
             "planned_minutes": planned
@@ -775,6 +878,111 @@ fn schedule(store: &Store, a: &Args, today: NaiveDate) -> Result<Value, String> 
         d += Duration::days(1);
     }
     Ok(json!({ "days": days }))
+}
+
+fn hm_arg(a: &Args, key: &str, default: &str) -> Result<chrono::NaiveTime, String> {
+    let v = str_arg(a, key)?.unwrap_or_else(|| default.to_string());
+    chrono::NaiveTime::parse_from_str(&v, "%H:%M")
+        .map_err(|_| format!("{key} \"{v}\" is not a 24-hour HH:MM time"))
+}
+
+/// Free stretches each day between `day_start` and `day_end`, around
+/// meetings and timed tasks (30 minutes for a task with no length).
+fn free_time(store: &Store, ctx: &Ctx<'_>, a: &Args, today: NaiveDate) -> Result<Value, String> {
+    let from = date_arg(a, "from")?.unwrap_or(today);
+    let to = date_arg(a, "to")?.unwrap_or(from);
+    if to < from || (to - from).num_days() > 31 {
+        return Err("ask for 1 to 32 days, from before to".into());
+    }
+    let (start_t, end_t) = (
+        hm_arg(a, "day_start", "08:00")?,
+        hm_arg(a, "day_end", "18:00")?,
+    );
+    if end_t <= start_t {
+        return Err("day_end must be after day_start".into());
+    }
+    let min = int_arg(a, "min_minutes")?.unwrap_or(15).max(1);
+    let busy = (ctx.busy)(from, to);
+    let open = open_tasks(store)?;
+    let mut days = Vec::new();
+    let mut d = from;
+    while d <= to {
+        let (lo, hi) = (d.and_time(start_t), d.and_time(end_t));
+        let mut taken: Vec<(NaiveDateTime, NaiveDateTime)> =
+            busy.iter().map(|b| (b.start, b.end)).collect();
+        for t in &open {
+            if let Some(state) = crate::calendar_sync::EventState::of_task(t) {
+                if state.start.date() == d {
+                    taken.push((state.start, state.end));
+                }
+            }
+        }
+        taken.retain(|(s, e)| *e > lo && *s < hi);
+        taken.sort();
+        let mut free = Vec::new();
+        let mut cursor = lo;
+        for (s, e) in taken {
+            if s > cursor && (s - cursor).num_minutes() >= min {
+                free.push((cursor, s));
+            }
+            cursor = cursor.max(e);
+        }
+        if hi > cursor && (hi - cursor).num_minutes() >= min {
+            free.push((cursor, hi));
+        }
+        let total: i64 = free.iter().map(|(s, e)| (*e - *s).num_minutes()).sum();
+        days.push(json!({
+            "date": d.format("%Y-%m-%d").to_string(),
+            "free": free.iter().map(|(s, e)| json!({ "start": s.format("%H:%M").to_string(), "end": e.format("%H:%M").to_string(), "minutes": (*e - *s).num_minutes() })).collect::<Vec<_>>(),
+            "free_minutes": total
+        }));
+        d += Duration::days(1);
+    }
+    Ok(json!({ "days": days }))
+}
+
+/// Schedule several tasks at once, all or nothing.
+fn schedule_many(store: &Store, a: &Args) -> Result<Value, String> {
+    let Some(Value::Array(items)) = a.get("items") else {
+        return Err("items must be a list of { id, date, time, duration }".into());
+    };
+    if items.is_empty() || items.len() > MAX_BATCH {
+        return Err(format!("send 1 to {MAX_BATCH} items"));
+    }
+    // Check everything first.
+    let mut plan = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let Value::Object(m) = item else {
+            return Err(format!("item {i} must be an object"));
+        };
+        let id = int_arg(m, "id")?.ok_or_else(|| format!("item {i} needs an id"))?;
+        found(store, id).map_err(|e| format!("item {i}: {e}"))?;
+        let date = date_arg(m, "date")?.ok_or_else(|| format!("item {i} needs a date"))?;
+        let time = str_arg(m, "time")?
+            .map(|t| {
+                chrono::NaiveTime::parse_from_str(&t, "%H:%M")
+                    .map(|x| x.format("%H:%M").to_string())
+                    .map_err(|_| format!("item {i}: time \"{t}\" is not HH:MM"))
+            })
+            .transpose()?;
+        let duration = int_arg(m, "duration")?.map(duration_arg).transpose()?;
+        plan.push((id, date, time, duration));
+    }
+    let mut out = Vec::new();
+    for (id, date, time, duration) in plan {
+        let mut p = TaskPatch {
+            due_date: Some(Some(date.format("%Y-%m-%d").to_string())),
+            due_time: Some(time),
+            someday: Some(false),
+            only_this: Some(true),
+            ..Default::default()
+        };
+        if duration.is_some() {
+            p.duration = Some(duration);
+        }
+        out.push(task_json(&store.update(id, p).map_err(err)?));
+    }
+    Ok(json!({ "scheduled": out.len(), "tasks": out }))
 }
 
 fn reminders(store: &Store, a: &Args, today: NaiveDate) -> Result<Value, String> {
@@ -1285,10 +1493,15 @@ mod tests {
         call(store, name, &args, now()).unwrap_err()
     }
 
+    /// As an agent would: recorded, so it can be undone.
+    fn run_with(store: &Store, ctx: &Ctx<'_>, name: &str, args: Value) -> Value {
+        super::run(store, ctx, name, &args, now()).unwrap_or_else(|e| panic!("{name}: {e}"))
+    }
+
     #[test]
     fn every_tool_is_listed_with_a_schema() {
         let tools = tools();
-        assert!(tools.len() >= 25);
+        assert_eq!(tools.len(), 30);
         for t in &tools {
             assert!(t["name"].as_str().is_some_and(|n| !n.is_empty()));
             assert_eq!(t["inputSchema"]["type"], "object");
@@ -1647,5 +1860,127 @@ mod tests {
         let r = run(&s, "complete_tasks", json!({ "ids": [a, b, 999] }));
         assert_eq!(r["completed"], json!([a, b]));
         assert_eq!(r["not_found"], json!([999]));
+    }
+
+    fn at(s: &str) -> NaiveDateTime {
+        NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").unwrap()
+    }
+
+    fn meetings(_: NaiveDate, _: NaiveDate) -> Vec<Busy> {
+        vec![
+            Busy {
+                title: "Design review".into(),
+                start: at("2026-11-02T13:00"),
+                end: at("2026-11-02T14:00"),
+            },
+            Busy {
+                title: "Launch rehearsal".into(),
+                start: at("2026-11-02T15:00"),
+                end: at("2026-11-02T16:30"),
+            },
+        ]
+    }
+
+    #[test]
+    fn free_time_goes_around_meetings_and_timed_tasks() {
+        let s = Store::open_in_memory().unwrap();
+        run(
+            &s,
+            "add_task",
+            json!({ "title": "Stand-up", "due_date": "2026-11-02", "due_time": "09:00", "duration": 15 }),
+        );
+        run(
+            &s,
+            "add_task",
+            json!({ "title": "No length", "due_date": "2026-11-02", "due_time": "11:00" }),
+        );
+        let ctx = Ctx {
+            agent: "claude-ai",
+            busy: &meetings,
+        };
+        let r = call_with(
+            &s,
+            &ctx,
+            "find_free_time",
+            &json!({ "from": "2026-11-02" }),
+            now(),
+        )
+        .unwrap();
+        let free: Vec<(String, String)> = r["days"][0]["free"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| {
+                (
+                    f["start"].as_str().unwrap().to_string(),
+                    f["end"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        let want = [
+            ("08:00", "09:00"),
+            ("09:15", "11:00"),
+            ("11:30", "13:00"),
+            ("14:00", "15:00"),
+            ("16:30", "18:00"),
+        ];
+        assert_eq!(
+            free,
+            want.iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(r["days"][0]["free_minutes"], 60 + 105 + 90 + 60 + 90);
+        let sched = call_with(
+            &s,
+            &ctx,
+            "get_schedule",
+            &json!({ "from": "2026-11-02", "to": "2026-11-02" }),
+            now(),
+        )
+        .unwrap();
+        assert_eq!(sched["days"][0]["meetings"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn schedule_tasks_is_all_or_nothing_and_one_undo() {
+        let s = Store::open_in_memory().unwrap();
+        let a = run(&s, "add_task", json!({ "title": "Draft pricing" }))["id"]
+            .as_i64()
+            .unwrap();
+        let b = run(
+            &s,
+            "add_task",
+            json!({ "title": "Review doc", "someday": true }),
+        )["id"]
+            .as_i64()
+            .unwrap();
+        // One bad item: nothing changes.
+        assert!(fails(&s, "schedule_tasks", json!({ "items": [{ "id": a, "date": "2026-11-02", "time": "09:30" }, { "id": 999, "date": "2026-11-02" }] })).contains("999"));
+        assert!(s.get(a).unwrap().due_date.is_none());
+        let ctx = Ctx {
+            agent: "claude-ai",
+            busy: &meetings,
+        };
+        let r = run_with(
+            &s,
+            &ctx,
+            "schedule_tasks",
+            json!({ "items": [
+            { "id": a, "date": "2026-11-02", "time": "09:30", "duration": 90 },
+            { "id": b, "date": "2026-11-02", "time": "11:15", "duration": 30 }
+        ] }),
+        );
+        assert_eq!(r["scheduled"], 2);
+        assert_eq!(task_json(&s.get(a).unwrap())["end_time"], "11:00");
+        assert!(!s.get(b).unwrap().someday);
+        let log = s.agent_changes(7).unwrap();
+        assert_eq!(log.len(), 2);
+        assert!(log
+            .iter()
+            .all(|c| c.batch == log[0].batch && c.kind == "scheduled"));
+        s.agent_undo_batch(&log[0].batch).unwrap();
+        assert!(s.get(a).unwrap().due_date.is_none());
+        assert!(s.get(b).unwrap().someday);
     }
 }
