@@ -1768,7 +1768,7 @@ await shot("full-source-chip", FULL, full({ settings: DARK }), async (p) => {
 await shot("full-source-hover", FULL, full({ settings: { ...DARK, look: { ...(DARK.look ?? {}), show_source: "hover" } } }), async (p) => {
   const chip = p.locator(".task .src-chip", { hasText: "from Slack" }).first();
   if ((await chip.evaluate((el) => getComputedStyle(el).opacity)) !== "0") throw new Error("the chip shows before hovering");
-  await p.locator(".task", { has: chip }).hover();
+  await p.locator(".task", { hasText: "Send Q3 numbers" }).first().locator(".task-row").first().hover();
   await p.waitForTimeout(250);
   if ((await chip.evaluate((el) => getComputedStyle(el).opacity)) !== "1") throw new Error("the chip doesn't show on hover");
 });
