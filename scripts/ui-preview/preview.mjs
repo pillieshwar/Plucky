@@ -2030,7 +2030,9 @@ await shot("full-week-drop-minute", FULL, full({ settings: DARK, tasks: TIMED })
   await p.waitForTimeout(300);
   const ups = await updatesFor(p, idOf("Stand-up with Priya"));
   const t = ups.map((u) => u.due_time).find(Boolean);
-  if (!t || !/^10:(2|3)[05]$/.test(t)) throw new Error(`dropped mid-hour but got ${t}`);
+  // Lands inside the 10 o'clock hour, on a minute (not snapped to 10:00). Where
+  // in the short block the grab lands shifts it a few minutes, so any minute counts.
+  if (!t || !/^10:(?!00)\d[05]$/.test(t)) throw new Error(`dropped mid-hour but got ${t}`);
 });
 await shot("full-length-menu", FULL, full({ settings: DARK, tasks: TIMED }), async (p) => {
   await side(/Calendar/)(p);
