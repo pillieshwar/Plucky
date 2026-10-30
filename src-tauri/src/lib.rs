@@ -454,6 +454,7 @@ fn restore_task(app: AppHandle, state: State<'_, AppState>, task: Task) -> CmdRe
                 heading: task.heading.clone(),
                 checklist: task.checklist.clone(),
                 priority: task.priority,
+                duration: task.duration,
             })
             .map_err(err)?;
         if task.done {
