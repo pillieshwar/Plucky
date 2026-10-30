@@ -609,3 +609,32 @@ export interface SyncStatus {
   removed_notice: boolean;
   pairing: SyncPairing | null;
 }
+
+/** Mirrors `calsync::SourceInfo`: an account TodoCity's calendars can live in. */
+export interface CalendarSource {
+  id: string;
+  title: string;
+  /** On My Mac (stays here) rather than an account that syncs (iCloud…). */
+  local: boolean;
+}
+
+/** Mirrors `calsync::LaneInfo`: one project's calendar (or Inbox). */
+export interface CalendarLane {
+  key: string;
+  group: string;
+  name: string;
+  on: boolean;
+}
+
+/** Mirrors `calsync::Status`. */
+export interface CalendarSyncStatus {
+  supported: boolean;
+  access: RemindersAccess;
+  enabled: boolean;
+  source: string | null;
+  sources: CalendarSource[];
+  lanes: CalendarLane[];
+  last_sync: string | null;
+  last_error: string | null;
+  synced: number;
+}

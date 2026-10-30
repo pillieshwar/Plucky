@@ -79,6 +79,19 @@ const KEYCHAIN_SERVICE: &str = "app.todocity.sync";
 #[cfg(target_os = "macos")]
 const KEYCHAIN_ACCOUNT: &str = "group-key";
 
+/// Projects kept on this Mac only (they never leave it: not to other Macs,
+/// and not to calendar apps either).
+pub fn local_only_projects(app: &AppHandle) -> std::collections::HashSet<String> {
+    app.try_state::<SyncService>()
+        .and_then(|s| {
+            s.cfg
+                .lock()
+                .ok()
+                .map(|c| c.local_only.iter().cloned().collect())
+        })
+        .unwrap_or_default()
+}
+
 impl SyncService {
     pub fn new(data_dir: &std::path::Path) -> Self {
         let path = data_dir.join("sync.json");

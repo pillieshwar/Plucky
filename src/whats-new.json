@@ -1,4 +1,10 @@
 {
+  "0.4.64": [
+    "Put your tasks in Apple Calendar: Connectors → Apple Calendar",
+    "Each project gets its own calendar, grouped like TodoCity · Work · Launch — tick in Calendar exactly what you want to see",
+    "Move or stretch an event and the task follows; delete it and the task goes too",
+    "Keep them On My Mac, or in iCloud to see them on your iPhone"
+  ],
   "0.4.63": [
     "Full access for AI agents: turn it on in Settings → Connectors → AI agents and Claude, Cursor and other AI apps can run your list for you",
     "With it, agents can read, add, change, schedule, snooze, complete and delete tasks, sub-tasks, projects and sections — 28 tools in all",

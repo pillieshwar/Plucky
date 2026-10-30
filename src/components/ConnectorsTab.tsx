@@ -3,6 +3,7 @@ import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onWatchChan
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
 import { AgentsSection } from "./AgentsSection";
+import { CalendarSyncSection } from "./CalendarSyncSection";
 import { WatchSection } from "./WatchSection";
 import { safeLocale } from "../lib/locale";
 import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
@@ -40,13 +41,14 @@ export function ConnectorsTab() {
       <ConnectorCard
         icon={<CalendarGlyph />}
         tone="calendar"
-        name="Calendar"
-        description="Your meetings beside your tasks."
+        name="Apple Calendar"
+        description="Your meetings beside your tasks, and your tasks in Calendar."
         connected={!!calendar?.enabled && calendar.access === "full"}
         open={open === "calendar"}
         onToggle={() => toggle("calendar")}
       >
         <CalendarSection status={calendar} onStatus={setCalendar} />
+        <CalendarSyncSection />
       </ConnectorCard>
 
       <ConnectorCard
@@ -219,7 +221,7 @@ function CalendarSection({
       <div className="card-stack">
         <Toggle
           label="Show calendar events in TodoCity"
-          hint="Meetings appear next to your tasks in the menu bar. Read-only — TodoCity never changes your calendar."
+          hint="Meetings appear next to your tasks in the menu bar. Showing them never changes your calendars."
           checked={enabled}
           disabled={busy || blocked}
           onChange={(v) => void (v ? turnOn() : turnOff())}
