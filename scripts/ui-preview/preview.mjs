@@ -202,6 +202,7 @@ function scenario(overrides = {}) {
     status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
     agents: AGENT_STATUS,
+    calsync: CALSYNC_OFF,
     extract: null,
     backups: [
       { name: `tasks-${day(0)}.db`, day: day(0), size: 48_000 },
@@ -264,19 +265,19 @@ function mockTauri(s) {
     }),
     notification_permission: () => "granted",
     agents_status: () => s.agents,
-    calsync_status: () => s.calsync ?? CALSYNC_OFF,
+    calsync_status: () => s.calsync,
     calsync_apple_enable: (a) => {
-      s.calsync = { ...(s.calsync ?? CALSYNC_OFF), enabled: true, source: a.source, synced: 4, last_sync: new Date().toISOString() };
+      s.calsync = { ...s.calsync, enabled: true, source: a.source, synced: 4, last_sync: new Date().toISOString() };
       window.__calsyncSource = a.source;
       return s.calsync;
     },
     calsync_set_group: (a) => {
-      const c = s.calsync ?? CALSYNC_OFF;
+      const c = s.calsync;
       s.calsync = { ...c, lanes: c.lanes.map((l) => (l.group === a.group ? { ...l, on: a.on } : l)) };
       return s.calsync;
     },
     calsync_set_lane: (a) => {
-      const c = s.calsync ?? CALSYNC_OFF;
+      const c = s.calsync;
       s.calsync = { ...c, lanes: c.lanes.map((l) => (l.key === a.key ? { ...l, on: a.on } : l)) };
       return s.calsync;
     },

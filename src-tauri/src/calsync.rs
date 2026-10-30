@@ -488,7 +488,7 @@ mod apple {
     }
 
     fn error_text(e: &NSError) -> String {
-        unsafe { e.localizedDescription() }.to_string()
+        e.localizedDescription().to_string()
     }
 
     fn date(t: NaiveDateTime) -> Retained<NSDate> {
