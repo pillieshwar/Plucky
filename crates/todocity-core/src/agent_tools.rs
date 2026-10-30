@@ -679,29 +679,29 @@ fn list_tasks(
             _ => false,
         })
         .filter(|t| {
-            project.as_deref().is_none_or(|p| {
+            project.as_deref().map_or(true, |p| {
                 t.project
                     .as_deref()
                     .is_some_and(|tp| tp.eq_ignore_ascii_case(p))
             })
         })
         .filter(|t| {
-            section
-                .as_deref()
-                .is_none_or(|s| t.heading.as_deref().unwrap_or("").eq_ignore_ascii_case(s))
+            section.as_deref().map_or(true, |s| {
+                t.heading.as_deref().unwrap_or("").eq_ignore_ascii_case(s)
+            })
         })
         .filter(|t| {
             tag.as_deref()
-                .is_none_or(|g| tags_of(&t.title).iter().any(|x| x == g))
+                .map_or(true, |g| tags_of(&t.title).iter().any(|x| x == g))
         })
-        .filter(|t| priority.is_none_or(|p| i64::from(t.priority) == p))
+        .filter(|t| priority.map_or(true, |p| i64::from(t.priority) == p))
         .filter(|t| {
             from.as_deref()
-                .is_none_or(|f| t.due_date.as_deref().is_some_and(|d| d >= f))
+                .map_or(true, |f| t.due_date.as_deref().is_some_and(|d| d >= f))
         })
         .filter(|t| {
             to.as_deref()
-                .is_none_or(|e| t.due_date.as_deref().is_some_and(|d| d <= e))
+                .map_or(true, |e| t.due_date.as_deref().is_some_and(|d| d <= e))
         })
         .filter(|t| {
             let hay = format!("{} {}", t.title, t.notes.as_deref().unwrap_or("")).to_lowercase();
