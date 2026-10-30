@@ -2194,7 +2194,6 @@ mod tests {
                 },
             )
             .unwrap()
-            .0
             .duration
         };
         assert_eq!(set(Some(45)), Some(45));
@@ -2212,8 +2211,7 @@ mod tests {
                     ..Default::default()
                 },
             )
-            .unwrap()
-            .0;
+            .unwrap();
         assert_eq!(t.duration, Some(25));
         // And a patch from JSON can set or clear it.
         let p: TaskPatch = serde_json::from_str(r#"{"duration": 15}"#).unwrap();
@@ -2238,7 +2236,7 @@ mod tests {
             })
             .unwrap();
         let (_, fx) = s
-            .update(
+            .update_with_effects(
                 t.id,
                 TaskPatch {
                     done: Some(true),
