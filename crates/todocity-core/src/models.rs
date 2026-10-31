@@ -74,7 +74,7 @@ pub const CATALOG: &[CatalogModel] = &[
         file: "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
         approx_size_mb: 3_010,
         min_ram_gb: 8,
-        rank: 3,
+        rank: 1,
         listed: true,
     },
     CatalogModel {
@@ -109,13 +109,13 @@ pub const CATALOG: &[CatalogModel] = &[
         name: "Gemma 4 E4B",
         publisher: "Google",
         description:
-            "The most accurate in our tests: catches the most real to-dos with almost no false ones. For Macs with 16 GB or more.",
+            "Misses the fewest to-dos, but larger and about three times slower. For Macs with 16 GB or more.",
         license: "Apache 2.0",
         repo: "unsloth/gemma-4-E4B-it-GGUF",
         file: "gemma-4-E4B-it-Q4_K_M.gguf",
         approx_size_mb: 4_980,
         min_ram_gb: 16,
-        rank: 1,
+        rank: 3,
         listed: true,
     },
     CatalogModel {
@@ -230,8 +230,10 @@ mod tests {
             assert!(find(m.id).is_some());
         }
         assert_eq!(default_model().id, "qwen3.5-4b");
-        assert_eq!(best_for(16).id, "gemma-4-e4b");
-        assert_eq!(best_for(64).id, "gemma-4-e4b");
+        // Qwen3.5 4B matched Gemma 4 E4B (89%) with fewer false to-dos, at
+        // a third of the time and size (scripts/eval, 0.4.68).
+        assert_eq!(best_for(16).id, "qwen3.5-4b");
+        assert_eq!(best_for(64).id, "qwen3.5-4b");
         assert_eq!(best_for(4).id, "qwen3.5-2b");
         // A short list: the best few from the eval.
         let listed: Vec<_> = CATALOG.iter().filter(|m| m.listed).map(|m| m.id).collect();
