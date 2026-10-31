@@ -62,6 +62,8 @@ export function monogram(agent: string | null): { letters: string; color: string
       return { letters: "G", color: "#2E5BBA" };
     case "cursor":
       return { letters: "CA", color: "#4B4F58" };
+    case "antigravity":
+      return { letters: "AG", color: "#1A73E8" };
     default:
       return { letters: "", color: "#3A3936" };
   }

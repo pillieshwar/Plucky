@@ -269,6 +269,17 @@ export interface WatchSettings {
   paused_until: string | null;
   /** Your name as each app shows it, by bundle id. */
   names: Record<string, string>;
+  /** Who reads new messages: "local" (open model on this Mac) or an agent id. */
+  reader: string;
+}
+
+/** An agent Watch can send to (mirrors `watch_agent::Reader`). */
+export interface WatchReader {
+  id: string;
+  name: string;
+  installed: boolean;
+  /** TodoCity is connected in it (Settings → Agents). */
+  connected: boolean;
 }
 
 /** Mirrors `watch::Status`. */
@@ -282,7 +293,7 @@ export interface WatchStatus {
   /** [bundle id, name] of apps never read. */
   always_skipped: [string, string][];
   live: {
-    state: "off" | "watching" | "paused" | "on_battery" | "no_model" | "no_access" | "unsupported";
+    state: "off" | "watching" | "paused" | "on_battery" | "no_model" | "no_agent" | "no_access" | "unsupported";
     current: string | null;
     last_found: string | null;
     /** The last look at a watched window: counts only, never text. */
@@ -298,6 +309,8 @@ export interface WatchStatus {
     /** Apps recently in front, most recent first. */
     recent: { bundle: string; name: string; skipped: boolean }[];
   };
+  /** Agents Watch can send to. */
+  readers: WatchReader[];
 }
 
 /** Mirrors `agents::Status`. */

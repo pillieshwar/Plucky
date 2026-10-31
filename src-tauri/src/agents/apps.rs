@@ -17,6 +17,11 @@ pub const SERVER: &str = "todocity";
 /// The name versions before 0.4.45 used; replaced whenever TodoCity writes.
 const LEGACY_SERVER: &str = "plucky";
 const CLAUDE_CODE: &str = "claude_code";
+/// Codex keeps MCP servers in TOML (`~/.codex/config.toml`).
+const CODEX: &str = "codex";
+const CODEX_BEGIN: &str =
+    "# TodoCity begin — added by TodoCity (Settings → Agents); remove it there";
+const CODEX_END: &str = "# TodoCity end";
 /// Marks the Claude Code subagent file as TodoCity's, so it's only ever
 /// replaced or removed when TodoCity wrote it.
 const AGENT_MARK: &str = "<!-- Written by TodoCity. Remove TodoCity from Claude Code in TodoCity → Connectors to delete it. -->";
@@ -108,6 +113,20 @@ const JSON_APPS: &[JsonApp] = &[
             ".codeium/windsurf",
         ],
         restart_hint: "Restart Windsurf, or refresh its MCP servers.",
+    },
+    JsonApp {
+        id: "antigravity",
+        name: "Antigravity CLI",
+        config: ".gemini/antigravity-cli/settings.json",
+        key: "mcpServers",
+        typed: false,
+        markers: &[
+            ".gemini/antigravity-cli",
+            "/Applications/Antigravity.app",
+            "Applications/Antigravity.app",
+            ".local/bin/agy",
+        ],
+        restart_hint: "Start a new Antigravity CLI session.",
     },
     JsonApp {
         id: "gemini_cli",
@@ -605,6 +624,147 @@ fn disconnect_claude_code(home: &Path) -> Result<(), String> {
     Ok(())
 }
 
+// ── Codex ─────────────────────────────────────────────────────────────────
+
+fn codex_config(home: &Path) -> PathBuf {
+    home.join(".codex/config.toml")
+}
+
+/// The `[mcp_servers.todocity]` block TodoCity adds to Codex's settings.
+pub fn codex_block(command: &str) -> String {
+    format!(
+        "{CODEX_BEGIN}\n[mcp_servers.todocity]\ncommand = {}\nargs = [\"--mcp\"]\n{CODEX_END}\n",
+        todocity_core::agent_runs::toml_str(command)
+    )
+}
+
+/// Codex's settings without the block TodoCity added (the person's own
+/// lines, including any `todocity` server they wrote themselves, stay).
+pub fn codex_without_ours(text: &str) -> String {
+    let mut out = Vec::new();
+    let mut inside = false;
+    for line in text.lines() {
+        if line.trim() == CODEX_BEGIN {
+            inside = true;
+            continue;
+        }
+        if inside {
+            if line.trim() == CODEX_END {
+                inside = false;
+            }
+            continue;
+        }
+        out.push(line);
+    }
+    let mut joined = out.join("\n");
+    if !joined.is_empty() {
+        joined.push('\n');
+    }
+    joined
+}
+
+/// The command of the `todocity` MCP server in Codex's settings, if any.
+pub fn codex_command(text: &str) -> Option<String> {
+    let mut in_table = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_table = t == "[mcp_servers.todocity]";
+            continue;
+        }
+        if !in_table {
+            continue;
+        }
+        let Some(rest) = t.strip_prefix("command") else {
+            continue;
+        };
+        let rest = rest.trim_start().strip_prefix('=')?.trim();
+        let inner = rest.strip_prefix('"')?;
+        let mut value = String::new();
+        let mut chars = inner.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '"' => return Some(value),
+                '\\' => match chars.next()? {
+                    'n' => value.push('\n'),
+                    't' => value.push('\t'),
+                    other => value.push(other),
+                },
+                c => value.push(c),
+            }
+        }
+        return None;
+    }
+    None
+}
+
+fn codex_installed(home: &Path) -> bool {
+    [
+        home.join(".codex"),
+        PathBuf::from("/Applications/Codex.app"),
+        PathBuf::from("/opt/homebrew/bin/codex"),
+        PathBuf::from("/usr/local/bin/codex"),
+        home.join(".local/bin/codex"),
+        home.join(".npm-global/bin/codex"),
+    ]
+    .iter()
+    .any(|p| p.exists())
+}
+
+fn codex_status(home: &Path, command: &str) -> AppStatus {
+    let current = std::fs::read_to_string(codex_config(home))
+        .ok()
+        .and_then(|t| codex_command(&t));
+    AppStatus {
+        id: CODEX,
+        name: "Codex",
+        installed: codex_installed(home),
+        connected: current.is_some(),
+        stale: current.is_some_and(|c| c != command),
+        restart_hint: "Start a new Codex session.",
+    }
+}
+
+fn write_text(path: &Path, text: &str) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let backup = PathBuf::from(format!("{}.todocity-backup", path.display()));
+    if path.exists() && !backup.exists() {
+        let _ = std::fs::copy(path, &backup);
+    }
+    let tmp = PathBuf::from(format!("{}.todocity-tmp", path.display()));
+    std::fs::write(&tmp, text).map_err(|e| format!("Couldn't save {}: {e}", path.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("Couldn't save {}: {e}", path.display()))
+}
+
+fn connect_codex(home: &Path, command: &str) -> Result<(), String> {
+    let path = codex_config(home);
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut rest = codex_without_ours(&text);
+    // The person wrote their own `todocity` server: it's theirs to change.
+    if codex_command(&rest).is_some() {
+        return Ok(());
+    }
+    if !rest.is_empty() && !rest.ends_with("\n\n") {
+        rest.push('\n');
+    }
+    rest.push_str(&codex_block(command));
+    write_text(&path, &rest)
+}
+
+fn disconnect_codex(home: &Path) -> Result<(), String> {
+    let path = codex_config(home);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(());
+    };
+    let rest = codex_without_ours(&text);
+    if rest != text {
+        write_text(&path, rest.trim_end_matches('\n').to_string().as_str())?;
+    }
+    Ok(())
+}
+
 // ── All apps ──────────────────────────────────────────────────────────────
 
 fn json_status(home: &Path, app: &JsonApp, command: &str) -> AppStatus {
@@ -626,7 +786,10 @@ pub fn statuses(command: &str) -> Vec<AppStatus> {
     let Some(home) = home() else {
         return Vec::new();
     };
-    let mut out = vec![claude_code_status(&home, command)];
+    let mut out = vec![
+        claude_code_status(&home, command),
+        codex_status(&home, command),
+    ];
     out.extend(JSON_APPS.iter().map(|a| json_status(&home, a, command)));
     out
 }
@@ -635,6 +798,9 @@ pub fn connect(id: &str, command: &str, proactive: bool) -> Result<(), String> {
     let home = home().ok_or("Couldn't find your home folder.")?;
     if id == CLAUDE_CODE {
         return connect_claude_code(&home, command, proactive);
+    }
+    if id == CODEX {
+        return connect_codex(&home, command);
     }
     let app = JSON_APPS
         .iter()
@@ -650,6 +816,9 @@ pub fn disconnect(id: &str) -> Result<(), String> {
     let home = home().ok_or("Couldn't find your home folder.")?;
     if id == CLAUDE_CODE {
         return disconnect_claude_code(&home);
+    }
+    if id == CODEX {
+        return disconnect_codex(&home);
     }
     let app = JSON_APPS
         .iter()
@@ -701,6 +870,55 @@ pub fn repair(command: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn codex_gets_one_marked_block_and_keeps_the_rest() {
+        let own = "model = \"o4\"\n\n[mcp_servers.github]\ncommand = \"gh-mcp\"\n";
+        let cmd = "/Applications/TodoCity.app/Contents/MacOS/todocity";
+        let mut with = codex_without_ours(own);
+        with.push('\n');
+        with.push_str(&codex_block(cmd));
+        assert_eq!(codex_command(&with).as_deref(), Some(cmd));
+        assert!(with.starts_with(own));
+        // Taking it out leaves exactly what was there.
+        assert_eq!(codex_without_ours(&with).trim_end(), own.trim_end());
+        // Adding again replaces, never duplicates.
+        let again = format!(
+            "{}\n{}",
+            codex_without_ours(&with),
+            codex_block("/new/todocity")
+        );
+        assert_eq!(again.matches("[mcp_servers.todocity]").count(), 1);
+        assert_eq!(codex_command(&again).as_deref(), Some("/new/todocity"));
+        // Another table's command isn't ours; quotes and backslashes survive.
+        assert_eq!(codex_command(own), None);
+        let tricky = codex_block("/A \"B\"\\c");
+        assert_eq!(codex_command(&tricky).as_deref(), Some("/A \"B\"\\c"));
+    }
+
+    #[test]
+    fn codex_settings_on_disk_round_trip() {
+        let home = tempfile::tempdir().unwrap();
+        let path = codex_config(home.path());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "model = \"o4\"\n").unwrap();
+        connect_codex(home.path(), "/x/todocity").unwrap();
+        connect_codex(home.path(), "/x/todocity").unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches(CODEX_BEGIN).count(), 1);
+        assert!(codex_status(home.path(), "/x/todocity").connected);
+        assert!(codex_status(home.path(), "/y/todocity").stale);
+        disconnect_codex(home.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "model = \"o4\"");
+        assert!(!codex_status(home.path(), "/x/todocity").connected);
+        // Their own todocity server is left alone.
+        std::fs::write(&path, "[mcp_servers.todocity]\ncommand = \"/mine\"\n").unwrap();
+        connect_codex(home.path(), "/x/todocity").unwrap();
+        assert_eq!(
+            codex_command(&std::fs::read_to_string(&path).unwrap()).as_deref(),
+            Some("/mine")
+        );
+    }
 
     #[test]
     fn strips_comments_and_trailing_commas() {

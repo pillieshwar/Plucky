@@ -170,6 +170,8 @@ export const api = {
   termClose: (id: number) => invoke<void>("term_close", { id }),
   pickFolder: () => invoke<string | null>("pick_folder"),
   homeFolder: () => invoke<string>("home_folder"),
+  /** Icons of the AI apps installed on this Mac, by agent or connector id (data URLs). */
+  appIcons: (refresh = false) => invoke<Record<string, string>>("app_icons", { refresh }),
   emailTasksStatus: () => invoke<EmailTasksStatus>("email_tasks_status"),
   emailTasksSet: (change: {
     enabled: boolean;
@@ -191,6 +193,8 @@ export const api = {
     plugged_in_only: boolean;
     show_right_away: boolean;
     names: Record<string, string>;
+    /** "local", or an agent id. */
+    reader?: string;
   }) =>
     invoke<WatchStatus>("watch_set", { change }),
   /** Pause for `minutes`, or resume with 0. */

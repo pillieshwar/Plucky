@@ -62,7 +62,6 @@ import {
   saveLastAgent,
   type FolderMemory,
 } from "./lib/agentRuns";
-import { openConnectorNext } from "./components/ConnectorsTab";
 import type { AgentChange, AgentCliStatus, AgentRun, AgentsStatus, TermSession } from "./lib/types";
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
@@ -1479,6 +1478,7 @@ export default function App() {
       onKeys={() => setShowKeys(true)}
       onModelChanged={checkStatus}
       onDone={() => setTab("tasks")}
+      onPage={setPage}
       showTitle={full}
     />
   );
@@ -1578,8 +1578,7 @@ export default function App() {
         }
         fullAccess={!!agentsSt?.full_access}
         onSettings={() => {
-          openConnectorNext("agents");
-          openSettings("connectors");
+          openSettings("agents");
         }}
       />
     ) : !paneOn ? null : upcoming ? (
@@ -2055,8 +2054,7 @@ export default function App() {
             onClose={() => setAskAgents(false)}
             onSetUp={() => {
               setAskAgents(false);
-              openConnectorNext("agents");
-              openSettings("connectors");
+              openSettings("agents");
             }}
           />
         )}

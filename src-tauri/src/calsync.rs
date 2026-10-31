@@ -636,7 +636,7 @@ mod apple {
                 }
                 let source = self
                     .source()
-                    .ok_or("Pick where TodoCity's calendars go in Connectors → Apple Calendar.")?;
+                    .ok_or("Pick where TodoCity's calendars go in Settings → Calendar & Reminders → Apple Calendar.")?;
                 let source_id = source.sourceIdentifier().to_string();
                 // One already there (made by TodoCity on another Mac): use it.
                 let existing = self
@@ -657,7 +657,7 @@ mod apple {
                 cal.setTitle(&ns(&title));
                 cal.setSource(Some(&source));
                 self.store.saveCalendar_commit_error(&cal, true).map_err(|e| {
-                    format!("TodoCity couldn't add calendars to {}: {}. Pick another account in Connectors → Apple Calendar.", source.title(), error_text(&e))
+                    format!("TodoCity couldn't add calendars to {}: {}. Pick another account in Settings → Calendar & Reminders → Apple Calendar.", source.title(), error_text(&e))
                 })?;
                 Ok(cal.calendarIdentifier().to_string())
             }

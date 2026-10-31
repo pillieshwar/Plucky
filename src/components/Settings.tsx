@@ -3,6 +3,9 @@ import { activeMode } from "../lib/modes";
 import type { AppSettings, Status, UpdateStatus } from "../lib/types";
 import type { ShortcutSettings } from "../lib/shortcuts";
 import { ConnectorsTab } from "./ConnectorsTab";
+import { AgentsPage } from "./AgentsSection";
+import { WatchSection } from "./WatchSection";
+import { safeLocale } from "../lib/locale";
 import { DataTransferTab } from "./DataTransferTab";
 import { AppearancePage, CapturePage, CityPage, DataSection, GeneralPage, HelpPage, NotificationsPage } from "./GeneralSettings";
 import { ModelsTab } from "./ModelsTab";
@@ -20,6 +23,8 @@ export type SettingsPage =
   | "city"
   | "sync"
   | "connectors"
+  | "agents"
+  | "watch"
   | "model"
   | "movein"
   | "backups"
@@ -50,11 +55,18 @@ export const PAGE_GROUPS: { label: string; pages: PageInfo[] }[] = [
     ],
   },
   {
+    label: "AI",
+    pages: [
+      { id: "agents", label: "Agents", icon: "delegate" },
+      { id: "watch", label: "Watch", icon: "eye" },
+      { id: "model", label: "Open models", icon: "sparkle" },
+    ],
+  },
+  {
     label: "Connections",
     pages: [
+      { id: "connectors", label: "Calendar & Reminders", icon: "plug" },
       { id: "sync", label: "Your other Macs", icon: "macs" },
-      { id: "connectors", label: "Connectors", icon: "plug" },
-      { id: "model", label: "AI model", icon: "sparkle" },
     ],
   },
   {
@@ -72,7 +84,7 @@ export const pageLabel = (p: SettingsPage) => ALL.find((x) => x.id === p)?.label
 
 /** Older names for places in Settings (from the menu bar, the tour…). */
 export function pageFromTab(t: string): SettingsPage | null {
-  const old: Record<string, SettingsPage> = { settings: "general", models: "model", transfer: "movein", preferences: "general" };
+  const old: Record<string, SettingsPage> = { settings: "general", models: "model", transfer: "movein", preferences: "general", harness: "agents" };
   if (old[t]) return old[t];
   return ALL.some((p) => p.id === t) ? (t as SettingsPage) : null;
 }
@@ -147,6 +159,7 @@ export function SettingsContent({
   onKeys,
   onModelChanged,
   onDone,
+  onPage,
   showTitle = true,
 }: {
   page: SettingsPage;
@@ -162,6 +175,8 @@ export function SettingsContent({
   onModelChanged: () => void;
   /** Back to the tasks (after moving in). */
   onDone: () => void;
+  /** Go to another page of Settings. */
+  onPage?: (p: SettingsPage) => void;
   showTitle?: boolean;
 }) {
   const props = { settings, onSettings, onError };
@@ -176,6 +191,8 @@ export function SettingsContent({
       {page === "city" && <CityPage {...props} />}
       {page === "sync" && <SyncPage />}
       {page === "connectors" && <ConnectorsTab />}
+      {page === "agents" && <AgentsPage />}
+      {page === "watch" && <WatchSection locale={safeLocale()} onAgents={() => onPage?.("agents")} onModels={() => onPage?.("model")} />}
       {page === "model" && <ModelsTab onChanged={onModelChanged} />}
       {page === "movein" && <DataTransferTab onFinished={onDone} />}
       {page === "backups" && <DataSection onError={onError} />}

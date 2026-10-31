@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, onCalendarChanged, onInboxChanged, onRemindersChanged, onWatchChanged } from "../lib/api";
+import { api, onCalendarChanged, onRemindersChanged } from "../lib/api";
 import { Toggle } from "./GeneralSettings";
 import { RemindersSection } from "./RemindersSection";
-import { AgentsSection } from "./AgentsSection";
 import { CalendarSyncSection } from "./CalendarSyncSection";
-import { WatchSection } from "./WatchSection";
-import { safeLocale } from "../lib/locale";
-import type { AgentsStatus, WatchStatus, CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
+import type { CalendarInfo, CalendarStatus, RemindersStatus } from "../lib/types";
 
 /**
- * Connectors: apps on this Mac that TodoCity can work with. Each card shows
- * whether it's connected and opens to its settings. Everything goes through
- * macOS on this Mac; nothing signs in to a server. (Sync with your other Macs
- * passes end-to-end encrypted boxes through a relay that can't read them.)
+ * Calendar & Reminders: Apple's apps on this Mac that TodoCity works with.
+ * Each card shows whether it's connected and opens to its settings. (Agents
+ * and Watch have their own pages.)
  */
-/** Open this card the next time Connectors shows (from "Set up AI agents"). */
+/** Open this card the next time the page shows. */
 let openNext: Id | null = null;
 export function openConnectorNext(id: Id) {
   openNext = id;
@@ -23,8 +19,6 @@ export function openConnectorNext(id: Id) {
 export function ConnectorsTab() {
   const [reminders, setReminders] = useState<RemindersStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
-  const [agents, setAgents] = useState<AgentsStatus | null>(null);
-  const [watch, setWatch] = useState<WatchStatus | null>(null);
   const [open, setOpen] = useState<Id | null>(() => {
     const id = openNext;
     openNext = null;
@@ -34,13 +28,11 @@ export function ConnectorsTab() {
   const refresh = useCallback(() => {
     api.remindersStatus().then(setReminders).catch(() => undefined);
     api.calendarStatus().then(setCalendar).catch(() => undefined);
-    api.agentsStatus().then(setAgents).catch(() => undefined);
-    api.watchStatus().then(setWatch).catch(() => undefined);
   }, []);
 
   useEffect(() => {
     refresh();
-    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh), onInboxChanged(refresh), onWatchChanged(refresh)];
+    const subs = [onRemindersChanged(refresh), onCalendarChanged(refresh)];
     return () => subs.forEach((p) => void p.then((u) => u()));
   }, [refresh]);
 
@@ -73,36 +65,11 @@ export function ConnectorsTab() {
         <RemindersSection embedded />
       </ConnectorCard>
 
-      <ConnectorCard
-        icon={<EyeGlyph />}
-        tone="watch"
-        name="Watch my screen"
-        description="Spot to-dos in any app, on this Mac."
-        connected={!!watch?.settings.enabled}
-        connectedLabel="On"
-        open={open === "watch"}
-        onToggle={() => toggle("watch")}
-      >
-        <WatchSection locale={safeLocale()} />
-      </ConnectorCard>
-
-      <ConnectorCard
-        icon={<SparkGlyph />}
-        tone="agents"
-        name="AI agents"
-        description={agents?.full_access ? "AI apps work with your tasks: full access." : "Let AI apps add tasks for you to review."}
-        connected={!!agents?.enabled}
-        open={open === "agents"}
-        onToggle={() => toggle("agents")}
-      >
-        <AgentsSection status={agents} onStatus={setAgents} />
-      </ConnectorCard>
-
     </div>
   );
 }
 
-export type Id = "reminders" | "calendar" | "agents" | "watch";
+export type Id = "reminders" | "calendar";
 
 function ConnectorCard({
   icon,
@@ -273,24 +240,6 @@ function CalendarSection({
       )}
       {error && <p className="rem-error">{error}</p>}
     </div>
-  );
-}
-
-function EyeGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5Z" strokeLinejoin="round" />
-      <circle cx="10" cy="10" r="2.2" />
-    </svg>
-  );
-}
-
-function SparkGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
-      <path d="M10 2.5 11.6 8.4 17.5 10l-5.9 1.6L10 17.5l-1.6-5.9L2.5 10l5.9-1.6Z" />
-      <path d="M15.5 2.5v3M14 4h3" strokeLinecap="round" />
-    </svg>
   );
 }
 

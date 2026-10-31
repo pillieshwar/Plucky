@@ -3,7 +3,7 @@
 //! which starts an agent on one task.
 //!
 //! Every agent session has TodoCity's MCP server: before starting an agent,
-//! TodoCity connects it (Settings → Connectors → AI agents) if it isn't yet,
+//! TodoCity connects it (Settings → Agents) if it isn't yet,
 //! or hands the server over for the session (Codex). What the agent may do
 //! with tasks still follows the person's settings: add for review, or full
 //! access.
@@ -193,11 +193,15 @@ fn find_installed() -> Vec<String> {
     let home = home();
     let mut found: Vec<String> = agent_runs::CLIS
         .iter()
-        .filter(|c| usual_places(&home, c.binary).iter().any(|p| p.is_file()))
+        .filter(|c| {
+            c.binaries()
+                .iter()
+                .any(|b| usual_places(&home, b).iter().any(|p| p.is_file()))
+        })
         .map(|c| c.id.to_string())
         .collect();
     if found.len() < agent_runs::CLIS.len() {
-        let names: Vec<&str> = agent_runs::CLIS.iter().map(|c| c.binary).collect();
+        let names: Vec<&str> = agent_runs::CLIS.iter().flat_map(|c| c.binaries()).collect();
         let script = format!(
             "for b in {}; do command -v \"$b\" >/dev/null 2>&1 && echo \"$b\"; done",
             names.join(" ")
@@ -207,7 +211,10 @@ fn find_installed() -> Vec<String> {
             Duration::from_secs(8),
         ) {
             for line in out.lines() {
-                if let Some(c) = agent_runs::CLIS.iter().find(|c| c.binary == line.trim()) {
+                if let Some(c) = agent_runs::CLIS
+                    .iter()
+                    .find(|c| c.binaries().contains(&line.trim()))
+                {
                     if !found.iter().any(|f| f == c.id) {
                         found.push(c.id.to_string());
                     }
@@ -248,7 +255,7 @@ pub async fn agent_clis(
 // ── TodoCity's MCP server in every agent ──────────────────────────────────
 
 /// Make sure `cli` will have TodoCity's MCP server: connect it the way
-/// Connectors → AI agents does if it isn't yet (or points at an old copy).
+/// Settings → Agents does if it isn't yet (or points at an old copy).
 /// Agents without a settings file TodoCity edits get it per session instead
 /// (see `agent_runs::launch_args`).
 fn ensure_mcp(app: &AppHandle, cli: &AgentCli) -> Result<(), String> {
@@ -279,25 +286,35 @@ fn ensure_mcp(app: &AppHandle, cli: &AgentCli) -> Result<(), String> {
 
 /// What to run: the person's login shell, starting the agent (with a friendly
 /// line if it isn't installed), or just the shell.
+/// The shell script that starts an agent: its usual command, or another
+/// name it goes by, or a line saying to install it. The agent's arguments
+/// follow as `"$@"`, never as shell text.
+pub fn agent_script(c: &AgentCli) -> String {
+    let names: Vec<String> = c.binaries().iter().map(|b| format!("'{b}'")).collect();
+    format!(
+        "for b in {}; do if command -v \"$b\" >/dev/null 2>&1; then exec \"$b\" \"$@\"; fi; done; printf '\\n  Install %s first, then start it again from TodoCity.\\n\\n' '{}' >&2; exit 127",
+        names.join(" "),
+        c.name
+    )
+}
+
+/// The person's login shell (which knows their PATH) running `c` with `args`.
+pub fn agent_argv(c: &AgentCli, args: &[String]) -> (String, Vec<String>) {
+    let mut v = vec![
+        "-l".into(),
+        "-i".into(),
+        "-c".into(),
+        agent_script(c),
+        "todocity-agent".into(),
+    ];
+    v.extend(args.iter().cloned());
+    (shell(), v)
+}
+
 fn command_line(cli: Option<&AgentCli>, args: &[String]) -> (String, Vec<String>) {
-    let sh = shell();
     match cli {
-        None => (sh, vec!["-l".into()]),
-        Some(c) => {
-            let script = format!(
-                "command -v \"$0\" >/dev/null 2>&1 || {{ printf '\\n  Install %s first, then start it again from TodoCity.\\n\\n' '{}'; exit 127; }}; exec \"$0\" \"$@\"",
-                c.name
-            );
-            let mut v = vec![
-                "-l".into(),
-                "-i".into(),
-                "-c".into(),
-                script,
-                c.binary.into(),
-            ];
-            v.extend(args.iter().cloned());
-            (sh, v)
-        }
+        None => (shell(), vec!["-l".into()]),
+        Some(c) => agent_argv(c, args),
     }
 }
 
@@ -537,10 +554,50 @@ pub async fn term_start(
                 ended(&app, &inner, id);
             });
     }
+    // Agents with no flag for a first message: paste it in once they've
+    // drawn their screen and gone quiet.
+    if let (Some(c), Some(text)) = (cli, prompt.clone()) {
+        if c.paste_prompt {
+            let inner = inner.clone();
+            let _ = std::thread::Builder::new()
+                .name(format!("term-{id}-prompt"))
+                .spawn(move || paste_when_ready(&inner, id, &text));
+        }
+    }
     if run.is_some() {
         emit_runs(&app);
     }
     Ok(info)
+}
+
+/// Paste `text` into terminal `id` (as a bracketed paste, so line breaks
+/// don't send it early), then press Return.
+fn paste_when_ready(inner: &Arc<Mutex<Inner>>, id: u32, text: &str) {
+    let start = Instant::now();
+    loop {
+        std::thread::sleep(Duration::from_millis(250));
+        let seen = {
+            let g = inner.lock().unwrap_or_else(|e| e.into_inner());
+            g.sessions
+                .get(&id)
+                .map(|s| (s.info.alive, !s.output.is_empty(), s.last_output))
+        };
+        match seen {
+            None | Some((false, _, _)) => return,
+            Some((true, true, last)) if last.elapsed() >= Duration::from_millis(1200) => break,
+            _ if start.elapsed() > Duration::from_secs(20) => break,
+            _ => {}
+        }
+    }
+    let write = |bytes: &[u8]| {
+        let mut g = inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(s) = g.sessions.get_mut(&id) {
+            let _ = s.writer.write_all(bytes);
+        }
+    };
+    write(format!("\u{1b}[200~{text}\u{1b}[201~").as_bytes());
+    std::thread::sleep(Duration::from_millis(300));
+    write(b"\r");
 }
 
 #[tauri::command]
@@ -889,10 +946,13 @@ mod tests {
         let claude = agent_runs::cli("claude").unwrap();
         let (_, argv) = command_line(Some(claude), &["Fix it".into()]);
         assert_eq!(&argv[..3], ["-l", "-i", "-c"]);
-        assert!(argv[3].contains("exec \"$0\" \"$@\""));
+        assert!(argv[3].contains("exec \"$b\" \"$@\""));
+        assert!(argv[3].contains("for b in 'claude';"));
         assert!(argv[3].contains("Install %s first") && argv[3].contains("'Claude Code'"));
-        assert_eq!(argv[4], "claude");
+        assert_eq!(argv[4], "todocity-agent");
         assert_eq!(argv[5], "Fix it");
+        let cursor = agent_runs::cli("cursor").unwrap();
+        assert!(agent_script(cursor).contains("for b in 'cursor-agent' 'agent';"));
         let (_, plain) = command_line(None, &[]);
         assert_eq!(plain, vec!["-l"]);
     }
@@ -909,17 +969,33 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_shell_script_runs_the_agent_with_its_arguments() {
-        // The same script, with `printf` standing in for the agent.
-        let script = "command -v \"$0\" >/dev/null 2>&1 || exit 127; exec \"$0\" \"$@\"";
+        // `printf` stands in for an agent known by another name.
+        let fake = AgentCli {
+            id: "t",
+            name: "Test Agent",
+            binary: "no-such-agent-here",
+            also: &["printf"],
+            connector: None,
+            paste_prompt: false,
+        };
         let out = std::process::Command::new("/bin/sh")
-            .args(["-c", script, "printf", "%s|", "a b", "c\"d"])
+            .args([
+                "-c",
+                &agent_script(&fake),
+                "todocity-agent",
+                "%s|",
+                "a b",
+                "c\"d",
+            ])
             .output()
             .unwrap();
         assert_eq!(String::from_utf8_lossy(&out.stdout), "a b|c\"d|");
+        let gone = AgentCli { also: &[], ..fake };
         let missing = std::process::Command::new("/bin/sh")
-            .args(["-c", script, "no-such-agent-here"])
-            .status()
+            .args(["-c", &agent_script(&gone), "todocity-agent"])
+            .output()
             .unwrap();
-        assert_eq!(missing.code(), Some(127));
+        assert_eq!(missing.status.code(), Some(127));
+        assert!(String::from_utf8_lossy(&missing.stderr).contains("Install Test Agent first"));
     }
 }

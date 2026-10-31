@@ -312,7 +312,7 @@ export function Onboarding({
                 <p className="onboard-muted">
                   {progress !== null
                     ? "The model is still downloading, so this time you’ll fill in the card yourself."
-                    : "You’ll fill in the card yourself for now. Add the AI model anytime in Settings → AI model."}
+                    : "You’ll fill in the card yourself for now. Add the AI model anytime in Settings → Open models."}
                 </p>
               )}
               <button type="button" className="link-btn" onClick={() => onTry(SAMPLE)}>

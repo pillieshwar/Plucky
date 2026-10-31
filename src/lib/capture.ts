@@ -25,7 +25,7 @@ export async function processCapture(
       phase: "manual",
       selection,
       source,
-      error: "Fill this one in yourself, or add the AI model in Settings → AI model and TodoCity will do it for you.",
+      error: "Fill this one in yourself, or add the AI model in Settings → Open models and TodoCity will do it for you.",
     });
     return;
   }
