@@ -571,7 +571,6 @@ export default function App() {
     <SendToAgentDialog
       task={sendTask}
       clis={clis}
-      home={homeDir}
       folder={folderFor(folders, sendTask.project ?? null, homeDir)}
       lastAgent={lastAgent()}
       onClose={() => setSendTask(null)}

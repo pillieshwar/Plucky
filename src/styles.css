@@ -3264,7 +3264,7 @@ button.tf-chip { cursor: pointer; }
 .ap-tab { display: flex; align-items: center; border-radius: 7px 7px 0 0; color: var(--muted); }
 .ap-tab.on { background: #1b1a18; color: #e8e6e1; }
 .ap-tab > button:first-child {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 180px; border: 0; background: transparent; color: inherit;
+  display: inline-flex; align-items: center; gap: 6px; max-width: 150px; border: 0; background: transparent; color: inherit;
   font: inherit; font-size: 12px; padding: 6px 4px 6px 8px; cursor: pointer;
 }
 .ap-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { defaultAgent, runText, shortFolder } from "../lib/agentRuns";
+import { defaultAgent, runText } from "../lib/agentRuns";
 import type { AgentCliStatus, AgentRun, Task } from "../lib/types";
 import { AgentTile } from "./AgentPanel";
 
@@ -157,7 +157,6 @@ export function AgentRunCard({ task, run }: { task: Task; run: AgentRun }) {
 export function SendToAgentDialog({
   task,
   clis,
-  home,
   folder: startFolder,
   lastAgent,
   onStart,
@@ -165,7 +164,6 @@ export function SendToAgentDialog({
 }: {
   task: Task;
   clis: AgentCliStatus[];
-  home: string;
   folder: string;
   lastAgent: string | null;
   onStart: (agent: string, folder: string, extra: string) => Promise<void>;
@@ -234,7 +232,6 @@ export function SendToAgentDialog({
               Choose…
             </button>
           </span>
-          <small>{shortFolder(folder, home)}</small>
         </label>
         <label className="send-field">
           <span>Anything to add?</span>
