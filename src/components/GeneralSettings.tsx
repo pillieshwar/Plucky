@@ -56,6 +56,7 @@ export function Toggle({
         type="checkbox"
         role="switch"
         className="switch"
+        aria-label={info ? label : undefined}
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
