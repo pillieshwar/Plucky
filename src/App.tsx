@@ -847,6 +847,9 @@ export default function App() {
   keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A dialog (Send to agent, What it did…) keeps its own keys: Return
+      // presses its button, Esc closes it.
+      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return;
       const s = keyState.current;
       // ⌃⌥1…9 switch mode; ⌃⌥0 shows everything.
       if (e.ctrlKey && e.altKey && !e.metaKey && /^Digit[0-9]$/.test(e.code)) {
