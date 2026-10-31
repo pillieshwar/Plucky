@@ -115,6 +115,38 @@ fn tool(proactive: bool) -> Value {
     })
 }
 
+/// The tool an agent TodoCity started ("Send to agent") uses to say how the
+/// task is going. It's offered with or without full access: it only takes
+/// news about a run TodoCity started (the run id is in the agent's first
+/// message) and never says anything about the person's tasks.
+pub const REPORT_TOOL: &str = "report_progress";
+
+fn report_tool() -> Value {
+    json!({
+        "name": REPORT_TOOL,
+        "title": "Report progress to TodoCity",
+        "description": "Only for work TodoCity handed to you: its first message gives a run id. Tell TodoCity how the task is going: \"needs_you\" with a one-line question when you need the user, \"done\" with a short summary and any links (pull requests, documents) when you've finished, or \"working\". TodoCity shows it on the task; the user marks the task done after reviewing.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run": { "type": "string", "description": "The run id from your first message.", "maxLength": 64 },
+                "status": { "type": "string", "enum": ["working", "needs_you", "done"] },
+                "summary": { "type": "string", "description": "What you did, or what you need from the user. A few sentences.", "maxLength": 2000 },
+                "links": { "type": "array", "items": { "type": "string" }, "maxItems": 10, "description": "Web links to what you made: a pull request, a document." }
+            },
+            "required": ["run", "status"],
+            "additionalProperties": false
+        },
+        "annotations": {
+            "title": "Report progress to TodoCity",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+        }
+    })
+}
+
 fn result(id: &Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
@@ -206,15 +238,19 @@ impl<D: Deliver> Server<D> {
             }
             Some("ping") => result(&id, json!({})),
             Some("tools/list") => {
-                let tools = if (self.full)() {
+                let mut tools = if (self.full)() {
                     todocity_core::agent_tools::tools()
                 } else {
                     vec![tool(self.proactive)]
                 };
+                tools.push(report_tool());
                 result(&id, json!({ "tools": tools }))
             }
             Some("tools/call") => {
                 let name = params["name"].as_str().unwrap_or("");
+                if name == REPORT_TOOL {
+                    return Some(result(&id, self.run_tool(name, &params["arguments"])));
+                }
                 if (self.full)()
                     && todocity_core::agent_tools::names()
                         .iter()
@@ -501,8 +537,9 @@ mod tests {
             .handle(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))
             .unwrap();
         let tools = list["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 1);
+        assert_eq!(tools.len(), 2);
         assert_eq!(tools[0]["name"], "add_task");
+        assert_eq!(tools[1]["name"], REPORT_TOOL);
         let unknown = s
             .handle(&json!({"jsonrpc":"2.0","id":9,"method":"resources/read"}))
             .unwrap();
@@ -646,6 +683,32 @@ mod tests {
             .contains("Full access"));
         drop(s);
         assert!(fake.calls.is_empty());
+    }
+
+    #[test]
+    fn report_progress_works_with_or_without_full_access() {
+        for full in [false, true] {
+            let mut fake = Fake::default();
+            {
+                let mut s = Server::new(&mut fake).full_access(move || full);
+                let list = s
+                    .handle(&json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}))
+                    .unwrap();
+                assert!(list["result"]["tools"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|t| t["name"] == REPORT_TOOL));
+                let r = s
+                    .handle(&json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":REPORT_TOOL,"arguments":{"run":"abc","status":"done","summary":"Fixed."}}}))
+                    .unwrap();
+                assert_eq!(r["result"]["isError"], false);
+            }
+            assert_eq!(fake.calls.len(), 1);
+            assert_eq!(fake.calls[0].tool, REPORT_TOOL);
+            assert_eq!(fake.calls[0].args["run"], "abc");
+            assert!(fake.sent.is_empty());
+        }
     }
 
     #[test]

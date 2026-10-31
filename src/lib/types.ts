@@ -644,6 +644,46 @@ export interface CalendarSyncStatus {
 }
 
 /** Mirrors `agents::ChangeInfo`: one thing an agent did to one task. */
+/** Where a task sent to an agent is: on it, waiting for you, finished, or its terminal closed. */
+export type RunStatus = "working" | "needs_you" | "ready" | "paused";
+
+/** A task handed to an AI agent with "Send to agent" (local to this Mac). */
+export interface AgentRun {
+  id: number;
+  task_id: number;
+  /** "claude", "codex", "gemini", "cursor". */
+  agent: string;
+  agent_name: string;
+  folder: string | null;
+  status: RunStatus;
+  summary: string | null;
+  links: string[];
+  started_at: string;
+  updated_at: string;
+  /** The open terminal it's in, if any. */
+  session: number | null;
+}
+
+/** A command-line agent the panel can start. */
+export interface AgentCliStatus {
+  id: string;
+  name: string;
+  installed: boolean;
+}
+
+/** A terminal in the agent panel. */
+export interface TermSession {
+  id: number;
+  /** An agent id, or null for a plain terminal. */
+  agent: string | null;
+  name: string;
+  title: string;
+  folder: string;
+  task_id: number | null;
+  run_id: number | null;
+  alive: boolean;
+}
+
 export interface AgentChange {
   id: number;
   at: string;

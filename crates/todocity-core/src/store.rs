@@ -404,6 +404,24 @@ CREATE TABLE agent_changes (
 CREATE INDEX agent_changes_at ON agent_changes (at);
 CREATE INDEX agent_changes_task ON agent_changes (task_id);
 "#,
+    // Tasks handed to an AI agent with "Send to agent" (see
+    // `crate::agent_runs`): who's working on it, how it's going, and what
+    // the agent reported. Local to this Mac, like agent marks; never synced.
+    r#"
+CREATE TABLE agent_runs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL,
+    agent      TEXT    NOT NULL,
+    token      TEXT    NOT NULL UNIQUE,
+    folder     TEXT,
+    status     TEXT    NOT NULL,
+    summary    TEXT,
+    links      TEXT    NOT NULL DEFAULT '[]',
+    started_at TEXT    NOT NULL,
+    updated_at TEXT    NOT NULL
+);
+CREATE INDEX agent_runs_task ON agent_runs (task_id);
+"#,
 ];
 
 /// One task to bring in from another app, with its history.

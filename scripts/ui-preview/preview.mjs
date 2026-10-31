@@ -336,6 +336,57 @@ function mockTauri(s) {
       (s.events ?? []).filter((e) => e.start.slice(0, 10) <= a.to && (e.end.slice(0, 10) > a.from || e.start.slice(0, 10) >= a.from)),
     autostart_enabled: () => true,
     panel_full: () => !!s.full,
+    // v0.4.66: the agent panel and "Send to agent".
+    agent_clis: () =>
+      s.clis ?? [
+        { id: "claude", name: "Claude Code", installed: true },
+        { id: "codex", name: "Codex", installed: true },
+        { id: "gemini", name: "Gemini CLI", installed: false },
+        { id: "cursor", name: "Cursor Agent", installed: false },
+      ],
+    agent_run_list: () => s.runs ?? [],
+    agent_run_dismiss: (a) => {
+      s.runs = (s.runs ?? []).filter((r) => r.id !== a.id);
+      setTimeout(() => window.__emit?.("agent-runs", null), 0);
+    },
+    home_folder: () => "/Users/sam",
+    pick_folder: () => "/Users/sam/Projects/website",
+    term_list: () => s.terms ?? [],
+    term_attach: (a) => {
+      const data = (s.termOutput ?? {})[a.id] ?? "";
+      return { data, end: data.length };
+    },
+    term_write: (a) => {
+      window.__termWrites = [...(window.__termWrites ?? []), a];
+    },
+    term_resize: () => null,
+    term_close: (a) => {
+      s.terms = (s.terms ?? []).filter((t) => t.id !== a.id);
+    },
+    term_start: (a) => {
+      window.__termStart = a;
+      const task = a.taskId ? s.tasks.find((t) => t.id === a.taskId) : null;
+      const names = { claude: "Claude Code", codex: "Codex", gemini: "Gemini CLI", cursor: "Cursor Agent" };
+      const t = {
+        id: 90 + (s.terms ?? []).length,
+        agent: a.agent,
+        name: a.agent ? names[a.agent] : "Terminal",
+        title: task ? task.title : "website",
+        folder: a.folder ?? "/Users/sam",
+        task_id: a.taskId,
+        run_id: a.taskId ? 700 : null,
+        alive: true,
+      };
+      s.terms = [...(s.terms ?? []), t];
+      if (task) {
+        s.runs = [
+          ...(s.runs ?? []),
+          { id: 700, task_id: task.id, agent: a.agent, agent_name: t.name, folder: t.folder, status: "working", summary: null, links: [], started_at: new Date().toISOString(), updated_at: new Date().toISOString(), session: t.id },
+        ];
+        setTimeout(() => window.__emit?.("agent-runs", null), 0);
+      }
+      return t;
+    },
     city_windows: () => s.cityWindows ?? [],
     list_floors: () => s.floors ?? [],
     create_project: (a) => a.name,
@@ -1258,6 +1309,102 @@ await shot("full-who-you", FULL, agentsFull({ settings: LIGHT }), async (p) => {
   await who("You")(p);
   if (await p.locator(".task.by-agent").count()) throw new Error("You hides agents' tasks");
   await p.locator(".who-hint").waitFor();
+});
+// v0.4.66: the agent panel, and tasks sent to agents.
+const TODAY_OPEN = FULL_TASKS.filter((t) => t.due_date === day(0) && !t.done);
+const RUN_WORKING = FULL_TASKS.find((t) => t.title.startsWith("Wrap up the launch notes"));
+const RUN_READY = FULL_TASKS.find((t) => t.title === "Draft the offsite agenda");
+const RUN_ASKING = TODAY_OPEN.find((t) => t !== RUN_WORKING && t !== RUN_READY);
+const runOf = (t, id, agent, agent_name, status, extra = {}) => ({
+  id,
+  task_id: t.id,
+  agent,
+  agent_name,
+  folder: "/Users/sam/Projects/website",
+  status,
+  summary: null,
+  links: [],
+  started_at: localStamp(-30),
+  updated_at: localStamp(-2),
+  session: null,
+  ...extra,
+});
+const RUNS = [
+  runOf(RUN_WORKING, 1, "claude", "Claude Code", "working", { session: 1 }),
+  runOf(RUN_READY, 2, "codex", "Codex", "ready", {
+    summary: "Drafted the agenda: welcome, two workshops and a closing talk, with times. It's in docs/offsite-agenda.md for you to look over.",
+    links: ["https://github.com/example/offsite/pull/42"],
+  }),
+  runOf(RUN_ASKING, 3, "claude", "Claude Code", "needs_you", { summary: "Should the summary go to the whole team or just Priya?", session: 2 }),
+];
+const TERM_SAMPLE =
+  "\x1b[38;5;173m✻\x1b[0m Welcome to \x1b[1mClaude Code\x1b[0m\r\n\r\n  cwd: ~/Projects/website\r\n\r\n" +
+  "\x1b[90m> Work on this task from my TodoCity to-do list.\x1b[0m\r\n\r\n" +
+  "● Reading docs/launch-notes.md\r\n● Found 4 open items; drafting the wrap-up.\r\n" +
+  "\x1b[32m✓\x1b[0m Updated docs/launch-notes.md\r\n\x1b[32m✓\x1b[0m todocity · report_progress (working)\r\n\r\n" +
+  "\x1b[38;5;173m✻\x1b[0m Summarising the launch metrics…\r\n";
+const TERMS = [
+  { id: 1, agent: "claude", name: "Claude Code", title: RUN_WORKING.title, folder: "/Users/sam/Projects/website", task_id: RUN_WORKING.id, run_id: 1, alive: true },
+  { id: 2, agent: "claude", name: "Claude Code", title: RUN_ASKING.title, folder: "/Users/sam/Projects/website", task_id: RUN_ASKING.id, run_id: 3, alive: true },
+];
+const runsFull = (o = {}) => agentsFull({ runs: RUNS, terms: TERMS, termOutput: { 1: TERM_SAMPLE, 2: TERM_SAMPLE }, ...o });
+const openAgents = async (p) => {
+  await p.getByRole("button", { name: "Show agents" }).click();
+  await p.locator(".agent-pane").waitFor();
+  await p.waitForTimeout(300);
+};
+await shot("full-agents-panel", FULL, runsFull({ settings: LIGHT }), async (p) => {
+  await p.locator(".run-pill", { hasText: "Claude Code is working" }).first().waitFor();
+  await p.locator(".run-pill", { hasText: "Ready to review" }).first().waitFor();
+  await p.locator(".run-pill", { hasText: "Claude Code needs you" }).first().waitFor();
+  await openAgents(p);
+  await p.locator(".term-view .xterm").waitFor();
+  if ((await p.locator(".ap-tab").count()) !== 2) throw new Error("both sessions have tabs");
+});
+await shot("full-agents-panel-dark", FULL, runsFull({ settings: DARK }), openAgents, true);
+await shot("full-agents-empty", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await openAgents(p);
+  await p.locator(".ap-empty").waitFor();
+  await p.locator(".ap-prompts button", { hasText: "Plan my day" }).click();
+  await p.waitForFunction(() => window.__termStart?.agent === "claude" && /plan my day/i.test(window.__termStart?.prompt ?? ""));
+  await p.locator(".term-view .xterm").waitFor();
+});
+await shot("full-agents-send", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await p.locator(".task .task-row", { hasText: "Wrap up the launch notes" }).first().click();
+  await p.waitForTimeout(200);
+  await p.getByRole("button", { name: "More", exact: true }).first().click();
+  await p.getByRole("menuitem", { name: /Send to agent/ }).click();
+  await p.locator(".send-dialog").waitFor();
+  await p.getByRole("radio", { name: "Codex" }).click();
+  await p.locator(".send-dialog textarea").fill("Open a pull request when the tests pass.");
+});
+await shot("full-agents-send-started", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  await p.locator(".task .task-row", { hasText: "Wrap up the launch notes" }).first().click();
+  await p.waitForTimeout(200);
+  await p.getByRole("button", { name: "More", exact: true }).first().click();
+  await p.getByRole("menuitem", { name: /Send to agent/ }).click();
+  await p.locator(".send-dialog").getByRole("button", { name: /^Start/ }).click();
+  await p.waitForFunction(() => window.__termStart?.taskId > 0 && window.__termStart?.folder);
+  await p.locator(".agent-pane .term-view").waitFor();
+  await p.locator(".run-pill", { hasText: "is working" }).first().waitFor();
+});
+await shot("full-agents-review", FULL, runsFull({ settings: LIGHT }), async (p) => {
+  await p.locator(".task .task-row", { hasText: "Draft the offsite agenda" }).first().click();
+  await p.locator(".run-card.ready").waitFor();
+  await p.locator(".run-card").getByRole("button", { name: "Mark done" }).waitFor();
+  await p.locator(".run-card").getByRole("button", { name: "Send back with a note" }).click();
+  await p.locator(".run-note textarea").fill("Add a 15-minute break after lunch.");
+});
+await shot("full-agents-answer", FULL, runsFull({ settings: DARK }), async (p) => {
+  await p.locator(".task .task-row", { hasText: RUN_ASKING.title }).first().click();
+  await p.locator(".run-card.needs_you").waitFor();
+  await p.locator(".run-card").getByRole("button", { name: "Answer" }).click();
+  await p.locator(".run-note textarea").fill("Just Priya for now.");
+  await p.locator(".run-card").getByRole("button", { name: /^Send to Claude Code/ }).click();
+  await p.waitForFunction(() => (window.__termWrites ?? []).some((w) => w.id === 2 && w.data === "Just Priya for now.\r"));
+}, true);
+await shot("panel-agents-pill", PANEL, scenario({ runs: [runOf(TASKS.find((t) => t.due_date === day(0) && !t.done), 1, "claude", "Claude Code", "working")] }), async (p) => {
+  await p.locator(".run-pill", { hasText: "Claude Code is working" }).first().waitFor();
 });
 await shot("full-who-setup", FULL, full({ settings: LIGHT, tasks: AGENT_FULL_TASKS }), async (p) => {
   await p.locator(".who-setup", { hasText: "Set up" }).waitFor();

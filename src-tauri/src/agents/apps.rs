@@ -110,6 +110,15 @@ const JSON_APPS: &[JsonApp] = &[
         restart_hint: "Restart Windsurf, or refresh its MCP servers.",
     },
     JsonApp {
+        id: "gemini_cli",
+        name: "Gemini CLI",
+        config: ".gemini/settings.json",
+        key: "mcpServers",
+        typed: false,
+        markers: &[".gemini"],
+        restart_hint: "Start a new Gemini CLI session (or run /mcp refresh).",
+    },
+    JsonApp {
         id: "lm_studio",
         name: "LM Studio",
         config: ".lmstudio/mcp.json",

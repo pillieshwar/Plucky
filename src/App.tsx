@@ -41,12 +41,27 @@ import {
   onTasksChanged,
   onUpdateStatus,
   onAgentChanges,
+  onAgentRuns,
   onInboxChanged,
+  onTermExit,
 } from "./lib/api";
 import { agentCounts, agentsBy, byAgent, filterWho, latestByTask, type Who } from "./lib/agents";
 import { AgentMarks, AgentsSetUpDialog, WhoSwitch } from "./components/WhoSwitch";
+import { AgentPanel, guessSize } from "./components/AgentPanel";
+import { AgentRuns, SendToAgentDialog, type AgentRunsValue } from "./components/AgentRuns";
+import {
+  continueNote,
+  folderFor,
+  lastAgent,
+  loadFolders,
+  rememberFolder,
+  runsByTask,
+  saveFolders,
+  saveLastAgent,
+  type FolderMemory,
+} from "./lib/agentRuns";
 import { openConnectorNext } from "./components/ConnectorsTab";
-import type { AgentChange, AgentsStatus } from "./lib/types";
+import type { AgentChange, AgentCliStatus, AgentRun, AgentsStatus, TermSession } from "./lib/types";
 import { formatShortcut, type ShortcutSettings } from "./lib/shortcuts";
 import { addDays, parseISODate, toISODate } from "./lib/dates";
 import { groupTasks } from "./lib/grouping";
@@ -464,6 +479,111 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [latestAgent, now, whoShown, agentsOn],
   );
+  // The agent panel (full screen) and tasks sent to agents.
+  const [agentPane, setAgentPaneRaw] = useState(() => saved("todocity.agentPane", ["on", "off"], "off") === "on");
+  const setAgentPane = (on: boolean) => {
+    remember("todocity.agentPane", on ? "on" : "off");
+    setAgentPaneRaw(on);
+  };
+  const [clis, setClis] = useState<AgentCliStatus[]>([]);
+  const [termSessions, setTermSessions] = useState<TermSession[]>([]);
+  const [activeTerm, setActiveTerm] = useState<number | null>(null);
+  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [sendTask, setSendTask] = useState<Task | null>(null);
+  const [homeDir, setHomeDir] = useState("");
+  const [folders, setFolders] = useState<FolderMemory>(loadFolders);
+  const [termBusy, setTermBusy] = useState(false);
+  useEffect(() => {
+    api.homeFolder().then(setHomeDir).catch(() => undefined);
+    const loadRuns = () => {
+      api.agentRuns().then(setRuns).catch(() => undefined);
+      api.termList().then(setTermSessions).catch(() => undefined);
+    };
+    loadRuns();
+    const subs = [onAgentRuns(loadRuns), onTermExit(loadRuns), onTasksChanged(loadRuns)];
+    return () => subs.forEach((p) => void p.then((u) => u()));
+  }, []);
+  // Which agents are installed: looked up when the panel or the dialog opens.
+  useEffect(() => {
+    if (!agentPane && !sendTask) return;
+    api.agentClis().then(setClis).catch(() => undefined);
+  }, [agentPane, sendTask]);
+  const panelFolder = folders.last || homeDir;
+  const keepFolder = (project: string | null, folder: string) => {
+    const next = rememberFolder(folders, project, folder);
+    setFolders(next);
+    saveFolders(next);
+  };
+  /** Open a terminal (an agent, or a plain shell), optionally on a task. */
+  const startTerm = async (
+    agent: string | null,
+    o: { folder?: string | null; taskId?: number; extra?: string; prompt?: string } = {},
+  ) => {
+    const width = (sideW || defaultSideWidth()) - 2;
+    const { cols, rows } = guessSize(width, window.innerHeight - 190);
+    setTermBusy(true);
+    try {
+      const sess = await api.termStart({
+        agent,
+        folder: o.folder ?? panelFolder,
+        taskId: o.taskId ?? null,
+        extra: o.extra ?? null,
+        prompt: o.prompt ?? null,
+        cols,
+        rows,
+      });
+      if (agent) saveLastAgent(agent);
+      setTermSessions(await api.termList());
+      setActiveTerm(sess.id);
+      if (full) setAgentPane(true);
+      return sess;
+    } finally {
+      setTermBusy(false);
+    }
+  };
+  const runsValue: AgentRunsValue = useMemo(
+    () => ({
+      byTask: runsByTask(runs),
+      send: (t: Task) => setSendTask(t),
+      open: (r: AgentRun) => {
+        if (r.session !== null) setActiveTerm(r.session);
+        if (!full) void api.setPanelFull(true).catch(() => undefined);
+        setAgentPane(true);
+      },
+      reply: async (r: AgentRun, t: Task, text: string) => {
+        const live = r.session !== null && termSessions.some((x) => x.id === r.session && x.alive);
+        try {
+          if (live) await api.termWrite(r.session!, `${text}\r`);
+          else await startTerm(r.agent, { folder: r.folder, taskId: t.id, extra: text });
+        } catch (e) {
+          setError(String(e));
+        }
+      },
+      resume: (r: AgentRun, t: Task) =>
+        void startTerm(r.agent, { folder: r.folder, taskId: t.id, extra: continueNote(r) }).catch((e) => setError(String(e))),
+      dismiss: (r: AgentRun) => void api.agentRunDismiss(r.id).catch((e) => setError(String(e))),
+      markDone: (t: Task) => void actions.setDone(t, true),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [runs, termSessions, full, panelFolder, actions],
+  );
+  const sendDialog = sendTask && (
+    <SendToAgentDialog
+      task={sendTask}
+      clis={clis}
+      folder={folderFor(folders, sendTask.project ?? null, homeDir)}
+      lastAgent={lastAgent()}
+      onClose={() => setSendTask(null)}
+      onStart={async (agent, folder, extra) => {
+        await startTerm(agent, { folder, taskId: sendTask.id, extra });
+        keepFolder(sendTask.project ?? null, folder);
+        const name = clis.find((c) => c.id === agent)?.name ?? "The agent";
+        show(`${name} is on “${sendTask.title.slice(0, 40)}”`);
+        setSendTask(null);
+      }}
+    />
+  );
+
   const viewedProject = projectOf(list);
   const floorOpen = full && floorView && floorView.project === viewedProject ? floorView : null;
   useEffect(() => {
@@ -512,6 +632,11 @@ export default function App() {
   const calView = upcoming && !boardView && tab === "tasks";
   const paneShown = boardView ? boardPane : calView ? calPane : lookOf(settings).side_open;
   const togglePane = () => {
+    // The calendar and the agent panel share the right side.
+    if (agentPane) {
+      setAgentPane(false);
+      if (paneShown) return;
+    }
     if (boardView) setBoardPane((o) => !o);
     else if (calView)
       setCalPane((o) => {
@@ -1412,6 +1537,35 @@ export default function App() {
         onClose={() => setOpenId(null)}
         onStep={ids.includes(openTask.id) ? stepTask : undefined}
       />
+    ) : agentPane ? (
+      <AgentPanel
+        clis={clis}
+        sessions={termSessions}
+        active={activeTerm}
+        onActive={setActiveTerm}
+        busy={termBusy}
+        onStart={(agent, prompt) => void startTerm(agent, { prompt }).catch((e) => setError(String(e)))}
+        onCloseSession={(id) => {
+          void api
+            .termClose(id)
+            .then(() => api.termList())
+            .then(setTermSessions)
+            .catch(() => undefined);
+          if (activeTerm === id) setActiveTerm(null);
+        }}
+        folder={panelFolder}
+        home={homeDir}
+        onPickFolder={() =>
+          void api.pickFolder().then((f) => {
+            if (f) keepFolder(null, f);
+          })
+        }
+        fullAccess={!!agentsSt?.full_access}
+        onSettings={() => {
+          openConnectorNext("agents");
+          openSettings("connectors");
+        }}
+      />
     ) : !paneOn ? null : upcoming ? (
       <WeekSide
         tasks={tasks}
@@ -1489,6 +1643,7 @@ export default function App() {
       <ProjectColors.Provider value={projectColors}>
       <SourceDisplay.Provider value={look.show_source}>
       <AgentMarks.Provider value={agentMarks}>
+      <AgentRuns.Provider value={runsValue}>
       <WordsContext.Provider value={CITY}>
       <div
         className={["app-full", drag.drag ? "dragging" : "", look.compact ? "compact" : ""].filter(Boolean).join(" ")}
@@ -1746,6 +1901,22 @@ export default function App() {
                 </svg>
               </button>
             )}
+            {tasksShown && (
+              <button
+                type="button"
+                className={agentPane ? "icon agent-toggle on-pane" : "icon agent-toggle"}
+                onClick={() => setAgentPane(!agentPane)}
+                aria-label={agentPane ? "Hide agents" : "Show agents"}
+                aria-pressed={agentPane}
+                title={agentPane ? "Hide agents" : "Agents: Claude Code, Codex and more, with your tasks"}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1.8" y="2.5" width="12.4" height="11" rx="2" />
+                  <path d="M4.5 6.2l2.3 1.8-2.3 1.8M8.6 10h3" />
+                </svg>
+                {runs.some((r) => r.status === "needs_you" || r.status === "ready") && <span className="icon-dot" aria-label="An agent needs you" />}
+              </button>
+            )}
           </header>
 
           {banners}
@@ -1862,6 +2033,7 @@ export default function App() {
         <Toasts toasts={toasts} onDismiss={dismiss} />
         {drag.drag && <DragGhost drag={drag.drag} now={now} locale={LOCALE} />}
         {keysSheet}
+        {sendDialog}
         {askAgents && (
           <AgentsSetUpDialog
             onClose={() => setAskAgents(false)}
@@ -1874,6 +2046,7 @@ export default function App() {
         )}
       </div>
       </WordsContext.Provider>
+      </AgentRuns.Provider>
       </AgentMarks.Provider>
       </SourceDisplay.Provider>
       </ProjectColors.Provider>
@@ -1883,6 +2056,7 @@ export default function App() {
   return (
     <ProjectColors.Provider value={projectColors}>
     <SourceDisplay.Provider value={look.show_source}>
+    <AgentRuns.Provider value={runsValue}>
     <div className={drag.drag ? "panel dragging" : "panel"}>
       <header className="topbar" data-tauri-drag-region>
         {controls}
@@ -2074,7 +2248,9 @@ export default function App() {
           <KeyboardIcon />
         </button>
       </footer>
+      {sendDialog}
     </div>
+    </AgentRuns.Provider>
     </SourceDisplay.Provider>
     </ProjectColors.Provider>
   );

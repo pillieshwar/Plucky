@@ -1,4 +1,10 @@
 {
+  "0.4.66": [
+    "Agents inside TodoCity: open the agent panel (top right) to run Claude Code, Codex, Gemini CLI, Cursor Agent or a plain terminal beside your list",
+    "Every agent you start here is already connected to TodoCity, so you can ask it to plan your day or tidy your Inbox in one click",
+    "Send to agent: from a task's ⋯ menu, hand it to an agent in the folder you choose",
+    "The task shows how it's going — working, needs you, ready to review — with the agent's summary and links, and you mark it done after you look it over"
+  ],
   "0.4.65": [
     "You · All · Agents in the header: see just your tasks, everything, or only what AI agents added or changed this week",
     "Everything an agent does is marked (\"Claude scheduled\") and one click undoes it — a task, or everything from one request",

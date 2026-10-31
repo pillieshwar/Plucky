@@ -7,6 +7,7 @@
 //!   request) → user confirms the date → `add_task` (one SQLite write).
 //!   The runtime stops itself after a few idle minutes.
 
+mod agent_panel;
 mod agents;
 mod calendar;
 mod calsync;
@@ -22,6 +23,7 @@ mod models;
 mod notifications;
 mod panel;
 mod popover;
+mod pty;
 mod quick;
 mod reminders;
 #[cfg(target_os = "macos")]
@@ -1555,6 +1557,7 @@ pub fn run() {
             });
             app.manage(settings);
             app.manage(agents::Agents::new(&data_dir));
+            app.manage(agent_panel::Sessions::default());
             app.manage(Updates::default());
             app.manage(import::TodoistCache::default());
             app.manage(mirror::Mirror::new(&data_dir));
@@ -1665,6 +1668,7 @@ pub fn run() {
             slack_cleanup::start(app.handle());
             sync::start(app.handle());
             agents::start(app.handle());
+            agent_panel::start(app.handle());
             watch::start(app.handle());
             double_copy::start(app.handle());
             Ok(())
@@ -1764,6 +1768,17 @@ pub fn run() {
             agents::agents_set_full_access,
             agents::agent_activity,
             agents::agent_undo,
+            agent_panel::agent_clis,
+            agent_panel::agent_run_list,
+            agent_panel::agent_run_dismiss,
+            agent_panel::term_start,
+            agent_panel::term_list,
+            agent_panel::term_attach,
+            agent_panel::term_write,
+            agent_panel::term_resize,
+            agent_panel::term_close,
+            agent_panel::pick_folder,
+            agent_panel::home_folder,
             calsync::calsync_status,
             calsync::calsync_apple_enable,
             calsync::calsync_apple_disable,
