@@ -1,12 +1,13 @@
 import { useWords } from "../lib/words";
 import { playDone } from "../lib/doneSound";
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectColor } from "../lib/colors";
 import { CalendarIcon } from "./icons";
 import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
 import type { ProjectInfo } from "./ProjectPicker";
 import { SourceChip, useSourceDisplay } from "./SourceChip";
+import { AgentRunCard, AgentRunPill, AgentRuns, useAgentRun } from "./AgentRuns";
 import { AgentMark, useIsAgentTask } from "./WhoSwitch";
 import { endOf } from "../lib/timeblock";
 import { LineIcon } from "./LineIcon";
@@ -402,6 +403,7 @@ function RowMeta({
 }) {
   const showSource = useSourceDisplay();
   const agentTask = useIsAgentTask(task);
+  const run = useAgentRun(task);
   const w = useWords();
   const parts: ReactNode[] = [];
   const when = whenText(task, now, locale);
@@ -459,6 +461,7 @@ function RowMeta({
   const repeat = repeatShort(task.recurrence);
   if (repeat) parts.push(<span key="r">{repeat.toLowerCase()}</span>);
   if (agentTask) parts.unshift(<AgentMark key="ag" task={task} />);
+  if (run && !task.done) parts.unshift(<AgentRunPill key="run" run={run} />);
   if (sourceLabel(task) && !link && showSource !== "never") parts.push(<SourceChip key="src" task={task} onFail={onError} />);
   if (!parts.length && !flag) return null;
   return (
@@ -492,7 +495,9 @@ function RowSub({
 }) {
   const showSource = useSourceDisplay();
   const agentTask = useIsAgentTask(task);
+  const run = useAgentRun(task);
   const parts: ReactNode[] = [];
+  if (run && !task.done) parts.push(<AgentRunPill key="run" run={run} />);
   if (agentTask) parts.push(<AgentMark key="ag" task={task} />);
   if (task.project && task.project !== inProject) {
     parts.push(
@@ -602,6 +607,8 @@ function TaskCard({
   focusPart: "title" | "notes" | "steps" | null;
   onClose: () => void;
 }) {
+  const runs = useContext(AgentRuns);
+  const run = runs.byTask.get(task.id);
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
   const [editNotes, setEditNotes] = useState(false);
@@ -783,6 +790,7 @@ function TaskCard({
             <SourceChip task={task} onFail={actions.fail} />
           </div>
         )}
+        {run && !task.done && <AgentRunCard task={task} run={run} />}
         <Checklist items={steps} onChange={saveSteps} autoFocusAdd={focusPart === "steps"} readOnly={task.done} />
         <TaskFields
           value={values}
@@ -839,6 +847,22 @@ function TaskCard({
                     </button>
                     <div className="tf-sep" />
                   </>
+                )}
+                {!task.done && runs.send && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="tf-opt"
+                    onClick={() => {
+                      close();
+                      runs.send!(task);
+                    }}
+                  >
+                    <span className="tf-opt-icon">
+                      <LineIcon name="external" size={16} />
+                    </span>
+                    {run ? "Send to agent again…" : "Send to agent…"}
+                  </button>
                 )}
                 {!task.done && (
                   <button type="button" role="menuitem" className="tf-opt" onClick={() => onSnooze(true)}>

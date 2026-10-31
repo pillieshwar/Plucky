@@ -1,0 +1,256 @@
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { api } from "../lib/api";
+import { defaultAgent, runText, shortFolder } from "../lib/agentRuns";
+import type { AgentCliStatus, AgentRun, Task } from "../lib/types";
+import { AgentTile } from "./AgentPanel";
+
+/** What tasks need to show their agent: each task's run, and what can be done with it. */
+export interface AgentRunsValue {
+  byTask: Map<number, AgentRun>;
+  /** "Send to agent…": opens the dialog (absent where agents can't be started). */
+  send?: (task: Task) => void;
+  /** Show a run's terminal in the agent panel. */
+  open?: (run: AgentRun) => void;
+  /** Answer the agent, or start it again with a note. */
+  reply?: (run: AgentRun, task: Task, text: string) => Promise<void>;
+  /** Start a paused run again. */
+  resume?: (run: AgentRun, task: Task) => void;
+  dismiss?: (run: AgentRun) => void;
+  markDone?: (task: Task) => void;
+}
+
+export const AgentRuns = createContext<AgentRunsValue>({ byTask: new Map() });
+
+export function useAgentRun(task: Task): AgentRun | undefined {
+  return useContext(AgentRuns).byTask.get(task.id);
+}
+
+/** "Claude Code is working", on a task's line. */
+export function AgentRunPill({ run }: { run: AgentRun }) {
+  const t = runText(run);
+  return (
+    <span className={`run-pill ${t.tone}`} title={run.summary ?? undefined}>
+      {t.tone === "working" && <span className="run-dot" aria-hidden />}
+      {t.label}
+    </span>
+  );
+}
+
+/** On an open task: where its agent is, what it reported, and what to do next. */
+export function AgentRunCard({ task, run }: { task: Task; run: AgentRun }) {
+  const ctx = useContext(AgentRuns);
+  const t = runText(run);
+  const [note, setNote] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (note !== null) noteRef.current?.focus();
+  }, [note !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function sendNote() {
+    const text = note?.trim();
+    if (!text || !ctx.reply) return;
+    setSending(true);
+    try {
+      await ctx.reply(run, task, text);
+      setNote(null);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className={`run-card ${t.tone}`} aria-label="Agent" data-nodrag>
+      <div className="run-head">
+        <AgentTile agent={run.agent} size={24} />
+        <div className="run-head-text">
+          <b>{t.label}</b>
+          {run.folder && <small>{run.folder.replace(/^\/Users\/[^/]+/, "~")}</small>}
+        </div>
+        {ctx.dismiss && (
+          <button type="button" className="run-x" aria-label="Clear from this task" title="Clear from this task" onClick={() => ctx.dismiss!(run)}>
+            ×
+          </button>
+        )}
+      </div>
+      {run.summary && <p className="run-summary">{run.summary}</p>}
+      {run.links.length > 0 && (
+        <div className="run-links">
+          {run.links.map((l) => (
+            <a
+              key={l}
+              href={l}
+              onClick={(e) => {
+                e.preventDefault();
+                void api.openUrl(l).catch(() => undefined);
+              }}
+            >
+              {l.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)}
+            </a>
+          ))}
+        </div>
+      )}
+      {note !== null ? (
+        <div className="run-note">
+          <textarea
+            ref={noteRef}
+            rows={2}
+            value={note}
+            maxLength={2000}
+            placeholder={run.status === "needs_you" ? "Your answer" : "What should it change?"}
+            aria-label="Note for the agent"
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void sendNote();
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setNote(null);
+              }
+            }}
+          />
+          <div className="run-actions">
+            <button type="button" className="primary" disabled={sending || !note.trim()} onClick={() => void sendNote()}>
+              Send to {run.agent_name}
+            </button>
+            <button type="button" onClick={() => setNote(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="run-actions">
+          {run.status === "ready" && ctx.markDone && (
+            <button type="button" className="primary" onClick={() => ctx.markDone!(task)}>
+              Mark done
+            </button>
+          )}
+          {run.status === "needs_you" && ctx.reply && (
+            <button type="button" className="primary" onClick={() => setNote("")}>
+              Answer
+            </button>
+          )}
+          {run.status === "ready" && ctx.reply && (
+            <button type="button" onClick={() => setNote("")}>
+              Send back with a note
+            </button>
+          )}
+          {run.status === "paused" && ctx.resume && (
+            <button type="button" className="primary" onClick={() => ctx.resume!(run, task)}>
+              Continue
+            </button>
+          )}
+          {run.session !== null && ctx.open && (
+            <button type="button" onClick={() => ctx.open!(run)}>
+              Show terminal
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * "Send to agent": pick the agent and the folder it works in, add a note,
+ * and start it on the task.
+ */
+export function SendToAgentDialog({
+  task,
+  clis,
+  home,
+  folder: startFolder,
+  lastAgent,
+  onStart,
+  onClose,
+}: {
+  task: Task;
+  clis: AgentCliStatus[];
+  home: string;
+  folder: string;
+  lastAgent: string | null;
+  onStart: (agent: string, folder: string, extra: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const installed = clis.filter((c) => c.installed);
+  const [agent, setAgent] = useState<string | null>(() => defaultAgent(installed.map((c) => c.id), lastAgent));
+  const [folder, setFolder] = useState(startFolder);
+  const [extra, setExtra] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!agent && installed.length) setAgent(defaultAgent(installed.map((c) => c.id), lastAgent));
+  }, [installed.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    go.current?.focus();
+    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  const name = installed.find((c) => c.id === agent)?.name;
+
+  async function start() {
+    if (!agent) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onStart(agent, folder, extra);
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="who-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="who-dialog send-dialog" role="dialog" aria-modal="true" aria-labelledby="send-title">
+        <h2 id="send-title">Send to an agent</h2>
+        <p className="send-task">“{task.title}”</p>
+        <p>The agent gets this task's title, notes and sub-tasks, works in the folder below, and tells TodoCity how it's going.</p>
+        {installed.length ? (
+          <div className="send-agents" role="radiogroup" aria-label="Agent">
+            {installed.map((c) => (
+              <button key={c.id} type="button" role="radio" aria-checked={agent === c.id} className={agent === c.id ? "send-agent on" : "send-agent"} onClick={() => setAgent(c.id)}>
+                <AgentTile agent={c.id} size={28} />
+                <span>{c.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="send-install">Install Claude Code, Codex, Gemini CLI or Cursor Agent, then send tasks to it from here.</p>
+        )}
+        <label className="send-field">
+          <span>Work in</span>
+          <span className="send-folder">
+            <input value={folder} onChange={(e) => setFolder(e.target.value)} spellCheck={false} aria-label="Folder" title={folder} />
+            <button
+              type="button"
+              onClick={() =>
+                void api.pickFolder().then((f) => {
+                  if (f) setFolder(f);
+                })
+              }
+            >
+              Choose…
+            </button>
+          </span>
+          <small>{shortFolder(folder, home)}</small>
+        </label>
+        <label className="send-field">
+          <span>Anything to add?</span>
+          <textarea rows={2} value={extra} maxLength={2000} placeholder="Open a pull request when the tests pass." onChange={(e) => setExtra(e.target.value)} />
+        </label>
+        {error && <p className="send-error">{error}</p>}
+        <div className="who-dialog-actions">
+          <button type="button" className="ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="primary" ref={go} disabled={!agent || busy || !folder.trim()} onClick={() => void start()}>
+            {busy ? "Starting…" : name ? `Start ${name}` : "Start"}
+          </button>
+        </div>
+        <small className="send-privacy">The agent you choose sends what it reads to its own provider. You mark the task done after you review its work.</small>
+      </div>
+    </div>
+  );
+}

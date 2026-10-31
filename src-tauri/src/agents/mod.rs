@@ -94,6 +94,22 @@ pub const FULL_ACCESS_OFF: &str = "Full access is off. The user can turn it on i
 
 /// Run a full-access tool for an agent, then refresh what the change touches.
 fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {
+    // An agent TodoCity started reporting on its task: allowed with or
+    // without full access (it only touches that run).
+    if call.tool == mcp::REPORT_TOOL {
+        return match crate::agent_panel::on_report(app, &call.args) {
+            Ok(result) => CallReply {
+                ok: true,
+                result: Some(result),
+                error: None,
+            },
+            Err(e) => CallReply {
+                ok: false,
+                result: None,
+                error: Some(e),
+            },
+        };
+    }
     let settings = app.state::<Settings>().get();
     if !settings.agents_enabled || !settings.agents_full_access {
         return CallReply {
@@ -737,7 +753,7 @@ pub struct Status {
     pub pending: usize,
 }
 
-fn exe_path() -> String {
+pub(crate) fn exe_path() -> String {
     std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_default()
@@ -796,7 +812,7 @@ pub async fn agents_set_proactive(app: AppHandle, on: bool) -> Status {
     status(&app)
 }
 
-fn refuse_temporary(command: &str) -> Result<(), String> {
+pub(crate) fn refuse_temporary(command: &str) -> Result<(), String> {
     if is_temporary(command) {
         Err("Move TodoCity to your Applications folder and open it from there first.".into())
     } else {
@@ -907,8 +923,8 @@ fn self_test() -> Result<String, String> {
         .find(|r| r["id"] == 2)
         .and_then(|r| r["result"]["tools"].as_array().map(Vec::len))
         .unwrap_or(0);
-    if tools != 1 {
-        return Err("TodoCity's MCP server didn't list its tool.".into());
+    if tools == 0 {
+        return Err("TodoCity's MCP server didn't list its tools.".into());
     }
     let call = replies
         .iter()

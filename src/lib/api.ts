@@ -20,6 +20,9 @@ import type {
   CalendarStatus,
   CalendarSyncStatus,
   AgentChange,
+  AgentCliStatus,
+  AgentRun,
+  TermSession,
   CityWindow,
   FloorSummary,
   CaptureResult,
@@ -134,6 +137,37 @@ export const api = {
   agentsDisconnect: (id: string) => invoke<AgentsStatus>("agents_disconnect", { id }),
   /** Send a test task through `TodoCity --mcp`; resolves with a message. */
   agentsTest: () => invoke<string>("agents_test"),
+  /** Command-line agents for the agent panel; `refresh` looks again. */
+  agentClis: (refresh = false) => invoke<AgentCliStatus[]>("agent_clis", { refresh }),
+  agentRuns: () => invoke<AgentRun[]>("agent_run_list"),
+  agentRunDismiss: (id: number) => invoke<void>("agent_run_dismiss", { id }),
+  /** Open a terminal: an agent (or a plain shell with `agent` null), optionally on a task ("Send to agent"). */
+  termStart: (o: {
+    agent: string | null;
+    folder?: string | null;
+    taskId?: number | null;
+    extra?: string | null;
+    prompt?: string | null;
+    cols: number;
+    rows: number;
+  }) =>
+    invoke<TermSession>("term_start", {
+      agent: o.agent,
+      folder: o.folder ?? null,
+      taskId: o.taskId ?? null,
+      extra: o.extra ?? null,
+      prompt: o.prompt ?? null,
+      cols: o.cols,
+      rows: o.rows,
+    }),
+  termList: () => invoke<TermSession[]>("term_list"),
+  /** What a terminal showed so far, and where that ends (in bytes). */
+  termAttach: (id: number) => invoke<{ data: string; end: number }>("term_attach", { id }),
+  termWrite: (id: number, data: string) => invoke<void>("term_write", { id, data }),
+  termResize: (id: number, cols: number, rows: number) => invoke<void>("term_resize", { id, cols, rows }),
+  termClose: (id: number) => invoke<void>("term_close", { id }),
+  pickFolder: () => invoke<string | null>("pick_folder"),
+  homeFolder: () => invoke<string>("home_folder"),
   emailTasksStatus: () => invoke<EmailTasksStatus>("email_tasks_status"),
   emailTasksSet: (change: {
     enabled: boolean;
@@ -298,6 +332,21 @@ export function onRemindersChanged(handler: () => void): Promise<UnlistenFn> {
 /** An agent changed tasks, or its changes were undone. */
 export function onAgentChanges(handler: () => void): Promise<UnlistenFn> {
   return listen("agent-changes", () => handler());
+}
+
+/** A task sent to an agent started, changed status, or was cleared. */
+export function onAgentRuns(handler: () => void): Promise<UnlistenFn> {
+  return listen("agent-runs", () => handler());
+}
+
+/** Output from a terminal in the agent panel. */
+export function onTermOutput(handler: (id: number, data: string, end: number) => void): Promise<UnlistenFn> {
+  return listen<{ id: number; data: string; end: number }>("term-output", (e) => handler(e.payload.id, e.payload.data, e.payload.end));
+}
+
+/** A terminal's program ended. */
+export function onTermExit(handler: (id: number) => void): Promise<UnlistenFn> {
+  return listen<number>("term-exit", (e) => handler(e.payload));
 }
 
 /** Calendar sync ran, or its choices changed. */
