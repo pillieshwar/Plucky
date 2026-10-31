@@ -3376,7 +3376,7 @@ button.tf-chip { cursor: pointer; }
 }
 .info-btn:hover, .info-btn:focus-visible, .info-btn[aria-expanded="true"] { color: var(--teal); }
 .info-pop {
-  position: absolute; z-index: 50; top: calc(100% + 6px); left: -10px; width: max-content; max-width: 300px;
+  position: fixed; z-index: 80; width: max-content; max-width: 300px;
   padding: 8px 10px; border-radius: 8px; background: var(--ink); color: var(--paper);
   font-size: 12px; font-weight: 400; line-height: 1.45; letter-spacing: 0; text-transform: none; white-space: normal;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);

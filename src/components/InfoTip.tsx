@@ -1,12 +1,27 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState, type CSSProperties } from "react";
 
 /** A small (i): hover, focus or click to read more. Keeps settings pages short. */
 export function InfoTip({ text, label = "More info" }: { text: string; label?: string }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenRaw] = useState(false);
+  const [at, setAt] = useState<CSSProperties>({});
+  const btn = useRef<HTMLButtonElement>(null);
   const id = useId();
+  // Fixed to the window, so a card's rounded edge never clips it.
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) =>
+    setOpenRaw((o) => {
+      const next = typeof v === "function" ? v(o) : v;
+      const r = btn.current?.getBoundingClientRect();
+      if (next && r) {
+        const width = Math.min(300, window.innerWidth - 24);
+        const left = Math.max(12, Math.min(r.left - 10, window.innerWidth - width - 12));
+        setAt({ top: r.bottom + 6, left, maxWidth: width });
+      }
+      return next;
+    });
   return (
     <span className="info-tip" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
+        ref={btn}
         type="button"
         className="info-btn"
         aria-label={label}
@@ -29,7 +44,7 @@ export function InfoTip({ text, label = "More info" }: { text: string; label?: s
         </svg>
       </button>
       {open && (
-        <span role="tooltip" id={id} className="info-pop">
+        <span role="tooltip" id={id} className="info-pop" style={at}>
           {text}
         </span>
       )}

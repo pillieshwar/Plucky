@@ -203,7 +203,7 @@ function scenario(overrides = {}) {
     label: "panel",
     tasks: TASKS,
     settings: SETTINGS,
-    status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
+    status: { accessibility: true, engine: "bundled", active_model: "Qwen3.5 4B", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
     agents: AGENT_STATUS,
     calsync: CALSYNC_OFF,
@@ -237,25 +237,19 @@ function mockTauri(s) {
     },
     get_shortcuts: () => s.shortcuts,
     update_status: () => s.update,
-    list_models: () => [
-      {
-        id: "llama-3.2-3b",
-        name: "Llama 3.2 3B Instruct",
-        publisher: "Meta",
-        description:
-          "The best balance of quality and speed for most Macs. Reads messages, emails and web pages well and handles dates reliably.",
-        license: "Llama 3.2 Community License",
-        repo: "x",
-        file: "x",
-        approx_size_mb: 2020,
-        min_ram_gb: 8,
-        recommended: true,
-        installed: !!s.status.active_model,
-        active: !!s.status.active_model,
-        partial_bytes: 0,
-        progress: null,
-      },
-    ],
+    list_models: () => {
+      const m = (id, name, publisher, description, mb, ram, recommended) => ({
+        id, name, publisher, description, license: "Apache 2.0", repo: "x", file: "x",
+        approx_size_mb: mb, min_ram_gb: ram, recommended,
+        installed: recommended && !!s.status.active_model, active: recommended && !!s.status.active_model,
+        partial_bytes: 0, progress: null,
+      });
+      return [
+        m("qwen3.5-4b", "Qwen3.5 4B", "Alibaba Qwen", "The best all-rounder: fast, accurate, and quiet — it rarely suggests a to-do that isn't one.", 3010, 8, true),
+        m("gemma-4-e4b", "Gemma 4 E4B", "Google", "Misses the fewest to-dos, but larger and about three times slower. For Macs with 16 GB or more.", 4980, 16, false),
+        m("qwen3.5-2b", "Qwen3.5 2B", "Alibaba Qwen", "The lightest: quick captures on smaller Macs. Suggests more to-dos that aren't when watching.", 1300, 4, false),
+      ];
+    },
     list_local_models: () => s.local ?? { added: [], found: [] },
     reminders_status: () => s.reminders ?? ({
       supported: true,
