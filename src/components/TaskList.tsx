@@ -7,7 +7,7 @@ import { SnoozeBar } from "./SnoozeBar";
 import { Checklist, stepsLabel } from "./Checklist";
 import type { ProjectInfo } from "./ProjectPicker";
 import { SourceChip, useSourceDisplay } from "./SourceChip";
-import { AgentRunCard, AgentRunPill, AgentRuns, useAgentRun } from "./AgentRuns";
+import { AgentRunCard, AgentRunPill, AgentRuns, DelegateButton, useAgentRun } from "./AgentRuns";
 import { AgentMark, useIsAgentTask } from "./WhoSwitch";
 import { endOf } from "../lib/timeblock";
 import { LineIcon } from "./LineIcon";
@@ -144,7 +144,7 @@ export function TaskList(props: Props) {
           <h2 className={props.plain ? "day sr-only" : "day"}>
             {g.label}
             <span className="count">{g.tasks.length}</span>
-            {g.tone === "overdue" && (
+            {g.key === "overdue" && g.tone === "overdue" && (
               <button
                 type="button"
                 className="day-action"
@@ -366,6 +366,7 @@ function TaskRow({
             </span>
             <RowMeta task={task} now={now} locale={locale} inProject={inProject} onOpenProject={onOpenProject} onError={actions.fail} whenOnly={rich} />
           </div>
+          <DelegateButton task={task} />
         </div>
         {rich && <RowSub task={task} inProject={inProject} onOpenProject={onOpenProject} hasNotes={details && !!task.notes} />}
         {rich && details && (task.notes || (task.checklist?.length ?? 0) > 0) && (

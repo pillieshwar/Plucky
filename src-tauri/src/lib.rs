@@ -1771,6 +1771,7 @@ pub fn run() {
             agent_panel::agent_clis,
             agent_panel::agent_run_list,
             agent_panel::agent_run_dismiss,
+            agent_panel::agent_run_transcript,
             agent_panel::term_start,
             agent_panel::term_list,
             agent_panel::term_attach,

@@ -1,4 +1,5 @@
-import type { AgentRun, RunStatus } from "./types";
+import type { DayGroup } from "./grouping";
+import type { AgentRun, RunStatus, Task } from "./types";
 
 /** How a run shows on its task: the words, and a tone for its colour. */
 export function runText(run: Pick<AgentRun, "status" | "agent_name">): { label: string; tone: RunStatus } {
@@ -23,6 +24,31 @@ export function runsByTask(runs: AgentRun[]): Map<number, AgentRun> {
     if (!had || had.id < r.id) out.set(r.task_id, r);
   }
   return out;
+}
+
+/** "With agents": what needs you first, then what's ready, working, paused. */
+const RUN_GROUPS: { status: RunStatus; label: string; tone: DayGroup["tone"] }[] = [
+  { status: "needs_you", label: "Needs you", tone: "overdue" },
+  { status: "ready", label: "Ready to review", tone: "today" },
+  { status: "working", label: "Working", tone: "upcoming" },
+  { status: "paused", label: "Paused", tone: "someday" },
+];
+
+/** Open tasks handed to agents, grouped by where each one is; newest news first. */
+export function groupByRun(tasks: Task[], runs: Map<number, AgentRun>): DayGroup[] {
+  const out: DayGroup[] = [];
+  for (const g of RUN_GROUPS) {
+    const these = tasks
+      .filter((t) => !t.done && runs.get(t.id)?.status === g.status)
+      .sort((a, b) => (runs.get(b.id)!.updated_at).localeCompare(runs.get(a.id)!.updated_at));
+    if (these.length) out.push({ key: `run:${g.status}`, label: g.label, tone: g.tone, tasks: these });
+  }
+  return out;
+}
+
+/** How many delegated tasks wait for the person (they need you, or are ready to review). */
+export function waitingCount(runs: AgentRun[]): number {
+  return runs.filter((r) => r.status === "needs_you" || r.status === "ready").length;
 }
 
 /** A small lettered tile for an agent (never its logo). */

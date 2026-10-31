@@ -422,6 +422,12 @@ CREATE TABLE agent_runs (
 );
 CREATE INDEX agent_runs_task ON agent_runs (task_id);
 "#,
+    // What an agent's terminal showed (cleaned), and its last few lines, so
+    // "what did it do" survives closing TodoCity (see `crate::agent_runs`).
+    r#"
+ALTER TABLE agent_runs ADD COLUMN transcript TEXT;
+ALTER TABLE agent_runs ADD COLUMN tail TEXT;
+"#,
 ];
 
 /// One task to bring in from another app, with its history.

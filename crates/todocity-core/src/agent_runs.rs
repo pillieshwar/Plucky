@@ -27,6 +27,12 @@ pub const MAX_SUMMARY: usize = 2000;
 pub const MAX_LINKS: usize = 10;
 /// Longest task notes put into an agent's first message.
 const MAX_NOTES: usize = 4000;
+/// Lines of an agent's terminal kept with its run.
+pub const TRANSCRIPT_LINES: usize = 400;
+/// Most text kept with a run (bytes).
+const TRANSCRIPT_BYTES: usize = 64 * 1024;
+/// Lines in a run's "last lines" (shown when the agent didn't report).
+pub const TAIL_LINES: usize = 6;
 
 // ── The agents ────────────────────────────────────────────────────────────
 
@@ -253,6 +259,10 @@ pub struct AgentRun {
     /// RFC 3339 UTC.
     pub started_at: String,
     pub updated_at: String,
+    /// The last few readable lines from its terminal, if any were kept.
+    pub tail: Option<String>,
+    /// Whether its terminal's text was kept ("What it did").
+    pub has_transcript: bool,
 }
 
 fn now() -> String {
@@ -300,8 +310,7 @@ pub fn reported_status(s: &str) -> Option<RunStatus> {
     }
 }
 
-const COLUMNS: &str =
-    "id, task_id, agent, token, folder, status, summary, links, started_at, updated_at";
+const COLUMNS: &str = "id, task_id, agent, token, folder, status, summary, links, started_at, updated_at, tail, transcript IS NOT NULL";
 
 fn map_run(r: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRun> {
     let status: String = r.get(5)?;
@@ -317,7 +326,122 @@ fn map_run(r: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRun> {
         links: serde_json::from_str(&links).unwrap_or_default(),
         started_at: r.get(8)?,
         updated_at: r.get(9)?,
+        tail: r.get(10)?,
+        has_transcript: r.get(11)?,
     })
+}
+
+// ── What the terminal showed ──────────────────────────────────────────────
+
+/// A terminal's raw output as plain text: escape sequences (colours, cursor
+/// moves, titles) removed, carriage-return overwrites applied, other control
+/// characters dropped, and only the last [`TRANSCRIPT_LINES`] lines kept.
+pub fn clean_terminal(raw: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => match chars.next() {
+                // CSI: parameters, then one final byte.
+                Some('[') => {
+                    for d in chars.by_ref() {
+                        if ('\u{40}'..='\u{7e}').contains(&d) {
+                            break;
+                        }
+                    }
+                }
+                // OSC and other strings: up to BEL or ESC \.
+                Some(']') | Some('P') | Some('X') | Some('^') | Some('_') => {
+                    while let Some(d) = chars.next() {
+                        if d == '\u{7}' {
+                            break;
+                        }
+                        if d == '\u{1b}' {
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                    }
+                }
+                // Character sets and the like: one more character.
+                Some('(') | Some(')') | Some('*') | Some('+') | Some('#') => {
+                    chars.next();
+                }
+                _ => {}
+            },
+            '\r' => {
+                if chars.peek() != Some(&'\n') {
+                    line.clear();
+                }
+            }
+            '\n' => {
+                lines.push(std::mem::take(&mut line).trim_end().to_string());
+            }
+            '\u{8}' => {
+                line.pop();
+            }
+            '\t' => line.push_str("    "),
+            c if c.is_control() => {}
+            c => line.push(c),
+        }
+    }
+    let last = line.trim_end();
+    if !last.is_empty() {
+        lines.push(last.to_string());
+    }
+    // No runs of blank lines.
+    let mut out: Vec<String> = Vec::new();
+    for l in lines {
+        if l.is_empty() && out.last().map(|p| p.is_empty()).unwrap_or(true) {
+            continue;
+        }
+        out.push(l);
+    }
+    while out.last().is_some_and(|l| l.is_empty()) {
+        out.pop();
+    }
+    let start = out.len().saturating_sub(TRANSCRIPT_LINES);
+    let mut text = out[start..].join("\n");
+    if text.len() > TRANSCRIPT_BYTES {
+        let mut cut = text.len() - TRANSCRIPT_BYTES;
+        while !text.is_char_boundary(cut) {
+            cut += 1;
+        }
+        text = text[cut..].to_string();
+    }
+    text
+}
+
+/// The last few lines of a cleaned transcript worth reading: frames and
+/// spinners trimmed off, blank and repeated lines skipped.
+pub fn tail_lines(clean: &str, n: usize) -> Option<String> {
+    let frame = |c: char| {
+        c.is_whitespace()
+            || ('\u{2500}'..='\u{259f}').contains(&c)
+            || matches!(c, '>' | '│' | '·' | '*' | '✻' | '✳' | '✢' | '●' | '⎿')
+    };
+    let mut picked: Vec<String> = Vec::new();
+    for l in clean.lines().rev() {
+        let t = l.trim_matches(frame);
+        if t.chars().filter(|c| c.is_alphanumeric()).count() < 3 {
+            continue;
+        }
+        let t = clip(t, 200);
+        if picked.last() == Some(&t) || picked.contains(&t) {
+            continue;
+        }
+        picked.push(t);
+        if picked.len() == n {
+            break;
+        }
+    }
+    if picked.is_empty() {
+        return None;
+    }
+    picked.reverse();
+    Some(picked.join("\n"))
 }
 
 impl Store {
@@ -420,6 +544,34 @@ impl Store {
             return Err(StoreError::NotFound(id));
         }
         self.run(id)
+    }
+
+    /// Keep what a run's terminal showed (raw output), cleaned, with its last
+    /// lines. Doesn't count as news from the run (`updated_at` stays).
+    pub fn save_transcript(&self, id: i64, raw: &str) -> Result<(), StoreError> {
+        let clean = clean_terminal(raw);
+        if clean.trim().is_empty() {
+            return Ok(());
+        }
+        let tail = tail_lines(&clean, TAIL_LINES);
+        self.conn.execute(
+            "UPDATE agent_runs SET transcript = ?1, tail = ?2 WHERE id = ?3",
+            params![clean, tail, id],
+        )?;
+        Ok(())
+    }
+
+    /// What a run's terminal showed, as kept by [`Store::save_transcript`].
+    pub fn run_transcript(&self, id: i64) -> Result<Option<String>, StoreError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT transcript FROM agent_runs WHERE id = ?1",
+                [id],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten())
     }
 
     /// The person dismissed a run: it leaves the task.
@@ -664,6 +816,51 @@ mod tests {
             clean_links(&mixed),
             vec!["https://a.example", "http://c.example"]
         );
+    }
+
+    #[test]
+    fn terminal_text_loses_escapes_and_overwrites() {
+        let raw = "\u{1b}]0;title\u{7}\u{1b}[1;32mGreen\u{1b}[0m text\r\nspin |\rspin /\rDone!\n\n\n\nab\u{8}c\tx\u{1b}(B";
+        assert_eq!(clean_terminal(raw), "Green text\nDone!\n\nac    x");
+        let long: String = (0..1000).map(|i| format!("line {i}\n")).collect();
+        let kept = clean_terminal(&long);
+        assert_eq!(kept.lines().count(), TRANSCRIPT_LINES);
+        assert!(kept.ends_with("line 999"));
+        assert_eq!(clean_terminal("\u{1b}[2J\u{1b}[H"), "");
+    }
+
+    #[test]
+    fn the_tail_is_the_last_readable_lines() {
+        let clean = "Reading files\n╭────╮\n│ > │\n● Updated docs/notes.md\n✻ Thinking…\n✻ Thinking…\n  \n⎿  Tests pass (42)";
+        assert_eq!(
+            tail_lines(clean, 3).as_deref(),
+            Some("Updated docs/notes.md\nThinking…\nTests pass (42)")
+        );
+        assert_eq!(tail_lines("╭──╮\n│ │\n> \n", 6), None);
+    }
+
+    #[test]
+    fn transcripts_are_kept_with_the_run() {
+        let (s, t) = store_with("Task");
+        let run = s.start_run(t.id, "claude", None).unwrap();
+        assert!(!run.has_transcript && run.tail.is_none());
+        // Nothing readable: nothing kept.
+        s.save_transcript(run.id, "\u{1b}[2J").unwrap();
+        assert!(!s.run(run.id).unwrap().has_transcript);
+        s.save_transcript(
+            run.id,
+            "\u{1b}[32mOpened PR #12\u{1b}[0m\r\nAll done here\r\n",
+        )
+        .unwrap();
+        let after = s.run(run.id).unwrap();
+        assert!(after.has_transcript);
+        assert_eq!(after.tail.as_deref(), Some("Opened PR #12\nAll done here"));
+        assert_eq!(after.updated_at, run.updated_at);
+        assert_eq!(
+            s.run_transcript(run.id).unwrap().as_deref(),
+            Some("Opened PR #12\nAll done here")
+        );
+        assert_eq!(s.run_transcript(run.id + 9).unwrap(), None);
     }
 
     #[test]

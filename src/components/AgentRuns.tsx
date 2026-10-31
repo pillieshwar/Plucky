@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { defaultAgent, runText } from "../lib/agentRuns";
 import type { AgentCliStatus, AgentRun, Task } from "../lib/types";
 import { AgentTile } from "./AgentPanel";
+import { LineIcon } from "./LineIcon";
 
 /** What tasks need to show their agent: each task's run, and what can be done with it. */
 export interface AgentRunsValue {
@@ -25,6 +26,82 @@ export function useAgentRun(task: Task): AgentRun | undefined {
   return useContext(AgentRuns).byTask.get(task.id);
 }
 
+/**
+ * On a task's line (shown on hover): hand the task to an agent. Hidden while
+ * an agent is already on it.
+ */
+export function DelegateButton({ task }: { task: Task }) {
+  const ctx = useContext(AgentRuns);
+  const run = ctx.byTask.get(task.id);
+  if (!ctx.send || task.done || (run && (run.status === "working" || run.status === "needs_you"))) return null;
+  return (
+    <button
+      type="button"
+      className="row-delegate"
+      data-nodrag
+      aria-label="Send to agent"
+      title="Send to agent"
+      onClick={(e) => {
+        e.stopPropagation();
+        ctx.send!(task);
+      }}
+    >
+      <LineIcon name="delegate" size={16} />
+    </button>
+  );
+}
+
+/** "What it did": everything the agent's terminal showed, as plain text. */
+export function TranscriptDialog({ run, title, onClose }: { run: AgentRun; title: string; onClose: () => void }) {
+  const [text, setText] = useState<string | null | undefined>(undefined);
+  const box = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .agentRunTranscript(run.id)
+      .then((t) => live && setText(t))
+      .catch(() => live && setText(null));
+    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", key);
+    return () => {
+      live = false;
+      window.removeEventListener("keydown", key);
+    };
+  }, [run.id, onClose]);
+  // Open at the end, where the agent finished.
+  useEffect(() => {
+    if (box.current) box.current.scrollTop = box.current.scrollHeight;
+  }, [text]);
+  return (
+    <div className="who-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="who-dialog transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="transcript-title">
+        <div className="transcript-head">
+          <AgentTile agent={run.agent} size={26} />
+          <div>
+            <h2 id="transcript-title">What {run.agent_name} did</h2>
+            <p>“{title}”</p>
+          </div>
+        </div>
+        {run.summary && <p className="transcript-summary">{run.summary}</p>}
+        {text === undefined ? (
+          <p className="transcript-note">Loading…</p>
+        ) : text ? (
+          <pre className="transcript" ref={box} tabIndex={0} aria-label="Terminal output">
+            {text}
+          </pre>
+        ) : (
+          <p className="transcript-note">The terminal's text shows here once the agent has started working.</p>
+        )}
+        <div className="who-dialog-actions">
+          <button type="button" className="primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** "Claude Code is working", on a task's line. */
 export function AgentRunPill({ run }: { run: AgentRun }) {
   const t = runText(run);
@@ -42,6 +119,7 @@ export function AgentRunCard({ task, run }: { task: Task; run: AgentRun }) {
   const t = runText(run);
   const [note, setNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [showing, setShowing] = useState(false);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (note !== null) noteRef.current?.focus();
@@ -73,7 +151,16 @@ export function AgentRunCard({ task, run }: { task: Task; run: AgentRun }) {
           </button>
         )}
       </div>
-      {run.summary && <p className="run-summary">{run.summary}</p>}
+      {run.summary ? (
+        <p className="run-summary">{run.summary}</p>
+      ) : (
+        run.tail && (
+          <div className="run-tail">
+            <small>Last lines from its terminal</small>
+            <pre>{run.tail}</pre>
+          </div>
+        )
+      )}
       {run.links.length > 0 && (
         <div className="run-links">
           {run.links.map((l) => (
@@ -144,8 +231,14 @@ export function AgentRunCard({ task, run }: { task: Task; run: AgentRun }) {
               Show terminal
             </button>
           )}
+          {(run.has_transcript || run.session !== null) && (
+            <button type="button" onClick={() => setShowing(true)}>
+              What it did
+            </button>
+          )}
         </div>
       )}
+      {showing && <TranscriptDialog run={run} title={task.title} onClose={() => setShowing(false)} />}
     </section>
   );
 }
@@ -179,8 +272,11 @@ export function SendToAgentDialog({
   useEffect(() => {
     if (!agent && installed.length) setAgent(defaultAgent(installed.map((c) => c.id), lastAgent));
   }, [installed.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Return starts it: Start has the focus as soon as there's an agent.
   useEffect(() => {
-    go.current?.focus();
+    if (agent) go.current?.focus();
+  }, [agent]);
+  useEffect(() => {
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);

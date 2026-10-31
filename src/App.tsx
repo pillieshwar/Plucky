@@ -52,6 +52,8 @@ import { AgentRuns, SendToAgentDialog, type AgentRunsValue } from "./components/
 import {
   continueNote,
   folderFor,
+  groupByRun,
+  waitingCount,
   lastAgent,
   loadFolders,
   rememberFolder,
@@ -541,9 +543,10 @@ export default function App() {
       setTermBusy(false);
     }
   };
+  const runMap = useMemo(() => runsByTask(runs), [runs]);
   const runsValue: AgentRunsValue = useMemo(
     () => ({
-      byTask: runsByTask(runs),
+      byTask: runMap,
       send: (t: Task) => setSendTask(t),
       open: (r: AgentRun) => {
         if (r.session !== null) setActiveTerm(r.session);
@@ -565,7 +568,7 @@ export default function App() {
       markDone: (t: Task) => void actions.setDone(t, true),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [runs, termSessions, full, panelFolder, actions],
+    [runMap, termSessions, full, panelFolder, actions],
   );
   const sendDialog = sendTask && (
     <SendToAgentDialog
@@ -596,6 +599,7 @@ export default function App() {
   const showDone = list === "logbook" || lookOf(settings).show_done || revealDone;
   const rawGroups = useMemo(() => {
     if (list === "logbook") return [];
+    if (list === "agents") return groupByRun(visible, runMap);
     if (list === "inbox") return groupInbox(visible, now);
     if (viewedProject === null) return groupTasks(visible, now, LOCALE);
     const all = groupByHeading(visible, full);
@@ -604,7 +608,7 @@ export default function App() {
     // The whole project: every section shows, even empty ones, so tasks can be dragged between them.
     if (!all.length || query.trim()) return all;
     return withEmptySections(all, floorList.filter((f) => f.project === viewedProject).map((f) => f.name));
-  }, [visible, now, list, viewedProject, floorOpen, full, floorList, query]);
+  }, [visible, now, list, viewedProject, floorOpen, full, floorList, query, runMap]);
   const doneHidden = useMemo(
     () => (showDone ? 0 : rawGroups.reduce((n, g) => n + g.tasks.filter((t) => t.done).length, 0)),
     [rawGroups, showDone],
@@ -656,8 +660,10 @@ export default function App() {
       inbox: tasksForList(tasks, "inbox", today).filter((t) => !t.done).length,
       today: tasksForList(tasks, "today", today).filter((t) => !t.done).length,
       overdue: tasksForList(tasks, "overdue", today, nowTime).length,
+      agents: runs.length,
+      agentsWaiting: waitingCount(runs),
     }),
-    [tasks, today, nowTime],
+    [tasks, today, nowTime, runs],
   );
   const projectInfos: ProjectInfo[] = useMemo(() => {
     const names = new Set([...projectStats.map((p) => p.name), ...allTasks.flatMap((t) => (t.project ? [t.project] : []))]);
@@ -841,6 +847,9 @@ export default function App() {
   keyState.current = { flat, focusId, capture, tab, query, showKeys, upcoming, selectedTasks, openId, searchOpen, full, cityOpen };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A dialog (Send to agent, What it did…) keeps its own keys: Return
+      // presses its button, Esc closes it.
+      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return;
       const s = keyState.current;
       // ⌃⌥1…9 switch mode; ⌃⌥0 shows everything.
       if (e.ctrlKey && e.altKey && !e.metaKey && /^Digit[0-9]$/.test(e.code)) {
@@ -1160,6 +1169,8 @@ export default function App() {
               ? listCounts.overdue
                 ? `${listCounts.overdue} past their day, time or deadline`
                 : "All caught up"
+              : list === "agents"
+                ? "Tasks you handed to agents, and how each is going"
               : list === "logbook"
                 ? "Everything you've finished"
                 : stats
@@ -1416,6 +1427,11 @@ export default function App() {
               <>
                 <p className="empty-big">Nothing overdue</p>
                 <p>Tasks whose day, time or deadline has passed gather here, so nothing slips by.</p>
+              </>
+            ) : list === "agents" && !query.trim() ? (
+              <>
+                <p className="empty-big">Hand a task to an agent</p>
+                <p>Point at a task and click the agent button on its right. You'll see how it's going here.</p>
               </>
             ) : list === "inbox" && !query.trim() ? (
               <>
@@ -2260,7 +2276,7 @@ export default function App() {
 /** The page's icon in full screen's header: a project's ring, or the list's line icon. */
 function HeadIcon({ list, color }: { list: ListId; color?: string }) {
   if (projectOf(list) !== null) return <i className="fh-ring" style={color ? { borderColor: color } : undefined} />;
-  const name = list === "today" ? "today" : list === "upcoming" ? "calendar" : list === "logbook" ? "done" : list === "overdue" ? "overdue" : "inbox";
+  const name = list === "today" ? "today" : list === "upcoming" ? "calendar" : list === "logbook" ? "done" : list === "overdue" ? "overdue" : list === "agents" ? "delegate" : "inbox";
   return <LineIcon name={name} size={20} />;
 }
 
