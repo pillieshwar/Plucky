@@ -823,7 +823,7 @@ mod tests {
         let (_, argv) = command_line(Some(claude), &["Fix it".into()]);
         assert_eq!(&argv[..3], ["-l", "-i", "-c"]);
         assert!(argv[3].contains("exec \"$0\" \"$@\""));
-        assert!(argv[3].contains("Install Claude Code first"));
+        assert!(argv[3].contains("Install %s first") && argv[3].contains("'Claude Code'"));
         assert_eq!(argv[4], "claude");
         assert_eq!(argv[5], "Fix it");
         let (_, plain) = command_line(None, &[]);
