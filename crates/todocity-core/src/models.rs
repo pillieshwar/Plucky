@@ -26,9 +26,27 @@ pub struct CatalogModel {
     /// Quality for TodoCity, from `scripts/eval` (1 = best). The best model a
     /// Mac has enough memory for is recommended and used.
     pub rank: u8,
+    /// Shown in Open models. Unlisted models still work for anyone who has
+    /// one, and show only then.
+    pub listed: bool,
 }
 
 pub const CATALOG: &[CatalogModel] = &[
+    // The lightest that's still useful (scripts/eval, 0.4.68): 70% on Watch
+    // with some false to-dos; fine for capture. Smaller ones were far worse.
+    CatalogModel {
+        id: "qwen3.5-2b",
+        name: "Qwen3.5 2B",
+        publisher: "Alibaba Qwen",
+        description: "The lightest: quick captures on smaller Macs. Suggests more to-dos that aren't when watching.",
+        license: "Apache 2.0",
+        repo: "bartowski/Qwen_Qwen3.5-2B-GGUF",
+        file: "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+        approx_size_mb: 1_300,
+        min_ram_gb: 4,
+        rank: 8,
+        listed: true,
+    },
     CatalogModel {
         id: "qwen3.5-9b",
         name: "Qwen3.5 9B",
@@ -41,6 +59,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 6_170,
         min_ram_gb: 16,
         rank: 2,
+        listed: false,
     },
     // Picked by scripts/eval (watch mode): as accurate as models twice its
     // size, no false to-dos, and the fastest of the 4B class.
@@ -56,6 +75,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 3_010,
         min_ram_gb: 8,
         rank: 3,
+        listed: true,
     },
     CatalogModel {
         id: "llama-3.2-3b",
@@ -68,6 +88,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 2_020,
         min_ram_gb: 8,
         rank: 6,
+        listed: false,
     },
     CatalogModel {
         id: "qwen3-4b-2507",
@@ -81,6 +102,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 2_500,
         min_ram_gb: 8,
         rank: 4,
+        listed: false,
     },
     CatalogModel {
         id: "gemma-4-e4b",
@@ -94,6 +116,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 4_980,
         min_ram_gb: 16,
         rank: 1,
+        listed: true,
     },
     CatalogModel {
         id: "gemma-4-e2b",
@@ -106,6 +129,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 3_110,
         min_ram_gb: 8,
         rank: 5,
+        listed: false,
     },
     CatalogModel {
         id: "llama-3.2-1b",
@@ -118,6 +142,7 @@ pub const CATALOG: &[CatalogModel] = &[
         approx_size_mb: 810,
         min_ram_gb: 4,
         rank: 7,
+        listed: false,
     },
 ];
 
@@ -129,7 +154,7 @@ pub fn find(id: &str) -> Option<&'static CatalogModel> {
 pub fn best_for(ram_gb: u32) -> &'static CatalogModel {
     CATALOG
         .iter()
-        .filter(|m| m.min_ram_gb <= ram_gb)
+        .filter(|m| m.listed && m.min_ram_gb <= ram_gb)
         .min_by_key(|m| m.rank)
         .unwrap_or(&CATALOG[CATALOG.len() - 1])
 }
@@ -207,7 +232,14 @@ mod tests {
         assert_eq!(default_model().id, "qwen3.5-4b");
         assert_eq!(best_for(16).id, "gemma-4-e4b");
         assert_eq!(best_for(64).id, "gemma-4-e4b");
-        assert_eq!(best_for(4).id, "llama-3.2-1b");
+        assert_eq!(best_for(4).id, "qwen3.5-2b");
+        // A short list: the best few from the eval.
+        let listed: Vec<_> = CATALOG.iter().filter(|m| m.listed).map(|m| m.id).collect();
+        assert_eq!(listed.len(), 3, "{listed:?}");
+        assert!(CATALOG
+            .iter()
+            .filter(|m| m.listed)
+            .all(|m| m.approx_size_mb <= 5_000));
     }
 
     #[test]

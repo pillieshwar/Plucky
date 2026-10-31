@@ -1122,19 +1122,6 @@ await shot("panel-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) 
   await tab(p, "Watch");
   await p.locator(".set-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
-await shot("full-watch-info", FULL, full({ settings: LIGHT, watch: WATCH_ON }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await tab(p, "Watch");
-  await p.getByRole("button", { name: "About where Watch sends" }).hover();
-  await p.getByRole("tooltip", { name: /go to Claude Code/ }).waitFor();
-});
-await shot("full-watch-no-agents", FULL, full({ settings: LIGHT, watch: { ...WATCH_ON, settings: { ...WATCH_ON.settings, reader: "local" }, readers: WATCH_ON.readers.map((r) => ({ ...r, connected: false })) } }), async (p) => {
-  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
-  await tab(p, "Watch");
-  await p.getByText("Connect an agent to send Watch to it.").waitFor();
-  await p.locator(".watch-page").getByRole("button", { name: "Agents", exact: true }).click();
-  await p.locator(".set-subhead", { hasText: "Your agents" }).waitFor();
-});
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
 await shot("popover-inbox-banner", POP, scenario({ label: "popover", inbox: INBOX }));
@@ -1339,6 +1326,20 @@ await shot("full-who-you", FULL, agentsFull({ settings: LIGHT }), async (p) => {
   await who("You")(p);
   if (await p.locator(".task.by-agent").count()) throw new Error("You hides agents' tasks");
   await p.locator(".who-hint").waitFor();
+});
+// v0.4.68: Watch sends to a connected agent.
+await shot("full-watch-info", FULL, full({ settings: LIGHT, watch: WATCH_ON }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await tab(p, "Watch");
+  await p.getByRole("button", { name: "About where Watch sends" }).hover();
+  await p.getByRole("tooltip", { name: /go to Claude Code/ }).waitFor();
+});
+await shot("full-watch-no-agents", FULL, full({ settings: LIGHT, watch: { ...WATCH_ON, settings: { ...WATCH_ON.settings, reader: "local" }, readers: WATCH_ON.readers.map((r) => ({ ...r, connected: false })) } }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await tab(p, "Watch");
+  await p.getByText("Connect an agent to send Watch to it.").waitFor();
+  await p.locator(".watch-page").getByRole("button", { name: "Agents", exact: true }).click();
+  await p.locator(".set-subhead", { hasText: "Your agents" }).waitFor();
 });
 // v0.4.66: the agent panel, and tasks sent to agents.
 const TODAY_OPEN = FULL_TASKS.filter((t) => t.due_date === day(0) && !t.done);

@@ -318,6 +318,8 @@ impl ModelManager {
         let downloads = self.downloads.lock().ok();
         CATALOG
             .iter()
+            // The short list, plus any other model already downloaded.
+            .filter(|m| m.listed || self.is_installed(m))
             .map(|m| ModelView {
                 model: m,
                 recommended: m.id == models::best_for(ram_gb()).id,
