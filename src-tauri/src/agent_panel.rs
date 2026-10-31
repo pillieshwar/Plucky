@@ -635,32 +635,28 @@ pub fn start(app: &AppHandle) {
                 let Ok(r) = with_store(&app, |s| s.run(run).map_err(|e| e.to_string())) else {
                     continue;
                 };
-                if r.status == RunStatus::Working && last.elapsed() >= QUIET {
-                    if with_store(&app, |s| {
-                        s.set_run_status(run, RunStatus::NeedsYou)
-                            .map_err(|e| e.to_string())
-                    })
-                    .is_ok()
-                    {
-                        if let Some(s) = lock(&sessions).sessions.get_mut(&id) {
-                            s.quiet_since = Some(Instant::now());
-                        }
-                        changed = true;
-                    }
+                // Quiet while working: waiting for you. Talking again on
+                // its own after that: back at work.
+                let next = if r.status == RunStatus::Working && last.elapsed() >= QUIET {
+                    Some((RunStatus::NeedsYou, Some(Instant::now())))
                 } else if r.status == RunStatus::NeedsYou
                     && quiet_since.is_some_and(|q| last > q + Duration::from_secs(2))
                 {
-                    if with_store(&app, |s| {
-                        s.set_run_status(run, RunStatus::Working)
-                            .map_err(|e| e.to_string())
-                    })
-                    .is_ok()
-                    {
-                        if let Some(s) = lock(&sessions).sessions.get_mut(&id) {
-                            s.quiet_since = None;
-                        }
-                        changed = true;
+                    Some((RunStatus::Working, None))
+                } else {
+                    None
+                };
+                let Some((status, quiet)) = next else {
+                    continue;
+                };
+                let saved = with_store(&app, |s| {
+                    s.set_run_status(run, status).map_err(|e| e.to_string())
+                });
+                if saved.is_ok() {
+                    if let Some(s) = lock(&sessions).sessions.get_mut(&id) {
+                        s.quiet_since = quiet;
                     }
+                    changed = true;
                 }
             }
             if changed {
