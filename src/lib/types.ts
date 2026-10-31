@@ -660,6 +660,10 @@ export interface AgentRun {
   links: string[];
   started_at: string;
   updated_at: string;
+  /** The last few readable lines from its terminal, if any were kept. */
+  tail: string | null;
+  /** Its terminal's text was kept ("What it did"). */
+  has_transcript: boolean;
   /** The open terminal it's in, if any. */
   session: number | null;
 }

@@ -345,6 +345,7 @@ function mockTauri(s) {
         { id: "cursor", name: "Cursor Agent", installed: false },
       ],
     agent_run_list: () => s.runs ?? [],
+    agent_run_transcript: (a) => (s.transcripts ?? {})[a.id] ?? null,
     agent_run_dismiss: (a) => {
       s.runs = (s.runs ?? []).filter((r) => r.id !== a.id);
       setTimeout(() => window.__emit?.("agent-runs", null), 0);
@@ -381,7 +382,7 @@ function mockTauri(s) {
       if (task) {
         s.runs = [
           ...(s.runs ?? []),
-          { id: 700, task_id: task.id, agent: a.agent, agent_name: t.name, folder: t.folder, status: "working", summary: null, links: [], started_at: new Date().toISOString(), updated_at: new Date().toISOString(), session: t.id },
+          { id: 700, task_id: task.id, agent: a.agent, agent_name: t.name, folder: t.folder, status: "working", summary: null, links: [], started_at: new Date().toISOString(), updated_at: new Date().toISOString(), session: t.id, tail: null, has_transcript: false },
         ];
         setTimeout(() => window.__emit?.("agent-runs", null), 0);
       }
@@ -1327,6 +1328,8 @@ const runOf = (t, id, agent, agent_name, status, extra = {}) => ({
   started_at: localStamp(-30),
   updated_at: localStamp(-2),
   session: null,
+  tail: null,
+  has_transcript: false,
   ...extra,
 });
 const RUNS = [
@@ -1347,7 +1350,21 @@ const TERMS = [
   { id: 1, agent: "claude", name: "Claude Code", title: RUN_WORKING.title, folder: "/Users/sam/Projects/website", task_id: RUN_WORKING.id, run_id: 1, alive: true },
   { id: 2, agent: "claude", name: "Claude Code", title: RUN_ASKING.title, folder: "/Users/sam/Projects/website", task_id: RUN_ASKING.id, run_id: 3, alive: true },
 ];
-const runsFull = (o = {}) => agentsFull({ runs: RUNS, terms: TERMS, termOutput: { 1: TERM_SAMPLE, 2: TERM_SAMPLE }, ...o });
+const TRANSCRIPT = [
+  "Welcome to Codex",
+  "",
+  "> Work on this task from my TodoCity to-do list.",
+  "",
+  "Reading docs/offsite-notes.md and last year's agenda",
+  "Drafting: welcome (9:30), workshops (10:00, 13:30), closing talk (16:00)",
+  "Wrote docs/offsite-agenda.md",
+  "git checkout -b offsite-agenda && git commit -m \"Offsite agenda draft\"",
+  "Opened pull request #42",
+  "todocity · report_progress (done)",
+].join("\n");
+const RUNS_KEPT = RUNS.map((r) => (r.id === 2 ? { ...r, has_transcript: true } : r));
+const runsFull = (o = {}) =>
+  agentsFull({ runs: RUNS_KEPT, terms: TERMS, termOutput: { 1: TERM_SAMPLE, 2: TERM_SAMPLE }, transcripts: { 2: TRANSCRIPT }, ...o });
 const openAgents = async (p) => {
   await p.getByRole("button", { name: "Show agents" }).click();
   await p.locator(".agent-pane").waitFor();
@@ -1403,6 +1420,46 @@ await shot("full-agents-answer", FULL, runsFull({ settings: DARK }), async (p) =
   await p.locator(".run-card").getByRole("button", { name: /^Send to Claude Code/ }).click();
   await p.waitForFunction(() => (window.__termWrites ?? []).some((w) => w.id === 2 && w.data === "Just Priya for now.\r"));
 }, true);
+// v0.4.67: delegate from a task's line, With agents, and what the agent did.
+await shot("full-agents-list", FULL, runsFull({ settings: LIGHT }), async (p) => {
+  await side("With agents")(p);
+  for (const g of ["Needs you", "Ready to review", "Working"]) await p.locator(".group-title, h2, h3", { hasText: g }).first().waitFor();
+  if ((await p.locator(".task").count()) !== 3) throw new Error("only tasks with agents");
+});
+await shot("full-agents-list-dark", FULL, runsFull({ settings: DARK }), side("With agents"), true);
+await shot("full-agents-row-button", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  const row = p.locator(".task", { hasText: "Wrap up the launch notes" }).first();
+  await row.hover();
+  await row.getByRole("button", { name: "Send to agent" }).waitFor();
+});
+await shot("full-agents-row-send", FULL, agentsFull({ settings: LIGHT }), async (p) => {
+  const row = p.locator(".task", { hasText: "Book flights" }).first();
+  await row.hover();
+  await row.getByRole("button", { name: "Send to agent" }).click();
+  await p.locator(".send-dialog", { hasText: "Book flights" }).waitFor();
+  // Return starts it: the Start button has the focus.
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => window.__termStart?.taskId > 0);
+  await p.locator(".run-pill", { hasText: "is working" }).first().waitFor();
+});
+await shot("full-agents-transcript", FULL, runsFull({ settings: LIGHT }), async (p) => {
+  await p.locator(".task .task-row", { hasText: "Draft the offsite agenda" }).first().click();
+  await p.locator(".run-card").getByRole("button", { name: "What it did" }).click();
+  await p.locator(".transcript", { hasText: "Opened pull request #42" }).waitFor();
+});
+await shot("full-agents-tail", FULL, runsFull({
+  settings: DARK,
+  runs: RUNS.map((r) => (r.id === 3 ? { ...r, status: "paused", summary: null, session: null, has_transcript: true, tail: "Read the Q3 numbers sheet\nDrafted the email to Priya\nWaiting for which numbers to include" } : r)),
+}), async (p) => {
+  await p.locator(".task .task-row", { hasText: RUN_ASKING.title }).first().click();
+  await p.locator(".run-tail", { hasText: "Drafted the email to Priya" }).waitFor();
+  await p.locator(".run-card").getByRole("button", { name: "Continue" }).waitFor();
+}, true);
+await shot("panel-agents-row-button", PANEL, scenario(), async (p) => {
+  const row = p.locator(".task").nth(1);
+  await row.hover();
+  await row.getByRole("button", { name: "Send to agent" }).waitFor();
+});
 await shot("panel-agents-pill", PANEL, scenario({ runs: [runOf(TASKS.find((t) => t.due_date === day(0) && !t.done), 1, "claude", "Claude Code", "working")] }), async (p) => {
   await p.locator(".run-pill", { hasText: "Claude Code is working" }).first().waitFor();
 });

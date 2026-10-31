@@ -356,6 +356,27 @@ fn pump(app: AppHandle, inner: Arc<Mutex<Inner>>, id: u32, mut master: File) {
 }
 
 /// A terminal's program ended: mark it, and pause its run if unfinished.
+/// Keep what a run's terminal showed with the run, so "What it did" lasts
+/// after the terminal (or TodoCity) closes.
+fn keep_transcript(app: &AppHandle, run: i64, output: &[u8]) {
+    if output.is_empty() {
+        return;
+    }
+    let raw = String::from_utf8_lossy(output);
+    if let Err(e) = with_store(app, |s| {
+        s.save_transcript(run, &raw).map_err(|e| e.to_string())
+    }) {
+        log::warn!("couldn't keep an agent's transcript: {e}");
+    }
+}
+
+/// The run and output of a terminal, to keep its transcript.
+fn run_output(inner: &Arc<Mutex<Inner>>, id: u32) -> Option<(i64, Vec<u8>)> {
+    let g = inner.lock().unwrap_or_else(|e| e.into_inner());
+    let s = g.sessions.get(&id)?;
+    Some((s.info.run_id?, s.output.clone()))
+}
+
 fn ended(app: &AppHandle, inner: &Arc<Mutex<Inner>>, id: u32) {
     let run = {
         let mut g = inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -364,6 +385,9 @@ fn ended(app: &AppHandle, inner: &Arc<Mutex<Inner>>, id: u32) {
             s.info.run_id
         })
     };
+    if let Some((r, output)) = run_output(inner, id) {
+        keep_transcript(app, r, &output);
+    }
     if let Some(run) = run {
         let _ = with_store(app, |s| {
             let r = s.run(run).map_err(|e| e.to_string())?;
@@ -602,6 +626,7 @@ pub fn term_close(app: AppHandle, sessions: State<'_, Sessions>, id: u32) {
             crate::pty::hang_up(s.pid);
         }
         if let Some(run) = s.info.run_id {
+            keep_transcript(&app, run, &s.output);
             let _ = with_store(&app, |st| {
                 let r = st.run(run).map_err(|e| e.to_string())?;
                 if r.status.active() {
@@ -621,46 +646,60 @@ pub fn start(app: &AppHandle) {
     let app = app.clone();
     let _ = std::thread::Builder::new()
         .name("agent-quiet".into())
-        .spawn(move || loop {
-            std::thread::sleep(Duration::from_secs(3));
-            let sessions = app.state::<Sessions>();
-            let watch: Vec<(u32, i64, Instant, Option<Instant>)> = lock(&sessions)
-                .sessions
-                .values()
-                .filter(|s| s.info.alive)
-                .filter_map(|s| Some((s.info.id, s.info.run_id?, s.last_output, s.quiet_since)))
-                .collect();
-            let mut changed = false;
-            for (id, run, last, quiet_since) in watch {
-                let Ok(r) = with_store(&app, |s| s.run(run).map_err(|e| e.to_string())) else {
-                    continue;
-                };
-                // Quiet while working: waiting for you. Talking again on
-                // its own after that: back at work.
-                let next = if r.status == RunStatus::Working && last.elapsed() >= QUIET {
-                    Some((RunStatus::NeedsYou, Some(Instant::now())))
-                } else if r.status == RunStatus::NeedsYou
-                    && quiet_since.is_some_and(|q| last > q + Duration::from_secs(2))
-                {
-                    Some((RunStatus::Working, None))
-                } else {
-                    None
-                };
-                let Some((status, quiet)) = next else {
-                    continue;
-                };
-                let saved = with_store(&app, |s| {
-                    s.set_run_status(run, status).map_err(|e| e.to_string())
-                });
-                if saved.is_ok() {
-                    if let Some(s) = lock(&sessions).sessions.get_mut(&id) {
-                        s.quiet_since = quiet;
+        .spawn(move || {
+            let mut tick: u32 = 0;
+            loop {
+                std::thread::sleep(Duration::from_secs(3));
+                let sessions = app.state::<Sessions>();
+                let watch: Vec<(u32, i64, Instant, Option<Instant>)> = lock(&sessions)
+                    .sessions
+                    .values()
+                    .filter(|s| s.info.alive)
+                    .filter_map(|s| Some((s.info.id, s.info.run_id?, s.last_output, s.quiet_since)))
+                    .collect();
+                let mut changed = false;
+                // Every 30 seconds, keep each working agent's transcript so far.
+                tick += 1;
+                if tick >= 10 && !watch.is_empty() {
+                    tick = 0;
+                    for (id, ..) in &watch {
+                        if let Some((run, output)) = run_output(&sessions.inner, *id) {
+                            keep_transcript(&app, run, &output);
+                        }
                     }
                     changed = true;
                 }
-            }
-            if changed {
-                emit_runs(&app);
+                for (id, run, last, quiet_since) in watch {
+                    let Ok(r) = with_store(&app, |s| s.run(run).map_err(|e| e.to_string())) else {
+                        continue;
+                    };
+                    // Quiet while working: waiting for you. Talking again on
+                    // its own after that: back at work.
+                    let next = if r.status == RunStatus::Working && last.elapsed() >= QUIET {
+                        Some((RunStatus::NeedsYou, Some(Instant::now())))
+                    } else if r.status == RunStatus::NeedsYou
+                        && quiet_since.is_some_and(|q| last > q + Duration::from_secs(2))
+                    {
+                        Some((RunStatus::Working, None))
+                    } else {
+                        None
+                    };
+                    let Some((status, quiet)) = next else {
+                        continue;
+                    };
+                    let saved = with_store(&app, |s| {
+                        s.set_run_status(run, status).map_err(|e| e.to_string())
+                    });
+                    if saved.is_ok() {
+                        if let Some(s) = lock(&sessions).sessions.get_mut(&id) {
+                            s.quiet_since = quiet;
+                        }
+                        changed = true;
+                    }
+                }
+                if changed {
+                    emit_runs(&app);
+                }
             }
         });
 }
@@ -704,6 +743,28 @@ pub fn agent_run_list(
     })
 }
 
+/// What a run's terminal showed: the live terminal's text while it's open,
+/// else what was kept.
+#[tauri::command]
+pub fn agent_run_transcript(
+    app: AppHandle,
+    sessions: State<'_, Sessions>,
+    id: i64,
+) -> Result<Option<String>, String> {
+    let live = lock(&sessions)
+        .sessions
+        .values()
+        .find(|s| s.info.run_id == Some(id))
+        .map(|s| s.output.clone());
+    if let Some(output) = live.filter(|o| !o.is_empty()) {
+        let clean = agent_runs::clean_terminal(&String::from_utf8_lossy(&output));
+        if !clean.trim().is_empty() {
+            return Ok(Some(clean));
+        }
+    }
+    with_store(&app, |s| s.run_transcript(id).map_err(|e| e.to_string()))
+}
+
 /// The person is done with a run: it leaves the task.
 #[tauri::command]
 pub fn agent_run_dismiss(app: AppHandle, id: i64) -> Result<(), String> {
@@ -731,15 +792,21 @@ pub fn on_report(app: &AppHandle, args: &serde_json::Value) -> Result<serde_json
         Ok((run, title))
     })?;
     // It spoke up: it isn't just quiet any more.
-    {
+    let output = {
         let sessions = app.state::<Sessions>();
         let mut g = lock(&sessions);
+        let mut output = None;
         for s in g.sessions.values_mut() {
             if s.info.run_id == Some(run.id) {
                 s.quiet_since = None;
                 s.last_output = Instant::now();
+                output = Some(s.output.clone());
             }
         }
+        output
+    };
+    if let Some(output) = output {
+        keep_transcript(app, run.id, &output);
     }
     let name = agent_name(&run.agent);
     match run.status {

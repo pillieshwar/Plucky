@@ -192,6 +192,7 @@ const PATHS = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  delegate: <path d="M5.5 5h13a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM7.5 10l3 2.5-3 2.5M12.5 15.5h4" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   sliders: (
     <>

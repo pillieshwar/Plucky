@@ -141,6 +141,8 @@ export const api = {
   agentClis: (refresh = false) => invoke<AgentCliStatus[]>("agent_clis", { refresh }),
   agentRuns: () => invoke<AgentRun[]>("agent_run_list"),
   agentRunDismiss: (id: number) => invoke<void>("agent_run_dismiss", { id }),
+  /** What a run's terminal showed (live, or as kept). */
+  agentRunTranscript: (id: number) => invoke<string | null>("agent_run_transcript", { id }),
   /** Open a terminal: an agent (or a plain shell with `agent` null), optionally on a task ("Send to agent"). */
   termStart: (o: {
     agent: string | null;

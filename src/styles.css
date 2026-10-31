@@ -3341,3 +3341,27 @@ button.tf-chip { cursor: pointer; }
 .send-field textarea { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: 400 13px var(--sans); resize: vertical; background: var(--paper); color: var(--ink); }
 .send-error { color: var(--accent) !important; }
 .send-privacy { color: var(--faint); font-size: 11.5px; line-height: 1.45; }
+
+/* Hand a task to an agent from its line (shown on hover or focus). */
+.row-delegate {
+  flex: none; align-self: center; width: 28px; height: 28px; margin-left: 2px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; opacity: 0;
+}
+.task:hover .row-delegate, .task:focus-within .row-delegate, .row-delegate:focus-visible { opacity: 1; }
+.row-delegate:hover { color: var(--teal); background: var(--teal-soft); }
+@media (hover: none) { .row-delegate { opacity: 1; } }
+
+.run-tail { display: flex; flex-direction: column; gap: 4px; }
+.run-tail small { color: var(--muted); font-size: 11.5px; }
+.run-tail pre { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--panel); font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+
+.transcript-dialog { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); }
+.transcript-head { display: flex; gap: 12px; align-items: center; }
+.transcript-head h2 { margin: 0; }
+.transcript-head p { margin: 2px 0 0; }
+.transcript-summary { color: var(--ink) !important; }
+.transcript {
+  margin: 0; flex: 1; min-height: 160px; max-height: 55vh; overflow: auto; padding: 12px 14px; border-radius: 10px;
+  background: #1b1a18; color: #e8e6e1; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
+}
+.transcript-note { padding: 10px 12px; border-radius: 9px; background: var(--panel); }

@@ -1,4 +1,10 @@
 {
+  "0.4.67": [
+    "Hand any task to an agent from its line: point at it and click the agent button on the right, then press Return",
+    "With agents, in the sidebar: everything you've handed off, grouped by what needs you, what's ready to review and what's still going",
+    "What it did: see everything the agent's terminal showed, even after you quit TodoCity",
+    "When an agent finishes without a summary, the task shows the last lines from its terminal"
+  ],
   "0.4.66": [
     "Agents inside TodoCity: open the agent panel (top right) to run Claude Code, Codex, Gemini CLI, Cursor Agent or a plain terminal beside your list",
     "Every agent you start here is already connected to TodoCity, so you can ask it to plan your day or tidy your Inbox in one click",

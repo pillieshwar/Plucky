@@ -23,7 +23,7 @@ interface Props {
   /** Settings is showing instead of a list. */
   inSettings: boolean;
   onList: (id: ListId) => void;
-  counts: { inbox: number; today: number; overdue: number };
+  counts: { inbox: number; today: number; overdue: number; agents?: number; agentsWaiting?: number };
   projects: ProjectSummary[];
   tags: string[];
   activeTags: string[];
@@ -210,6 +210,7 @@ export function Sidebar(p: Props) {
         {item("inbox", "Inbox", "inbox", p.counts.inbox)}
         {item("overdue", "Overdue", "overdue", p.counts.overdue, true)}
         {item("logbook", "Completed", "done")}
+        {(p.counts.agents || p.list === "agents") && item("agents", "With agents", "delegate", p.counts.agentsWaiting || p.counts.agents, !!p.counts.agentsWaiting)}
       </nav>
 
       <div className="sb-scroll">

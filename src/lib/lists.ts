@@ -7,7 +7,7 @@ import type { Task } from "./types";
  * project), Overdue, Completed (`logbook`), or one project. "all" (Anytime)
  * and "someday" are older lists; they open Inbox now.
  */
-export type ListId = "all" | "today" | "upcoming" | "overdue" | "someday" | "logbook" | "inbox" | `project:${string}`;
+export type ListId = "all" | "today" | "upcoming" | "overdue" | "someday" | "logbook" | "inbox" | "agents" | `project:${string}`;
 
 /** Lists that were folded into Inbox (Anytime, Someday). */
 export const normalizeList = (id: ListId): ListId => (id === "all" || id === "someday" ? "inbox" : id);
@@ -16,7 +16,7 @@ export const normalizeList = (id: ListId): ListId => (id === "all" || id === "so
 export function listTitle(id: ListId): string {
   return (
     projectOf(id) ??
-    { all: "Inbox", inbox: "Inbox", today: "Today", upcoming: "Calendar", overdue: "Overdue", someday: "Inbox", logbook: "Completed" }[id as "all"]
+    { all: "Inbox", inbox: "Inbox", today: "Today", upcoming: "Calendar", overdue: "Overdue", someday: "Inbox", logbook: "Completed", agents: "With agents" }[id as "all"]
   );
 }
 
@@ -52,6 +52,8 @@ export function tasksForList(tasks: Task[], list: ListId, today: string, nowTime
   if (list === "inbox") return tasks.filter((t) => !t.project);
   if (list === "overdue") return tasks.filter((t) => isOverdue(t, today, nowTime));
   if (list === "someday") return tasks.filter((t) => !t.done && (t.someday || t.paused));
+  // With agents: open tasks; the app keeps the ones handed to an agent.
+  if (list === "agents") return tasks.filter((t) => !t.done);
   // Someday and paused tasks stay out of the way everywhere else.
   const active = tasks.filter((t) => (!t.someday && !t.paused) || t.done);
   if (list === "today") {
