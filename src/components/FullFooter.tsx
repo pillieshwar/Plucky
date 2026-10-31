@@ -65,7 +65,7 @@ export function FullFooter({
   return (
     <footer className="full-foot" aria-label="Status">
       <div className="ff-left">
-        <button type="button" className="ff-model" onClick={onModel} title="Settings → AI model">
+        <button type="button" className="ff-model" onClick={onModel} title="Settings → Open models">
           <span className="local-dot" aria-hidden />
           <span>On this Mac · {model ?? "Add AI model"}</span>
         </button>

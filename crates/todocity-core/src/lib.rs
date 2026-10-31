@@ -23,6 +23,7 @@
 //! * [`agent_tools`] — what AI agents can do over MCP with full access.
 //! * [`clipboard_guard`] — the decision logic for the clipboard fallback.
 
+pub mod agent_llm;
 pub mod agent_log;
 pub mod agent_runs;
 pub mod agent_tools;

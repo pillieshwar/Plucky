@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, onModelDownload } from "../lib/api";
 import { formatBytes, percent } from "../lib/format";
 import type { LocalModels, ModelInfo } from "../lib/types";
+import { InfoTip } from "./InfoTip";
 
 interface Props {
   /** Called when the set of installed/active models may have changed. */
@@ -64,16 +65,14 @@ export function ModelsTab({ onChanged }: Props) {
   return (
     <div className="models">
       <p className="models-intro">
-        {anyInstalled
-          ? "Runs on this Mac. The best one you've downloaded is used."
-          : "TodoCity needs one model. It downloads once and runs on this Mac."}
+        {anyInstalled ? "Small open models that run on this Mac. The best one you have is used." : "Small open models that run on this Mac and write your tasks. Pick one."}
+        <InfoTip text="Picked from our tests of turning messages into tasks: small models do this well. They download once from Hugging Face and run offline." />
       </p>
       {errors._ && <p className="model-error">{errors._}</p>}
       {best && !best.installed && (
         <div className="model-best">
           <p>
-            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)}). TodoCity switches to it by
-            itself once it's downloaded.
+            <b>Best for your Mac: {best.name}</b> ({formatBytes(best.approx_size_mb * 1e6)})
           </p>
           {best.progress === null && (
             <button className="primary small" onClick={() => void run(best.id, () => api.downloadModel(best.id))}>
@@ -83,7 +82,7 @@ export function ModelsTab({ onChanged }: Props) {
         </div>
       )}
 
-      <h2 className="models-h">Download a model</h2>
+      <h2 className="models-h">Models</h2>
       <ul className="model-list">
         {models.map((m) => {
           const downloading = m.progress !== null;
@@ -170,7 +169,7 @@ export function ModelsTab({ onChanged }: Props) {
       </ul>
       <LocalModelsSection local={local} errors={errors} run={run} />
 
-      <p className="models-foot">Downloads come from Hugging Face and are checked before use.</p>
+
     </div>
   );
 }

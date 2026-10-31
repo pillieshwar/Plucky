@@ -28,7 +28,7 @@ const VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 /// `clientInfo.name` of TodoCity's own "Send test task".
 pub const SELF_TEST: &str = "todocity-self-test";
 
-pub const NOT_REACHABLE: &str = "TodoCity isn't accepting tasks: it isn't running, or \"Let AI agents add tasks\" is off in TodoCity → Connectors → AI agents.";
+pub const NOT_REACHABLE: &str = "TodoCity isn't accepting tasks: it isn't running, or \"Let AI agents add tasks\" is off in TodoCity → Settings → Agents.";
 const RECEIVED: &str =
     "Sent to TodoCity. The user will review it there before it's added to their tasks.";
 

@@ -7,7 +7,11 @@
 //! weren't there before are considered; a cheap keyword check skips most of
 //! them, and the rest go to the on-device model, which returns zero to three
 //! to-dos. Those land in the review inbox; nothing joins the list without
-//! the user. The text itself is never stored, logged or sent anywhere.
+//! the user. The text itself is never stored or logged.
+//!
+//! Watch is off until the person turns it on. They pick who reads the new
+//! lines: the open model on this Mac, or an agent they already use (Claude
+//! Code, Codex…, see `watch_agent.rs`), which sends them to its AI service.
 
 // Reading other apps' windows is macOS-only; elsewhere most of this is unused.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code, unused_imports))]
@@ -59,7 +63,11 @@ pub fn skipped(s: &WatchSettings, bundle: &str) -> bool {
 const PAGE_CHANGE_LINES: usize = 80;
 /// At most one model run this often, so busy screens don't keep it busy.
 const MODEL_COOLDOWN: Duration = Duration::from_secs(12);
-/// Apps recently in front, shown in Connectors so they can be excluded.
+/// An agent is asked at most this often, so new lines arrive in batches…
+const AGENT_COOLDOWN: Duration = Duration::from_secs(45);
+/// …and at most this many times an hour, so Watch never eats a plan.
+const AGENT_PER_HOUR: usize = 40;
+/// Apps recently in front, shown in Settings → Watch so they can be excluded.
 const RECENT_APPS: usize = 10;
 
 const POLL: Duration = Duration::from_secs(3);
@@ -81,8 +89,72 @@ pub enum State {
     Paused,
     OnBattery,
     NoModel,
+    /// The agent picked to read isn't connected any more.
+    NoAgent,
     NoAccess,
     Unsupported,
+}
+
+/// Who reads new lines this time.
+enum Reader {
+    /// The open model on this Mac (its file; empty for Ollama).
+    Local(std::path::PathBuf),
+    Agent(&'static todocity_core::agent_runs::AgentCli),
+}
+
+/// When agents were asked in the last hour.
+static AGENT_CALLS: Mutex<VecDeque<Instant>> = Mutex::new(VecDeque::new());
+
+/// Whether an agent may be asked now (and note it if so).
+fn agent_allowed() -> bool {
+    let Ok(mut calls) = AGENT_CALLS.lock() else {
+        return true;
+    };
+    while calls
+        .front()
+        .is_some_and(|t| t.elapsed() > Duration::from_secs(3600))
+    {
+        calls.pop_front();
+    }
+    if calls.len() >= AGENT_PER_HOUR {
+        return false;
+    }
+    calls.push_back(Instant::now());
+    true
+}
+
+/// Who reads, per the settings, or the state to show when nobody can.
+fn reader(app: &AppHandle, s: &WatchSettings) -> Result<Reader, State> {
+    if s.reader != crate::watch_agent::LOCAL {
+        return crate::watch_agent::ready(&s.reader)
+            .map(Reader::Agent)
+            .ok_or(State::NoAgent);
+    }
+    // A downloaded model, or the developer's Ollama.
+    match app.state::<ModelManager>().active() {
+        Some(m) => Ok(Reader::Local(m.path)),
+        None if app.state::<Engine>().kind() == "ollama" => Ok(Reader::Local(Default::default())),
+        None => Err(State::NoModel),
+    }
+}
+
+/// Ask the reader for the to-dos in `new`.
+async fn ask(
+    app: &AppHandle,
+    reader: &Reader,
+    name: &str,
+    user: &[String],
+    earlier: &[String],
+    new: &[String],
+) -> Result<Vec<todocity_core::extraction::Extraction>, String> {
+    match reader {
+        Reader::Local(model) => {
+            app.state::<Engine>()
+                .find_actions(model, name, user, earlier, new)
+                .await
+        }
+        Reader::Agent(cli) => crate::watch_agent::find_actions(cli, name, user, earlier, new).await,
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -418,32 +490,30 @@ fn run(app: &AppHandle) {
             set_live(app, State::NoAccess, None);
             continue;
         }
-        // A downloaded model, or the developer's Ollama.
-        let model = match app.state::<ModelManager>().active() {
-            Some(m) => m.path,
-            None if app.state::<Engine>().kind() == "ollama" => Default::default(),
-            None => {
-                set_live(app, State::NoModel, None);
+        let who = match reader(app, &s) {
+            Ok(r) => r,
+            Err(state) => {
+                set_live(app, state, None);
                 continue;
             }
         };
-        tick(app, &s, &model, &mut windows);
+        tick(app, &s, &who, &mut windows);
     }
 }
 
 #[cfg(target_os = "macos")]
-fn tick(
-    app: &AppHandle,
-    s: &WatchSettings,
-    model: &std::path::Path,
-    windows: &mut HashMap<u64, Window>,
-) {
-    // Give the model a breather between runs on busy screens.
+fn tick(app: &AppHandle, s: &WatchSettings, who: &Reader, windows: &mut HashMap<u64, Window>) {
+    // Give the model a breather between runs on busy screens; agents are
+    // asked less often still, so new lines reach them in batches.
+    let cooldown = match who {
+        Reader::Local(_) => MODEL_COOLDOWN,
+        Reader::Agent(_) => AGENT_COOLDOWN,
+    };
     let cooling = LAST_MODEL
         .lock()
         .ok()
         .and_then(|t| *t)
-        .is_some_and(|t| t.elapsed() < MODEL_COOLDOWN);
+        .is_some_and(|t| t.elapsed() < cooldown);
     if cooling {
         return;
     }
@@ -510,19 +580,24 @@ fn tick(
         return;
     };
     let user = user_names(s, &read.bundle);
-    let engine = app.state::<Engine>();
+    if matches!(who, Reader::Agent(_)) && !agent_allowed() {
+        look.step = "resting until the next hour (agent checks are capped)".into();
+        set_look(app, look);
+        return;
+    }
     look.asked = true;
     if let Ok(mut t) = LAST_MODEL.lock() {
         *t = Some(Instant::now());
     }
-    let found = tauri::async_runtime::block_on(
-        engine.find_actions(model, &read.app, &user, &earlier, &new),
-    );
+    let found = tauri::async_runtime::block_on(ask(app, who, &read.app, &user, &earlier, &new));
     let actions = match found {
         Ok(a) => a,
         Err(e) => {
-            log::warn!("watch: model failed: {e}");
-            look.step = "the model didn't answer".into();
+            log::warn!("watch: reader failed: {e}");
+            look.step = match who {
+                Reader::Local(_) => "the model didn't answer".into(),
+                Reader::Agent(c) => format!("{} didn't answer", c.name),
+            };
             set_look(app, look);
             return;
         }
@@ -538,7 +613,7 @@ fn tick(
 }
 
 #[cfg(not(target_os = "macos"))]
-fn tick(_: &AppHandle, _: &WatchSettings, _: &std::path::Path, _: &mut HashMap<u64, Window>) {}
+fn tick(_: &AppHandle, _: &WatchSettings, _: &Reader, _: &mut HashMap<u64, Window>) {}
 
 /// Put found to-dos in the inbox; returns how many were new.
 fn deliver(
@@ -613,6 +688,8 @@ pub struct Status {
     /// Apps that are never read, whatever the settings.
     pub always_skipped: Vec<(&'static str, &'static str)>,
     pub live: Live,
+    /// Agents Watch can send to, and which are connected.
+    pub readers: Vec<crate::watch_agent::Reader>,
 }
 
 fn status(app: &AppHandle) -> Status {
@@ -630,6 +707,7 @@ fn status(app: &AppHandle) -> Status {
         settings: app.state::<Settings>().get().watch,
         always_skipped: ALWAYS_SKIP.to_vec(),
         live,
+        readers: crate::watch_agent::readers(),
     }
 }
 
@@ -644,6 +722,9 @@ pub struct Change {
     /// Your name: "*" for every app, or by bundle id.
     #[serde(default)]
     pub names: std::collections::BTreeMap<String, String>,
+    /// "local", or an agent id.
+    #[serde(default)]
+    pub reader: Option<String>,
 }
 
 /// "Check this conversation": look at the last few messages of the watched
@@ -651,28 +732,24 @@ pub struct Change {
 #[tauri::command]
 pub async fn watch_check_now(app: AppHandle) -> Result<String, String> {
     let s = app.state::<Settings>().get().watch;
-    let model = match app.state::<ModelManager>().active() {
-        Some(m) => m.path,
-        None if app.state::<Engine>().kind() == "ollama" => Default::default(),
-        None => return Err("Download a model in the Models tab first.".into()),
-    };
+    let who = reader(&app, &s).map_err(|state| match state {
+        State::NoAgent => "Connect the agent Watch sends to in Settings → Agents.".to_string(),
+        _ => "Add an open model in Settings → Open models, or pick an agent in Settings → Watch."
+            .to_string(),
+    })?;
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (s, model);
+        let _ = (s, who);
         Err("Watching is available on macOS.".into())
     }
     #[cfg(target_os = "macos")]
     {
-        check_now_mac(&app, &s, &model).await
+        check_now_mac(&app, &s, &who).await
     }
 }
 
 #[cfg(target_os = "macos")]
-async fn check_now_mac(
-    app: &AppHandle,
-    s: &WatchSettings,
-    model: &std::path::Path,
-) -> Result<String, String> {
+async fn check_now_mac(app: &AppHandle, s: &WatchSettings, who: &Reader) -> Result<String, String> {
     let settings = s.clone();
     let read = tauri::async_runtime::spawn_blocking(move || {
         crate::capture::front_window_text(&|b: &str| !skipped(&settings, b), MAX_NODES, READ_BUDGET)
@@ -695,10 +772,7 @@ async fn check_now_mac(
         ));
     };
     let user = user_names(s, &read.bundle);
-    let actions = app
-        .state::<Engine>()
-        .find_actions(model, &read.app, &user, &earlier, &new)
-        .await?;
+    let actions = ask(app, who, &read.app, &user, &earlier, &new).await?;
     let found = actions.len();
     let added = deliver(app, true, &read.app, &read.title, actions);
     Ok(match (found, added) {
@@ -738,6 +812,14 @@ pub fn watch_set(app: AppHandle, change: Change) -> Status {
             .collect();
         if !change.enabled {
             s.watch.paused_until = None;
+        }
+        if let Some(r) = &change.reader {
+            let known = r == crate::watch_agent::LOCAL
+                || (todocity_core::agent_runs::cli(r).is_some()
+                    && todocity_core::agent_llm::can_watch(r));
+            if known {
+                s.watch.reader = r.clone();
+            }
         }
     });
     let _ = app.emit("watch-changed", ());

@@ -42,6 +42,19 @@ jobs:
           - name: Qwen3 4B Instruct
             repo: unsloth/Qwen3-4B-Instruct-2507-GGUF
             file: Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+          # Small candidates (0.4.68): is there a good model under 2 GB?
+          - name: LFM2.5 1.2B Instruct
+            repo: LiquidAI/LFM2.5-1.2B-Instruct-GGUF
+            file: LFM2.5-1.2B-Instruct-Q4_K_M.gguf
+          - name: Qwen3.5 2B (unsloth)
+            repo: unsloth/Qwen3.5-2B-GGUF
+            file: Qwen3.5-2B-Q4_K_M.gguf
+          - name: Qwen3.5 2B (bartowski)
+            repo: bartowski/Qwen_Qwen3.5-2B-GGUF
+            file: Qwen_Qwen3.5-2B-Q4_K_M.gguf
+          - name: Llama 3.2 1B
+            repo: bartowski/Llama-3.2-1B-Instruct-GGUF
+            file: Llama-3.2-1B-Instruct-Q4_K_M.gguf
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

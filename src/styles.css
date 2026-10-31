@@ -3365,3 +3365,29 @@ button.tf-chip { cursor: pointer; }
   background: #1b1a18; color: #e8e6e1; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
 }
 .transcript-note { padding: 10px 12px; border-radius: 9px; background: var(--panel); }
+
+.agent-logo { object-fit: contain; background: transparent; border-radius: 6px; }
+
+/* (i) tooltips: the long story, only when asked for. */
+.info-tip { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+.info-btn {
+  width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint);
+  display: grid; place-items: center; cursor: help;
+}
+.info-btn:hover, .info-btn:focus-visible, .info-btn[aria-expanded="true"] { color: var(--teal); }
+.info-pop {
+  position: fixed; z-index: 80; width: max-content; max-width: 300px;
+  padding: 8px 10px; border-radius: 8px; background: var(--ink); color: var(--paper);
+  font-size: 12px; font-weight: 400; line-height: 1.45; letter-spacing: 0; text-transform: none; white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+.set-subhead { display: flex; align-items: center; margin: 22px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.agents-page .agent-app-head { display: flex; align-items: center; gap: 10px; }
+.agents-page .agent-app-name { flex: 1; min-width: 0; }
+.watch-send { align-items: center; }
+.watch-reader { display: inline-flex; align-items: center; gap: 8px; }
+.watch-reader select {
+  min-width: 200px; min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--paper); color: var(--ink); font: inherit; font-size: 13px;
+}

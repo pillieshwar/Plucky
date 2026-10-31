@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
 import type { AppSettings, Theme, BackupInfo, LookSettings, NotificationPermission, Status, UpdateStatus } from "../lib/types";
 import { lookOf } from "../lib/look";
+import { InfoTip } from "./InfoTip";
 
 interface SettingsProps {
   settings: AppSettings | null;
@@ -31,24 +32,31 @@ export function Toggle({
   onChange,
   label,
   hint,
+  info,
   disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
   hint?: string;
+  /** More about it, in an (i) tooltip beside the label. */
+  info?: string;
   disabled?: boolean;
 }) {
   return (
     <label className={disabled ? "toggle-row disabled" : "toggle-row"}>
       <span className="toggle-text">
-        <span className="toggle-label">{label}</span>
+        <span className="toggle-label">
+          {label}
+          {info && <InfoTip text={info} label={`About ${label}`} />}
+        </span>
         {hint && <span className="toggle-hint">{hint}</span>}
       </span>
       <input
         type="checkbox"
         role="switch"
         className="switch"
+        aria-label={info ? label : undefined}
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}

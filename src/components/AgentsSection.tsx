@@ -4,15 +4,28 @@ import type { AgentApp, AgentChange, AgentsStatus } from "../lib/types";
 import { EmailTasksSection } from "./EmailTasksSection";
 import { Toggle } from "./GeneralSettings";
 import { safeLocale } from "../lib/locale";
+import { InfoTip } from "./InfoTip";
+import { AgentTile } from "./AgentPanel";
 
 type Run = (action: () => Promise<AgentsStatus>, connected?: string[]) => Promise<void>;
 
-/** Connectors → AI agents: on/off, the AI apps on this Mac, a test. */
-export function AgentsSection({ status, onStatus }: { status: AgentsStatus | null; onStatus: (s: AgentsStatus) => void }) {
+/**
+ * Settings → Agents: the agents and AI apps on this Mac, connected to
+ * TodoCity's MCP server in one click, and what they may do with tasks.
+ */
+export function AgentsPage() {
+  const [status, setStatus] = useState<AgentsStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [test, setTest] = useState<{ ok: boolean; text: string } | "running" | null>(null);
+  useEffect(() => {
+    const load = () => void api.agentsStatus().then(setStatus).catch(() => undefined);
+    load();
+    const sub = onAgentChanges(load);
+    return () => void sub.then((u) => u());
+  }, []);
   if (!status) return null;
-  if (!status.supported) return <p className="setting-line muted">AI agents are available on macOS.</p>;
+  if (!status.supported) return <p className="setting-line muted">Agents are available on macOS.</p>;
+  const onStatus = setStatus;
 
   async function runTest() {
     setTest("running");
@@ -24,15 +37,11 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
   }
 
   return (
-    <div className="connector-body-inner">
+    <section className="settings-section agents-page">
       <div className="card-stack">
         <Toggle
-          label="Let AI agents on this Mac add tasks"
-          hint={
-            status.full_access
-              ? "Connected agents work with your tasks directly (Full access is on, below)."
-              : "Their tasks wait in the menu bar until you add them. With add-only access, agents can't read, change or delete your tasks."
-          }
+          label="Agents can add tasks"
+          info="Tasks they send wait in the menu bar until you add them."
           checked={status.enabled}
           onChange={(v) =>
             void api
@@ -43,7 +52,7 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
         />
         <Toggle
           label="Full access"
-          hint={`Agents can read, add, change, schedule, complete and delete your tasks, sub-tasks, reminders, projects and sections — ${status.tool_count} tools in all, with no review. They may send what they read to their AI service, as with anything you share with them. Daily backups are in Settings → Backups & export.`}
+          info={`Agents can read, add, change, schedule, complete and delete tasks, projects and sections (${status.tool_count} tools). Everything they do is marked and can be undone. What they read goes to their AI service.`}
           checked={status.full_access}
           disabled={!status.enabled}
           onChange={(v) =>
@@ -54,8 +63,8 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
           }
         />
         <Toggle
-          label="Let agents suggest tasks on their own"
-          hint="When you mention a deadline or say “remind me”, agents send it to TodoCity without being asked — you still approve each one. In Claude Code this adds a small TodoCity subagent."
+          label="Suggest tasks on their own"
+          info="When you mention a deadline or say “remind me”, agents send it without being asked. You still approve each one."
           checked={status.proactive}
           disabled={!status.enabled}
           onChange={(v) =>
@@ -67,45 +76,31 @@ export function AgentsSection({ status, onStatus }: { status: AgentsStatus | nul
         />
       </div>
 
-      {status.full_access && <AgentDeletes onError={setError} />}
-
       {status.temporary_location && (
         <div className="setting-line">
           <span className="dot warn" aria-hidden />
-          <span className="setting-line-text">
-            Move TodoCity to your Applications folder and open it from there — apps connect to it where it is now.
-          </span>
+          <span className="setting-line-text">Move TodoCity to Applications and open it from there to connect agents.</span>
         </div>
       )}
 
-      <h4 className="connector-subhead">Your AI apps</h4>
+      <h3 className="set-subhead" id="agents-list">
+        Your agents
+        <InfoTip text="Connect adds TodoCity's MCP server to that agent's settings. Agents started from TodoCity's agent panel are connected for you." />
+      </h3>
       <AgentAppList status={status} onStatus={onStatus} onError={setError} />
 
       <div className="agent-test">
         <button type="button" className="ghost small" disabled={test === "running" || !status.enabled} onClick={() => void runTest()}>
-          {test === "running" ? "Testing…" : "Send test task"}
+          {test === "running" ? "Testing…" : "Test the connection"}
         </button>
-        <span className={test && test !== "running" ? (test.ok ? "agent-test-result ok" : "agent-test-result error") : "agent-test-result"}>
-          {test && test !== "running"
-            ? test.text
-            : status.enabled
-              ? "Checks the connection without adding anything."
-              : "Turn on agent access to test it."}
-        </span>
+        {test && test !== "running" && <span className={test.ok ? "agent-test-result ok" : "agent-test-result error"}>{test.text}</span>}
       </div>
 
+      {status.full_access && <AgentDeletes onError={setError} />}
       {status.enabled && <EmailTasksSection locale={safeLocale()} />}
-
       <ManualSetup command={status.command} onError={setError} />
-
-      <div className="setting-line">
-        <span className="dot ok" aria-hidden />
-        <span className="setting-line-text muted">
-          Runs only on this Mac over MCP — nothing goes through the internet, and apps in the cloud can't reach it.
-        </span>
-      </div>
       {error && <p className="rem-error">{error}</p>}
-    </div>
+    </section>
   );
 }
 
@@ -148,10 +143,7 @@ export function AgentAppList({
 
   if (installed.length === 0) {
     return (
-      <p className="setting-line muted">
-        No AI apps found on this Mac. TodoCity works with {status.apps.map((a) => a.name).join(", ")} — install one, then
-        come back here.
-      </p>
+      <p className="setting-line muted">Install one of these to connect it: {status.apps.map((a) => a.name).join(", ")}.</p>
     );
   }
 
@@ -209,6 +201,7 @@ function AppRow({
   return (
     <li className="agent-app-row">
       <div className="agent-app-head">
+        <AgentTile agent={app.id} size={28} />
         <span className="agent-app-name">
           <b>{app.name}</b>
           {app.connected && !app.stale && <span className="agent-ok">✓ Connected</span>}
@@ -224,13 +217,13 @@ function AppRow({
           </button>
         )}
       </div>
-      {fresh && <p className="agent-app-hint">{app.restart_hint}</p>}
+      {fresh && <p className="agent-app-hint">Connected. {app.restart_hint}</p>}
     </li>
   );
 }
 
 /** For apps TodoCity doesn't know: the command and JSON to paste. */
-function ManualSetup({ command, onError }: { command: string; onError: (m: string | null) => void }) {
+export function ManualSetup({ command, onError }: { command: string; onError: (m: string | null) => void }) {
   const [copied, setCopied] = useState<string | null>(null);
   const quoted = `"${command}"`;
   const generic = JSON.stringify({ mcpServers: { todocity: { command, args: ["--mcp"] } } }, null, 2);

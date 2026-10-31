@@ -90,7 +90,8 @@ pub struct CallReply {
 }
 
 /// Turned off, or not set up: what agents are told.
-pub const FULL_ACCESS_OFF: &str = "Full access is off. The user can turn it on in TodoCity → Settings → Connectors → AI agents → Full access.";
+pub const FULL_ACCESS_OFF: &str =
+    "Full access is off. The user can turn it on in TodoCity → Settings → Agents → Full access.";
 
 /// Run a full-access tool for an agent, then refresh what the change touches.
 fn on_call(app: &AppHandle, call: ToolCall) -> CallReply {

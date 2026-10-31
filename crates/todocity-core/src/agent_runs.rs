@@ -44,10 +44,23 @@ pub struct AgentCli {
     pub name: &'static str,
     /// The command it's started with.
     pub binary: &'static str,
-    /// The TodoCity connector (in Settings → Connectors → AI agents) that
-    /// gives it TodoCity's MCP server for good, if it reads one. Agents
-    /// without one get the server for each session on the command line.
+    /// Other names the same command goes by (older or newer releases).
+    pub also: &'static [&'static str],
+    /// The TodoCity connector (Settings → Agents) that gives it TodoCity's
+    /// MCP server for good.
     pub connector: Option<&'static str>,
+    /// It has no flag for a first message: TodoCity pastes it in once the
+    /// agent is ready.
+    pub paste_prompt: bool,
+}
+
+impl AgentCli {
+    /// Every name its command goes by, the usual one first.
+    pub fn binaries(&self) -> Vec<&'static str> {
+        let mut v = vec![self.binary];
+        v.extend_from_slice(self.also);
+        v
+    }
 }
 
 /// Every agent the terminal knows, in the order they're offered.
@@ -56,25 +69,43 @@ pub const CLIS: &[AgentCli] = &[
         id: "claude",
         name: "Claude Code",
         binary: "claude",
+        also: &[],
         connector: Some("claude_code"),
+        paste_prompt: false,
     },
     AgentCli {
         id: "codex",
         name: "Codex",
         binary: "codex",
-        connector: None,
+        also: &[],
+        connector: Some("codex"),
+        paste_prompt: false,
+    },
+    // Google's agent; it replaced Gemini CLI for most accounts in 2026.
+    AgentCli {
+        id: "antigravity",
+        name: "Antigravity CLI",
+        binary: "agy",
+        also: &[],
+        connector: Some("antigravity"),
+        paste_prompt: true,
     },
     AgentCli {
         id: "gemini",
         name: "Gemini CLI",
         binary: "gemini",
+        also: &[],
         connector: Some("gemini_cli"),
+        paste_prompt: false,
     },
+    // Cursor's CLI is `agent` now (`cursor-agent` before).
     AgentCli {
         id: "cursor",
         name: "Cursor Agent",
         binary: "cursor-agent",
+        also: &["agent"],
         connector: Some("cursor"),
+        paste_prompt: false,
     },
 ];
 
@@ -83,7 +114,7 @@ pub fn cli(id: &str) -> Option<&'static AgentCli> {
 }
 
 /// A TOML basic string, quoted.
-fn toml_str(s: &str) -> String {
+pub fn toml_str(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -125,6 +156,8 @@ pub fn launch_args(id: &str, mcp_command: &str, prompt: Option<&str>) -> Vec<Str
                 args.push(p.into());
             }
         }
+        // Pasted in once it's ready (see `AgentCli::paste_prompt`).
+        "antigravity" => {}
         // Gemini CLI: -i runs the first message and stays interactive.
         "gemini" => {
             if let Some(p) = prompt {
@@ -627,7 +660,10 @@ mod tests {
     fn every_agent_has_a_unique_id_and_command() {
         for (i, a) in CLIS.iter().enumerate() {
             assert!(cli(a.id).is_some());
-            assert!(!a.binary.is_empty() && !a.binary.contains(' '));
+            assert!(a
+                .binaries()
+                .iter()
+                .all(|b| !b.is_empty() && !b.contains(' ')));
             assert!(CLIS[i + 1..]
                 .iter()
                 .all(|b| b.id != a.id && b.binary != a.binary));
@@ -647,6 +683,13 @@ mod tests {
         );
         assert!(launch_args("gemini", cmd, None).is_empty());
         assert_eq!(launch_args("cursor", cmd, Some("Fix it")), vec!["Fix it"]);
+        // Antigravity gets its first message pasted in instead.
+        assert!(launch_args("antigravity", cmd, Some("Fix it")).is_empty());
+        assert!(cli("antigravity").unwrap().paste_prompt);
+        assert_eq!(
+            cli("cursor").unwrap().binaries(),
+            vec!["cursor-agent", "agent"]
+        );
         let codex = launch_args("codex", cmd, Some("Fix it"));
         assert_eq!(
             codex,

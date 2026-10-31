@@ -9,6 +9,7 @@
 
 mod agent_panel;
 mod agents;
+mod app_icons;
 mod calendar;
 mod calsync;
 mod capture;
@@ -36,6 +37,7 @@ mod sync;
 mod tray;
 mod updates;
 mod watch;
+mod watch_agent;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -1780,6 +1782,7 @@ pub fn run() {
             agent_panel::term_close,
             agent_panel::pick_folder,
             agent_panel::home_folder,
+            app_icons::app_icons,
             calsync::calsync_status,
             calsync::calsync_apple_enable,
             calsync::calsync_apple_disable,

@@ -138,6 +138,7 @@ const SETTINGS = {
     show_right_away: true,
     paused_until: null,
     names: {},
+    reader: "local",
   },
 };
 
@@ -179,10 +180,13 @@ const AGENT_STATUS = {
   temporary_location: false,
   apps: [
     agentApp("claude_code", "Claude Code", true),
+    agentApp("codex", "Codex", true),
+    agentApp("antigravity", "Antigravity CLI", false),
     agentApp("claude_desktop", "Claude Desktop", true),
     agentApp("cursor", "Cursor", true),
     agentApp("vscode", "VS Code", false),
     agentApp("windsurf", "Windsurf", false),
+    agentApp("gemini_cli", "Gemini CLI", false),
     agentApp("lm_studio", "LM Studio", false),
   ],
   pending: 0,
@@ -199,7 +203,7 @@ function scenario(overrides = {}) {
     label: "panel",
     tasks: TASKS,
     settings: SETTINGS,
-    status: { accessibility: true, engine: "bundled", active_model: "Llama 3.2 3B Instruct", version: "0.2.1", platform: "macos" },
+    status: { accessibility: true, engine: "bundled", active_model: "Qwen3.5 4B", version: "0.2.1", platform: "macos" },
     update: { state: "idle" },
     agents: AGENT_STATUS,
     calsync: CALSYNC_OFF,
@@ -233,25 +237,19 @@ function mockTauri(s) {
     },
     get_shortcuts: () => s.shortcuts,
     update_status: () => s.update,
-    list_models: () => [
-      {
-        id: "llama-3.2-3b",
-        name: "Llama 3.2 3B Instruct",
-        publisher: "Meta",
-        description:
-          "The best balance of quality and speed for most Macs. Reads messages, emails and web pages well and handles dates reliably.",
-        license: "Llama 3.2 Community License",
-        repo: "x",
-        file: "x",
-        approx_size_mb: 2020,
-        min_ram_gb: 8,
-        recommended: true,
-        installed: !!s.status.active_model,
-        active: !!s.status.active_model,
-        partial_bytes: 0,
-        progress: null,
-      },
-    ],
+    list_models: () => {
+      const m = (id, name, publisher, description, mb, ram, recommended) => ({
+        id, name, publisher, description, license: "Apache 2.0", repo: "x", file: "x",
+        approx_size_mb: mb, min_ram_gb: ram, recommended,
+        installed: recommended && !!s.status.active_model, active: recommended && !!s.status.active_model,
+        partial_bytes: 0, progress: null,
+      });
+      return [
+        m("qwen3.5-4b", "Qwen3.5 4B", "Alibaba Qwen", "The best all-rounder: fast, accurate, and quiet — it rarely suggests a to-do that isn't one.", 3010, 8, true),
+        m("gemma-4-e4b", "Gemma 4 E4B", "Google", "Misses the fewest to-dos, but larger and about three times slower. For Macs with 16 GB or more.", 4980, 16, false),
+        m("qwen3.5-2b", "Qwen3.5 2B", "Alibaba Qwen", "The lightest: quick captures on smaller Macs. Suggests more to-dos that aren't when watching.", 1300, 4, false),
+      ];
+    },
     list_local_models: () => s.local ?? { added: [], found: [] },
     reminders_status: () => s.reminders ?? ({
       supported: true,
@@ -300,6 +298,12 @@ function mockTauri(s) {
       window.__emit("tasks-changed", null);
       window.__emit("agent-changes", null);
       return ids.size;
+    },
+    watch_set: (a) => {
+      window.__watchSet = a.change;
+      const now = s.watch ?? responses.watch_status();
+      s.watch = { ...now, settings: { ...now.settings, ...a.change } };
+      return s.watch;
     },
     watch_status: () =>
       s.watch ?? {
@@ -561,7 +565,7 @@ async function shot(name, size, s, steps = async () => {}, dark = false) {
 const PANEL = { width: 360, height: 720 };
 /** Settings live behind the gear; open it, then the tab. */
 /** Settings pages by their old tab names too. */
-const PAGE_NAMES = { Preferences: "General", Models: "AI model", "Data transfer": "Import Data" };
+const PAGE_NAMES = { Preferences: "General", Models: "Open models", "AI model": "Open models", Connectors: "Calendar & Reminders", "Data transfer": "Import Data" };
 const tab = async (p, name) => {
   const label = PAGE_NAMES[name] ?? name;
   const item = () => p.locator(".set-item", { hasText: new RegExp(`^.?${label}`) }).first();
@@ -1078,7 +1082,14 @@ const WATCH_ON = {
   supported: true,
   default_name: "Sam Rivera",
   model: "qwen3.5-4b",
-  settings: { ...SETTINGS.watch, enabled: true, excluded: ["com.spotify.client"], names: { "*": "Sam Rivera; Rivera, Sam" } },
+  settings: { ...SETTINGS.watch, enabled: true, reader: "claude", excluded: ["com.spotify.client"], names: { "*": "Sam Rivera; Rivera, Sam" } },
+  readers: [
+    { id: "claude", name: "Claude Code", installed: true, connected: true },
+    { id: "codex", name: "Codex", installed: true, connected: true },
+    { id: "antigravity", name: "Antigravity CLI", installed: false, connected: false },
+    { id: "gemini", name: "Gemini CLI", installed: false, connected: false },
+    { id: "cursor", name: "Cursor Agent", installed: true, connected: false },
+  ],
   always_skipped: [["com.1password.1password", "1Password"]],
   live: {
     state: "watching",
@@ -1093,14 +1104,17 @@ const WATCH_ON = {
     ],
   },
 };
-await shot("panel-connectors-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(2).click();
+await shot("panel-watch", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
+  await tab(p, "Watch");
+  const send = p.getByRole("combobox", { name: "Send to" });
+  if ((await send.inputValue()) !== "claude") throw new Error("Watch sends to Claude Code");
+  const options = await send.locator("option").allTextContents();
+  // Only connected agents, then the open model.
+  if (options.join("|") !== "Claude Code|Codex|Open model on this Mac") throw new Error(`options: ${options.join("|")}`);
 });
-await shot("panel-connectors-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(2).click();
-  await p.locator(".connector-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
+await shot("panel-watch-names", PANEL, scenario({ watch: WATCH_ON }), async (p) => {
+  await tab(p, "Watch");
+  await p.locator(".set-subhead", { hasText: "Apps" }).scrollIntoViewIfNeeded();
 });
 await shot("popover-focus-inbox", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }));
 await shot("popover-focus-inbox-dark", POP, scenario({ label: "popover", inbox: INBOX }), focus({ kind: "inbox" }), true);
@@ -1131,9 +1145,8 @@ const AGENTS_ON = {
   apps: AGENT_STATUS.apps.map((a) => (a.id === "claude_code" ? { ...a, connected: true } : a)),
 };
 await shot("panel-connectors-agents", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
-  await p.locator(".connector-subhead", { hasText: "Your AI apps" }).scrollIntoViewIfNeeded();
+  await tab(p, "Agents");
+  await p.locator(".set-subhead", { hasText: "Your agents" }).scrollIntoViewIfNeeded();
 });
 await shot(
   "panel-connectors-email",
@@ -1154,15 +1167,13 @@ await shot(
     },
   }),
   async (p) => {
-    await tab(p, "Connectors");
-    await p.locator(".connector-action").nth(3).click();
+    await tab(p, "Agents");
     await p.locator(".connector-subhead", { hasText: "Email to tasks" }).scrollIntoViewIfNeeded();
   },
 );
 await shot("panel-connectors-agents-tested", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
-  await p.getByRole("button", { name: "Send test task" }).click();
+  await tab(p, "Agents");
+  await p.getByRole("button", { name: "Test the connection" }).click();
   await p.waitForTimeout(200);
   await p.locator(".agent-test").scrollIntoViewIfNeeded();
 });
@@ -1173,8 +1184,7 @@ const DELETED_BY_AGENT = [
   { id: 42, at: localStamp(-50), agent: "Claude", batch: "b9", task_id: 901, kind: "deleted", title: "Duplicate: Send Q3 numbers", summary: "Deleted", undone: false },
 ];
 await shot("panel-connectors-agents-deleted", PANEL, scenario({ agents: AGENTS_FULL, activity: DELETED_BY_AGENT }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await tab(p, "Agents");
   const list = p.locator(".agent-deletes");
   await list.scrollIntoViewIfNeeded();
   await list.getByRole("button", { name: "Bring back" }).first().click();
@@ -1201,15 +1211,15 @@ await shot("panel-connectors-calendar-sync", PANEL, scenario({}), async (p) => {
 });
 // v0.4.63: full access for agents, behind one switch.
 await shot("panel-connectors-agents-full", PANEL, scenario({ agents: AGENTS_ON }), async (p) => {
-  await tab(p, "Connectors");
-  await p.locator(".connector-action").nth(3).click();
+  await tab(p, "Agents");
   const sw = p.getByRole("switch", { name: /^Full access/ });
   await sw.scrollIntoViewIfNeeded();
   if (await sw.isChecked()) throw new Error("Full access should start off");
   await sw.click();
   await p.waitForTimeout(200);
   if (!(await p.evaluate(() => window.__fullAccess))) throw new Error("turning on Full access didn't reach the app");
-  if (!(await p.getByText(/30 tools in all/).count())) throw new Error("the switch doesn't say what agents can do");
+  await p.getByRole("button", { name: "About Full access" }).hover();
+  await p.getByRole("tooltip", { name: /30 tools/ }).waitFor();
   if (await p.getByText(/never (read|see)/i).count()) throw new Error("an old 'never read' claim is still showing");
 });
 await shot("quick-empty", QUICK, scenario({ label: "quick" }));
@@ -1310,6 +1320,20 @@ await shot("full-who-you", FULL, agentsFull({ settings: LIGHT }), async (p) => {
   await who("You")(p);
   if (await p.locator(".task.by-agent").count()) throw new Error("You hides agents' tasks");
   await p.locator(".who-hint").waitFor();
+});
+// v0.4.68: Watch sends to a connected agent.
+await shot("full-watch-info", FULL, full({ settings: LIGHT, watch: WATCH_ON }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await tab(p, "Watch");
+  await p.getByRole("button", { name: "About where Watch sends" }).hover();
+  await p.getByRole("tooltip", { name: /go to Claude Code/ }).waitFor();
+});
+await shot("full-watch-no-agents", FULL, full({ settings: LIGHT, watch: { ...WATCH_ON, settings: { ...WATCH_ON.settings, reader: "local" }, readers: WATCH_ON.readers.map((r) => ({ ...r, connected: false })) } }), async (p) => {
+  await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
+  await tab(p, "Watch");
+  await p.getByText("Connect an agent to send Watch to it.").waitFor();
+  await p.locator(".watch-page").getByRole("button", { name: "Agents", exact: true }).click();
+  await p.locator(".set-subhead", { hasText: "Your agents" }).waitFor();
 });
 // v0.4.66: the agent panel, and tasks sent to agents.
 const TODAY_OPEN = FULL_TASKS.filter((t) => t.due_date === day(0) && !t.done);
@@ -1473,7 +1497,7 @@ await shot("full-who-setup", FULL, full({ settings: LIGHT, tasks: AGENT_FULL_TAS
 await shot("full-who-setup-go", FULL, full({ settings: LIGHT }), async (p) => {
   await who("Agents")(p);
   await p.getByRole("button", { name: "Set up AI agents" }).click();
-  await p.locator(".connector-subhead", { hasText: "Your AI apps" }).waitFor();
+  await p.locator(".set-subhead", { hasText: "Your agents" }).waitFor();
 });
 
 // Modes: the work laptop in Work mode shows only work projects.
@@ -1570,7 +1594,7 @@ await shot("full-settings", FULL, full({ settings: DARK }), async (p) => {
   await p.locator(".sidebar").getByRole("button", { name: /^Settings/ }).click();
   await p.waitForTimeout(200);
 });
-for (const [name, page] of [["notifications", "Notifications"], ["capture", "Capture & shortcuts"], ["city", "Your city"], ["sync", "Your other Macs"], ["connectors", "Connectors"], ["help", "Help"], ["backups", "Backups & export"]]) {
+for (const [name, page] of [["notifications", "Notifications"], ["capture", "Capture & shortcuts"], ["city", "Your city"], ["sync", "Your other Macs"], ["connectors", "Calendar & Reminders"], ["agents", "Agents"], ["watch", "Watch"], ["models", "Open models"], ["help", "Help"], ["backups", "Backups & export"]]) {
   await shot(`full-settings-${name}`, FULL, full({ settings: DARK }), async (p) => await tab(p, page));
 }
 await shot("full-customize", FULL, full({ settings: DARK }), async (p) => {

@@ -233,6 +233,9 @@ pub struct WatchSettings {
     /// in Slack, "Rivera, Sam" in Outlook). Alternatives separated by
     /// commas, or semicolons when a name has a comma.
     pub names: std::collections::BTreeMap<String, String>,
+    /// Who reads the new messages: "local" (the open model on this Mac) or
+    /// an agent id ("claude", "codex"…) the person picked in Watch.
+    pub reader: String,
 }
 
 impl Default for WatchSettings {
@@ -245,6 +248,7 @@ impl Default for WatchSettings {
             show_right_away: true,
             paused_until: None,
             names: Default::default(),
+            reader: "local".into(),
         }
     }
 }

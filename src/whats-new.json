@@ -1,4 +1,11 @@
 {
+  "0.4.68": [
+    "Watch can send to the agent you already use: pick Claude Code, Codex, Antigravity, Gemini or Cursor in Settings → Watch, or keep an open model on your Mac",
+    "Agents have their own page in Settings: connect Claude Code, Codex, Antigravity CLI, Cursor and more to TodoCity in one click",
+    "Agents show their own app icons in Settings and in the agent panel",
+    "Settings is tidier: AI has its own group (Agents, Watch, Open models), with the details behind small (i) buttons",
+    "Open models lists just the few small models that do this job best"
+  ],
   "0.4.67": [
     "Hand any task to an agent from its line: point at it and click the agent button on the right, then press Return",
     "With agents, in the sidebar: everything you've handed off, grouped by what needs you, what's ready to review and what's still going",
