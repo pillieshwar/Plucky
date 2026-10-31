@@ -144,7 +144,7 @@ export function TaskList(props: Props) {
           <h2 className={props.plain ? "day sr-only" : "day"}>
             {g.label}
             <span className="count">{g.tasks.length}</span>
-            {g.tone === "overdue" && (
+            {g.key === "overdue" && g.tone === "overdue" && (
               <button
                 type="button"
                 className="day-action"

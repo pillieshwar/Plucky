@@ -1425,6 +1425,7 @@ await shot("full-agents-list", FULL, runsFull({ settings: LIGHT }), async (p) =>
   await side("With agents")(p);
   for (const g of ["Needs you", "Ready to review", "Working"]) await p.locator(".group-title, h2, h3", { hasText: g }).first().waitFor();
   if ((await p.locator(".task").count()) !== 3) throw new Error("only tasks with agents");
+  if (await p.locator(".day-action", { hasText: "Move all to today" }).count()) throw new Error("no Move all on Needs you");
 });
 await shot("full-agents-list-dark", FULL, runsFull({ settings: DARK }), side("With agents"), true);
 await shot("full-agents-row-button", FULL, agentsFull({ settings: LIGHT }), async (p) => {
